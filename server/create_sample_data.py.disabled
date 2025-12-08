@@ -1,0 +1,140 @@
+#!/usr/bin/env python
+"""
+⚠️ WARNING: DEVELOPMENT ONLY - DO NOT USE IN PRODUCTION ⚠️
+
+This script creates sample/mock data for development and testing purposes only.
+It should NEVER be executed in a production environment as it will populate
+the database with fake data.
+
+For production environments:
+1. Use real data migration scripts
+2. Import data from the Sadhu database
+3. Follow the data initialization guide in README.md
+
+This file has been disabled by renaming it to .disabled extension.
+To use it in development, rename it back to .py extension.
+
+Create sample data for SLMS
+"""
+import os
+import django
+from datetime import datetime, timedelta
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'slms_core.settings')
+django.setup()
+
+from apps.departments.models import Department
+from apps.students.models import Student
+from apps.alumni.models import Alumni
+from apps.applications.models import Application
+from apps.documents.models import Document
+
+def create_sample_data():
+    """Create sample data for testing"""
+    
+    print("Creating sample data...")
+    
+    # Create departments
+    dept_cse, _ = Department.objects.get_or_create(
+        code='CSE',
+        defaults={'name': 'Computer Science & Engineering'}
+    )
+    dept_eee, _ = Department.objects.get_or_create(
+        code='EEE',
+        defaults={'name': 'Electrical & Electronic Engineering'}
+    )
+    dept_civil, _ = Department.objects.get_or_create(
+        code='CIVIL',
+        defaults={'name': 'Civil Engineering'}
+    )
+    
+    print("✅ Departments created")
+    
+    # Create students
+    for i in range(5):
+        Student.objects.get_or_create(
+            currentRollNumber=f'CSE-{2024}-{i+1:03d}',
+            defaults={
+                'fullNameBangla': f'শিক্ষার্থী {i+1}',
+                'fullNameEnglish': f'Student {i+1}',
+                'fatherName': f'Father {i+1}',
+                'fatherNID': f'123456789{i}',
+                'motherName': f'Mother {i+1}',
+                'motherNID': f'987654321{i}',
+                'dateOfBirth': datetime.now().date() - timedelta(days=365*20),
+                'birthCertificateNo': f'BC-{i+1}',
+                'gender': 'Male' if i % 2 == 0 else 'Female',
+                'mobileStudent': f'0170000000{i}',
+                'guardianMobile': f'0180000000{i}',
+                'email': f'student{i+1}@example.com',
+                'emergencyContact': f'Emergency {i+1}',
+                'presentAddress': {'city': 'Dhaka', 'country': 'Bangladesh'},
+                'permanentAddress': {'city': 'Dhaka', 'country': 'Bangladesh'},
+                'highestExam': 'HSC',
+                'board': 'Dhaka',
+                'group': 'Science',
+                'rollNumber': f'{i+1}',
+                'registrationNumber': f'REG-{i+1}',
+                'passingYear': 2022,
+                'gpa': 3.5 + (i * 0.1),
+                'currentRollNumber': f'CSE-{2024}-{i+1:03d}',
+                'currentRegistrationNumber': f'REG-CSE-{i+1}',
+                'semester': (i % 8) + 1,
+                'department': dept_cse,
+                'session': '2024',
+                'shift': 'Morning',
+                'currentGroup': 'A',
+                'status': 'active' if i < 4 else 'graduated',
+                'enrollmentDate': datetime.now().date() - timedelta(days=365),
+            }
+        )
+    
+    print("✅ Students created")
+    
+    # Create alumni
+    graduated_students = Student.objects.filter(status='graduated')
+    for student in graduated_students:
+        Alumni.objects.get_or_create(
+            student=student,
+            defaults={
+                'alumniType': 'recent',
+                'graduationYear': 2024,
+                'currentSupportCategory': 'no_support_needed',
+                'currentPosition': {
+                    'company': 'Tech Company',
+                    'position': 'Software Engineer',
+                    'startDate': '2024-01-01'
+                }
+            }
+        )
+    
+    print("✅ Alumni created")
+    
+    # Create applications
+    for i in range(3):
+        Application.objects.get_or_create(
+            id=f'app-{i}',
+            defaults={
+                'fullNameBangla': f'আবেদনকারী {i+1}',
+                'fullNameEnglish': f'Applicant {i+1}',
+                'fatherName': f'Father {i+1}',
+                'motherName': f'Mother {i+1}',
+                'department': 'CSE',
+                'session': '2024',
+                'shift': 'Morning',
+                'rollNumber': f'CSE-2024-{i+1:03d}',
+                'registrationNumber': f'REG-CSE-{i+1}',
+                'email': f'applicant{i+1}@example.com',
+                'applicationType': ['Testimonial', 'Certificate', 'Transcript'][i],
+                'subject': f'Application for {["Testimonial", "Certificate", "Transcript"][i]}',
+                'message': f'I am requesting a {["Testimonial", "Certificate", "Transcript"][i]}',
+                'status': ['pending', 'approved', 'rejected'][i],
+            }
+        )
+    
+    print("✅ Applications created")
+    
+    print("\n✅ Sample data created successfully!")
+
+if __name__ == '__main__':
+    create_sample_data()

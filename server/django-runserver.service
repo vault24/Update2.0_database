@@ -1,0 +1,15 @@
+[Unit]
+Description=Django Runserver (Dev/Local)
+After=network.target
+
+[Service]
+User=ubuntu
+Group=www-data
+WorkingDirectory=/home/ubuntu/sipi-backend
+Environment="PATH=/home/ubuntu/sipi-backend/venv/bin"
+ExecStart=/home/ubuntu/sipi-backend/venv/bin/python manage.py runserver 0.0.0.0:8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
