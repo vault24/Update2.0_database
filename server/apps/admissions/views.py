@@ -51,8 +51,8 @@ class AdmissionViewSet(viewsets.ModelViewSet):
     
     def get_permissions(self):
         """Set permissions based on action"""
-        if self.action in ['create', 'my_admission']:
-            # Students and captains can submit and view their own admission
+        if self.action in ['create', 'my_admission', 'save_draft', 'get_draft', 'clear_draft']:
+            # Students and captains can submit, view, and manage drafts
             return [permissions.IsAuthenticated()]
         else:
             # Admin actions require staff permissions
@@ -63,12 +63,19 @@ class AdmissionViewSet(viewsets.ModelViewSet):
         Submit admission application
         POST /api/admissions/
         """
-        # Check if user already has an admission
-        if hasattr(request.user, 'admission'):
+        # Check if user already has a submitted admission (not draft)
+        existing_admission = Admission.objects.filter(
+            user=request.user,
+            is_draft=False
+        ).first()
+        
+        if existing_admission:
+            # Return existing admission instead of error
+            response_serializer = AdmissionDetailSerializer(existing_admission)
             return Response({
-                'error': 'Admission already submitted',
-                'details': 'You have already submitted an admission application'
-            }, status=status.HTTP_400_BAD_REQUEST)
+                'message': 'Admission already submitted',
+                'admission': response_serializer.data
+            }, status=status.HTTP_200_OK)
         
         # Check if user role is student or captain
         if request.user.role not in ['student', 'captain']:
@@ -76,6 +83,9 @@ class AdmissionViewSet(viewsets.ModelViewSet):
                 'error': 'Invalid role',
                 'details': 'Only students and captains can submit admission applications'
             }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Clear any existing draft
+        Admission.objects.filter(user=request.user, is_draft=True).delete()
         
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -88,11 +98,11 @@ class AdmissionViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def my_admission(self, request):
         """
-        Get current user's admission
+        Get current user's admission (submitted, not draft)
         GET /api/admissions/my-admission/
         """
         try:
-            admission = request.user.admission
+            admission = Admission.objects.get(user=request.user, is_draft=False)
             serializer = AdmissionDetailSerializer(admission)
             return Response(serializer.data)
         except Admission.DoesNotExist:
@@ -100,6 +110,89 @@ class AdmissionViewSet(viewsets.ModelViewSet):
                 'error': 'No admission found',
                 'details': 'You have not submitted an admission application yet'
             }, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=False, methods=['post'], url_path='save-draft')
+    def save_draft(self, request):
+        """
+        Save admission form draft
+        POST /api/admissions/save-draft/
+        
+        Request body:
+        {
+            "draft_data": {...},  // Form data
+            "current_step": 1     // Current step number
+        }
+        """
+        draft_data = request.data.get('draft_data', {}) or {}
+        current_step = int(request.data.get('current_step', 1) or 1)
+
+        stored_draft = {
+            'formData': draft_data,
+            'current_step': current_step,
+        }
+        
+        # Get or create draft admission for user
+        admission, created = Admission.objects.get_or_create(
+            user=request.user,
+            is_draft=True,
+            defaults={
+                'draft_data': stored_draft,
+                'draft_updated_at': timezone.now()
+            }
+        )
+        
+        if not created:
+            # Update existing draft
+            admission.draft_data = stored_draft
+            admission.draft_updated_at = timezone.now()
+            admission.save()
+        
+        return Response({
+            'id': str(admission.id),
+            'draft_data': stored_draft.get('formData', {}),
+            'current_step': stored_draft.get('current_step', current_step),
+            'saved_at': admission.draft_updated_at.isoformat() if admission.draft_updated_at else None
+        }, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=['get'], url_path='get-draft')
+    def get_draft(self, request):
+        """
+        Retrieve admission form draft
+        GET /api/admissions/get-draft/
+        """
+        try:
+            admission = Admission.objects.get(user=request.user, is_draft=True)
+            stored_draft = admission.draft_data or {}
+            form_data = stored_draft.get('formData', stored_draft) or {}
+            current_step = stored_draft.get('current_step') or stored_draft.get('currentStep') or 1
+            return Response({
+                'id': str(admission.id),
+                'draft_data': form_data,
+                'current_step': current_step,
+                'saved_at': admission.draft_updated_at.isoformat() if admission.draft_updated_at else None
+            }, status=status.HTTP_200_OK)
+        except Admission.DoesNotExist:
+            return Response({
+                'error': 'No draft found',
+                'details': 'You have not saved any draft yet'
+            }, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=False, methods=['delete'], url_path='clear-draft')
+    def clear_draft(self, request):
+        """
+        Clear admission form draft
+        DELETE /api/admissions/clear-draft/
+        """
+        try:
+            admission = Admission.objects.get(user=request.user, is_draft=True)
+            admission.delete()
+            return Response({
+                'message': 'Draft cleared successfully'
+            }, status=status.HTTP_200_OK)
+        except Admission.DoesNotExist:
+            return Response({
+                'message': 'No draft to clear'
+            }, status=status.HTTP_200_OK)
     
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):

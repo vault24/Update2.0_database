@@ -41,7 +41,51 @@ class RoleBasedAccessMiddleware:
         if request.user.is_superuser:
             return self.get_response(request)
         
-        # Check access rules
+        # Debug logging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Middleware check - Path: {request.path}, Method: {request.method}, User: {request.user.username}, Role: {request.user.role}")
+        
+        # Special handling for admissions endpoint
+        # Allow students/captains to POST (submit) and GET their own admission/draft
+        # Allow admins to access all admission endpoints
+        if request.path.startswith('/api/admissions/'):
+            logger.info(f"Admissions endpoint accessed by {request.user.username} with role {request.user.role}")
+
+            # Allow admins full access
+            if request.user.role in ['registrar', 'institute_head']:
+                logger.info(f"Admin access granted to {request.user.username}")
+                return self.get_response(request)
+
+            # Student/captain access rules
+            if request.user.role in ['student', 'captain']:
+                # Submit application
+                if request.method == 'POST' and request.path == '/api/admissions/':
+                    logger.info(f"Student POST access granted to {request.user.username}")
+                    return self.get_response(request)
+
+                # View own submitted admission (support both dash and underscore)
+                if request.path in ['/api/admissions/my-admission/', '/api/admissions/my_admission/']:
+                    logger.info(f"Student my-admission access granted to {request.user.username}")
+                    return self.get_response(request)
+
+                # Draft endpoints
+                if request.path in [
+                    '/api/admissions/save-draft/',
+                    '/api/admissions/get-draft/',
+                    '/api/admissions/clear-draft/',
+                ]:
+                    logger.info(f"Student draft access granted to {request.user.username} on {request.method} {request.path}")
+                    return self.get_response(request)
+
+            # If none of the above conditions matched, deny access
+            logger.warning(f"Access denied to {request.user.username} with role {request.user.role}")
+            return JsonResponse({
+                'error': 'Access denied',
+                'detail': f'You do not have permission to access this resource. Your role: {request.user.role}'
+            }, status=403)
+        
+        # Check access rules for other endpoints
         path = request.path
         for pattern, allowed_roles in self.access_rules.items():
             if path.startswith(pattern):
