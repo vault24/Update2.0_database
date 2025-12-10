@@ -11,14 +11,14 @@ from .validators import (
     validate_semester_results_structure,
     validate_semester_attendance_structure
 )
-from apps.departments.serializers import DepartmentSerializer
+from apps.departments.serializers import DepartmentListSerializer, DepartmentSerializer
 
 
 class StudentListSerializer(serializers.ModelSerializer):
     """
     Lightweight serializer for list views
     """
-    department = DepartmentSerializer(read_only=True)
+    department = DepartmentListSerializer(read_only=True)
     
     class Meta:
         model = Student
@@ -38,7 +38,7 @@ class StudentDetailSerializer(serializers.ModelSerializer):
     """
     Complete serializer with all fields and nested data
     """
-    department = DepartmentSerializer(read_only=True)
+    department = DepartmentListSerializer(read_only=True)
     
     class Meta:
         model = Student

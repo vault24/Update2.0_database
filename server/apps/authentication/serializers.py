@@ -4,7 +4,8 @@ Authentication Serializers
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
-from .models import User
+from django.contrib.auth.hashers import make_password
+from .models import User, SignupRequest
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -131,6 +132,26 @@ class LoginSerializer(serializers.Serializer):
             )
             
             if not user:
+                # Check if there's a pending or rejected signup request
+                try:
+                    signup_request = SignupRequest.objects.get(username=username)
+                    if signup_request.status == 'pending':
+                        raise serializers.ValidationError(
+                            'Your signup request is pending approval. Please wait for admin review.',
+                            code='authorization'
+                        )
+                    elif signup_request.status == 'rejected':
+                        rejection_msg = 'Your signup request has been rejected.'
+                        if signup_request.rejection_reason:
+                            rejection_msg += f' Reason: {signup_request.rejection_reason}'
+                        raise serializers.ValidationError(
+                            rejection_msg,
+                            code='authorization'
+                        )
+                except SignupRequest.DoesNotExist:
+                    pass
+                
+                # Default error message
                 raise serializers.ValidationError(
                     'Invalid username or password',
                     code='authorization'
@@ -198,3 +219,170 @@ class ChangePasswordSerializer(serializers.Serializer):
         if not user.check_password(value):
             raise serializers.ValidationError('Old password is incorrect')
         return value
+
+
+
+class SignupRequestSerializer(serializers.ModelSerializer):
+    """
+    Serializer for creating signup requests
+    """
+    password = serializers.CharField(
+        write_only=True,
+        required=True,
+        validators=[validate_password],
+        style={'input_type': 'password'}
+    )
+    password_confirm = serializers.CharField(
+        write_only=True,
+        required=True,
+        style={'input_type': 'password'}
+    )
+    
+    class Meta:
+        model = SignupRequest
+        fields = [
+            'username',
+            'email',
+            'password',
+            'password_confirm',
+            'first_name',
+            'last_name',
+            'requested_role',
+            'mobile_number'
+        ]
+    
+    def validate(self, attrs):
+        """Validate password confirmation"""
+        if attrs['password'] != attrs['password_confirm']:
+            raise serializers.ValidationError({
+                'password_confirm': 'Passwords do not match'
+            })
+        return attrs
+    
+    def validate_username(self, value):
+        """Check if username already exists in SignupRequest or User"""
+        if SignupRequest.objects.filter(username=value).exists():
+            raise serializers.ValidationError(
+                'A signup request with this username already exists'
+            )
+        if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError(
+                'This username is already taken'
+            )
+        return value
+    
+    def validate_email(self, value):
+        """Check if email already exists in SignupRequest or User"""
+        if SignupRequest.objects.filter(email=value).exists():
+            raise serializers.ValidationError(
+                'A signup request with this email already exists'
+            )
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError(
+                'This email is already registered'
+            )
+        return value
+    
+    def validate_requested_role(self, value):
+        """Validate requested role is an admin role"""
+        allowed_roles = ['registrar', 'institute_head']
+        if value not in allowed_roles:
+            raise serializers.ValidationError(
+                f'Invalid role. Allowed roles: {", ".join(allowed_roles)}'
+            )
+        return value
+    
+    def create(self, validated_data):
+        """Create signup request with hashed password"""
+        # Remove password_confirm from validated data
+        validated_data.pop('password_confirm')
+        
+        # Extract and hash password
+        password = validated_data.pop('password')
+        password_hash = make_password(password)
+        
+        # Create signup request
+        signup_request = SignupRequest.objects.create(
+            password_hash=password_hash,
+            **validated_data
+        )
+        
+        return signup_request
+
+
+class SignupRequestListSerializer(serializers.ModelSerializer):
+    """
+    Serializer for listing signup requests
+    """
+    reviewed_by_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = SignupRequest
+        fields = [
+            'id',
+            'username',
+            'email',
+            'first_name',
+            'last_name',
+            'requested_role',
+            'status',
+            'reviewed_by_name',
+            'reviewed_at',
+            'created_at'
+        ]
+        read_only_fields = fields
+    
+    def get_reviewed_by_name(self, obj):
+        """Get the name of the reviewer"""
+        if obj.reviewed_by:
+            return f"{obj.reviewed_by.first_name} {obj.reviewed_by.last_name}".strip() or obj.reviewed_by.username
+        return None
+
+
+class SignupRequestDetailSerializer(serializers.ModelSerializer):
+    """
+    Serializer for detailed signup request view
+    """
+    reviewed_by_details = UserSerializer(source='reviewed_by', read_only=True)
+    created_user_details = UserSerializer(source='created_user', read_only=True)
+    
+    class Meta:
+        model = SignupRequest
+        fields = [
+            'id',
+            'username',
+            'email',
+            'first_name',
+            'last_name',
+            'mobile_number',
+            'requested_role',
+            'status',
+            'reviewed_by',
+            'reviewed_by_details',
+            'reviewed_at',
+            'rejection_reason',
+            'created_user',
+            'created_user_details',
+            'created_at',
+            'updated_at'
+        ]
+        read_only_fields = fields
+
+
+class ApproveSignupRequestSerializer(serializers.Serializer):
+    """
+    Serializer for approving signup requests
+    """
+    pass  # No additional fields needed
+
+
+class RejectSignupRequestSerializer(serializers.Serializer):
+    """
+    Serializer for rejecting signup requests
+    """
+    rejection_reason = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=1000,
+        help_text='Optional reason for rejection'
+    )

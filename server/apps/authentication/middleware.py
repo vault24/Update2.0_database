@@ -23,9 +23,9 @@ class RoleBasedAccessMiddleware:
             '/api/analytics/': ['registrar', 'institute_head'],
             '/api/settings/': ['registrar', 'institute_head'],
             
-            # Teacher endpoints
-            '/api/attendance/': ['teacher', 'captain', 'registrar', 'institute_head'],
-            '/api/marks/': ['teacher', 'registrar', 'institute_head'],
+            # Teacher and Student endpoints
+            '/api/attendance/': ['student', 'teacher', 'captain', 'registrar', 'institute_head'],
+            '/api/marks/': ['student', 'teacher', 'captain', 'registrar', 'institute_head'],
             
             # Student/Captain endpoints
             '/api/applications/': ['student', 'captain', 'registrar', 'institute_head'],

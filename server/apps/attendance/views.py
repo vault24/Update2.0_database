@@ -1,6 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Count, Q
 from .models import AttendanceRecord
@@ -9,6 +10,7 @@ from .serializers import AttendanceRecordSerializer, AttendanceCreateSerializer
 
 class AttendanceViewSet(viewsets.ModelViewSet):
     queryset = AttendanceRecord.objects.all()
+    permission_classes = [AllowAny]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['student', 'subject_code', 'semester', 'date', 'is_present']
     

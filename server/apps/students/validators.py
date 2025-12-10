@@ -30,10 +30,10 @@ def validate_semester(value):
 
 def validate_gpa(value):
     """
-    Validate GPA is between 0.00 and 4.00
+    Validate GPA is between 0.00 and 5.00
     """
-    if value < 0 or value > 4:
-        raise ValidationError("GPA must be between 0.00 and 4.00")
+    if value < 0 or value > 5:
+        raise ValidationError("GPA must be between 0.00 and 5.00")
     
     return value
 

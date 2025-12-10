@@ -220,34 +220,53 @@ class StudentDashboardView(APIView):
         try:
             student = Student.objects.get(id=student_id)
             
-            # Attendance summary
-            attendance_records = AttendanceRecord.objects.filter(student=student)
-            total_classes = attendance_records.count()
-            present_classes = attendance_records.filter(is_present=True).count()
-            attendance_percentage = (present_classes / total_classes * 100) if total_classes > 0 else 0
+            # Attendance summary with error handling
+            try:
+                attendance_records = AttendanceRecord.objects.filter(student=student)
+                total_classes = attendance_records.count()
+                present_classes = attendance_records.filter(is_present=True).count()
+                attendance_percentage = (present_classes / total_classes * 100) if total_classes > 0 else 0
+            except Exception as e:
+                print(f"Error fetching attendance: {e}")
+                total_classes = 0
+                present_classes = 0
+                attendance_percentage = 0
             
-            # Marks summary
-            marks_records = MarksRecord.objects.filter(student=student)
+            # Marks summary with error handling
+            try:
+                marks_records = MarksRecord.objects.filter(student=student)
+                marks_count = marks_records.count()
+            except Exception as e:
+                print(f"Error fetching marks: {e}")
+                marks_count = 0
             
-            # Applications
-            pending_applications = Application.objects.filter(
-                rollNumber=student.rollNumber,
-                status='pending'
-            ).count()
+            # Applications with error handling
+            try:
+                pending_applications = Application.objects.filter(
+                    rollNumber=student.currentRollNumber,
+                    status='pending'
+                ).count()
+            except Exception as e:
+                print(f"Error fetching applications: {e}")
+                pending_applications = 0
             
-            # Class routine
-            routine_count = ClassRoutine.objects.filter(
-                department=student.department,
-                semester=student.semester,
-                shift=student.shift
-            ).count()
+            # Class routine with error handling
+            try:
+                routine_count = ClassRoutine.objects.filter(
+                    department=student.department,
+                    semester=student.semester,
+                    shift=student.shift
+                ).count()
+            except Exception as e:
+                print(f"Error fetching routine: {e}")
+                routine_count = 0
             
             data = {
                 'student': {
                     'id': str(student.id),
                     'name': student.fullNameEnglish,
-                    'rollNumber': student.rollNumber,
-                    'department': student.department.name,
+                    'rollNumber': student.currentRollNumber,
+                    'department': student.department.name if student.department else 'N/A',
                     'semester': student.semester,
                 },
                 'attendance': {
@@ -256,7 +275,7 @@ class StudentDashboardView(APIView):
                     'percentage': round(attendance_percentage, 2),
                 },
                 'marks': {
-                    'totalRecords': marks_records.count(),
+                    'totalRecords': marks_count,
                 },
                 'applications': {
                     'pending': pending_applications,
@@ -273,6 +292,8 @@ class StudentDashboardView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             return Response(
                 {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR

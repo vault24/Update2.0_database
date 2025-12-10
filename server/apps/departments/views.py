@@ -30,34 +30,102 @@ class DepartmentViewSet(viewsets.ModelViewSet):
             return DepartmentListSerializer
         return DepartmentSerializer
 
+    def create(self, request, *args, **kwargs):
+        """Create a new department with proper error handling"""
+        try:
+            return super().create(request, *args, **kwargs)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error creating department: {str(e)}", exc_info=True)
+            return Response(
+                {'error': 'Failed to create department', 'detail': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def update(self, request, *args, **kwargs):
+        """Update a department with proper error handling"""
+        try:
+            return super().update(request, *args, **kwargs)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error updating department: {str(e)}", exc_info=True)
+            return Response(
+                {'error': 'Failed to update department', 'detail': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
     def destroy(self, request, *args, **kwargs):
         """
         Delete department with protection check
-        Prevents deletion if department has enrolled students
+        Prevents deletion if department has enrolled students, teachers, or pending requests
         """
-        instance = self.get_object()
-        
-        # Check if department has students
-        if instance.student_count() > 0:
+        try:
+            instance = self.get_object()
+            
+            # Check for related records that would prevent deletion
+            issues = []
+            
+            # Check students
+            try:
+                student_count = instance.student_set.count() if hasattr(instance, 'student_set') else 0
+                if student_count > 0:
+                    issues.append(f'{student_count} student(s)')
+            except Exception:
+                pass
+            
+            # Check teachers
+            try:
+                teacher_count = instance.teachers.count() if hasattr(instance, 'teachers') else 0
+                if teacher_count > 0:
+                    issues.append(f'{teacher_count} teacher(s)')
+            except Exception:
+                pass
+            
+            # Check teacher requests
+            try:
+                request_count = instance.teacherrequest_set.count() if hasattr(instance, 'teacherrequest_set') else 0
+                if request_count > 0:
+                    issues.append(f'{request_count} pending teacher request(s)')
+            except Exception:
+                pass
+            
+            # If there are any issues, prevent deletion
+            if issues:
+                return Response(
+                    {
+                        'error': 'Cannot delete department',
+                        'detail': f'Department has {", ".join(issues)}. '
+                                 'Please reassign or remove them before deleting the department.'
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Perform deletion
+            self.perform_destroy(instance)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+            
+        except ProtectedError as e:
             return Response(
                 {
                     'error': 'Cannot delete department',
-                    'detail': f'Department has {instance.student_count()} enrolled student(s). '
-                             'Please reassign or remove students before deleting the department.'
+                    'detail': 'Department is referenced by other records and cannot be deleted.'
                 },
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
-        try:
-            self.perform_destroy(instance)
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        except ProtectedError:
+        except Exception as e:
+            # Log the error for debugging
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error deleting department: {str(e)}", exc_info=True)
+            
             return Response(
                 {
-                    'error': 'Cannot delete department',
-                    'detail': 'Department is referenced by other records.'
+                    'error': 'Failed to delete department',
+                    'detail': str(e)
                 },
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
     def retrieve(self, request, *args, **kwargs):

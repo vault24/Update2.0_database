@@ -77,7 +77,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'apps.authentication.middleware.RoleBasedAccessMiddleware',  # Role-based access control
-    'apps.activity_logs.middleware.ActivityLogMiddleware',  # Activity logging
+    'apps.activity_logs.middleware.ActivityLogMiddleware',  # Activity logging - RE-ENABLED
 ]
 
 ROOT_URLCONF = 'slms_core.urls'
@@ -189,7 +189,7 @@ REST_FRAMEWORK = {
 # CORS Configuration
 CORS_ALLOWED_ORIGINS = config(
     'CORS_ALLOWED_ORIGINS',
-    default='http://localhost:3000,http://127.0.0.1:3000,http://localhost:5500,http://127.0.0.1:5500',
+    default='http://localhost:3000,http://localhost:8080,http://127.0.0.1:3000,http://localhost:5500,http://127.0.0.1:5500,http://localhost:8081,http://127.0.0.1:8081',
     cast=Csv()
 )
 CORS_ALLOW_CREDENTIALS = True
@@ -201,13 +201,25 @@ if DEBUG:
 # CSRF Configuration for frontend
 CSRF_TRUSTED_ORIGINS = config(
     'CSRF_TRUSTED_ORIGINS',
-    default='http://localhost:5500,http://127.0.0.1:5500,http://192.168.1.250',
+    default='http://localhost:5500,http://127.0.0.1:5500,http://localhost:8080,http://127.0.0.1:8080,http://localhost:8081,http://127.0.0.1:8081,http://192.168.1.250',
     cast=Csv()
 )
 
-# Exempt API endpoints from CSRF for development
-CSRF_COOKIE_HTTPONLY = False
+# CSRF Cookie Configuration
+CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript to read the cookie
 CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SECURE = False  # Set to True in production with HTTPS
+CSRF_USE_SESSIONS = False  # Use cookie-based CSRF tokens
+CSRF_COOKIE_NAME = 'csrftoken'
+
+# Session Configuration
+SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
+SESSION_SAVE_EVERY_REQUEST = False
+SESSION_COOKIE_AGE = 86400  # 24 hours
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+SESSION_COOKIE_NAME = 'sessionid'
 
 # Custom User Model
 AUTH_USER_MODEL = 'authentication.User'

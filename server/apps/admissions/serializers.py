@@ -11,7 +11,7 @@ class AdmissionListSerializer(serializers.ModelSerializer):
     """
     Lightweight serializer for list views
     """
-    department_name = serializers.CharField(source='desired_department.name', read_only=True)
+    department_name = serializers.SerializerMethodField()
     user_email = serializers.EmailField(source='user.email', read_only=True)
     
     class Meta:
@@ -29,19 +29,40 @@ class AdmissionListSerializer(serializers.ModelSerializer):
             'submitted_at',
             'user_email'
         ]
+    
+    def get_department_name(self, obj):
+        """Safely get department name"""
+        try:
+            return obj.desired_department.name if obj.desired_department else obj.desired_department
+        except:
+            return None
 
 
 class AdmissionDetailSerializer(serializers.ModelSerializer):
     """
     Complete serializer with all fields and nested data
     """
-    desired_department = DepartmentSerializer(read_only=True)
-    user = UserSerializer(read_only=True)
-    reviewed_by_username = serializers.CharField(source='reviewed_by.username', read_only=True, allow_null=True)
+    department_name = serializers.SerializerMethodField()
+    user_email = serializers.EmailField(source='user.email', read_only=True)
+    reviewed_by_username = serializers.SerializerMethodField()
     
     class Meta:
         model = Admission
         fields = '__all__'
+    
+    def get_department_name(self, obj):
+        """Safely get department name"""
+        try:
+            return obj.desired_department.name if obj.desired_department else None
+        except:
+            return None
+    
+    def get_reviewed_by_username(self, obj):
+        """Safely get reviewer username"""
+        try:
+            return obj.reviewed_by.username if obj.reviewed_by else None
+        except:
+            return None
 
 
 class AdmissionCreateSerializer(serializers.ModelSerializer):

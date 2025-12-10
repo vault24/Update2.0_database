@@ -39,6 +39,12 @@ class StudentViewSet(viewsets.ModelViewSet):
     ordering_fields = ['createdAt', 'fullNameEnglish', 'semester', 'currentRollNumber']
     ordering = ['-createdAt']
     
+    def get_queryset(self):
+        """
+        Optimize queryset with select_related for department
+        """
+        return Student.objects.select_related('department').all()
+    
     def get_serializer_class(self):
         """
         Return appropriate serializer based on action
@@ -129,7 +135,7 @@ class StudentViewSet(viewsets.ModelViewSet):
         
         Supports filtering by department, semester, and search
         """
-        students = Student.objects.filter(status='discontinued')
+        students = Student.objects.select_related('department').filter(status='discontinued')
         
         # Apply filters
         department = request.query_params.get('department')
@@ -172,7 +178,7 @@ class StudentViewSet(viewsets.ModelViewSet):
             )
         
         # Search in multiple fields (case-insensitive)
-        students = Student.objects.filter(
+        students = Student.objects.select_related('department').filter(
             Q(fullNameEnglish__icontains=query) |
             Q(fullNameBangla__icontains=query) |
             Q(currentRollNumber__icontains=query) |

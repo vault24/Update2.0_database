@@ -2,6 +2,7 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import MarksRecord
 from .serializers import MarksRecordSerializer, MarksCreateSerializer
@@ -9,6 +10,7 @@ from .serializers import MarksRecordSerializer, MarksCreateSerializer
 
 class MarksViewSet(viewsets.ModelViewSet):
     queryset = MarksRecord.objects.all()
+    permission_classes = [AllowAny]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['student', 'subject_code', 'semester', 'exam_type']
     

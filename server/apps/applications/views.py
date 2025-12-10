@@ -136,7 +136,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         response_serializer = ApplicationSerializer(application)
         return Response(response_serializer.data)
     
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], permission_classes=[], url_path='my-applications')
     def my_applications(self, request):
         """
         Student-specific endpoint to view their own applications

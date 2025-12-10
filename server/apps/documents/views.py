@@ -4,6 +4,7 @@ Document Views
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import OrderingFilter
 from django.http import FileResponse, Http404
@@ -21,6 +22,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
     Provides CRUD operations for student documents with file upload handling
     """
     queryset = Document.objects.all()
+    permission_classes = [AllowAny]
     serializer_class = DocumentSerializer
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_fields = ['student', 'category']

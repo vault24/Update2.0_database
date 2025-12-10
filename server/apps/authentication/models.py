@@ -115,3 +115,82 @@ class User(AbstractUser):
             return False
         
         return True
+
+
+class SignupRequest(models.Model):
+    """
+    Model to track admin signup requests awaiting approval
+    """
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+    
+    # Request identification
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    # Requester information
+    username = models.CharField(max_length=150, unique=True)
+    email = models.EmailField(unique=True)
+    first_name = models.CharField(max_length=150)
+    last_name = models.CharField(max_length=150)
+    mobile_number = models.CharField(max_length=11, blank=True)
+    
+    # Requested role (admin roles only)
+    requested_role = models.CharField(
+        max_length=20,
+        choices=[
+            ('registrar', 'Registrar'),
+            ('institute_head', 'Institute Head'),
+        ]
+    )
+    
+    # Password (hashed)
+    password_hash = models.CharField(max_length=128)
+    
+    # Request status
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending'
+    )
+    
+    # Approval/rejection details
+    reviewed_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='reviewed_signup_requests'
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.TextField(blank=True)
+    
+    # Created user reference (for approved requests)
+    created_user = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='signup_request'
+    )
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'auth_signup_request'
+        ordering = ['-created_at']
+        verbose_name = 'Signup Request'
+        verbose_name_plural = 'Signup Requests'
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['username']),
+            models.Index(fields=['email']),
+            models.Index(fields=['created_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.username} - {self.get_status_display()}"
