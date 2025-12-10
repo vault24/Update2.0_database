@@ -3,9 +3,13 @@ Authentication Tests
 """
 from django.test import TestCase
 from django.contrib.auth.hashers import make_password, check_password
+from django.utils import timezone
 from hypothesis import given, strategies as st, settings
 from hypothesis.extra.django import from_model
 from .models import SignupRequest, User
+from apps.teacher_requests.models import TeacherSignupRequest
+from apps.departments.models import Department
+from .services import create_teacher_signup_request, register_teacher_with_signup_request
 import string
 
 
@@ -854,3 +858,233 @@ class LoginBehaviorByRequestStatusPropertyTests(TestCase):
         # Verify login is successful
         self.assertTrue(serializer.is_valid())
         self.assertEqual(serializer.validated_data['user'], user)
+
+
+# Teacher Registration Property Tests
+
+@st.composite
+def valid_teacher_registration_data(draw):
+    """Generate valid teacher registration data"""
+    username_chars = string.ascii_letters + string.digits + '_@.'
+    return {
+        'username': draw(st.emails()),  # Use email as username
+        'email': draw(st.emails()),
+        'password': draw(st.text(min_size=8, max_size=128)),
+        'first_name': draw(st.text(min_size=1, max_size=150, alphabet=string.ascii_letters + ' ')),
+        'last_name': draw(st.text(min_size=1, max_size=150, alphabet=string.ascii_letters + ' ')),
+        'role': 'teacher',
+        'mobile_number': draw(st.text(min_size=11, max_size=11, alphabet=string.digits)),
+        'full_name_english': draw(st.text(min_size=1, max_size=255, alphabet=string.ascii_letters + ' ')),
+        'full_name_bangla': draw(st.text(min_size=1, max_size=255, alphabet='অআইঈউঊঋএঐওঔকখগঘঙচছজঝঞটঠডঢণতথদধনপফবভমযরলশষসহড়ঢ়য়ৎংঃ ্া ি ী ু ূ ৃ ে ৈ ো ৌ')),
+        'designation': draw(st.text(min_size=1, max_size=100, alphabet=string.ascii_letters + ' ')),
+        'qualifications': draw(st.lists(st.text(min_size=1, max_size=100), min_size=0, max_size=5)),
+        'specializations': draw(st.lists(st.text(min_size=1, max_size=100), min_size=0, max_size=5)),
+        'office_location': draw(st.text(min_size=0, max_size=255, alphabet=string.ascii_letters + string.digits + ' -'))
+    }
+
+
+class TeacherRegistrationCompletenessPropertyTests(TestCase):
+    """
+    Property-based tests for teacher registration completeness
+    Feature: teacher-signup-approval-fix, Property 1: Teacher Registration Completeness
+    Validates: Requirements 1.1
+    """
+    
+    def setUp(self):
+        """Set up test department"""
+        self.department = Department.objects.create(
+            name='Test Department',
+            code='TD',
+            description='Test department for property tests'
+        )
+    
+    @settings(max_examples=100)
+    @given(data=valid_teacher_registration_data())
+    def test_teacher_registration_creates_both_user_and_request(self, data):
+        """
+        Property: For any valid teacher registration data, the system should create both:
+        1. A User account with status='pending' and role='teacher'
+        2. A corresponding TeacherSignupRequest record with proper linking
+        """
+        # Make email and username unique for this test
+        unique_suffix = str(hash(str(data)))[-8:]
+        data['username'] = f"test_{unique_suffix}@example.com"
+        data['email'] = f"test_{unique_suffix}@example.com"
+        
+        # Add department to teacher data
+        teacher_data = {
+            'full_name_english': data['full_name_english'],
+            'full_name_bangla': data['full_name_bangla'],
+            'designation': data['designation'],
+            'department': str(self.department.id),
+            'qualifications': data['qualifications'],
+            'specializations': data['specializations'],
+            'office_location': data['office_location']
+        }
+        
+        # Create user data
+        user_data = {
+            'username': data['username'],
+            'email': data['email'],
+            'password': data['password'],
+            'first_name': data['first_name'],
+            'last_name': data['last_name'],
+            'role': data['role'],
+            'mobile_number': data['mobile_number']
+        }
+        
+        try:
+            # Test the registration service
+            user, teacher_signup_request = register_teacher_with_signup_request(user_data, teacher_data)
+            
+            # Verify User was created correctly
+            self.assertIsNotNone(user)
+            self.assertEqual(user.username, data['username'])
+            self.assertEqual(user.email, data['email'])
+            self.assertEqual(user.role, 'teacher')
+            self.assertEqual(user.account_status, 'pending')
+            self.assertEqual(user.first_name, data['first_name'])
+            self.assertEqual(user.last_name, data['last_name'])
+            self.assertEqual(user.mobile_number, data['mobile_number'])
+            
+            # Verify TeacherSignupRequest was created correctly
+            self.assertIsNotNone(teacher_signup_request)
+            self.assertEqual(teacher_signup_request.user, user)
+            self.assertEqual(teacher_signup_request.full_name_english, data['full_name_english'])
+            self.assertEqual(teacher_signup_request.full_name_bangla, data['full_name_bangla'])
+            self.assertEqual(teacher_signup_request.email, data['email'])
+            self.assertEqual(teacher_signup_request.mobile_number, data['mobile_number'])
+            self.assertEqual(teacher_signup_request.designation, data['designation'])
+            self.assertEqual(teacher_signup_request.department, self.department)
+            self.assertEqual(teacher_signup_request.qualifications, data['qualifications'])
+            self.assertEqual(teacher_signup_request.specializations, data['specializations'])
+            self.assertEqual(teacher_signup_request.office_location, data['office_location'])
+            self.assertEqual(teacher_signup_request.status, 'pending')
+            
+            # Verify relationship integrity
+            self.assertEqual(user.teacher_signup_request, teacher_signup_request)
+            
+            # Verify timestamps are set
+            self.assertIsNotNone(teacher_signup_request.submitted_at)
+            self.assertIsNotNone(teacher_signup_request.created_at)
+            self.assertIsNotNone(teacher_signup_request.updated_at)
+            
+            # Verify pending teacher cannot login
+            self.assertFalse(user.can_login())
+            self.assertIn('pending approval', user.get_login_error_message().lower())
+            
+        finally:
+            # Clean up test data
+            User.objects.filter(username=data['username']).delete()
+            TeacherSignupRequest.objects.filter(email=data['email']).delete()
+    
+    @settings(max_examples=50)
+    @given(data=valid_teacher_registration_data())
+    def test_teacher_registration_atomicity(self, data):
+        """
+        Property: For any teacher registration, if TeacherSignupRequest creation fails,
+        the User account should not be created (atomic transaction)
+        """
+        # Make email and username unique for this test
+        unique_suffix = str(hash(str(data)))[-8:]
+        data['username'] = f"atomic_{unique_suffix}@example.com"
+        data['email'] = f"atomic_{unique_suffix}@example.com"
+        
+        # Create invalid teacher data (missing department)
+        teacher_data = {
+            'full_name_english': data['full_name_english'],
+            'full_name_bangla': data['full_name_bangla'],
+            'designation': data['designation'],
+            'department': 'invalid-uuid',  # This will cause failure
+            'qualifications': data['qualifications'],
+            'specializations': data['specializations'],
+            'office_location': data['office_location']
+        }
+        
+        user_data = {
+            'username': data['username'],
+            'email': data['email'],
+            'password': data['password'],
+            'first_name': data['first_name'],
+            'last_name': data['last_name'],
+            'role': data['role'],
+            'mobile_number': data['mobile_number']
+        }
+        
+        try:
+            # This should fail due to invalid department
+            with self.assertRaises(Exception):
+                register_teacher_with_signup_request(user_data, teacher_data)
+            
+            # Verify no User was created
+            self.assertFalse(
+                User.objects.filter(username=data['username']).exists(),
+                "User should not exist when TeacherSignupRequest creation fails"
+            )
+            
+            # Verify no TeacherSignupRequest was created
+            self.assertFalse(
+                TeacherSignupRequest.objects.filter(email=data['email']).exists(),
+                "TeacherSignupRequest should not exist when creation fails"
+            )
+            
+        finally:
+            # Clean up any potential test data
+            User.objects.filter(username=data['username']).delete()
+            TeacherSignupRequest.objects.filter(email=data['email']).delete()
+    
+    @settings(max_examples=50)
+    @given(data=valid_teacher_registration_data())
+    def test_teacher_registration_data_consistency(self, data):
+        """
+        Property: For any teacher registration, the data in User and TeacherSignupRequest
+        should be consistent (email, mobile_number match)
+        """
+        # Make email and username unique for this test
+        unique_suffix = str(hash(str(data)))[-8:]
+        data['username'] = f"consistency_{unique_suffix}@example.com"
+        data['email'] = f"consistency_{unique_suffix}@example.com"
+        
+        teacher_data = {
+            'full_name_english': data['full_name_english'],
+            'full_name_bangla': data['full_name_bangla'],
+            'designation': data['designation'],
+            'department': str(self.department.id),
+            'qualifications': data['qualifications'],
+            'specializations': data['specializations'],
+            'office_location': data['office_location']
+        }
+        
+        user_data = {
+            'username': data['username'],
+            'email': data['email'],
+            'password': data['password'],
+            'first_name': data['first_name'],
+            'last_name': data['last_name'],
+            'role': data['role'],
+            'mobile_number': data['mobile_number']
+        }
+        
+        try:
+            user, teacher_signup_request = register_teacher_with_signup_request(user_data, teacher_data)
+            
+            # Verify data consistency between User and TeacherSignupRequest
+            self.assertEqual(user.email, teacher_signup_request.email)
+            self.assertEqual(user.mobile_number, teacher_signup_request.mobile_number)
+            
+            # Verify one-to-one relationship
+            self.assertEqual(user.teacher_signup_request, teacher_signup_request)
+            self.assertEqual(teacher_signup_request.user, user)
+            
+            # Verify both records exist in database
+            db_user = User.objects.get(username=data['username'])
+            db_request = TeacherSignupRequest.objects.get(email=data['email'])
+            
+            self.assertEqual(db_user, user)
+            self.assertEqual(db_request, teacher_signup_request)
+            self.assertEqual(db_user.teacher_signup_request, db_request)
+            
+        finally:
+            # Clean up test data
+            User.objects.filter(username=data['username']).delete()
+            TeacherSignupRequest.objects.filter(email=data['email']).delete()

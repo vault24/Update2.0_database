@@ -115,6 +115,15 @@ class User(AbstractUser):
             return False
         
         return True
+    
+    def get_login_error_message(self):
+        """Get specific error message for login failures"""
+        if self.role == 'teacher' and self.account_status == 'pending':
+            return 'Your teacher account is pending approval. Please wait for admin approval.'
+        elif self.account_status == 'suspended':
+            return 'Your account has been suspended. Please contact administration.'
+        else:
+            return 'You are not authorized to login at this time.'
 
 
 class SignupRequest(models.Model):

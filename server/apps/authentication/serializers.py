@@ -47,6 +47,23 @@ class RegisterSerializer(serializers.ModelSerializer):
         style={'input_type': 'password'}
     )
     
+    # Teacher-specific fields (conditional)
+    full_name_english = serializers.CharField(required=False, allow_blank=True)
+    full_name_bangla = serializers.CharField(required=False, allow_blank=True)
+    designation = serializers.CharField(required=False, allow_blank=True)
+    department = serializers.UUIDField(required=False, allow_null=True)
+    qualifications = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        default=list
+    )
+    specializations = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        default=list
+    )
+    office_location = serializers.CharField(required=False, allow_blank=True)
+    
     class Meta:
         model = User
         fields = [
@@ -57,15 +74,46 @@ class RegisterSerializer(serializers.ModelSerializer):
             'first_name',
             'last_name',
             'role',
-            'mobile_number'
+            'mobile_number',
+            # Teacher-specific fields
+            'full_name_english',
+            'full_name_bangla',
+            'designation',
+            'department',
+            'qualifications',
+            'specializations',
+            'office_location',
         ]
     
     def validate(self, attrs):
-        """Validate password confirmation"""
+        """Validate password confirmation and teacher fields"""
         if attrs['password'] != attrs['password_confirm']:
             raise serializers.ValidationError({
                 'password_confirm': 'Passwords do not match'
             })
+        
+        # Validate teacher fields if role is teacher
+        if attrs.get('role') == 'teacher':
+            required_teacher_fields = [
+                'full_name_english', 'full_name_bangla', 
+                'designation', 'department'
+            ]
+            for field in required_teacher_fields:
+                if not attrs.get(field):
+                    raise serializers.ValidationError({
+                        field: 'This field is required for teacher registration'
+                    })
+            
+            # Validate department exists
+            if attrs.get('department'):
+                from apps.departments.models import Department
+                try:
+                    Department.objects.get(id=attrs['department'])
+                except Department.DoesNotExist:
+                    raise serializers.ValidationError({
+                        'department': 'Invalid department selected'
+                    })
+        
         return attrs
     
     def validate_role(self, value):
@@ -81,8 +129,22 @@ class RegisterSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         """Create user with appropriate account status based on role"""
+        from django.db import transaction
+        from .services import create_teacher_signup_request, extract_teacher_data_from_request
+        
         # Remove password_confirm from validated data
         validated_data.pop('password_confirm')
+        
+        # Extract teacher-specific data before creating user
+        teacher_data = {}
+        teacher_fields = [
+            'full_name_english', 'full_name_bangla', 'designation', 
+            'department', 'qualifications', 'specializations', 'office_location'
+        ]
+        
+        for field in teacher_fields:
+            if field in validated_data:
+                teacher_data[field] = validated_data.pop(field)
         
         # Extract password
         password = validated_data.pop('password')
@@ -98,11 +160,17 @@ class RegisterSerializer(serializers.ModelSerializer):
         if role in ['student', 'captain']:
             validated_data['admission_status'] = 'not_started'
         
-        # Create user
-        user = User.objects.create_user(
-            password=password,
-            **validated_data
-        )
+        # Create user and teacher signup request atomically
+        with transaction.atomic():
+            # Create user
+            user = User.objects.create_user(
+                password=password,
+                **validated_data
+            )
+            
+            # Create teacher signup request if role is teacher
+            if role == 'teacher':
+                create_teacher_signup_request(user, teacher_data)
         
         return user
 
@@ -159,21 +227,17 @@ class LoginSerializer(serializers.Serializer):
             
             # Check if user can login
             if not user.can_login():
+                error_message = user.get_login_error_message()
+                error_code = 'authorization'
+                
+                # Provide specific error code for pending teacher approval
                 if user.role == 'teacher' and user.account_status == 'pending':
-                    raise serializers.ValidationError(
-                        'Your teacher account is pending approval. Please wait for admin approval.',
-                        code='authorization'
-                    )
-                elif user.account_status == 'suspended':
-                    raise serializers.ValidationError(
-                        'Your account has been suspended. Please contact administration.',
-                        code='authorization'
-                    )
-                else:
-                    raise serializers.ValidationError(
-                        'You are not authorized to login at this time.',
-                        code='authorization'
-                    )
+                    error_code = 'pending_approval'
+                
+                raise serializers.ValidationError(
+                    error_message,
+                    code=error_code
+                )
             
             attrs['user'] = user
             return attrs

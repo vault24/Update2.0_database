@@ -7,7 +7,22 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from django.utils import timezone
+from django.db import transaction
 from .models import TeacherSignupRequest, TeacherRequest
+
+
+class IsAdminRole(permissions.BasePermission):
+    """
+    Custom permission to only allow users with admin roles (registrar, institute_head)
+    to access admin endpoints.
+    """
+    def has_permission(self, request, view):
+        # Check if user is authenticated
+        if not request.user or not request.user.is_authenticated:
+            return False
+        
+        # Check if user has admin role
+        return request.user.is_admin()
 from .serializers import (
     TeacherSignupRequestListSerializer,
     TeacherSignupRequestDetailSerializer,
@@ -55,8 +70,8 @@ class TeacherSignupRequestViewSet(viewsets.ModelViewSet):
             # Teachers can submit signup requests
             return [permissions.IsAuthenticated()]
         else:
-            # Admin actions require staff permissions
-            return [permissions.IsAdminUser()]
+            # Admin actions require admin role (registrar or institute_head)
+            return [IsAdminRole()]
     
     def create(self, request, *args, **kwargs):
         """
@@ -108,7 +123,7 @@ class TeacherSignupRequestViewSet(viewsets.ModelViewSet):
         serializer = TeacherSignupApproveSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
-        # Create teacher profile
+        # Create teacher profile with atomic transaction
         from apps.teachers.models import Teacher
         
         teacher_data = {
@@ -127,19 +142,22 @@ class TeacherSignupRequestViewSet(viewsets.ModelViewSet):
         }
         
         try:
-            teacher = Teacher.objects.create(**teacher_data)
-            
-            # Update signup request status
-            signup_request.status = 'approved'
-            signup_request.reviewed_at = timezone.now()
-            signup_request.reviewed_by = request.user
-            signup_request.review_notes = serializer.validated_data.get('review_notes', '')
-            signup_request.save()
-            
-            # Update user account status and link to teacher profile
-            signup_request.user.account_status = 'active'
-            signup_request.user.related_profile_id = teacher.id
-            signup_request.user.save()
+            # Use atomic transaction to ensure all operations succeed or fail together
+            with transaction.atomic():
+                # Create teacher profile
+                teacher = Teacher.objects.create(**teacher_data)
+                
+                # Update signup request status
+                signup_request.status = 'approved'
+                signup_request.reviewed_at = timezone.now()
+                signup_request.reviewed_by = request.user
+                signup_request.review_notes = serializer.validated_data.get('review_notes', '')
+                signup_request.save()
+                
+                # Update user account status and link to teacher profile
+                signup_request.user.account_status = 'active'
+                signup_request.user.related_profile_id = teacher.id
+                signup_request.user.save()
             
             # Return updated request
             response_serializer = TeacherSignupRequestDetailSerializer(signup_request)
@@ -176,21 +194,34 @@ class TeacherSignupRequestViewSet(viewsets.ModelViewSet):
         serializer = TeacherSignupRejectSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
-        # Update request status
-        signup_request.status = 'rejected'
-        signup_request.reviewed_at = timezone.now()
-        signup_request.reviewed_by = request.user
-        signup_request.review_notes = serializer.validated_data['review_notes']
-        signup_request.save()
-        
-        # User account remains pending (they can try again or contact admin)
-        
-        # Return updated request
-        response_serializer = TeacherSignupRequestDetailSerializer(signup_request)
-        return Response({
-            'message': 'Teacher signup request rejected',
-            'request': response_serializer.data
-        }, status=status.HTTP_200_OK)
+        try:
+            # Use atomic transaction for consistency
+            with transaction.atomic():
+                # Update request status
+                signup_request.status = 'rejected'
+                signup_request.reviewed_at = timezone.now()
+                signup_request.reviewed_by = request.user
+                signup_request.review_notes = serializer.validated_data['review_notes']
+                signup_request.save()
+                
+                # User account remains pending (they can try again or contact admin)
+                # Ensure user account status is still pending
+                if signup_request.user.account_status != 'pending':
+                    signup_request.user.account_status = 'pending'
+                    signup_request.user.save()
+            
+            # Return updated request
+            response_serializer = TeacherSignupRequestDetailSerializer(signup_request)
+            return Response({
+                'message': 'Teacher signup request rejected',
+                'request': response_serializer.data
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'error': 'Failed to reject teacher signup request',
+                'details': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class TeacherRequestViewSet(viewsets.ModelViewSet):

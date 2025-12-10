@@ -1,7 +1,7 @@
 """
 Correction Request Views
 """
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
@@ -16,6 +16,7 @@ from .serializers import (
 
 class CorrectionRequestViewSet(viewsets.ModelViewSet):
     queryset = CorrectionRequest.objects.all()
+    permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['student', 'status', 'field_name']
     

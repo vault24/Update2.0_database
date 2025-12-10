@@ -29,7 +29,7 @@ class RoleBasedAccessMiddleware:
             
             # Student/Captain endpoints
             '/api/applications/': ['student', 'captain', 'registrar', 'institute_head'],
-            '/api/correction-requests/': ['student', 'captain', 'registrar', 'institute_head'],
+            '/api/correction-requests/': ['student', 'teacher', 'captain', 'registrar', 'institute_head'],
         }
     
     def __call__(self, request):

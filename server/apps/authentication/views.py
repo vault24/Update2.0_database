@@ -60,7 +60,16 @@ def register_view(request):
         "first_name": "string",
         "last_name": "string",
         "role": "student|captain|teacher",
-        "mobile_number": "string"
+        "mobile_number": "string",
+        
+        // Teacher-specific fields (required if role is teacher)
+        "full_name_english": "string",
+        "full_name_bangla": "string",
+        "designation": "string",
+        "department": "uuid",
+        "qualifications": ["string"],
+        "specializations": ["string"],
+        "office_location": "string"
     }
     
     Returns:
@@ -70,19 +79,32 @@ def register_view(request):
     serializer = RegisterSerializer(data=request.data)
     
     if serializer.is_valid():
-        user = serializer.save()
-        
-        # Return user data
-        user_serializer = UserSerializer(user)
-        
-        return Response(
-            {
+        try:
+            user = serializer.save()
+            
+            # Return user data
+            user_serializer = UserSerializer(user)
+            
+            response_data = {
                 'message': 'User registered successfully',
                 'user': user_serializer.data,
                 'requires_approval': user.role == 'teacher',
-            },
-            status=status.HTTP_201_CREATED
-        )
+            }
+            
+            # Add specific message for teachers
+            if user.role == 'teacher':
+                response_data['message'] = 'Teacher registration submitted successfully. Please wait for admin approval.'
+            
+            return Response(response_data, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            return Response(
+                {
+                    'error': 'Registration failed',
+                    'details': str(e)
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

@@ -6,7 +6,9 @@
   - Ensure consistent data serialization across all endpoints
   - _Requirements: 1.1, 1.2, 1.3, 4.1, 4.2, 5.1, 5.2_
 
-- [ ] 1.1 Add bulk update endpoint to ClassRoutineViewSet
+- [x] 1.1 Add bulk update endpoint to ClassRoutineViewSet
+
+
   - Implement bulk_update action method in ClassRoutineViewSet
   - Add validation for bulk operations to prevent data inconsistencies
   - Handle partial failures in bulk operations with detailed error responses
@@ -16,7 +18,9 @@
   - **Property 1: CRUD Operations Persistence**
   - **Validates: Requirements 1.1, 1.2, 1.3**
 
-- [ ] 1.3 Implement schedule conflict detection
+- [x] 1.3 Implement schedule conflict detection
+
+
   - Add validation method to detect overlapping time slots for same room/teacher
   - Create custom validator for ClassRoutine model to prevent conflicts
   - Add conflict resolution suggestions in error responses
@@ -25,6 +29,8 @@
 - [ ]* 1.4 Write property test for conflict detection
   - **Property 8: Conflict Detection**
   - **Validates: Requirements 5.2**
+
+
 
 - [ ] 1.5 Enhance error handling in serializers
   - Improve validation error messages in ClassRoutineCreateSerializer
@@ -42,7 +48,9 @@
   - Add proper error handling and user feedback for save operations
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
 
-- [ ] 2.1 Implement routine data transformation utilities
+- [x] 2.1 Implement routine data transformation utilities
+
+
   - Create functions to convert between grid format and API format
   - Handle time slot conversion between display format and API format
   - Add validation for transformed data before API calls
@@ -54,9 +62,15 @@
 
 - [ ]* 2.3 Write property test for nested object serialization
   - **Property 6: Nested Object Serialization**
+
   - **Validates: Requirements 4.5**
 
 - [ ] 2.4 Replace handleSaveRoutine with actual API integration
+
+
+
+
+
   - Implement saveRoutineChanges method in routineService
   - Add logic to detect changes between current and original routine data
   - Call appropriate create/update/delete APIs based on detected changes

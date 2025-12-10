@@ -84,8 +84,62 @@ class ClassRoutine(models.Model):
         return f"{self.subject_name} - {self.day_of_week} {self.start_time}"
     
     def clean(self):
-        """Validate that end_time is after start_time"""
+        """Validate that end_time is after start_time and check for conflicts"""
         from django.core.exceptions import ValidationError
+        from django.db.models import Q
+        
         if self.start_time and self.end_time:
             if self.end_time <= self.start_time:
                 raise ValidationError('End time must be after start time')
+        
+        # Check for schedule conflicts if we have the required fields
+        if all([self.day_of_week, self.start_time, self.end_time, self.is_active]):
+            self._validate_schedule_conflicts()
+    
+    def _check_time_overlap(self, start_time1, end_time1, start_time2, end_time2):
+        """Check if two time periods overlap"""
+        return start_time1 < end_time2 and start_time2 < end_time1
+    
+    def _validate_schedule_conflicts(self):
+        """Validate that the schedule doesn't conflict with existing routines"""
+        from django.core.exceptions import ValidationError
+        from django.db.models import Q
+        
+        # Build base query for existing routines on the same day
+        base_query = Q(
+            day_of_week=self.day_of_week,
+            is_active=True
+        )
+        
+        # Exclude current instance if updating
+        if self.pk:
+            base_query &= ~Q(id=self.pk)
+        
+        existing_routines = ClassRoutine.objects.filter(base_query)
+        
+        conflicts = []
+        
+        for routine in existing_routines:
+            # Check if times overlap
+            if self._check_time_overlap(self.start_time, self.end_time, routine.start_time, routine.end_time):
+                
+                # Check room conflict
+                if self.room_number and routine.room_number == self.room_number:
+                    conflicts.append(f'Room {self.room_number} is already booked on {self.day_of_week} from {routine.start_time} to {routine.end_time} for {routine.subject_name}')
+                
+                # Check teacher conflict
+                if self.teacher_id and routine.teacher_id == self.teacher_id:
+                    teacher_name = self.teacher.name if self.teacher else 'this teacher'
+                    conflicts.append(f'{teacher_name} is already assigned on {self.day_of_week} from {routine.start_time} to {routine.end_time} for {routine.subject_name}')
+                
+                # Check class conflict (same department, semester, shift)
+                if (self.department_id and self.semester and self.shift and 
+                    routine.department_id == self.department_id and 
+                    routine.semester == self.semester and 
+                    routine.shift == self.shift):
+                    conflicts.append(f'Students of {self.department.name} Semester {self.semester} ({self.shift}) already have {routine.subject_name} on {self.day_of_week} from {routine.start_time} to {routine.end_time}')
+        
+        if conflicts:
+            raise ValidationError({
+                'schedule_conflicts': conflicts
+            })
