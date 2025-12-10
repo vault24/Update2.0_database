@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api';
 
 interface User {
   id: string;
@@ -29,7 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const checkAuth = async () => {
     try {
       // Check if user is authenticated by calling /api/auth/me/
-      const response = await fetch('http://localhost:8000/api/auth/me/', {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.auth.me}`, {
         credentials: 'include',
       });
 
@@ -44,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null);
           // Logout from backend
           try {
-            await fetch('http://localhost:8000/api/auth/logout/', {
+            await fetch(`${API_BASE_URL}${API_ENDPOINTS.auth.logout}`, {
               method: 'POST',
               credentials: 'include',
             });
@@ -97,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string) => {
     try {
       // Get CSRF token first from the dedicated endpoint
-      await fetch('http://localhost:8000/api/auth/csrf/', {
+      await fetch(`${API_BASE_URL}/auth/csrf/`, {
         credentials: 'include',
       }).catch(() => {}); // Ignore error, just need the cookie
 
@@ -110,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers['X-CSRFToken'] = csrfToken;
       }
 
-      const response = await fetch('http://localhost:8000/api/auth/login/', {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.auth.login}`, {
         method: 'POST',
         headers,
         credentials: 'include',
@@ -130,7 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!allowedRoles.includes(user.role)) {
         // Logout from backend
         try {
-          await fetch('http://localhost:8000/api/auth/logout/', {
+          await fetch(`${API_BASE_URL}${API_ENDPOINTS.auth.logout}`, {
             method: 'POST',
             credentials: 'include',
           });
@@ -156,7 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers['X-CSRFToken'] = csrfToken;
       }
 
-      await fetch('http://localhost:8000/api/auth/logout/', {
+      await fetch(`${API_BASE_URL}${API_ENDPOINTS.auth.logout}`, {
         method: 'POST',
         headers,
         credentials: 'include',

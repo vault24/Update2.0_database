@@ -2,8 +2,9 @@
  * API Configuration
  */
 
-// API Base URL - defaults to localhost for development
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+// API Base URL - defaults to production API URL
+// Override with .env file (VITE_API_BASE_URL) for local development
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://47.129.133.54:8000/api';
 
 // Request timeout in milliseconds
 export const REQUEST_TIMEOUT = 30000; // 30 seconds
