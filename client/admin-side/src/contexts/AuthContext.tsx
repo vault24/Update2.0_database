@@ -1,0 +1,194 @@
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
+
+interface User {
+  id: string;
+  username: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  role: string;
+}
+
+interface AuthContextType {
+  user: User | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  checkAuth: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const navigate = useNavigate();
+
+  const checkAuth = async () => {
+    try {
+      // Check if user is authenticated by calling /api/auth/me/
+      const response = await fetch('http://localhost:8000/api/auth/me/', {
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const userData = data.user || data;
+        
+        // Only allow admin roles (registrar, institute_head) to access admin-side
+        const allowedRoles = ['registrar', 'institute_head'];
+        if (userData && !allowedRoles.includes(userData.role)) {
+          // User is authenticated but not an admin - clear user and logout
+          setUser(null);
+          // Logout from backend
+          try {
+            await fetch('http://localhost:8000/api/auth/logout/', {
+              method: 'POST',
+              credentials: 'include',
+            });
+          } catch (e) {
+            // Ignore logout errors
+          }
+          return;
+        }
+        
+        setUser(userData);
+      } else if (response.status === 403 || response.status === 401) {
+        // 403/401 is expected when user is not authenticated - silently handle it
+        setUser(null);
+      } else {
+        // Other errors should be logged
+        console.error('Auth check failed with status:', response.status);
+        setUser(null);
+      }
+    } catch (error) {
+      // Network errors or other exceptions
+      // Only log if it's not a 403/401 (which might be caught as network error in some cases)
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        // Network error - might be CORS or server down, but don't spam console
+        setUser(null);
+      } else {
+        console.error('Auth check failed:', error);
+        setUser(null);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const getCsrfToken = (): string | null => {
+    const name = 'csrftoken';
+    const cookies = document.cookie.split(';');
+    for (const cookie of cookies) {
+      const trimmed = cookie.trim();
+      if (trimmed.startsWith(name + '=')) {
+        return trimmed.substring(name.length + 1);
+      }
+    }
+    return null;
+  };
+
+  const login = async (email: string, password: string) => {
+    try {
+      // Get CSRF token first from the dedicated endpoint
+      await fetch('http://localhost:8000/api/auth/csrf/', {
+        credentials: 'include',
+      }).catch(() => {}); // Ignore error, just need the cookie
+
+      const csrfToken = getCsrfToken();
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (csrfToken) {
+        headers['X-CSRFToken'] = csrfToken;
+      }
+
+      const response = await fetch('http://localhost:8000/api/auth/login/', {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({ username: email, password }), // Backend expects 'username' field
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || error.message || 'Login failed');
+      }
+
+      const userData = await response.json();
+      const user = userData.user || userData;
+      
+      // Only allow admin roles (registrar, institute_head) to access admin-side
+      const allowedRoles = ['registrar', 'institute_head'];
+      if (!allowedRoles.includes(user.role)) {
+        // Logout from backend
+        try {
+          await fetch('http://localhost:8000/api/auth/logout/', {
+            method: 'POST',
+            credentials: 'include',
+          });
+        } catch (e) {
+          // Ignore logout errors
+        }
+        throw new Error('Access denied. This account is only for student-side access. Please use the student portal to login.');
+      }
+      
+      setUser(user);
+      navigate('/');
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  const logout = async () => {
+    try {
+      const csrfToken = getCsrfToken();
+      const headers: HeadersInit = {};
+      
+      if (csrfToken) {
+        headers['X-CSRFToken'] = csrfToken;
+      }
+
+      await fetch('http://localhost:8000/api/auth/logout/', {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+      });
+    } catch (error) {
+      console.error('Logout failed:', error);
+    } finally {
+      setUser(null);
+      navigate('/auth');
+    }
+  };
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        isAuthenticated: !!user,
+        isLoading,
+        login,
+        logout,
+        checkAuth,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}

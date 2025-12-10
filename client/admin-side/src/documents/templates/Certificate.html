@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Certificate of Completion - Sirajganj Polytechnic Institute</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Open+Sans:wght@400;600&display=swap');
+
+        /* Reset and Base Styles */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Open Sans', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        /* Certificate Container */
+        .certificate-container {
+            width: 297mm;
+            height: 210mm;
+            background: white;
+            position: relative;
+            box-shadow: 0 0 30px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        /* Decorative Border */
+        .certificate-border {
+            position: absolute;
+            top: 15mm;
+            left: 15mm;
+            right: 15mm;
+            bottom: 15mm;
+            border: 3px solid #2c3e50;
+            border-radius: 10px;
+        }
+
+        .certificate-inner-border {
+            position: absolute;
+            top: 5mm;
+            left: 5mm;
+            right: 5mm;
+            bottom: 5mm;
+            border: 1px solid #34495e;
+            border-radius: 5px;
+        }
+
+        /* Background Pattern */
+        .bg-pattern {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            opacity: 0.03;
+            background-image: 
+                radial-gradient(circle at 25% 25%, #3498db 2px, transparent 2px),
+                radial-gradient(circle at 75% 75%, #e74c3c 2px, transparent 2px);
+            background-size: 50px 50px;
+        }
+
+        /* Header Section */
+        .certificate-header {
+            text-align: center;
+            padding: 25mm 20mm 15mm 20mm;
+            position: relative;
+            z-index: 2;
+        }
+
+        .institute-logo {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 15px auto;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 3px solid #2c3e50;
+        }
+
+        .institute-logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .institute-name {
+            font-family: 'Playfair Display', serif;
+            font-size: 28px;
+            font-weight: 900;
+            color: #2c3e50;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+        }
+
+        .institute-subtitle {
+            font-size: 14px;
+            color: #7f8c8d;
+            margin-bottom: 20px;
+        }
+
+        /* Certificate Title */
+        .certificate-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 36px;
+            font-weight: 700;
+            color: #8e44ad;
+            text-align: center;
+            margin-bottom: 30px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        }
+
+        /* Main Content */
+        .certificate-content {
+            padding: 0 30mm;
+            text-align: center;
+            position: relative;
+            z-index: 2;
+        }
+
+        .certificate-text {
+            font-size: 18px;
+            line-height: 1.8;
+            color: #2c3e50;
+            margin-bottom: 25px;
+        }
+
+        .student-name {
+            font-family: 'Playfair Display', serif;
+            font-size: 32px;
+            font-weight: 700;
+            color: #e74c3c;
+            text-decoration: underline;
+            text-decoration-color: #3498db;
+            text-underline-offset: 8px;
+            margin: 20px 0;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        }
+
+        .course-details {
+            font-size: 20px;
+            font-weight: 600;
+            color: #27ae60;
+            margin: 20px 0;
+        }
+
+        .achievement-details {
+            font-size: 16px;
+            color: #34495e;
+            margin: 15px 0;
+            font-style: italic;
+        }
+
+        /* Signatures Section */
+        .signatures {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            padding: 30mm 30mm 20mm 30mm;
+            position: relative;
+            z-index: 2;
+        }
+
+        .signature-block {
+            text-align: center;
+            width: 200px;
+        }
+
+        .signature-line {
+            border-top: 2px solid #2c3e50;
+            margin-bottom: 10px;
+            width: 180px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .signature-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+
+        .signature-name {
+            font-size: 14px;
+            color: #7f8c8d;
+        }
+
+        /* Date and Serial */
+        .certificate-footer {
+            position: absolute;
+            bottom: 25mm;
+            left: 30mm;
+            right: 30mm;
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            color: #7f8c8d;
+            z-index: 2;
+        }
+
+        /* Decorative Elements */
+        .decoration-left, .decoration-right {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 60px;
+            height: 200px;
+            background: linear-gradient(45deg, #3498db, #9b59b6);
+            opacity: 0.1;
+        }
+
+        .decoration-left {
+            left: 5mm;
+            border-radius: 0 30px 30px 0;
+        }
+
+        .decoration-right {
+            right: 5mm;
+            border-radius: 30px 0 0 30px;
+        }
+
+        /* Seal/Stamp Area */
+        .official-seal {
+            position: absolute;
+            bottom: 40mm;
+            right: 40mm;
+            width: 80px;
+            height: 80px;
+            border: 2px dashed #bdc3c7;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: #95a5a6;
+            text-align: center;
+            z-index: 2;
+        }
+
+        /* Controls */
+        .controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 100;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            background: #2c3e50;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            background: #34495e;
+            transform: translateY(-2px);
+        }
+
+        /* Print Styles */
+        @page {
+            size: A4 landscape;
+            margin: 0;
+        }
+
+        @media print {
+            body {
+                background: white;
+                display: block;
+                padding: 0;
+                margin: 0;
+            }
+
+            .certificate-container {
+                box-shadow: none;
+                margin: 0;
+                width: 297mm;
+                height: 210mm;
+            }
+
+            .controls {
+                display: none !important;
+            }
+
+            * {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+
+        /* Responsive */
+        @media screen and (max-width: 1200px) {
+            .certificate-container {
+                transform: scale(0.7);
+                margin: 20px auto;
+            }
+        }
+
+        @media screen and (max-width: 800px) {
+            .certificate-container {
+                transform: scale(0.5);
+                margin: 10px auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <button class="btn" onclick="window.print()">Print Certificate</button>
+    </div>
+
+    <div class="certificate-container">
+        <!-- Background Elements -->
+        <div class="bg-pattern"></div>
+        <div class="certificate-border"></div>
+        <div class="certificate-inner-border"></div>
+        <div class="decoration-left"></div>
+        <div class="decoration-right"></div>
+
+        <!-- Header -->
+        <div class="certificate-header">
+            <div class="institute-logo">
+                <img src="spi.png" alt="Institute Logo">
+            </div>
+            <div class="institute-name">Sirajganj Polytechnic Institute</div>
+            <div class="institute-subtitle">Government Technical Education Institution</div>
+        </div>
+
+        <!-- Certificate Title -->
+        <div class="certificate-title">Certificate of Completion</div>
+
+        <!-- Main Content -->
+        <div class="certificate-content">
+            <div class="certificate-text">
+                This is to certify that
+            </div>
+
+            <div class="student-name">{{name}}</div>
+
+            <div class="certificate-text">
+                Son/Daughter of <strong>{{fatherName}}</strong> and <strong>{{motherName}}</strong>
+            </div>
+
+            <div class="certificate-text">
+                has successfully completed the
+            </div>
+
+            <div class="course-details">
+                Diploma in Engineering - {{department}} Technology
+            </div>
+
+            <div class="certificate-text">
+                from the academic session <strong>{{session}}</strong>
+            </div>
+
+            <div class="achievement-details">
+                Registration No: {{registrationNumber}} | Roll No: {{rollNumber}}
+            </div>
+
+            <div class="achievement-details">
+                Achieved CGPA: <strong>{{cgpa}}</strong> out of 4.00
+            </div>
+
+            <div class="certificate-text">
+                We congratulate the graduate and wish continued success in all future endeavors.
+            </div>
+        </div>
+
+        <!-- Signatures -->
+        <div class="signatures">
+            <div class="signature-block">
+                <div class="signature-line"></div>
+                <div class="signature-title">Registrar</div>
+                <div class="signature-name">Academic Affairs</div>
+            </div>
+
+            <div class="signature-block">
+                <div class="signature-line"></div>
+                <div class="signature-title">Principal</div>
+                <div class="signature-name">Sirajganj Polytechnic Institute</div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="certificate-footer">
+            <div>Certificate No: SPI/CERT/{{registrationNumber}}</div>
+            <div>Date of Issue: <span id="issueDate"></span></div>
+        </div>
+
+        <!-- Official Seal -->
+        <div class="official-seal">
+            OFFICIAL<br>SEAL
+        </div>
+    </div>
+
+    <script>
+        // Set current date
+        document.addEventListener('DOMContentLoaded', function() {
+            const issueDateElement = document.getElementById('issueDate');
+            if (issueDateElement) {
+                issueDateElement.textContent = new Date().toLocaleDateString('en-GB');
+            }
+        });
+    </script>
+</body>
+</html>

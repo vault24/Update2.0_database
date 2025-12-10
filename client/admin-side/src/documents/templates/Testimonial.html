@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sirajganj Polytechnic Institute Testimonial</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,700;1,400&family=Tinos:wght@400;700&display=swap');
+
+        /* Reset and Base Styles */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        body {
+            background-color: #555;
+            font-family: 'Tinos', 'Times New Roman', Times, serif;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        /* Paper / Container */
+        .certificate-container {
+            width: 210mm;
+            height: 297mm;
+            background-color: white;
+            position: relative;
+            padding: 10mm;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+            margin: 0 auto;
+            overflow: hidden;
+        }
+
+        /* The Decorative Border */
+        .border-frame {
+            border: 2px solid #080000;
+            height: 100%;
+            padding: 4px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .border-inner {
+            border: 8px double #000000;
+            border-width: 4px;
+            border-style: solid;
+            height: 100%;
+            padding: 20px 30px;
+            position: relative;
+            outline: 2px solid #000000;
+            outline-offset: 3px;
+        }
+
+        /* Pattern decoration */
+        .side-decoration {
+            position: absolute;
+            left: 5px;
+            top: 0;
+            bottom: 0;
+            width: 15px;
+            background-size: 10px 10px;
+            opacity: 0.6;
+        }
+
+        /* Header Section */
+        header {
+            text-align: center;
+            margin-bottom: 5px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .gov-text {
+            font-size: 14px;
+            margin-bottom: 2px;
+            font-weight: 400;
+        }
+
+        .office-text {
+            font-size: 16px;
+            margin-bottom: 2px;
+            font-weight: 700;
+        }
+
+        .institute-name {
+            font-size: 24px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+            transform: scaleY(1.1);
+        }
+
+        /* Logo Styling */
+        .logo {
+            position: absolute;
+            top: -5px;
+            left: 0;
+            width: 70px;
+            height: 70px;
+        }
+        
+        .logo-right {
+            position: absolute;
+            top: -5px;
+            right: 0;
+            width: 70px;
+            height: 70px;
+        }
+        
+        .logo img, .logo-right img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        /* Testimonial Badge */
+        .badge-container {
+            display: flex;
+            justify-content: center;
+            margin: 5px 0 15px 0;
+            position: relative;
+            z-index: 2;
+        }
+
+        .badge {
+            background-color: #222;
+            color: white;
+            padding: 4px 25px;
+            border-radius: 20px;
+            font-size: 20px;
+            font-weight: 700;
+            border: 2px solid #000;
+            font-family: Arial, sans-serif;
+            letter-spacing: 1px;
+        }
+
+        /* Serial Number */
+        .serial-section {
+            display: flex;
+            align-items: center;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .serial-label {
+            margin-right: 10px;
+        }
+        
+        .serial-number {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        /* Body Content */
+        .content {
+            font-size: 17px;
+            line-height: 1.8;
+            text-align: justify;
+            position: relative;
+            z-index: 2;
+        }
+
+        /* Dotted Lines - Optimized to prevent wrapping */
+        .dotted-line {
+            border-bottom: 2px dotted #000;
+            display: inline-block;
+            margin: 0 5px;
+            position: relative;
+            height: 20px; /* Matched to line height roughly */
+            vertical-align: baseline; /* Aligns with text baseline */
+        }
+
+        /* Specific widths - Reduced to prevent line crossing/wrapping */
+        .w-name { width: 55%; }
+        .w-father { width: 25%; }
+        .w-mother { width: 25%; }
+        .w-reg { width: 15%; }
+        .w-roll { width: 15%; }
+        .w-dept { width: 20%; }
+        .w-session { width: 12%; }
+        .w-month { width: 20%; }
+        .w-year { width: 10%; }
+        .w-grade { width: 15%; }
+        .w-cgpa { width: 15%; }
+
+        /* Footer / Signatures */
+        footer {
+            margin-top: auto;
+            padding-top: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            padding-bottom: 10px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .signature-block {
+            text-align: left;
+            font-size: 16px;
+            font-weight: bold;
+            width: 200px;
+        }
+
+        .principal-block {
+            text-align: center;
+            width: 250px;
+        }
+        
+        .principal-block p {
+            line-height: 1.4;
+        }
+
+        /* Watermark */
+        .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 400px;
+            height: 400px;
+            opacity: 0.08;
+            pointer-events: none;
+            z-index: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .watermark img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            filter: grayscale(100%);
+        }
+
+        /* UI Controls */
+        .controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 100;
+        }
+        
+        button {
+            padding: 10px 20px;
+            background: #333;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        button:hover { background: #555; }
+
+        @page {
+            size: A4;
+            margin: 0;
+        }
+
+        @media print {
+            body { 
+                background: none; 
+                display: block;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+            .certificate-container {
+                box-shadow: none;
+                margin: 0;
+                width: 210mm;
+                height: 297mm;
+                page-break-after: always;
+                padding: 10mm;
+            }
+            .no-print {
+                display: none !important;
+            }
+            * {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="controls no-print">
+        <button onclick="window.print()">Print Certificate</button>
+    </div>
+
+    <div class="certificate-container">
+        <div class="border-frame">
+            <div class="side-decoration"></div> 
+
+            <div class="border-inner">
+                
+                <div class="watermark">
+                    <img src="spi.png" alt="Watermark Logo">
+                </div>
+
+                <header>
+                    <div class="logo">
+                        <img src="gov.svg" alt="Government Seal">
+                    </div>
+
+                    <div class="logo-right">
+                        <img src="spi.png" alt="Institute Logo">
+                    </div>
+
+                    <div class="gov-text">Government of the People's Republic of Bangladesh</div>
+                    <div class="office-text">Office of the Principal</div>
+                    <div class="institute-name">SIRAJGANJ POLYTECHNIC INSTITUTE</div>
+                </header>
+
+                <div class="badge-container">
+                    <div class="badge">Testimonial</div>
+                </div>
+
+                <div class="serial-section">
+                    <span class="serial-label">Serial No-</span>
+                    <span class="serial-number">{{registrationNumber}}</span>
+                </div>
+
+                <div class="content">
+                    This is to certify that {{name}}
+                    <br>
+                    Father's Name {{fatherName}} Mother's Name {{motherName}}
+                    
+                    Bearing Registration No {{registrationNumber}} Board Roll No {{rollNumber}} was a Student
+                    
+                    of {{department}} technology in this Institution from the academic session
+                    
+                    {{session}} to {{session}} He/She fulfilled the requirements for the Diploma-in-Engineering
+                    
+                    course in the month of <span id="graduationMonth"></span> <span id="graduationYear"></span>
+                    
+                    He/She has obtained <span class="editable" contenteditable="true">Grade A+</span> and CGPA {{cgpa}}
+                    
+                    During his/her study in this Institution there is nothing on record against his/her character or
+                    
+                    discipline.
+                    <br><br>
+                    I wish him/her every success in life.
+                </div>
+
+                <footer>
+                    <div class="signature-block">
+                        <br><br><br><br><br><br><br><br>
+                        Registrar<br>
+                        Dated: <span id="currentDate"></span>
+                    </div>
+
+                    <div class="principal-block">
+                        <br><br><br><br><br><br><br><br><br><br><br>
+                        ______________________<br>
+                        Principal<br>
+                        Sirajganj Polytechnic Institute<br>
+                        Sirajganj
+                    </div>
+                </footer>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Auto-format dates and graduation information
+        document.addEventListener('DOMContentLoaded', function() {
+            // Format current date
+            const currentDateElement = document.getElementById('currentDate');
+            if (currentDateElement) {
+                currentDateElement.textContent = new Date().toLocaleDateString('en-GB');
+            }
+
+            // Set graduation month and year (can be customized)
+            const graduationMonthElement = document.getElementById('graduationMonth');
+            const graduationYearElement = document.getElementById('graduationYear');
+            
+            if (graduationMonthElement) {
+                graduationMonthElement.textContent = 'March-April';
+            }
+            
+            if (graduationYearElement) {
+                const currentYear = new Date().getFullYear();
+                graduationYearElement.textContent = currentYear.toString();
+            }
+        });
+    </script>
+
+</body>
+</html>

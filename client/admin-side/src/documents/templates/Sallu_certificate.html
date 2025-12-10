@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Certificate - Sirajganj Polytechnic Institute</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Times+New+Roman:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Times New Roman', Times, serif;
+            background-color: #f3f4f6;
+            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact;
+        }
+        .page-container {
+            width: 210mm;
+            min-height: 297mm;
+            background: white;
+            margin: 20px auto;
+            padding: 40px 50px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            position: relative;
+        }
+        @media print {
+            body {
+                background: none;
+                margin: 0;
+            }
+            .page-container {
+                width: 100%;
+                margin: 0;
+                box-shadow: none;
+                padding: 20px;
+            }
+        }
+        .logo-placeholder {
+            width: 100px;
+            height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body class="p-4">
+
+    <div class="page-container mx-auto">
+        
+        <!-- Header Section -->
+        <div class="flex justify-between items-start mb-8">
+            <!-- Left Logo: Bangladesh Govt -->
+            <div class="w-24 h-24 flex-shrink-0">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Government_Seal_of_Bangladesh.svg/200px-Government_Seal_of_Bangladesh.svg.png" 
+                     alt="Bangladesh Government Logo" 
+                     class="w-full h-full object-contain"
+                     onerror="this.src='https://placehold.co/100x100?text=BD+Govt+Logo'">
+            </div>
+
+            <!-- Center Text -->
+            <div class="text-center flex-grow px-4 mt-2">
+                <h2 class="text-xl font-bold leading-tight">Government of the People's Republic of Bangladesh</h2>
+                <h3 class="text-lg font-bold mt-1">Office of the Principal</h3>
+                <h1 class="text-2xl font-bold mt-1">Sirajganj Polytechnic Institute, Sirajganj</h1>
+                <p class="text-lg mt-1">Institution Code: 25054, EIIN No-132927</p>
+            </div>
+
+            <!-- Right Logo: Institute -->
+            <div class="w-24 h-24 flex-shrink-0">
+                <img src="https://placehold.co/100x100/white/red?text=Institute\nLogo" 
+                     alt="Sirajganj Polytechnic Institute Logo" 
+                     class="w-full h-full object-contain border border-gray-100 rounded-full">
+            </div>
+        </div>
+
+        <!-- Contact Info -->
+        <div class="mb-12 text-base">
+            <p>Web: www.spisg.gov.bd</p>
+            <p>E-mail: principal.spi@gmail.com</p>
+        </div>
+
+        <!-- Title (CENTERED) -->
+        <div class="mb-8 text-center">
+            <h1 class="text-4xl font-bold text-black">Certificate</h1>
+        </div>
+
+        <!-- Body Content -->
+        <div class="text-xl text-justify leading-relaxed space-y-6">
+            <p>
+                This is to certify that <strong>{NAME}</strong>, son of <strong>{FATHER}</strong> and <strong>{Mother}</strong>, village <strong>{VILLAGE}</strong>, Post Office <strong>{POST OFFICE}</strong> Upazila <strong>{UPAZILA}</strong>, District <strong>Sirajganj</strong>, was a regular student of this institute in the <strong>2015–2016 session</strong> in the <strong>{TECHNOLOGY}</strong> department.
+            </p>
+
+            <p>
+                According to the institute records, his <strong>{Board Roll}</strong> and <strong>{Registration}</strong>.
+            </p>
+
+            <p>
+                He appeared in the <strong>Diploma-in-Engineering examination held in {SESSION}</strong> and successfully <strong>passed with a CGPA of {CGPA}</strong>.
+            </p>
+
+            <p>
+                To the best of our knowledge, during his period of study, <strong>he was not involved in any activities against the institute/state or in any unlawful activities.</strong>
+            </p>
+
+            <p>
+                I wish him every success in his future life.
+            </p>
+        </div>
+
+        <!-- Signatures Section -->
+        <div class="flex justify-between items-end mt-32 pt-10">
+            
+            <!-- Left Signature -->
+            <div class="text-center min-w-[200px]">
+                <p class="font-bold text-lg">(K. M. Firoz Hossain)</p>
+                <p class="text-lg">Registrar</p>
+                <p class="text-lg">Sirajganj Polytechnic Institute</p>
+                <p class="text-lg">Sirajganj</p>
+            </div>
+
+            <!-- Right Signature -->
+            <div class="text-center min-w-[200px]">
+                <p class="font-bold text-lg">(Md. Fozlul Haque)</p>
+                <p class="text-lg">Principal</p>
+                <p class="text-lg">Sirajganj Polytechnic Institute</p>
+                <p class="text-lg">Sirajganj</p>
+                <p class="text-lg">Phone: 02587752017</p>
+            </div>
+        </div>
+
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<!--
+  CHARACTER CERTIFICATE TEMPLATE FOR AUTOMATED STUDENT DBMS
+  
+  TEMPLATE VARIABLES (Replace with actual data from database):
+  
+  INSTITUTE INFORMATION:
+  - {{GOVERNMENT_NAME}}          : Government authority name
+  - {{OFFICE_NAME}}              : Office designation
+  - {{INSTITUTE_NAME}}           : Full institute name
+  - {{INSTITUTE_ADDRESS}}        : Complete address with postal code
+  - {{INSTITUTE_LOGO}}           : Path to institute logo/seal image
+  
+  CERTIFICATE DETAILS:
+  - {{SERIAL_NUMBER}}            : Certificate serial number
+  - {{ISSUE_DATE}}               : Date of certificate issue (format: DD-MM-YYYY)
+  
+  STUDENT INFORMATION:
+  - {{STUDENT_NAME}}             : Full name of student
+  - {{FATHER_NAME}}              : Father's full name
+  - {{MOTHER_NAME}}              : Mother's full name
+  - {{VILLAGE}}                  : Village name
+  - {{POST_OFFICE}}              : Post office with code
+  - {{UPAZILA}}                  : Upazila/Thana name
+  - {{DISTRICT}}                 : District name
+  
+  ACADEMIC INFORMATION:
+  - {{BOARD_ROLL}}               : Board roll number
+  - {{REGISTRATION_NUMBER}}      : Registration number
+  - {{SESSION_YEAR}}             : Session year (e.g., 2010-11)
+  - {{PASSING_YEAR}}             : Year of passing
+  - {{TECHNOLOGY}}               : Technology/Department name
+  
+  GENDER PRONOUNS (Auto-generate based on gender):
+  - {{GENDER_PRONOUN_SUBJECT}}         : He/She
+  - {{GENDER_PRONOUN_SUBJECT_LOWER}}   : he/she
+  - {{GENDER_PRONOUN_OBJECT}}          : him/her
+  - {{GENDER_PRONOUN_POSSESSIVE_LOWER}}: his/her
+  
+  AUTHORITY SIGNATURES:
+  - {{REGISTRAR_NAME}}           : Registrar's name (optional)
+  - {{PRINCIPAL_NAME}}           : Principal's name (optional)
+-->
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Character Certificate - Sirajganj Polytechnic Institute</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Crimson+Text:wght@400;600;700&family=Montserrat:wght@400;500;600;700&family=Merriweather:wght@700;900&display=swap" rel="stylesheet">
+<style>
+  /* A4 landscape print-ready */
+  @page { 
+    size: A4 landscape; 
+    margin: 0;
+    -webkit-print-color-adjust: exact;
+  }
+  
+  html, body { 
+    height: 100%;
+    width: 100%;
+  }
+  
+  body {
+    margin: 0;
+    padding: 0;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    font-family: 'Times New Roman', serif;
+  }
+  
+  .sheet {
+    width: 297mm;
+    height: 210mm;
+    padding: 8mm 10mm;
+    box-sizing: border-box;
+  }
+
+  /* Outer solid border - Professional design */
+  .frame-outer {
+    height: 100%;
+    border: 6px solid #2c3e50;
+    box-sizing: border-box;
+    padding: 5mm;
+    display: block;
+    background: #ffffff;
+    position: relative;
+  }
+
+  /* Inner border */
+  .frame-inner {
+    padding: 6mm;
+    box-sizing: border-box;
+    border: 2px solid #2c3e50;
+    position: relative;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .inner-area {
+    position: relative;
+    height: 100%;
+    padding: 0;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Header area */
+  .header {
+    text-align: center;
+    margin-bottom: 0;
+    margin-top: 2mm;
+    padding: 0 10mm;
+  }
+  
+  .govt {
+    font-family: 'Crimson Text', 'Georgia', serif;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: #1a1a1a;
+    line-height: 1.2;
+    margin: 0;
+  }
+  
+  .office {
+    font-family: 'Crimson Text', 'Georgia', serif;
+    font-size: 17px;
+    margin-top: 1mm;
+    color: #1a1a1a;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    line-height: 1.2;
+  }
+  
+  .institute {
+    font-family: 'Merriweather', 'Georgia', serif;
+    font-size: 28px;
+    font-weight: 900;
+    margin-top: 1.5mm;
+    letter-spacing: 1.2px;
+    color: #1a1a1a;
+    text-transform: uppercase;
+    line-height: 1.1;
+  }
+  
+  .address {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 12px;
+    margin-top: 1mm;
+    color: #555;
+    letter-spacing: 0.8px;
+    font-weight: 500;
+  }
+
+  /* Logo/Seal container with serial and date */
+  .logo-row {
+    position: relative;
+    margin: 1.5mm 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Small elements positioning - aligned with logo */
+  .serial {
+    position: absolute;
+    left: 0;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 12px;
+    color: #1a1a1a;
+    font-weight: 600;
+  }
+  
+  .date {
+    position: absolute;
+    right: 0;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 12px;
+    color: #1a1a1a;
+    font-weight: 600;
+  }
+
+  /* Logo/Seal */
+  .seal {
+    width: 85px;
+    height: 85px;
+    object-fit: contain;
+    display: block;
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.1));
+  }
+
+  /* Title */
+  .title {
+    font-family: 'Merriweather', 'Georgia', serif;
+    font-weight: 700;
+    font-size: 22px;
+    margin-top: 2mm;
+    margin-bottom: 0;
+    text-align: center;
+    color: #1a1a1a;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  /* Body text */
+  .body-text {
+    margin-top: 4mm;
+    padding: 0 10mm;
+    font-size: 15px;
+    line-height: 1.75;
+    text-align: justify;
+    font-family: 'Crimson Text', 'Georgia', serif;
+    color: #1a1a1a;
+    display: block;
+    font-weight: 400;
+    letter-spacing: 0.2px;
+    flex: 1 1 auto;
+  }
+
+  .body-text p {
+    margin: 0 0 4mm 0;
+    text-indent: 2.5em;
+  }
+
+  .body-text p:first-child {
+    text-indent: 2.5em;
+  }
+
+  .body-text strong {
+    font-weight: 700;
+    color: #000;
+  }
+
+  .closing {
+    margin-top: 3mm;
+    font-family: 'Crimson Text', 'Georgia', serif;
+    font-size: 15px;
+    text-align: left;
+    text-indent: 2.5em;
+    color: #1a1a1a;
+  }
+
+  /* Signature row */
+  .sign-row {
+    margin-top: auto;
+    padding: 4mm 30mm 0 30mm;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    font-family: 'Crimson Text', 'Georgia', serif;
+    gap: 25mm;
+  }
+
+  .sign-col {
+    flex: 1;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .sign-col > div {
+    font-size: 14px;
+    font-weight: 600;
+    font-style: italic;
+    color: #1a1a1a;
+    letter-spacing: 0.4px;
+    margin-bottom: 10mm;
+  }
+
+  .sign-line {
+    display: none;
+  }
+
+  .sign-name {
+    font-size: 13px;
+    color: #1a1a1a;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    margin-top: 0;
+  }
+
+  /* Print optimization */
+  @media print {
+    body {
+      margin: 0;
+      padding: 0;
+    }
+
+    .sheet {
+      padding: 0;
+      box-shadow: none;
+    }
+
+    .frame-outer {
+      border: 6px solid #2c3e50;
+    }
+
+    .frame-inner {
+      border: 2px solid #2c3e50;
+    }
+  }
+
+  /* Screen view adjustments */
+  @media screen {
+    body {
+      background: #f0f0f0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .sheet {
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    }
+  }
+</style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="frame-outer">
+      <div class="frame-inner">
+        <div class="inner-area">
+          <div class="header">
+            <div class="govt">Government of the People's Republic of Bangladesh</div>
+            <div class="office">Office of Principal's</div>
+            <div class="institute">SIRAJGANJ POLYTECHNIC INSTITUTE</div>
+            <div class="address">SIRAJGANJ-25064</div>
+            
+            <div class="logo-row">
+              <div class="serial">Serial No- {{SERIAL_NUMBER}}</div>
+              <img src="spi.png" alt="Institute Seal" class="seal" />
+              <div class="date">DATE: {{ISSUE_DATE}}</div>
+            </div>
+            
+            <div class="title">CHARACTER CERTIFICATE</div>
+          </div>
+
+          <div class="body-text">
+            <p>This is to certify that <strong>{{STUDENT_NAME}}</strong>, Father's Name <strong>{{FATHER_NAME}}</strong>, Mother's Name <strong>{{MOTHER_NAME}}</strong>, Village: <strong>{{VILLAGE}}</strong>, Post Office: <strong>{{POST_OFFICE}}</strong>, Upazila/Thana: <strong>{{UPAZILA}}</strong>, District: <strong>{{DISTRICT}}</strong> was a student of this Institute. Board Roll No. <strong>{{BOARD_ROLL}}</strong>, Registration No. <strong>{{REGISTRATION_NUMBER}}</strong>, Session <strong>{{SESSION_YEAR}}</strong>.</p>
+
+            <p>{{GENDER_PRONOUN_SUBJECT}} passed the four years Diploma-in-Engineering Examination of the year <strong>{{PASSING_YEAR}}</strong> in <strong>{{TECHNOLOGY}}</strong> under the Bangladesh Technical Education Board.</p>
+
+            <p>During {{GENDER_PRONOUN_POSSESSIVE_LOWER}} study in this institution {{GENDER_PRONOUN_SUBJECT_LOWER}} did not take part in any activities subversive of the state or of discipline. {{GENDER_PRONOUN_SUBJECT}} bears a good moral character.</p>
+
+            <p class="closing">I wish {{GENDER_PRONOUN_OBJECT}} every success in life.</p>
+          </div>
+
+          <div class="sign-row">
+            <div class="sign-col">
+              <div>Registrar</div>
+              <span class="sign-line"></span>
+              
+            </div>
+            <div class="sign-col">
+              <div>Principal</div>
+              <span class="sign-line"></span>
+             
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
