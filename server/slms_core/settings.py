@@ -27,7 +27,7 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-#bwr-tx#5=jeo0s)nf2x2
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,18.138.238.106,ec2-18-138-238-106.ap-southeast-1.compute.amazonaws.com', cast=Csv())
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,18.138.238.106,ec2-18-138-238-106.ap-southeast-1.compute.amazonaws.com,18.138.238.106:8000', cast=Csv())
 
 
 # Application definition
@@ -189,7 +189,7 @@ REST_FRAMEWORK = {
 # CORS Configuration
 CORS_ALLOWED_ORIGINS = config(
     'CORS_ALLOWED_ORIGINS',
-    default='http://localhost:3000,http://localhost:8080,http://127.0.0.1:3000,http://localhost:5500,http://127.0.0.1:5500,http://localhost:8081,http://127.0.0.1:8081,http://18.138.238.106',
+    default='http://localhost:3000,http://localhost:8080,http://127.0.0.1:3000,http://localhost:5500,http://127.0.0.1:5500,http://localhost:8081,http://127.0.0.1:8081,http://18.138.238.106:8000,http://18.138.238.106',
     cast=Csv()
 )
 CORS_ALLOW_CREDENTIALS = True
@@ -201,7 +201,7 @@ if DEBUG:
 # CSRF Configuration for frontend
 CSRF_TRUSTED_ORIGINS = config(
     'CSRF_TRUSTED_ORIGINS',
-    default='http://localhost:5500,http://127.0.0.1:5500,http://localhost:8080,http://127.0.0.1:8080,http://localhost:8081,http://127.0.0.1:8081,http://192.168.1.250,http://18.138.238.106',
+    default='http://localhost:5500,http://127.0.0.1:5500,http://localhost:8080,http://127.0.0.1:8080,http://localhost:8081,http://127.0.0.1:8081,http://192.168.1.250,http://18.138.238.106:8000,http://18.138.238.106',
     cast=Csv()
 )
 
