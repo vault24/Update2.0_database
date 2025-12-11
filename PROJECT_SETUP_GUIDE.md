@@ -38,9 +38,9 @@ cp .env.example .env    # Linux/Mac
 ```bash
 # Create PostgreSQL database
 # In PostgreSQL:
-CREATE DATABASE slms_db;
-CREATE USER your_user WITH PASSWORD 'your_password';
-GRANT ALL PRIVILEGES ON DATABASE slms_db TO your_user;
+CREATE DATABASE sipi_db;
+CREATE USER sipi_web WITH PASSWORD 'sipiadmin';
+GRANT ALL PRIVILEGES ON DATABASE sipi_db TO sipi_web;
 
 # Run migrations (this creates ALL tables including activity_logs)
 python manage.py migrate

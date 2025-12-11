@@ -1,0 +1,115 @@
+[Unit]
+Description=Gunicorn daemon for SLMS Django application
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+# ============================================
+# USER CONFIGURATION
+# ============================================
+# Change these to your actual user/group
+# Common options: www-data, nginx, your-username
+User=www-data
+Group=www-data
+
+# ============================================
+# DIRECTORY CONFIGURATION
+# ============================================
+# Update this path to your actual project directory
+# Example: /home/ubuntu/sipi-database/server
+#          /var/www/sipi-database/server
+WorkingDirectory=/path/to/sipi-database/server
+
+# ============================================
+# ENVIRONMENT VARIABLES
+# ============================================
+# Virtual environment path
+Environment="PATH=/path/to/sipi-database/server/venv/bin"
+# Django settings module
+Environment="DJANGO_SETTINGS_MODULE=slms_core.settings"
+# Prevent Python from buffering stdout/stderr
+Environment="PYTHONUNBUFFERED=1"
+# Optional: Add your .env file location if using python-decouple
+# Environment="ENV_FILE=/path/to/sipi-database/server/.env"
+
+# ============================================
+# GUNICORN CONFIGURATION
+# ============================================
+# Update all paths according to your setup
+ExecStart=/path/to/sipi-database/server/venv/bin/gunicorn \
+    --workers 4 \
+    --worker-class sync \
+    --timeout 120 \
+    --keepalive 5 \
+    --max-requests 1000 \
+    --max-requests-jitter 50 \
+    --bind 0.0.0.0:8000 \
+    --access-logfile /var/log/gunicorn/access.log \
+    --error-logfile /var/log/gunicorn/error.log \
+    --log-level info \
+    --capture-output \
+    --enable-stdio-inheritance \
+    --pid /var/run/gunicorn/slms.pid \
+    --user www-data \
+    --group www-data \
+    --chdir /path/to/sipi-database/server \
+    slms_core.wsgi:application
+
+# ============================================
+# RESTART POLICY
+# ============================================
+# Restart service if it crashes
+Restart=always
+# Wait 3 seconds before restarting
+RestartSec=3
+# No limit on restart attempts
+StartLimitInterval=0
+
+# ============================================
+# SECURITY SETTINGS
+# ============================================
+# Prevent service from gaining new privileges
+NoNewPrivileges=true
+# Use private /tmp directory
+PrivateTmp=true
+# Protect system directories (read-only)
+ProtectSystem=strict
+# Protect home directories
+ProtectHome=true
+# Allow read/write access to these paths
+ReadWritePaths=/path/to/sipi-database/server /var/log/gunicorn /var/run/gunicorn /tmp
+# Allow read-only access to /etc
+ReadOnlyPaths=/etc
+
+# ============================================
+# RESOURCE LIMITS
+# ============================================
+# Maximum number of open file descriptors
+LimitNOFILE=65535
+# Maximum number of processes
+LimitNPROC=4096
+
+# ============================================
+# KILL SETTINGS
+# ============================================
+# Send SIGTERM to main process, then SIGKILL to remaining processes
+KillMode=mixed
+# Signal to send on stop
+KillSignal=SIGTERM
+# Timeout for graceful shutdown
+TimeoutStopSec=30
+
+# ============================================
+# LOGGING
+# ============================================
+# Send output to systemd journal
+StandardOutput=journal
+StandardError=journal
+# Identifier for syslog
+SyslogIdentifier=gunicorn-slms
+
+[Install]
+# Start service on boot
+WantedBy=multi-user.target
+
+

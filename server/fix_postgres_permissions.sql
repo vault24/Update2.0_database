@@ -3,7 +3,7 @@
 -- Run this as the postgres superuser
 
 -- Connect to your database (replace slms_db with your actual database name)
-\c slms_db
+\c sipi_db
 
 -- Grant usage and create privileges on the public schema
 -- This is required for PostgreSQL 15+ where public schema permissions are restricted
@@ -24,7 +24,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON SEQUENCES TO s
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON FUNCTIONS TO sipi_web;
 
 -- Make the user the owner of the schema (alternative approach)
--- ALTER SCHEMA public OWNER TO sipi_web;
+ALTER SCHEMA public OWNER TO sipi_web;
 
 -- Verify permissions
 \echo 'Permissions granted successfully!'

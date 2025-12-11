@@ -1,0 +1,66 @@
+[Unit]
+Description=Gunicorn daemon for SLMS Django application
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+# User and Group - Change these to your actual user/group
+User=www-data
+Group=www-data
+
+# Working Directory - Update this path to your actual project directory
+WorkingDirectory=/path/to/sipi-database/server
+
+# Environment Variables
+Environment="PATH=/path/to/sipi-database/server/venv/bin"
+Environment="DJANGO_SETTINGS_MODULE=slms_core.settings"
+Environment="PYTHONUNBUFFERED=1"
+
+# Gunicorn ExecStart Command
+# Update paths according to your setup
+ExecStart=/path/to/sipi-database/server/venv/bin/gunicorn \
+    --workers 4 \
+    --worker-class sync \
+    --timeout 120 \
+    --bind 0.0.0.0:8000 \
+    --access-logfile /var/log/gunicorn/access.log \
+    --error-logfile /var/log/gunicorn/error.log \
+    --log-level info \
+    --capture-output \
+    --enable-stdio-inheritance \
+    --pid /var/run/gunicorn/slms.pid \
+    --user www-data \
+    --group www-data \
+    --chdir /path/to/sipi-database/server \
+    slms_core.wsgi:application
+
+# Restart Policy
+Restart=always
+RestartSec=3
+StartLimitInterval=0
+
+# Security Settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/path/to/sipi-database/server /var/log/gunicorn /var/run/gunicorn
+ReadOnlyPaths=/etc
+
+# Resource Limits
+LimitNOFILE=65535
+LimitNPROC=4096
+
+# Kill Settings
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# Standard Output/Error
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gunicorn-slms
+
+[Install]
+WantedBy=multi-user.target
+
