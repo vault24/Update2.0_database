@@ -1,0 +1,49 @@
+[Unit]
+Description=Gunicorn daemon for SLMS Django application
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+# Run as the user who owns the project files
+User=ubuntu
+Group=www-data
+
+# Set working directory (where manage.py lives)
+WorkingDirectory=/home/ubuntu/Update2.0_database/server
+
+# Ensure venv bin is first on PATH so systemd finds venv-installed packages
+Environment="PATH=/home/ubuntu/Update2.0_database/server/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"
+Environment="DJANGO_SETTINGS_MODULE=slms_core.settings"
+Environment="PYTHONUNBUFFERED=1"
+
+# ExecStart must be the full path to the gunicorn binary inside the venv.
+# Use gunicorn directly, NOT "python -m gunicorn"
+ExecStart=/home/ubuntu/Update2.0_database/server/venv/bin/gunicorn \
+    --workers 3 \
+    --bind 0.0.0.0:8000 \
+    slms_core.wsgi:application
+
+Restart=on-failure
+RestartSec=3
+
+# security / limits
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+# ProtectHome=read-only allows reading from /home but prevents writing
+# This is needed because the venv binary is in /home/ubuntu/...
+ProtectHome=read-only
+ReadWritePaths=/home/ubuntu/Update2.0_database/server /home/ubuntu/Update2.0_database/server/venv /var/log/gunicorn /var/run/gunicorn
+ReadOnlyPaths=/etc
+LimitNOFILE=65535
+LimitNPROC=4096
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gunicorn-slms
+
+[Install]
+WantedBy=multi-user.target
+
