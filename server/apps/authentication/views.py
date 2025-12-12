@@ -36,13 +36,24 @@ def csrf_token_view(request):
     Returns:
     - 200: CSRF token set in cookie
     """
-    return Response(
-        {
-            'detail': 'CSRF cookie set',
-            'csrfToken': get_token(request),
-        },
-        status=status.HTTP_200_OK
-    )
+    try:
+        return Response(
+            {
+                'detail': 'CSRF cookie set',
+                'csrfToken': get_token(request),
+            },
+            status=status.HTTP_200_OK
+        )
+    except Exception as e:
+        import traceback
+        return Response(
+            {
+                'error': 'Failed to get CSRF token',
+                'details': str(e),
+                'traceback': traceback.format_exc() if settings.DEBUG else None
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 
 @api_view(['POST'])
@@ -204,18 +215,29 @@ def me_view(request):
     Returns:
     - 200: User profile data
     """
-    serializer = UserSerializer(request.user)
-    
-    response_data = {
-        'user': serializer.data
-    }
-    
-    # Add redirect flag if user needs to complete admission
-    if hasattr(request.user, 'needs_admission') and callable(request.user.needs_admission):
-        if request.user.needs_admission():
-            response_data['redirect_to_admission'] = True
-    
-    return Response(response_data, status=status.HTTP_200_OK)
+    try:
+        serializer = UserSerializer(request.user)
+        
+        response_data = {
+            'user': serializer.data
+        }
+        
+        # Add redirect flag if user needs to complete admission
+        if hasattr(request.user, 'needs_admission') and callable(request.user.needs_admission):
+            if request.user.needs_admission():
+                response_data['redirect_to_admission'] = True
+        
+        return Response(response_data, status=status.HTTP_200_OK)
+    except Exception as e:
+        import traceback
+        return Response(
+            {
+                'error': 'Failed to get user profile',
+                'details': str(e),
+                'traceback': traceback.format_exc() if settings.DEBUG else None
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 
 @api_view(['POST'])
