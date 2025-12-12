@@ -119,8 +119,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || error.message || 'Login failed');
+        let errorMessage = 'Login failed';
+        let errorDetails: any = null;
+        try {
+          const error = await response.json();
+          errorDetails = error;
+          errorMessage = error.detail || error.message || error.error || error.details || JSON.stringify(error);
+          // Log full error details for debugging
+          console.error('Login error response:', error);
+        } catch (e) {
+          // If response is not JSON, try to get text
+          try {
+            const text = await response.text();
+            console.error('Login error (non-JSON):', text);
+            errorMessage = `Login failed with status ${response.status}: ${text.substring(0, 200)}`;
+          } catch (textError) {
+            errorMessage = `Login failed with status ${response.status}`;
+          }
+        }
+        
+        // Create error with full details
+        const error = new Error(errorMessage);
+        (error as any).details = errorDetails;
+        (error as any).status = response.status;
+        throw error;
       }
 
       const userData = await response.json();

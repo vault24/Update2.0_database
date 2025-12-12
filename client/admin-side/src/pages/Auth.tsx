@@ -105,35 +105,44 @@ export default function Auth() {
             description: "You have been logged in successfully.",
           });
         } catch (err: any) {
-          // Check if there's a pending signup request
-          try {
-            const statusResponse = await signupRequestService.checkSignupRequestStatus(formData.email);
-            
-            if (statusResponse.status === 'pending') {
-              toast({
-                title: "Account Pending Approval",
-                description: "Your signup request is awaiting approval from an administrator. Please check back later.",
-                variant: "destructive",
-              });
-              setIsLoading(false);
-              return;
-            } else if (statusResponse.status === 'rejected') {
-              toast({
-                title: "Signup Request Rejected",
-                description: "Your signup request was rejected. Please contact an administrator for more information.",
-                variant: "destructive",
-              });
-              setIsLoading(false);
-              return;
+          // Check if there's a pending signup request (only if login failed due to invalid credentials)
+          const errorMessage = err.message || err.toString() || "Invalid email or password";
+          const isInvalidCredentials = errorMessage.toLowerCase().includes('invalid') || 
+                                      errorMessage.toLowerCase().includes('password') ||
+                                      errorMessage.toLowerCase().includes('username');
+          
+          if (isInvalidCredentials) {
+            try {
+              const statusResponse = await signupRequestService.checkSignupRequestStatus(formData.email);
+              
+              if (statusResponse.status === 'pending') {
+                toast({
+                  title: "Account Pending Approval",
+                  description: "Your signup request is awaiting approval from an administrator. Please check back later.",
+                  variant: "destructive",
+                });
+                setIsLoading(false);
+                return;
+              } else if (statusResponse.status === 'rejected') {
+                toast({
+                  title: "Signup Request Rejected",
+                  description: statusResponse.rejection_reason || "Your signup request was rejected. Please contact an administrator for more information.",
+                  variant: "destructive",
+                });
+                setIsLoading(false);
+                return;
+              }
+            } catch (statusErr: any) {
+              // If status check fails, log it but continue to show login error
+              console.error('Failed to check signup request status:', statusErr);
+              // Don't show status check errors to user, continue with login error
             }
-          } catch (statusErr) {
-            // If status check fails, show the original login error
           }
 
-          // Show login error
+          // Show login error with actual error message from backend
           toast({
             title: "Login Failed",
-            description: err.message || "Invalid email or password",
+            description: errorMessage,
             variant: "destructive",
           });
           setIsLoading(false);
@@ -141,9 +150,27 @@ export default function Auth() {
         }
       }
     } catch (error: any) {
+      console.error('Auth error:', error);
+      let errorMessage = "An error occurred. Please try again.";
+      
+      // Handle different error formats
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (error.error) {
+        // ApiError format from apiClient
+        errorMessage = error.details || error.error;
+      } else if (error.response?.data) {
+        const data = error.response.data;
+        errorMessage = data.message || data.detail || data.error || data.details || JSON.stringify(data);
+      } else if (error.response) {
+        errorMessage = `Request failed with status ${error.response.status}`;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      
       toast({
         title: "Error",
-        description: error.response?.data?.message || error.response?.data?.detail || "An error occurred. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
