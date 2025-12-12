@@ -212,6 +212,9 @@ CSRF_COOKIE_SECURE = False  # Set to True in production with HTTPS
 CSRF_USE_SESSIONS = False  # Use cookie-based CSRF tokens
 CSRF_COOKIE_NAME = 'csrftoken'
 
+# Custom CSRF failure handler for API endpoints (returns JSON instead of HTML)
+CSRF_FAILURE_VIEW = 'apps.authentication.csrf_handler.csrf_failure'
+
 # Session Configuration
 SESSION_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_HTTPONLY = True

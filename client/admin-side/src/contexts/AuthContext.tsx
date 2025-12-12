@@ -121,21 +121,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!response.ok) {
         let errorMessage = 'Login failed';
         let errorDetails: any = null;
+        
+        // Check content type to determine if response is JSON or HTML
+        const contentType = response.headers.get('content-type');
+        const isJSON = contentType && contentType.includes('application/json');
+        
         try {
-          const error = await response.json();
-          errorDetails = error;
-          errorMessage = error.detail || error.message || error.error || error.details || JSON.stringify(error);
-          // Log full error details for debugging
-          console.error('Login error response:', error);
-        } catch (e) {
-          // If response is not JSON, try to get text
-          try {
+          if (isJSON) {
+            const error = await response.json();
+            errorDetails = error;
+            errorMessage = error.detail || error.message || error.error || error.details || JSON.stringify(error);
+            console.error('Login error response (JSON):', error);
+          } else {
+            // Response is HTML (likely Django error page)
             const text = await response.text();
-            console.error('Login error (non-JSON):', text);
-            errorMessage = `Login failed with status ${response.status}: ${text.substring(0, 200)}`;
-          } catch (textError) {
-            errorMessage = `Login failed with status ${response.status}`;
+            console.error('Login error response (HTML):', text.substring(0, 500));
+            
+            // Try to extract meaningful error from HTML
+            const titleMatch = text.match(/<title>(.*?)<\/title>/i);
+            const h1Match = text.match(/<h1[^>]*>(.*?)<\/h1>/i);
+            
+            if (titleMatch) {
+              errorMessage = `Server error: ${titleMatch[1]}`;
+            } else if (h1Match) {
+              errorMessage = `Server error: ${h1Match[1]}`;
+            } else {
+              errorMessage = `Server returned HTML error page (status ${response.status}). Check server logs.`;
+            }
+            
+            // If it's a 400 error with HTML, it's likely a CSRF or middleware issue
+            if (response.status === 400) {
+              errorMessage = 'Bad request. This may be a CSRF token or CORS issue. Please check server configuration.';
+            }
           }
+        } catch (e) {
+          errorMessage = `Login failed with status ${response.status}`;
+          console.error('Error parsing response:', e);
         }
         
         // Create error with full details
