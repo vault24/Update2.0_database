@@ -282,25 +282,36 @@ def create_signup_request_view(request):
     - 201: Signup request created successfully
     - 400: Validation error
     """
-    serializer = SignupRequestSerializer(data=request.data)
-    
-    if serializer.is_valid():
-        signup_request = serializer.save()
+    try:
+        serializer = SignupRequestSerializer(data=request.data)
         
+        if serializer.is_valid():
+            signup_request = serializer.save()
+            
+            return Response(
+                {
+                    'message': 'Signup request submitted successfully. Please wait for admin approval.',
+                    'signup_request': {
+                        'id': str(signup_request.id),
+                        'username': signup_request.username,
+                        'email': signup_request.email,
+                        'status': signup_request.status
+                    }
+                },
+                status=status.HTTP_201_CREATED
+            )
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        import traceback
         return Response(
             {
-                'message': 'Signup request submitted successfully. Please wait for admin approval.',
-                'signup_request': {
-                    'id': str(signup_request.id),
-                    'username': signup_request.username,
-                    'email': signup_request.email,
-                    'status': signup_request.status
-                }
+                'error': 'Failed to create signup request',
+                'details': str(e),
+                'traceback': traceback.format_exc() if settings.DEBUG else None
             },
-            status=status.HTTP_201_CREATED
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
-    
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET'])
