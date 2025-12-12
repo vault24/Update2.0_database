@@ -22,6 +22,7 @@ from .serializers import (
 from .models import SignupRequest
 from django.utils import timezone
 from django.db import transaction
+from django.conf import settings
 
 
 @api_view(['GET'])
@@ -126,30 +127,41 @@ def login_view(request):
     - 200: Login successful
     - 400: Invalid credentials or account not active
     """
-    serializer = LoginSerializer(data=request.data, context={'request': request})
-    
-    if serializer.is_valid():
-        user = serializer.validated_data['user']
+    try:
+        serializer = LoginSerializer(data=request.data, context={'request': request})
         
-        # Login user (creates session)
-        login(request, user)
+        if serializer.is_valid():
+            user = serializer.validated_data['user']
+            
+            # Login user (creates session)
+            login(request, user)
+            
+            # Return user data
+            user_serializer = UserSerializer(user)
+            
+            response_data = {
+                'message': 'Login successful',
+                'user': user_serializer.data,
+            }
+            
+            # Add redirect flag if user needs to complete admission
+            if hasattr(user, 'needs_admission') and callable(user.needs_admission):
+                if user.needs_admission():
+                    response_data['redirect_to_admission'] = True
+            
+            return Response(response_data, status=status.HTTP_200_OK)
         
-        # Return user data
-        user_serializer = UserSerializer(user)
-        
-        response_data = {
-            'message': 'Login successful',
-            'user': user_serializer.data,
-        }
-        
-        # Add redirect flag if user needs to complete admission
-        if hasattr(user, 'needs_admission') and callable(user.needs_admission):
-            if user.needs_admission():
-                response_data['redirect_to_admission'] = True
-        
-        return Response(response_data, status=status.HTTP_200_OK)
-    
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        import traceback
+        return Response(
+            {
+                'error': 'Login failed',
+                'details': str(e),
+                'traceback': traceback.format_exc() if settings.DEBUG else None
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 
 @api_view(['POST'])
@@ -548,4 +560,14 @@ def check_signup_request_status_view(request, username):
                 'message': 'No signup request found for this username or email.'
             },
             status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        import traceback
+        return Response(
+            {
+                'error': 'Failed to check signup request status',
+                'details': str(e),
+                'traceback': traceback.format_exc() if settings.DEBUG else None
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
