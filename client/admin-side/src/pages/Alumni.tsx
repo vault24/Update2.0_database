@@ -68,23 +68,26 @@ export default function Alumni() {
       setLoading(true);
       setError(null);
       
+      console.log('Fetching alumni data...');
       const response = await alumniService.getAlumni({ page_size: 1000 });
+      console.log('Alumni API response:', response);
       
       // Transform API data to display format
       const transformedData: DisplayAlumni[] = response.results.map((alumni: AlumniType) => ({
-        id: alumni.student,
-        name: alumni.studentName || 'Unknown',
-        roll: alumni.studentRoll || 'N/A',
-        department: alumni.departmentName || 'Unknown',
+        id: alumni.student.id,
+        name: alumni.student.fullNameEnglish || 'Unknown',
+        roll: alumni.student.currentRollNumber || 'N/A',
+        department: alumni.student.department?.name || 'Unknown',
         graduationYear: alumni.graduationYear?.toString() || 'N/A',
-        currentJob: alumni.currentPosition?.position || 'Not specified',
-        company: alumni.currentPosition?.company || 'Not specified',
+        currentJob: alumni.currentPosition?.positionTitle || 'Not specified',
+        company: alumni.currentPosition?.organizationName || 'Not specified',
         location: 'N/A', // Not available in API
         avatar: '',
         category: alumni.alumniType,
         supportStatus: alumni.currentSupportCategory,
       }));
       
+      console.log('Transformed alumni data:', transformedData);
       setAlumniData(transformedData);
       
       // Extract unique departments and years
@@ -104,7 +107,10 @@ export default function Alumni() {
         no_support_needed: transformedData.filter(a => a.supportStatus === 'no_support_needed').length,
       });
     } catch (err) {
-      setError(getErrorMessage(err));
+      console.error('Error fetching alumni:', err);
+      const errorMessage = getErrorMessage(err);
+      setError(errorMessage);
+      console.log('Error details:', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -208,6 +214,10 @@ export default function Alumni() {
             <GraduationCap className="w-4 h-4 mr-2" />
             {stats.all} Alumni
           </Badge>
+          <Button variant="outline" size="sm" onClick={fetchAlumni}>
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Refresh
+          </Button>
         </div>
       </motion.div>
 

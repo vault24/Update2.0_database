@@ -34,7 +34,7 @@ class AlumniViewSet(viewsets.ModelViewSet):
     - search: GET /api/alumni/search/?q={query}
     - stats: GET /api/alumni/stats/
     """
-    queryset = Alumni.objects.all()
+    queryset = Alumni.objects.select_related('student', 'student__department').all()
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['alumniType', 'currentSupportCategory', 'graduationYear', 'student__department']
     

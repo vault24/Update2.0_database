@@ -48,15 +48,13 @@ export default function StudentListPage() {
   };
 
   const filteredStudents = students.filter(student =>
-    student.fullNameEnglish.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    student.currentRollNumber.includes(searchQuery) ||
-    student.email.toLowerCase().includes(searchQuery.toLowerCase())
+    (student.fullNameEnglish || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (student.currentRollNumber || '').includes(searchQuery) ||
+    (student.email || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // Calculate stats
   const totalStudents = students.length;
-  const avgCGPA = 0; // Would need to be calculated from marks data
-  const avgAttendance = 0; // Would need to be calculated from attendance data
 
   // Loading state
   if (loading) {
@@ -132,7 +130,9 @@ export default function StudentListPage() {
         >
           <p className="text-sm text-muted-foreground">Departments</p>
           <p className="text-2xl font-bold text-primary">
-            {new Set(students.map(s => s.department)).size}
+            {new Set(students.map(s => 
+              typeof s.department === 'object' ? s.department?.name : s.department
+            ).filter(Boolean)).size}
           </p>
         </motion.div>
         <motion.div
@@ -210,24 +210,24 @@ export default function StudentListPage() {
                 >
                   <td className="p-4">
                     <div className="w-8 h-8 rounded-full gradient-accent flex items-center justify-center text-primary-foreground font-semibold text-sm">
-                      {student.currentRollNumber}
+                      {student.currentRollNumber || 'N/A'}
                     </div>
                   </td>
                   <td className="p-4">
                     <div>
-                      <p className="font-medium">{student.fullNameEnglish}</p>
-                      <p className="text-sm text-muted-foreground md:hidden">{student.email}</p>
+                      <p className="font-medium">{student.fullNameEnglish || 'N/A'}</p>
+                      <p className="text-sm text-muted-foreground md:hidden">{student.email || 'N/A'}</p>
                     </div>
                   </td>
-                  <td className="p-4 hidden md:table-cell text-muted-foreground">{student.email}</td>
+                  <td className="p-4 hidden md:table-cell text-muted-foreground">{student.email || 'N/A'}</td>
                   <td className="p-4 hidden lg:table-cell">
                     <span className="px-2 py-1 rounded-full text-xs bg-secondary">
-                      Semester {student.semester}
+                      Semester {student.semester || 'N/A'}
                     </span>
                   </td>
                   <td className="p-4">
                     <span className={`px-2 py-1 rounded-full text-xs ${student.status === 'active' ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}>
-                      {student.status}
+                      {student.status || 'N/A'}
                     </span>
                   </td>
                   <td className="p-4 hidden md:table-cell">
@@ -239,7 +239,13 @@ export default function StudentListPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => navigate(`/dashboard/students/${student.id}`)}
+                      onClick={() => {
+                        if (student.id) {
+                          navigate(`/dashboard/students/${student.id}`);
+                        } else {
+                          toast.error('Invalid student ID');
+                        }
+                      }}
                     >
                       <Eye className="w-4 h-4" />
                     </Button>

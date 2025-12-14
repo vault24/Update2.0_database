@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { 
   ArrowLeft, Edit, Download, Unplug, Trash2, ChevronDown, ChevronUp,
   User, Phone, MapPin, GraduationCap, BookOpen, 
-  AlertTriangle, CheckCircle, Home, TrendingUp
+  AlertTriangle, CheckCircle, Home, TrendingUp, Award
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { studentService, Student, SemesterAttendance, SemesterResult, SubjectAttendance, SubjectResult } from '@/services/studentService';
+import { studentService, Student, SemesterAttendance, SemesterResult, SubjectAttendance } from '@/services/studentService';
 import { getErrorMessage } from '@/lib/api';
 import { LoadingState } from '@/components/LoadingState';
 import { ErrorState } from '@/components/ErrorState';
@@ -79,6 +79,7 @@ export default function StudentDetails() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isUpdateAttendanceDialogOpen, setIsUpdateAttendanceDialogOpen] = useState(false);
   const [isUpdateResultsDialogOpen, setIsUpdateResultsDialogOpen] = useState(false);
+  const [isTransitionToAlumniDialogOpen, setIsTransitionToAlumniDialogOpen] = useState(false);
   const [mathProblem, setMathProblem] = useState({ num1: 0, num2: 0, answer: '' });
   const [deleteMathProblem, setDeleteMathProblem] = useState({ num1: 0, num2: 0, answer: '' });
   const [disconnectForm, setDisconnectForm] = useState({
@@ -283,7 +284,24 @@ export default function StudentDetails() {
   const handleUpdateResult = (semesterIndex: number, field: string, value: any) => {
     const newResultsData = [...resultsData];
     if (newResultsData[semesterIndex]) {
-      (newResultsData[semesterIndex] as any)[field] = value;
+      const result = newResultsData[semesterIndex];
+      
+      // Handle result type changes - clear conflicting fields
+      if (field === 'resultType') {
+        if (value === 'gpa') {
+          // Clear referred subjects when switching to GPA
+          delete result.referredSubjects;
+          result.gpa = result.gpa || 0;
+          result.cgpa = result.cgpa || 0;
+        } else if (value === 'referred') {
+          // Clear GPA fields when switching to referred
+          delete result.gpa;
+          delete result.cgpa;
+          result.referredSubjects = result.referredSubjects || [];
+        }
+      }
+      
+      (result as any)[field] = value;
       setResultsData(newResultsData);
     }
   };
@@ -295,8 +313,7 @@ export default function StudentDetails() {
       resultType: 'gpa',
       gpa: 0,
       cgpa: 0,
-      subjects: [],
-      referredSubjects: []
+      subjects: []
     };
     setResultsData([...resultsData, newResult]);
   };
@@ -306,8 +323,30 @@ export default function StudentDetails() {
     
     try {
       setIsSaving(true);
+      
+      // Clean up the results data before sending
+      const cleanedResultsData = resultsData.map(result => {
+        const cleanedResult: any = {
+          semester: result.semester,
+          year: result.year,
+          resultType: result.resultType
+        };
+        
+        if (result.resultType === 'gpa') {
+          // Only include GPA fields for GPA type
+          if (result.gpa !== undefined) cleanedResult.gpa = result.gpa;
+          if (result.cgpa !== undefined) cleanedResult.cgpa = result.cgpa;
+          if (result.subjects) cleanedResult.subjects = result.subjects;
+        } else if (result.resultType === 'referred') {
+          // Only include referred subjects for referred type
+          if (result.referredSubjects) cleanedResult.referredSubjects = result.referredSubjects;
+        }
+        
+        return cleanedResult;
+      });
+      
       await studentService.patchStudent(id, {
-        semesterResults: resultsData
+        semesterResults: cleanedResultsData
       });
       
       // Refresh student data
@@ -315,10 +354,23 @@ export default function StudentDetails() {
       setStudent(updatedStudent);
       setResultsData(updatedStudent.semesterResults || []);
       
-      toast({
-        title: "Success",
-        description: "Semester results have been updated successfully.",
-      });
+      // Check if 8th semester result was just added
+      const has8thSemesterResult = cleanedResultsData.some(result => 
+        result.semester === 8 && result.resultType === 'gpa' && result.gpa && result.gpa > 0
+      );
+      
+      if (has8thSemesterResult && updatedStudent.status === 'active') {
+        toast({
+          title: "8th Semester Completed!",
+          description: "This student is now eligible for alumni transition. You can transition them using the 'Transition to Alumni' button.",
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: "Semester results have been updated successfully.",
+        });
+      }
+      
       setIsUpdateResultsDialogOpen(false);
     } catch (err) {
       const errorMessage = getErrorMessage(err);
@@ -345,6 +397,75 @@ export default function StudentDetails() {
     if (percentage >= 90) return 'text-success';
     if (percentage >= 75) return 'text-warning';
     return 'text-destructive';
+  };
+
+  // Check if student is eligible for alumni transition
+  const isEligibleForAlumni = () => {
+    if (!student) return false;
+    
+    console.log('Checking alumni eligibility for student:', student);
+    console.log('Student semester:', student.semester);
+    console.log('Student status:', student.status);
+    console.log('Student semesterResults:', student.semesterResults);
+    
+    // Check if student is in 8th semester
+    const isIn8thSemester = student.semester === 8;
+    
+    // Check if student has 8th semester results
+    const has8thSemesterResult = student.semesterResults?.some(result => 
+      result.semester === 8 && result.resultType === 'gpa' && result.gpa && result.gpa > 0
+    );
+    
+    console.log('Is in 8th semester:', isIn8thSemester);
+    console.log('Has 8th semester result:', has8thSemesterResult);
+    
+    // Student should be active and either in 8th semester or have 8th semester results
+    const isEligible = student.status === 'active' && (isIn8thSemester || has8thSemesterResult);
+    console.log('Is eligible for alumni:', isEligible);
+    
+    return isEligible;
+  };
+
+  const handleTransitionToAlumni = async () => {
+    if (!id) return;
+    
+    try {
+      setIsSaving(true);
+      
+      console.log('Transitioning student to alumni:', id);
+      
+      // Use the proper transition to alumni endpoint
+      const alumniResult = await studentService.transitionToAlumni(id, {
+        graduationYear: new Date().getFullYear()
+      });
+      
+      console.log('Alumni transition result:', alumniResult);
+      
+      // Refresh student data
+      const updatedStudent = await studentService.getStudent(id);
+      setStudent(updatedStudent);
+      
+      console.log('Updated student after transition:', updatedStudent);
+      
+      toast({
+        title: "Success",
+        description: "Student has been successfully transitioned to alumni. They now appear in the Alumni section.",
+      });
+      
+      // Navigate to alumni page
+      navigate('/alumni');
+    } catch (err) {
+      console.error('Error transitioning to alumni:', err);
+      const errorMessage = getErrorMessage(err);
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive"
+      });
+    } finally {
+      setIsSaving(false);
+      setIsTransitionToAlumniDialogOpen(false);
+    }
   };
 
   if (loading) {
@@ -408,7 +529,7 @@ export default function StudentDetails() {
                 </p>
 
                 {/* Quick Info Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+                <div className={`grid grid-cols-2 gap-4 mt-6 ${isEligibleForAlumni() ? 'md:grid-cols-5' : 'md:grid-cols-4'}`}>
                   <Card className="bg-muted/50">
                     <CardContent className="p-3 text-center">
                       <p className="text-xs text-muted-foreground">Roll Number</p>
@@ -437,6 +558,17 @@ export default function StudentDetails() {
                       <p className={`text-lg font-bold ${getAttendanceColor(averageAttendance)}`}>{averageAttendance}%</p>
                     </CardContent>
                   </Card>
+                  {isEligibleForAlumni() && (
+                    <Card className="bg-primary/10 border-primary/30">
+                      <CardContent className="p-3 text-center">
+                        <p className="text-xs text-primary font-medium">Status</p>
+                        <div className="flex items-center justify-center gap-1">
+                          <Award className="w-4 h-4 text-primary" />
+                          <p className="text-sm font-bold text-primary">Ready for Alumni</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
               </div>
 
@@ -450,6 +582,16 @@ export default function StudentDetails() {
                   <Download className="w-4 h-4 mr-2" />
                   Download
                 </Button>
+                {isEligibleForAlumni() && (
+                  <Button 
+                    variant="outline" 
+                    className="text-primary border-primary/30 hover:bg-primary/10" 
+                    onClick={() => setIsTransitionToAlumniDialogOpen(true)}
+                  >
+                    <Award className="w-4 h-4 mr-2" />
+                    Mark as Graduated
+                  </Button>
+                )}
                 {student.status === 'active' && (
                   <Button variant="outline" className="text-warning border-warning/30 hover:bg-warning/10" onClick={handleDisconnectClick}>
                     <Unplug className="w-4 h-4 mr-2" />
@@ -563,6 +705,12 @@ export default function StudentDetails() {
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <TrendingUp className="w-4 h-4" />
                 Semester Results
+                {isEligibleForAlumni() && (
+                  <Badge className="bg-primary/20 text-primary border-primary/30 ml-2">
+                    <Award className="w-3 h-3 mr-1" />
+                    Ready for Alumni
+                  </Badge>
+                )}
               </CardTitle>
               <Button 
                 size="sm" 
@@ -1069,6 +1217,78 @@ export default function StudentDetails() {
               disabled={isSaving}
             >
               {isSaving ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Transition to Alumni Dialog */}
+      <Dialog open={isTransitionToAlumniDialogOpen} onOpenChange={setIsTransitionToAlumniDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Award className="w-5 h-5 text-primary" />
+              Mark Student as Graduated
+            </DialogTitle>
+            <DialogDescription>
+              This will mark the student as graduated. The student will be available for alumni management in the Alumni section.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="space-y-4">
+              <div className="bg-muted/50 rounded-lg p-4">
+                <h4 className="font-semibold text-foreground mb-2">Student Information</h4>
+                <div className="space-y-1 text-sm">
+                  <p><span className="text-muted-foreground">Name:</span> {student?.fullNameEnglish}</p>
+                  <p><span className="text-muted-foreground">Roll:</span> {student?.currentRollNumber}</p>
+                  <p><span className="text-muted-foreground">Department:</span> {typeof student?.department === 'string' ? student.department : student?.department.name}</p>
+                  <p><span className="text-muted-foreground">Current Semester:</span> {student?.semester}th</p>
+                </div>
+              </div>
+              
+              {student?.semesterResults?.some(r => r.semester === 8) && (
+                <div className="bg-success/10 border border-success/30 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CheckCircle className="w-4 h-4 text-success" />
+                    <span className="font-semibold text-success">8th Semester Completed</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    This student has completed their 8th semester and is eligible for alumni transition.
+                  </p>
+                </div>
+              )}
+              
+              <div className="bg-primary/10 border border-primary/30 rounded-lg p-4">
+                <h5 className="font-semibold text-primary mb-2">What happens next?</h5>
+                <ul className="text-sm text-muted-foreground space-y-1">
+                  <li>• Student status will be changed to "Graduated"</li>
+                  <li>• Student will be available for alumni management</li>
+                  <li>• Student will appear in the Alumni section</li>
+                  <li>• Alumni record can be created later if needed</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsTransitionToAlumniDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              className="gradient-primary text-primary-foreground"
+              onClick={handleTransitionToAlumni}
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                  Transitioning...
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Award className="w-4 h-4" />
+                  Mark as Graduated
+                </div>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

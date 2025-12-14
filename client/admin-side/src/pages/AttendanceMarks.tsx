@@ -20,13 +20,6 @@ import { ErrorState } from '@/components/ErrorState';
 
 const semesters = ['1', '2', '3', '4', '5', '6', '7', '8'];
 const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-const examTypes = [
-  { value: 'midterm', label: 'Mid Term' },
-  { value: 'final', label: 'Final Exam' },
-  { value: 'assignment', label: 'Assignment' },
-  { value: 'practical', label: 'Practical' },
-  { value: 'quiz', label: 'Quiz' },
-];
 
 interface SubjectMark {
   id: string;
@@ -66,7 +59,6 @@ export default function AttendanceMarks() {
   const [semester, setSemester] = useState('');
   const [subject, setSubject] = useState('');
   const [month, setMonth] = useState('all');
-  const [examType, setExamType] = useState('midterm');
   const { toast } = useToast();
   
   // Data states
@@ -89,6 +81,7 @@ export default function AttendanceMarks() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<{ id: string; roll: string; name: string } | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [isLoadingStudentDetails, setIsLoadingStudentDetails] = useState(false);
   const [gradeScale, setGradeScale] = useState('Standard');
   const [studentSubjects, setStudentSubjects] = useState<SubjectMark[]>([
     { id: '1', subject: 'Mathematics-I', code: 'MATH-101', ct1: 18, ct2: 17, ct3: 19, assignment: 9, attendance: 10, final: 72 },
@@ -111,7 +104,7 @@ export default function AttendanceMarks() {
     if (department && semester) {
       loadFilteredData();
     }
-  }, [department, semester, subject, month, examType]);
+  }, [department, semester, subject, month]);
 
   const loadInitialData = async () => {
     try {
@@ -156,6 +149,7 @@ export default function AttendanceMarks() {
         semester: parseInt(semester),
         page_size: 100,
       });
+      console.log('Loaded students:', studentsResponse.results?.length || 0);
       setStudents(studentsResponse.results || []);
       
       // Load attendance records
@@ -177,9 +171,6 @@ export default function AttendanceMarks() {
       };
       if (subject) {
         marksFilters.subject_code = subject;
-      }
-      if (examType) {
-        marksFilters.exam_type = examType;
       }
       
       const marksResponse = await marksService.getMarks(marksFilters);
@@ -237,7 +228,7 @@ export default function AttendanceMarks() {
     for (let i = 0; i < 6; i++) {
       const monthIndex = (new Date().getMonth() - 5 + i + 12) % 12;
       const monthAttendance = attendanceRecords.filter(a => new Date(a.date).getMonth() === monthIndex);
-      const monthMarks = marksRecords.filter(m => new Date(m.recordedAt || '').getMonth() === monthIndex);
+      const monthMarks = marksRecords.filter(m => new Date(m.recorded_at || '').getMonth() === monthIndex);
       
       const presentCount = monthAttendance.filter(a => a.isPresent).length;
       const totalAttendance = monthAttendance.length;
@@ -275,42 +266,61 @@ export default function AttendanceMarks() {
     };
   });
 
-  // Process marks data for display
-  const processedMarksData = students.map(student => {
-    const studentMarks = marksRecords.filter(m => m.student === student.id);
-    
-    return {
+  // Filter students for search - use students list directly to ensure search works even without marks data
+  const filteredStudents = students
+    .filter(student => {
+      const name = student.fullNameEnglish || '';
+      const roll = student.rollNumber || '';
+      const query = searchQuery.toLowerCase();
+      return name.toLowerCase().includes(query) || roll.toLowerCase().includes(query);
+    })
+    .map(student => ({
       id: student.id,
       roll: student.rollNumber || 'N/A',
       name: student.fullNameEnglish || 'Unknown',
-      marks: studentMarks,
-    };
-  });
+      marks: marksRecords.filter(m => m.student === student.id),
+    }));
 
-  const filteredStudents = processedMarksData.filter(student =>
-    student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    student.roll.includes(searchQuery)
-  );
+  // Debug logging
+  if (searchQuery) {
+    console.log('Search query:', searchQuery);
+    console.log('Total students:', students.length);
+    console.log('Filtered students:', filteredStudents.length);
+  }
 
   const handleStudentSelect = async (student: { id: string; roll: string; name: string }) => {
     setSelectedStudent(student);
     setIsDetailsOpen(true);
+    setIsLoadingStudentDetails(true);
     
     // Load student's marks and attendance
     try {
-      const marksResponse = await marksService.getStudentMarks(student.id, semester ? parseInt(semester) : undefined);
-      const attendanceResponse = await attendanceService.getStudentSummary(student.id);
+      // Initialize with empty data in case API calls fail
+      let marksResponse = { marks: [] };
+      let attendanceResponse = { summary: [] };
+      
+      try {
+        marksResponse = await marksService.getStudentMarks(student.id, semester ? parseInt(semester) : undefined);
+      } catch (marksErr) {
+        console.warn('Failed to load student marks:', marksErr);
+      }
+      
+      try {
+        attendanceResponse = await attendanceService.getStudentSummary(student.id);
+      } catch (attendanceErr) {
+        console.warn('Failed to load student attendance:', attendanceErr);
+      }
       
       // Process marks data into subject format
       const subjectMap = new Map<string, SubjectMark>();
       
       marksResponse.marks.forEach(mark => {
-        const key = mark.subjectCode;
+        const key = mark.subject_code;
         if (!subjectMap.has(key)) {
           subjectMap.set(key, {
             id: key,
-            subject: mark.subjectName,
-            code: mark.subjectCode,
+            subject: mark.subject_name,
+            code: mark.subject_code,
             ct1: 0,
             ct2: 0,
             ct3: 0,
@@ -322,18 +332,31 @@ export default function AttendanceMarks() {
         
         const subj = subjectMap.get(key)!;
         
-        // Map exam types to fields
-        if (mark.examType === 'quiz') {
-          // Distribute quizzes to CT slots
-          if (subj.ct1 === 0) subj.ct1 = mark.marksObtained;
-          else if (subj.ct2 === 0) subj.ct2 = mark.marksObtained;
-          else if (subj.ct3 === 0) subj.ct3 = mark.marksObtained;
-        } else if (mark.examType === 'assignment') {
-          subj.assignment = mark.marksObtained;
-        } else if (mark.examType === 'final') {
-          subj.final = mark.marksObtained;
-        } else if (mark.examType === 'midterm') {
-          subj.ct2 = mark.marksObtained;
+        // Map exam types to fields based on exam_type and remarks
+        if (mark.exam_type === 'quiz') {
+          // Use remarks field to identify which CT it is
+          const remarks = (mark.remarks || '').toLowerCase();
+          if (remarks.includes('ct-1') || remarks.includes('ct1')) {
+            subj.ct1 = mark.marks_obtained;
+          } else if (remarks.includes('ct-2') || remarks.includes('ct2')) {
+            subj.ct2 = mark.marks_obtained;
+          } else if (remarks.includes('ct-3') || remarks.includes('ct3')) {
+            subj.ct3 = mark.marks_obtained;
+          } else {
+            // Fallback: distribute quizzes to CT slots if no remarks
+            if (subj.ct1 === 0) subj.ct1 = mark.marks_obtained;
+            else if (subj.ct2 === 0) subj.ct2 = mark.marks_obtained;
+            else if (subj.ct3 === 0) subj.ct3 = mark.marks_obtained;
+          }
+        } else if (mark.exam_type === 'assignment') {
+          subj.assignment = mark.marks_obtained;
+        } else if (mark.exam_type === 'final') {
+          subj.final = mark.marks_obtained;
+        } else if (mark.exam_type === 'midterm') {
+          subj.ct2 = mark.marks_obtained;
+        } else if (mark.exam_type === 'practical') {
+          // Practical marks are stored as attendance marks
+          subj.attendance = mark.marks_obtained;
         }
       });
       
@@ -345,14 +368,43 @@ export default function AttendanceMarks() {
         }
       });
       
+      // If no subjects found, show default subjects for the semester
+      if (subjectMap.size === 0) {
+        // Add some default subjects based on semester (this can be customized)
+        const defaultSubjects = [
+          { code: 'MATH-101', name: 'Mathematics-I' },
+          { code: 'PHY-101', name: 'Physics-I' },
+          { code: 'CSE-101', name: 'Computer Fundamentals' },
+        ];
+        
+        defaultSubjects.forEach(subject => {
+          subjectMap.set(subject.code, {
+            id: subject.code,
+            subject: subject.name,
+            code: subject.code,
+            ct1: 0,
+            ct2: 0,
+            ct3: 0,
+            assignment: 0,
+            attendance: 0,
+            final: 0,
+          });
+        });
+      }
+      
       setStudentSubjects(Array.from(subjectMap.values()));
     } catch (err: any) {
       console.error('Error loading student details:', err);
       toast({
         title: 'Error',
-        description: 'Failed to load student details',
+        description: 'Failed to load student details. Please try again.',
         variant: 'destructive',
       });
+      
+      // Still open the dialog with empty subjects so user can add them manually
+      setStudentSubjects([]);
+    } finally {
+      setIsLoadingStudentDetails(false);
     }
   };
 
@@ -362,12 +414,110 @@ export default function AttendanceMarks() {
     ));
   };
 
-  const handleSaveDetails = () => {
-    toast({
-      title: "Success",
-      description: "Student marks and attendance have been saved successfully.",
-    });
-    setIsDetailsOpen(false);
+  const handleSaveDetails = async () => {
+    if (!selectedStudent) return;
+    
+    try {
+      setIsLoadingStudentDetails(true);
+      
+      // Get existing marks for the student to check for updates vs creates
+      const existingMarks = await marksService.getStudentMarks(selectedStudent.id, parseInt(semester));
+      
+      // Save marks for each subject
+      const savePromises = studentSubjects.map(async (subject) => {
+        const marksToSave = [
+          { examType: 'quiz', marksObtained: subject.ct1, totalMarks: 20, field: 'ct1', remarks: 'CT-1' },
+          { examType: 'quiz', marksObtained: subject.ct2, totalMarks: 20, field: 'ct2', remarks: 'CT-2' },
+          { examType: 'quiz', marksObtained: subject.ct3, totalMarks: 20, field: 'ct3', remarks: 'CT-3' },
+          { examType: 'assignment', marksObtained: subject.assignment, totalMarks: 10, field: 'assignment', remarks: 'Assignment' },
+          { examType: 'practical', marksObtained: subject.attendance, totalMarks: 10, field: 'attendance', remarks: 'Attendance' },
+          { examType: 'final', marksObtained: subject.final, totalMarks: 40, field: 'final', remarks: 'Final Exam' },
+        ];
+        
+        // Only save marks that have meaningful values (> 0 or if it's an update to existing mark)
+        const validMarks = marksToSave.filter(mark => {
+          // Always save if marks > 0
+          if (mark.marksObtained > 0) return true;
+          
+          // Also save if it's an update to existing mark (check for existing mark with same subject, exam_type, and remarks for quiz)
+          return existingMarks.marks.some(m => {
+            if (m.subject_code !== subject.code || m.exam_type !== mark.examType) {
+              return false;
+            }
+            // For quiz type, match by remarks field
+            if (mark.examType === 'quiz') {
+              const markRemarks = (mark.remarks || '').toLowerCase();
+              const existingRemarks = (m.remarks || '').toLowerCase();
+              return markRemarks === existingRemarks;
+            }
+            // For other exam types, just match subject and exam_type
+            return true;
+          });
+        });
+        
+        return Promise.all(validMarks.map(async (mark) => {
+          // Check if this mark already exists
+          // For quiz type, match by subject_code, exam_type, and remarks
+          // For other types, match by subject_code and exam_type
+          const existingMark = existingMarks.marks.find(m => {
+            if (m.subject_code !== subject.code || m.exam_type !== mark.examType) {
+              return false;
+            }
+            // For quiz type, match by remarks field (CT-1, CT-2, CT-3)
+            if (mark.examType === 'quiz') {
+              const markRemarks = (mark.remarks || '').toLowerCase();
+              const existingRemarks = (m.remarks || '').toLowerCase();
+              return markRemarks === existingRemarks;
+            }
+            // For other exam types, just match subject and exam_type
+            return true;
+          });
+          
+          const markData = {
+            student: selectedStudent.id,
+            subject_code: subject.code,
+            subject_name: subject.subject,
+            semester: parseInt(semester),
+            exam_type: mark.examType as any,
+            marks_obtained: mark.marksObtained,
+            total_marks: mark.totalMarks,
+            remarks: mark.remarks || '',
+          };
+          
+          if (existingMark) {
+            // Update existing mark
+            return marksService.updateMarks(existingMark.id, markData);
+          } else {
+            // Create new mark
+            return marksService.createMarks(markData);
+          }
+        }));
+      });
+      
+      await Promise.all(savePromises);
+      
+      // Refresh the data to show updated marks
+      await loadFilteredData();
+      
+      // Clear search query to encourage fresh search
+      setSearchQuery('');
+      
+      toast({
+        title: "Success",
+        description: "Student marks have been saved successfully.",
+      });
+      
+      setIsDetailsOpen(false);
+    } catch (err: any) {
+      console.error('Error saving marks:', err);
+      toast({
+        title: "Error",
+        description: "Failed to save marks. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingStudentDetails(false);
+    }
   };
 
   const handleAddSubject = () => {
@@ -659,16 +809,25 @@ export default function AttendanceMarks() {
 
         {/* Marks Tab */}
         <TabsContent value="marks" className="space-y-6">
-          {/* Filters */}
+          {/* Semester and Student Search */}
           <Card className="glass-card">
-            <CardHeader className="pb-4">
+            <CardHeader className="pb-4 flex flex-row items-center justify-between">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Filter className="w-4 h-4" />
-                Filters
+                <Search className="w-4 h-4" />
+                Find Student
               </CardTitle>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => loadFilteredData()}
+                disabled={loading}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Refresh
+              </Button>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <Select value={department} onValueChange={setDepartment}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select Department" />
@@ -685,45 +844,24 @@ export default function AttendanceMarks() {
                     {semesters.map(s => <SelectItem key={s} value={s}>Semester {s}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <Input
-                  placeholder="Subject Code (optional)"
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                />
-                <Select value={examType} onValueChange={setExamType}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Exam Type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {examTypes.map(e => <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Student Search */}
-          <Card className="glass-card">
-            <CardHeader>
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Search className="w-4 h-4" />
-                Find Student
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by name or roll number..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by name or roll number..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
               </div>
               
               {searchQuery && (
                 <div className="mt-4 space-y-2 max-h-60 overflow-y-auto">
-                  {filteredStudents.length > 0 ? (
+                  {!department || !semester ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <p>Please select department and semester first to search students</p>
+                    </div>
+                  ) : filteredStudents.length > 0 ? (
                     filteredStudents.map((student) => (
                       <motion.div
                         key={student.id}
@@ -746,6 +884,7 @@ export default function AttendanceMarks() {
                   ) : (
                     <div className="text-center py-8 text-muted-foreground">
                       <p>No students found matching "{searchQuery}"</p>
+                      <p className="text-xs mt-1">Try searching by name or roll number</p>
                     </div>
                   )}
                 </div>
@@ -791,8 +930,16 @@ export default function AttendanceMarks() {
           </DialogHeader>
           
           <div className="mt-4">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1200px]">
+            {isLoadingStudentDetails ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                  <p className="text-muted-foreground">Loading student details...</p>
+                </div>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1200px]">
                 <thead>
                   <tr className="border-b border-border bg-secondary/30">
                     <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Subject</th>
@@ -811,9 +958,9 @@ export default function AttendanceMarks() {
                 </thead>
                 <tbody>
                   {studentSubjects.map((subj, index) => {
-                    const internal = subj.ct1 + subj.ct2 + subj.ct3 + subj.assignment + subj.attendance;
-                    const total = internal + subj.final;
-                    const { grade, gpa } = subj.final > 0 ? calculateGrade(total, currentScale) : { grade: '-', gpa: 0 };
+                    const internal = Number(subj.ct1 || 0) + Number(subj.ct2 || 0) + Number(subj.ct3 || 0) + Number(subj.assignment || 0) + Number(subj.attendance || 0);
+                    const total = internal + Number(subj.final || 0);
+                    const { grade, gpa } = (subj.final && subj.final > 0) ? calculateGrade(total, currentScale) : { grade: '-', gpa: 0 };
                     const gradeColor = total >= 80 ? 'text-green-600 dark:text-green-400' : total >= 70 ? 'text-purple-600 dark:text-purple-400' : total >= 60 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400';
                     
                     return (
@@ -835,9 +982,10 @@ export default function AttendanceMarks() {
                             type="number"
                             min="0"
                             max="20"
-                            value={subj.ct1}
-                            onChange={(e) => handleMarkChange(subj.id, 'ct1', parseInt(e.target.value) || 0)}
+                            value={subj.ct1 || ''}
+                            onChange={(e) => handleMarkChange(subj.id, 'ct1', e.target.value === '' ? 0 : parseInt(e.target.value) || 0)}
                             className="w-16 text-center mx-auto h-8"
+                            placeholder="0"
                           />
                         </td>
                         <td className="py-3 px-3">
@@ -845,9 +993,10 @@ export default function AttendanceMarks() {
                             type="number"
                             min="0"
                             max="20"
-                            value={subj.ct2}
-                            onChange={(e) => handleMarkChange(subj.id, 'ct2', parseInt(e.target.value) || 0)}
+                            value={subj.ct2 || ''}
+                            onChange={(e) => handleMarkChange(subj.id, 'ct2', e.target.value === '' ? 0 : parseInt(e.target.value) || 0)}
                             className="w-16 text-center mx-auto h-8"
+                            placeholder="0"
                           />
                         </td>
                         <td className="py-3 px-3">
@@ -855,9 +1004,10 @@ export default function AttendanceMarks() {
                             type="number"
                             min="0"
                             max="20"
-                            value={subj.ct3}
-                            onChange={(e) => handleMarkChange(subj.id, 'ct3', parseInt(e.target.value) || 0)}
+                            value={subj.ct3 || ''}
+                            onChange={(e) => handleMarkChange(subj.id, 'ct3', e.target.value === '' ? 0 : parseInt(e.target.value) || 0)}
                             className="w-16 text-center mx-auto h-8"
+                            placeholder="0"
                           />
                         </td>
                         <td className="py-3 px-3">
@@ -865,9 +1015,10 @@ export default function AttendanceMarks() {
                             type="number"
                             min="0"
                             max="10"
-                            value={subj.assignment}
-                            onChange={(e) => handleMarkChange(subj.id, 'assignment', parseInt(e.target.value) || 0)}
+                            value={subj.assignment || ''}
+                            onChange={(e) => handleMarkChange(subj.id, 'assignment', e.target.value === '' ? 0 : parseInt(e.target.value) || 0)}
                             className="w-16 text-center mx-auto h-8"
+                            placeholder="0"
                           />
                         </td>
                         <td className="py-3 px-3">
@@ -875,9 +1026,10 @@ export default function AttendanceMarks() {
                             type="number"
                             min="0"
                             max="10"
-                            value={subj.attendance}
-                            onChange={(e) => handleMarkChange(subj.id, 'attendance', parseInt(e.target.value) || 0)}
+                            value={subj.attendance || ''}
+                            onChange={(e) => handleMarkChange(subj.id, 'attendance', e.target.value === '' ? 0 : parseInt(e.target.value) || 0)}
                             className="w-16 text-center mx-auto h-8"
+                            placeholder="0"
                           />
                         </td>
                         <td className="py-3 px-3 text-center">
@@ -888,30 +1040,34 @@ export default function AttendanceMarks() {
                             type="number"
                             min="0"
                             max="40"
-                            value={subj.final}
-                            onChange={(e) => handleMarkChange(subj.id, 'final', parseInt(e.target.value) || 0)}
+                            value={subj.final || ''}
+                            onChange={(e) => handleMarkChange(subj.id, 'final', e.target.value === '' ? 0 : parseInt(e.target.value) || 0)}
                             className="w-16 text-center mx-auto h-8"
-                            placeholder="Pending"
+                            placeholder="0"
                           />
                         </td>
                         <td className="py-3 px-3 text-center">
-                          {subj.final > 0 ? (
+                          {(subj.final && subj.final > 0) ? (
                             <Badge className={`${total >= 80 ? 'bg-green-500/20 text-green-700 dark:text-green-300 border-green-500/30' : total >= 70 ? 'bg-purple-500/20 text-purple-700 dark:text-purple-300 border-purple-500/30' : total >= 60 ? 'bg-blue-500/20 text-blue-700 dark:text-blue-300 border-blue-500/30' : 'bg-red-500/20 text-red-700 dark:text-red-300 border-red-500/30'} font-bold`}>
                               {total}
+                            </Badge>
+                          ) : internal > 0 ? (
+                            <Badge className="bg-gray-500/20 text-gray-700 dark:text-gray-300 border-gray-500/30 font-bold">
+                              {internal}
                             </Badge>
                           ) : (
                             <span className="text-muted-foreground">-</span>
                           )}
                         </td>
                         <td className="py-3 px-3 text-center">
-                          {subj.final > 0 ? (
+                          {(subj.final && subj.final > 0) ? (
                             <span className={`font-bold ${gradeColor}`}>{grade}</span>
                           ) : (
                             <span className="text-muted-foreground">-</span>
                           )}
                         </td>
                         <td className="py-3 px-3 text-center">
-                          {subj.final > 0 ? (
+                          {(subj.final && subj.final > 0) ? (
                             <span className="font-medium">{gpa.toFixed(2)}</span>
                           ) : (
                             <span className="text-muted-foreground">-</span>
@@ -943,6 +1099,7 @@ export default function AttendanceMarks() {
                 </tbody>
               </table>
             </div>
+            )}
           </div>
 
           <DialogFooter className="mt-6">
@@ -950,9 +1107,17 @@ export default function AttendanceMarks() {
               <X className="w-4 h-4 mr-2" />
               Close
             </Button>
-            <Button onClick={handleSaveDetails} className="gradient-primary text-primary-foreground">
-              <Save className="w-4 h-4 mr-2" />
-              Save Changes
+            <Button 
+              onClick={handleSaveDetails} 
+              className="gradient-primary text-primary-foreground"
+              disabled={isLoadingStudentDetails}
+            >
+              {isLoadingStudentDetails ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+              ) : (
+                <Save className="w-4 h-4 mr-2" />
+              )}
+              {isLoadingStudentDetails ? 'Saving...' : 'Save Changes'}
             </Button>
           </DialogFooter>
         </DialogContent>

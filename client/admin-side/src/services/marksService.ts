@@ -13,16 +13,16 @@ export interface MarksRecord {
   student: string;
   studentName?: string;
   studentRoll?: string;
-  subjectCode: string;
-  subjectName: string;
+  subject_code: string;
+  subject_name: string;
   semester: number;
-  examType: ExamType;
-  marksObtained: number;
-  totalMarks: number;
+  exam_type: ExamType;
+  marks_obtained: number;
+  total_marks: number;
   percentage?: number;
-  recordedBy?: string;
+  recorded_by?: string;
   recordedByName?: string;
-  recordedAt?: string;
+  recorded_at?: string;
   remarks?: string;
 }
 
@@ -38,13 +38,13 @@ export interface MarksFilters {
 
 export interface MarksCreateData {
   student: string;
-  subjectCode: string;
-  subjectName: string;
+  subject_code: string;
+  subject_name: string;
   semester: number;
-  examType: ExamType;
-  marksObtained: number;
-  totalMarks: number;
-  recordedBy?: string;
+  exam_type: ExamType;
+  marks_obtained: number;
+  total_marks: number;
+  recorded_by?: string;
   remarks?: string;
 }
 

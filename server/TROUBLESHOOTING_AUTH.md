@@ -246,3 +246,4 @@ print(f"Role: {user.role}")
 - **403 Forbidden**: CSRF token missing/invalid or user not authenticated
 - **404 Not Found**: Endpoint doesn't exist or resource not found
 
+

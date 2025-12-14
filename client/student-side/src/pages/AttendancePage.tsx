@@ -8,6 +8,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { attendanceService, type AttendanceRecord } from '@/services/attendanceService';
+import { studentService } from '@/services/studentService';
 import { getErrorMessage } from '@/lib/api';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
@@ -59,22 +60,22 @@ export default function AttendancePage() {
       setLoading(true);
       setError(null);
       
-      // Fetch attendance records for the selected month
-      const startDate = new Date(selectedYear, selectedMonth, 1).toISOString().split('T')[0];
-      const endDate = new Date(selectedYear, selectedMonth + 1, 0).toISOString().split('T')[0];
+      // Fetch from both sources in parallel
+      const [attendanceResponse, studentData] = await Promise.all([
+        attendanceService.getMyAttendance({
+          student: user.relatedProfileId,
+          page_size: 1000,
+          ordering: '-date'
+        }).catch(() => ({ results: [] })), // Fallback to empty if fails
+        studentService.getStudent(user.relatedProfileId).catch(() => null) // Fallback to null if fails
+      ]);
       
-      const response = await attendanceService.getMyAttendance({
-        student: user.relatedProfileId,
-        page_size: 1000,
-        ordering: '-date'
-      });
+      setAttendanceRecords(attendanceResponse.results);
       
-      setAttendanceRecords(response.results);
-      
-      // Calculate subject-wise summary
+      // Calculate subject-wise summary from AttendanceRecord
       const summaryMap = new Map<string, { total: number; present: number; name: string }>();
       
-      response.results.forEach(record => {
+      attendanceResponse.results.forEach(record => {
         const key = record.subjectCode;
         if (!summaryMap.has(key)) {
           summaryMap.set(key, { total: 0, present: 0, name: record.subjectName });
@@ -86,12 +87,50 @@ export default function AttendancePage() {
         }
       });
       
+      // Also merge data from Student.semesterAttendance
+      // This is summary data that admin updates, so it should take precedence if available
+      if (studentData?.semesterAttendance && studentData.semesterAttendance.length > 0) {
+        // Get current semester from student data or calculate from current date
+        const currentSemester = studentData.semester || 1;
+        
+        // Find attendance data for current or most recent semester
+        const relevantSemester = studentData.semesterAttendance
+          .filter((sem: any) => sem.semester <= currentSemester)
+          .sort((a: any, b: any) => b.semester - a.semester)[0];
+        
+        if (relevantSemester?.subjects) {
+          relevantSemester.subjects.forEach((subject: any) => {
+            const key = subject.code;
+            // Use semesterAttendance data if it exists, or merge with existing data
+            if (summaryMap.has(key)) {
+              // If we have both sources, prefer semesterAttendance (admin-updated summary)
+              const existing = summaryMap.get(key)!;
+              // Update with semesterAttendance data if it has more complete info
+              if (subject.total > 0) {
+                existing.total = subject.total;
+                existing.present = subject.present;
+              }
+              if (subject.name) {
+                existing.name = subject.name;
+              }
+            } else {
+              // Add new entry from semesterAttendance
+              summaryMap.set(key, {
+                total: subject.total || 0,
+                present: subject.present || 0,
+                name: subject.name || key
+              });
+            }
+          });
+        }
+      }
+      
       const summaryArray: SubjectAttendance[] = Array.from(summaryMap.entries()).map(([code, data]) => ({
         subject_code: code,
         subject_name: data.name,
         total: data.total,
         present: data.present,
-        percentage: Math.round((data.present / data.total) * 100)
+        percentage: data.total > 0 ? Math.round((data.present / data.total) * 100) : 0
       }));
       
       setSubjectSummary(summaryArray);
@@ -144,11 +183,21 @@ export default function AttendancePage() {
 
   const monthData = generateMonthCalendar();
   
-  // Calculate stats
+  // Calculate stats from both sources
+  // Use subjectSummary (merged data) for overall stats
+  const totalFromSummary = subjectSummary.reduce((sum, sub) => sum + sub.total, 0);
+  const presentFromSummary = subjectSummary.reduce((sum, sub) => sum + sub.present, 0);
+  
+  // Also calculate from attendanceRecords for day-by-day data
   const totalPresent = attendanceRecords.filter(r => r.isPresent).length;
   const totalAbsent = attendanceRecords.filter(r => !r.isPresent).length;
   const totalClasses = attendanceRecords.length;
-  const overallPercentage = totalClasses > 0 ? Math.round((totalPresent / totalClasses) * 100) : 0;
+  
+  // Use summary data if available (admin-updated), otherwise use records
+  const totalOverall = totalFromSummary > 0 ? totalFromSummary : totalClasses;
+  const presentOverall = presentFromSummary > 0 ? presentFromSummary : totalPresent;
+  const absentOverall = totalOverall - presentOverall;
+  const overallPercentage = totalOverall > 0 ? Math.round((presentOverall / totalOverall) * 100) : 0;
 
   // Get recent attendance grouped by date
   const getRecentAttendance = (): DayAttendance[] => {
@@ -262,13 +311,13 @@ export default function AttendancePage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Present</p>
-              <p className="text-3xl font-bold text-success mt-1">{totalPresent}</p>
+              <p className="text-3xl font-bold text-success mt-1">{presentOverall}</p>
             </div>
             <div className="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center">
               <CheckCircle2 className="w-6 h-6 text-success" />
             </div>
           </div>
-          <p className="text-xs text-muted-foreground mt-3">Classes attended this month</p>
+          <p className="text-xs text-muted-foreground mt-3">Classes attended</p>
         </motion.div>
 
         <motion.div
@@ -280,7 +329,7 @@ export default function AttendancePage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Absent</p>
-              <p className="text-3xl font-bold text-destructive mt-1">{totalAbsent}</p>
+              <p className="text-3xl font-bold text-destructive mt-1">{absentOverall}</p>
             </div>
             <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center">
               <XCircle className="w-6 h-6 text-destructive" />
@@ -298,7 +347,7 @@ export default function AttendancePage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Total</p>
-              <p className="text-3xl font-bold mt-1">{totalClasses}</p>
+              <p className="text-3xl font-bold mt-1">{totalOverall}</p>
             </div>
             <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
               <ClipboardCheck className="w-6 h-6 text-primary" />

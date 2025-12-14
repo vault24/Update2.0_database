@@ -28,6 +28,8 @@ const actionFilters = ['All Actions', 'create', 'update', 'approve', 'reject', '
 const targetFilters = ['All Targets', 'Student', 'Application', 'Admission', 'Document', 'Settings', 'Attendance', 'Marks'];
 
 const getActionColor = (action: string) => {
+  if (!action) return 'bg-muted text-muted-foreground';
+  
   switch (action.toLowerCase()) {
     case 'create':
       return 'bg-info/20 text-info border-info/30';
@@ -49,6 +51,8 @@ const getActionColor = (action: string) => {
 };
 
 const getActionIcon = (action: string) => {
+  if (!action) return Activity;
+  
   switch (action.toLowerCase()) {
     case 'create':
       return Plus;
@@ -70,6 +74,8 @@ const getActionIcon = (action: string) => {
 };
 
 const getActionIconColor = (action: string) => {
+  if (!action) return 'text-muted-foreground';
+  
   switch (action.toLowerCase()) {
     case 'create':
       return 'text-info';
@@ -129,8 +135,8 @@ export default function ActivityLogs() {
   const filteredLogs = logs.filter((log) => {
     const searchText = search.toLowerCase();
     const matchesSearch =
-      log.description.toLowerCase().includes(searchText) ||
-      log.entityType.toLowerCase().includes(searchText) ||
+      (log.description && log.description.toLowerCase().includes(searchText)) ||
+      (log.entityType && log.entityType.toLowerCase().includes(searchText)) ||
       (log.userName && log.userName.toLowerCase().includes(searchText));
     return matchesSearch;
   });
@@ -168,7 +174,7 @@ export default function ActivityLogs() {
             <Card className="glass-card">
               <CardContent className="p-4 text-center">
                 <p className="text-2xl font-bold text-success">
-                  {logs.filter((l) => l.actionType.toLowerCase() === 'approve').length}
+                  {logs.filter((l) => l.actionType && l.actionType.toLowerCase() === 'approve').length}
                 </p>
                 <p className="text-xs text-muted-foreground">Approvals</p>
               </CardContent>
@@ -178,7 +184,7 @@ export default function ActivityLogs() {
             <Card className="glass-card">
               <CardContent className="p-4 text-center">
                 <p className="text-2xl font-bold text-primary">
-                  {logs.filter((l) => l.actionType.toLowerCase() === 'update').length}
+                  {logs.filter((l) => l.actionType && l.actionType.toLowerCase() === 'update').length}
                 </p>
                 <p className="text-xs text-muted-foreground">Updates</p>
               </CardContent>
@@ -188,7 +194,7 @@ export default function ActivityLogs() {
             <Card className="glass-card">
               <CardContent className="p-4 text-center">
                 <p className="text-2xl font-bold text-info">
-                  {logs.filter((l) => l.actionType.toLowerCase() === 'create').length}
+                  {logs.filter((l) => l.actionType && l.actionType.toLowerCase() === 'create').length}
                 </p>
                 <p className="text-xs text-muted-foreground">Creations</p>
               </CardContent>

@@ -54,8 +54,11 @@ export function AdmissionWizard() {
   }, []);
 
   const loadSubmissionState = () => {
+    if (!user?.id) return null;
+    
     try {
-      const saved = localStorage.getItem(SUBMISSION_STORAGE_KEY);
+      const userSpecificKey = `${SUBMISSION_STORAGE_KEY}_${user.id}`;
+      const saved = localStorage.getItem(userSpecificKey);
       return saved ? JSON.parse(saved) as { isSubmitted?: boolean; applicationId?: string } : null;
     } catch (error) {
       console.error('Unable to parse submission state', error);
@@ -64,19 +67,64 @@ export function AdmissionWizard() {
   };
 
   const persistSubmissionState = (id: string) => {
-    localStorage.setItem(SUBMISSION_STORAGE_KEY, JSON.stringify({
+    if (!user?.id) return;
+    
+    const userSpecificKey = `${SUBMISSION_STORAGE_KEY}_${user.id}`;
+    localStorage.setItem(userSpecificKey, JSON.stringify({
       isSubmitted: true,
       applicationId: id,
     }));
   };
 
-  const loadLocalDraft = (showToast: boolean = true) => {
+  const clearSubmissionState = () => {
+    if (!user?.id) return;
+    
+    const userSpecificKey = `${SUBMISSION_STORAGE_KEY}_${user.id}`;
+    localStorage.removeItem(userSpecificKey);
+  };
+
+  const cleanupOldSubmissionStates = () => {
+    // Clean up old submission states from localStorage to prevent bloat
     try {
-      const savedData = localStorage.getItem(STORAGE_KEY);
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(SUBMISSION_STORAGE_KEY) && !key.endsWith(`_${user?.id}`)) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+    } catch (error) {
+      console.error('Error cleaning up old submission states:', error);
+    }
+  };
+
+  const cleanupOldDraftStates = () => {
+    // Clean up old draft states from localStorage to prevent bloat
+    try {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(STORAGE_KEY) && !key.endsWith(`_${user?.id}`)) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+    } catch (error) {
+      console.error('Error cleaning up old draft states:', error);
+    }
+  };
+
+  const loadLocalDraft = (showToast: boolean = true) => {
+    if (!user?.id) return false;
+    
+    try {
+      const userSpecificKey = `${STORAGE_KEY}_${user.id}`;
+      const savedData = localStorage.getItem(userSpecificKey);
       if (savedData) {
         const parsed = JSON.parse(savedData);
         setFormData((prev) => ({ ...prev, ...parsed.formData }));
-        setCurrentStep(parsed.currentStep || 1);
+        setCurrentStep(validateStep(parsed.currentStep || 1));
         if (showToast) {
           toast.info('Draft loaded', {
             description: 'Your previously saved progress has been restored.'
@@ -92,13 +140,15 @@ export function AdmissionWizard() {
 
   // Restore submission state quickly for offline refreshes
   useEffect(() => {
+    if (!user?.id) return;
+    
     const stored = loadSubmissionState();
     if (stored?.isSubmitted) {
       setIsSubmitted(true);
       setApplicationId(stored.applicationId || '');
       setCurrentStep(7);
     }
-  }, []);
+  }, [user?.id]);
 
   // Check for existing admission and load draft on mount
   useEffect(() => {
@@ -118,7 +168,9 @@ export function AdmissionWizard() {
           setCurrentStep(7); // Move to success page
           persistSubmissionState(existing.admissionId || '');
           await admissionService.clearDraft();
-          localStorage.removeItem(STORAGE_KEY);
+          if (user?.id) {
+            localStorage.removeItem(`${STORAGE_KEY}_${user.id}`);
+          }
           toast.success('Application already submitted', {
             description: 'We found your existing admission and loaded it.'
           });
@@ -126,10 +178,19 @@ export function AdmissionWizard() {
           setIsDraftLoading(false);
           setIsCheckingExisting(false);
           return;
+        } else {
+          // No admission found, clear any stale submission state
+          clearSubmissionState();
+          setIsSubmitted(false);
+          setApplicationId('');
         }
       } catch (error) {
         if (!cancelled) {
           console.error('Error checking admission:', error);
+          // Clear any stale submission state if server says no admission exists
+          clearSubmissionState();
+          setIsSubmitted(false);
+          setApplicationId('');
           toast.error('Unable to verify admission status', {
             description: getErrorMessage(error)
           });
@@ -146,19 +207,27 @@ export function AdmissionWizard() {
 
         if (draft?.draft_data) {
           setFormData(prev => ({ ...prev, ...draft.draft_data }));
-          setCurrentStep(draft.current_step || 1);
+          setCurrentStep(validateStep(draft.current_step || 1));
           setLastSavedAt(draft.saved_at || null);
           toast.info('Draft loaded', {
             description: 'Your progress was restored from the server.'
           });
         } else {
-          loadLocalDraft(false);
+          const localLoaded = loadLocalDraft(false);
+          if (!localLoaded) {
+            // No draft found anywhere, ensure we start fresh
+            setCurrentStep(1);
+            setFormData(defaultFormData);
+          }
         }
       } catch (error) {
         if (!cancelled) {
           const loaded = loadLocalDraft();
           if (!loaded) {
             setDraftError(getErrorMessage(error));
+            // No draft found anywhere, ensure we start fresh
+            setCurrentStep(1);
+            setFormData(defaultFormData);
           }
           setUsingLocalFallback(true);
           toast.warning('Working offline', {
@@ -174,6 +243,8 @@ export function AdmissionWizard() {
     };
 
     if (user) {
+      cleanupOldSubmissionStates();
+      cleanupOldDraftStates();
       bootstrap();
     } else {
       setInitialised(true);
@@ -195,6 +266,25 @@ export function AdmissionWizard() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const validateStep = (step: number): number => {
+    // Ensure step is within valid range (1-6)
+    if (step < 1) return 1;
+    if (step > 6) return 1; // Reset to step 1 if invalid
+    return step;
+  };
+
+  const saveLocalDraft = (data: any, step: number) => {
+    if (!user?.id) return;
+    
+    const validStep = validateStep(step);
+    const userSpecificKey = `${STORAGE_KEY}_${user.id}`;
+    localStorage.setItem(userSpecificKey, JSON.stringify({
+      formData: data,
+      currentStep: validStep,
+      savedAt: new Date().toISOString()
+    }));
+  };
+
   const saveDraftWithRetry = async (showToast: boolean = false) => {
     if (!initialised || isSubmitted) return;
     setIsDraftSaving(true);
@@ -207,6 +297,9 @@ export function AdmissionWizard() {
         const saved = await admissionService.saveDraft(formData, currentStep);
         setLastSavedAt(saved?.saved_at || new Date().toISOString());
         setUsingLocalFallback(false);
+        
+        // Also save locally with user-specific key
+        saveLocalDraft(formData, currentStep);
 
         if (showToast || !hasShownDraftToastRef.current) {
           toast.success('Draft saved', {
@@ -227,7 +320,9 @@ export function AdmissionWizard() {
       }
     }
 
-    // All retries failed - rely on localStorage fallback inside service
+    // All retries failed - save locally with user-specific key
+    saveLocalDraft(formData, currentStep);
+    
     if (showToast || !hasShownDraftToastRef.current) {
       toast.warning('Draft saved locally', {
         description: 'Network issue detected. Your progress is stored on this device.',
@@ -361,7 +456,9 @@ export function AdmissionWizard() {
 
       // Clear drafts from server and local storage
       await admissionService.clearDraft();
-      localStorage.removeItem(STORAGE_KEY);
+      if (user?.id) {
+        localStorage.removeItem(`${STORAGE_KEY}_${user.id}`);
+      }
 
       // Set application ID and submitted state
       setApplicationId(admission.id);
@@ -391,7 +488,9 @@ export function AdmissionWizard() {
           setIsSubmitted(true);
           setCurrentStep(7); // Move to success page
           await admissionService.clearDraft();
-          localStorage.removeItem(STORAGE_KEY);
+          if (user?.id) {
+            localStorage.removeItem(`${STORAGE_KEY}_${user.id}`);
+          }
           persistSubmissionState(existingAdmission.id);
           toast.info('Application already submitted', {
             description: 'Your admission application was already submitted. Here is your application ID.'

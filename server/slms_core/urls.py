@@ -32,6 +32,7 @@ urlpatterns = [
     path('api/documents/', include('apps.documents.urls')),
     path('api/dashboard/', include('apps.dashboard.urls')),
     path('api/', include('apps.notifications.urls')),
+    path('api/', include('apps.notices.urls')),
     path('api/class-routines/', include('apps.class_routines.urls')),
     path('api/attendance/', include('apps.attendance.urls')),
     path('api/marks/', include('apps.marks.urls')),

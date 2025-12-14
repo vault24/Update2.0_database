@@ -20,7 +20,7 @@ interface User {
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   signup: (data: SignupData) => Promise<void>;
   logout: () => void;
   loading: boolean;
@@ -86,13 +86,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkAuth();
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, rememberMe: boolean = false) => {
     try {
       // Clear any logout flag
       localStorage.removeItem('hasLoggedOut');
       
       // Backend expects 'username' field, not 'email'
-      const response = await api.post<any>('/auth/login/', { username: email, password });
+      const response = await api.post<any>('/auth/login/', { username: email, password, remember_me: rememberMe });
       
       // Store user ID (no token in session-based auth)
       if (response.user?.id) {

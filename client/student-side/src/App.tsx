@@ -10,6 +10,8 @@ import NotFound from "./pages/NotFound";
 import Dashboard from "./pages/Dashboard";
 import AdmissionPage from "./pages/AdmissionPage";
 import ProfilePage from "./pages/ProfilePage";
+import DocumentsPage from "./pages/DocumentsPage";
+import SettingsPage from "./pages/SettingsPage";
 import ApplicationsPage from "./pages/ApplicationsPage";
 import ClassRoutinePage from "./pages/ClassRoutinePage";
 import AttendancePage from "./pages/AttendancePage";
@@ -19,6 +21,7 @@ import TeacherContactsPage from "./pages/TeacherContactsPage";
 import StudentListPage from "./pages/StudentListPage";
 import StudentDetailsPage from "./pages/StudentDetailsPage";
 import ManageMarksPage from "./pages/ManageMarksPage";
+import NoticesPage from "./pages/NoticesPage";
 import { DashboardLayout } from "./components/dashboard/DashboardLayout";
 
 const queryClient = new QueryClient();
@@ -65,8 +68,9 @@ function AppRoutes() {
         <Route path="routine" element={<ClassRoutinePage />} />
         <Route path="attendance" element={<AttendancePage />} />
         <Route path="marks" element={<MarksPage />} />
-        <Route path="documents" element={<ProfilePage />} />
-        <Route path="settings" element={<ProfilePage />} />
+        <Route path="notices" element={<NoticesPage />} />
+        <Route path="documents" element={<DocumentsPage />} />
+        <Route path="settings" element={<SettingsPage />} />
         {/* Captain-specific routes */}
         <Route path="add-attendance" element={<AddAttendancePage />} />
         <Route path="teacher-contacts" element={<TeacherContactsPage />} />

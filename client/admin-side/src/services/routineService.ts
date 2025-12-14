@@ -255,6 +255,12 @@ export const routineTransformers = {
     const operations: RoutineOperation[] = [];
     const days: DayOfWeek[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
     
+    console.log('gridToOperations called with:', {
+      currentGrid,
+      originalRoutines: originalRoutines.length,
+      filters
+    });
+    
     // Create a map of existing routines by day and time slot
     const existingRoutineMap = new Map<string, ClassRoutine>();
     originalRoutines.forEach(routine => {
@@ -263,15 +269,23 @@ export const routineTransformers = {
       existingRoutineMap.set(key, routine);
     });
 
+    console.log('Existing routine map keys:', Array.from(existingRoutineMap.keys()));
+
     // Process each slot in the grid
     days.forEach(day => {
-      Object.entries(currentGrid[day] || {}).forEach(([timeSlot, classSlot]) => {
+      const daySlots = currentGrid[day] || {};
+      console.log(`Processing day ${day}:`, daySlots);
+      
+      Object.entries(daySlots).forEach(([timeSlot, classSlot]) => {
         const key = `${day}-${timeSlot}`;
         const existingRoutine = existingRoutineMap.get(key);
+        
+        console.log(`Processing slot ${key}:`, { classSlot, hasExisting: !!existingRoutine });
         
         if (classSlot === null) {
           // Slot is empty - delete if routine exists
           if (existingRoutine) {
+            console.log(`Adding delete operation for ${key}`);
             operations.push({
               operation: 'delete',
               id: existingRoutine.id
@@ -308,14 +322,18 @@ export const routineTransformers = {
               (existingRoutine.teacher?.full_name_english || 'TBA') !== classSlot.teacher;
             
             if (hasChanges) {
+              console.log(`Adding update operation for ${key}`);
               operations.push({
                 operation: 'update',
                 id: existingRoutine.id,
                 data: routineData
               });
+            } else {
+              console.log(`No changes for ${key}`);
             }
           } else {
             // Create new routine
+            console.log(`Adding create operation for ${key}:`, routineData);
             operations.push({
               operation: 'create',
               data: routineData as RoutineCreateData
@@ -331,12 +349,16 @@ export const routineTransformers = {
     // Any remaining items in existingRoutineMap should be deleted
     // (they exist in the database but not in the current grid)
     existingRoutineMap.forEach(routine => {
+      const timeSlot = routineTransformers.formatTimeSlot(routine.start_time, routine.end_time);
+      const key = `${routine.day_of_week}-${timeSlot}`;
+      console.log(`Adding delete operation for orphaned routine ${key}`);
       operations.push({
         operation: 'delete',
         id: routine.id
       });
     });
 
+    console.log('Final operations:', operations);
     return operations;
   },
 
@@ -348,17 +370,34 @@ export const routineTransformers = {
     originalRoutines: ClassRoutine[],
     filters: { department: string; semester: number; shift: Shift; session: string }
   ): Promise<BulkUpdateResponse> => {
-    const operations = routineTransformers.gridToOperations(currentGrid, originalRoutines, filters);
-    
-    if (operations.length === 0) {
-      return {
-        success: true,
-        message: 'No changes to save',
-        completed_operations: 0,
-        total_operations: 0
-      };
-    }
+    try {
+      console.log('saveRoutineChanges called with:', {
+        currentGrid,
+        originalRoutines: originalRoutines.length,
+        filters
+      });
+      
+      const operations = routineTransformers.gridToOperations(currentGrid, originalRoutines, filters);
+      
+      console.log('Generated operations:', operations);
+      
+      if (operations.length === 0) {
+        console.log('No operations to perform');
+        return {
+          success: true,
+          message: 'No changes to save',
+          completed_operations: 0,
+          total_operations: 0
+        };
+      }
 
-    return await routineService.bulkUpdate({ operations });
+      console.log('Calling bulkUpdate with operations:', operations);
+      const result = await routineService.bulkUpdate({ operations });
+      console.log('BulkUpdate result:', result);
+      return result;
+    } catch (error) {
+      console.error('Error in saveRoutineChanges:', error);
+      throw error;
+    }
   }
 };

@@ -3,25 +3,28 @@ Correction Request Serializers
 """
 from rest_framework import serializers
 from .models import CorrectionRequest
+from apps.students.serializers import StudentListSerializer
+from apps.authentication.serializers import UserSerializer
 
 
 class CorrectionRequestSerializer(serializers.ModelSerializer):
     """
-    Serializer for Correction Request model
+    Serializer for reading correction requests
     """
-    student_name = serializers.CharField(source='student.fullNameEnglish', read_only=True)
-    requested_by_name = serializers.CharField(source='requested_by.get_full_name', read_only=True)
-    reviewed_by_name = serializers.CharField(source='reviewed_by.get_full_name', read_only=True)
+    student = StudentListSerializer(read_only=True)
+    requested_by = UserSerializer(read_only=True)
+    reviewed_by = UserSerializer(read_only=True)
     
     class Meta:
         model = CorrectionRequest
         fields = [
-            'id', 'student', 'student_name', 'field_name', 'current_value',
+            'id', 'student', 'requested_by', 'field_name', 'current_value',
             'requested_value', 'reason', 'supporting_documents', 'status',
-            'requested_by', 'requested_by_name', 'submitted_at',
-            'reviewed_at', 'reviewed_by', 'reviewed_by_name', 'review_notes'
+            'submitted_at', 'reviewed_at', 'reviewed_by', 'review_notes'
         ]
-        read_only_fields = ['id', 'submitted_at', 'reviewed_at']
+        read_only_fields = [
+            'id', 'submitted_at', 'reviewed_at', 'reviewed_by', 'status'
+        ]
 
 
 class CorrectionRequestCreateSerializer(serializers.ModelSerializer):
@@ -31,9 +34,31 @@ class CorrectionRequestCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = CorrectionRequest
         fields = [
-            'student', 'field_name', 'current_value',
-            'requested_value', 'reason', 'supporting_documents'
+            'student', 'field_name', 'current_value', 'requested_value',
+            'reason', 'supporting_documents'
         ]
+    
+    def validate(self, data):
+        """
+        Validate correction request data
+        """
+        # Check if there's already a pending request for this field
+        student = data.get('student')
+        field_name = data.get('field_name')
+        
+        if student and field_name:
+            existing_request = CorrectionRequest.objects.filter(
+                student=student,
+                field_name=field_name,
+                status='pending'
+            ).first()
+            
+            if existing_request:
+                raise serializers.ValidationError(
+                    f"There is already a pending correction request for {field_name}"
+                )
+        
+        return data
 
 
 class CorrectionRequestReviewSerializer(serializers.Serializer):

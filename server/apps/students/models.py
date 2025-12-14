@@ -108,18 +108,18 @@ class Student(models.Model):
         return f"{self.fullNameEnglish} ({self.currentRollNumber})"
     
     def has_completed_eighth_semester(self):
-        """Check if student has completed all 8 semesters"""
+        """Check if student has completed 8th semester"""
         if not self.semesterResults:
             return False
         
-        semesters = [result.get('semester') for result in self.semesterResults]
+        # Check if 8th semester exists with a valid result
+        for result in self.semesterResults:
+            if result.get('semester') == 8:
+                # Check if it's a GPA result with a valid GPA
+                if result.get('resultType') == 'gpa' and result.get('gpa') and result.get('gpa') > 0:
+                    return True
+                # Or if it's any other valid result type
+                elif result.get('resultType') and result.get('resultType') != 'gpa':
+                    return True
         
-        # Check if 8th semester exists and all previous semesters exist
-        if 8 not in semesters:
-            return False
-        
-        for i in range(1, 8):
-            if i not in semesters:
-                return False
-        
-        return True
+        return False

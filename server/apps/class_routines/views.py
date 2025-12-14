@@ -196,6 +196,8 @@ class ClassRoutineViewSet(viewsets.ModelViewSet):
             ]
         }
         """
+        print(f"Bulk update request received: {request.data}")
+        
         serializer = BulkRoutineRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
@@ -203,19 +205,41 @@ class ClassRoutineViewSet(viewsets.ModelViewSet):
         results = []
         errors = []
         
-        try:
-            with transaction.atomic():
-                for i, operation_data in enumerate(operations):
-                    operation = operation_data['operation']
-                    routine_id = operation_data.get('id')
-                    data = operation_data.get('data', {})
+        print(f"Processing {len(operations)} operations")
+        
+
+        
+        # Process operations individually to avoid rolling back all changes on single failure
+        for i, operation_data in enumerate(operations):
+            operation = operation_data['operation']
+            routine_id = operation_data.get('id')
+            data = operation_data.get('data', {})
+            
+            try:
+                with transaction.atomic():
+                    if operation == 'create':
+                        # Create new routine
+                        create_serializer = ClassRoutineCreateSerializer(data=data)
+                        create_serializer.is_valid(raise_exception=True)
+                        routine = create_serializer.save()
+                        
+                        # Return complete routine data
+                        result_serializer = ClassRoutineSerializer(routine)
+                        results.append({
+                            'operation': operation,
+                            'success': True,
+                            'data': result_serializer.data
+                        })
                     
-                    try:
-                        if operation == 'create':
-                            # Create new routine
-                            create_serializer = ClassRoutineCreateSerializer(data=data)
-                            create_serializer.is_valid(raise_exception=True)
-                            routine = create_serializer.save()
+                    elif operation == 'update':
+                        # Update existing routine
+                        try:
+                            routine = ClassRoutine.objects.get(pk=routine_id)
+                            update_serializer = ClassRoutineUpdateSerializer(
+                                routine, data=data, partial=True
+                            )
+                            update_serializer.is_valid(raise_exception=True)
+                            routine = update_serializer.save()
                             
                             # Return complete routine data
                             result_serializer = ClassRoutineSerializer(routine)
@@ -224,71 +248,63 @@ class ClassRoutineViewSet(viewsets.ModelViewSet):
                                 'success': True,
                                 'data': result_serializer.data
                             })
-                        
-                        elif operation == 'update':
-                            # Update existing routine
-                            try:
-                                routine = ClassRoutine.objects.get(pk=routine_id)
-                                update_serializer = ClassRoutineUpdateSerializer(
-                                    routine, data=data, partial=True
-                                )
-                                update_serializer.is_valid(raise_exception=True)
-                                routine = update_serializer.save()
-                                
-                                # Return complete routine data
-                                result_serializer = ClassRoutineSerializer(routine)
-                                results.append({
-                                    'operation': operation,
-                                    'success': True,
-                                    'data': result_serializer.data
-                                })
-                            except ClassRoutine.DoesNotExist:
-                                errors.append({
-                                    'operation_index': i,
-                                    'operation': operation,
-                                    'error': 'Class routine not found',
-                                    'id': str(routine_id)
-                                })
-                        
-                        elif operation == 'delete':
-                            # Delete routine
-                            try:
-                                routine = ClassRoutine.objects.get(pk=routine_id)
-                                routine.delete()
-                                results.append({
-                                    'operation': operation,
-                                    'success': True,
-                                    'id': str(routine_id)
-                                })
-                            except ClassRoutine.DoesNotExist:
-                                errors.append({
-                                    'operation_index': i,
-                                    'operation': operation,
-                                    'error': 'Class routine not found',
-                                    'id': str(routine_id)
-                                })
+                        except ClassRoutine.DoesNotExist:
+                            errors.append({
+                                'operation_index': i,
+                                'operation': operation,
+                                'error': 'Class routine not found',
+                                'id': str(routine_id)
+                            })
                     
-                    except Exception as e:
-                        errors.append({
-                            'operation_index': i,
-                            'operation': operation,
-                            'error': str(e),
-                            'id': str(routine_id) if routine_id else None
-                        })
-                
-                # If there are any errors, rollback the transaction
-                if errors:
-                    raise Exception('Bulk operation failed with errors')
+                    elif operation == 'delete':
+                        # Delete routine
+                        try:
+                            routine = ClassRoutine.objects.get(pk=routine_id)
+                            routine.delete()
+                            results.append({
+                                'operation': operation,
+                                'success': True,
+                                'id': str(routine_id)
+                            })
+                        except ClassRoutine.DoesNotExist:
+                            errors.append({
+                                'operation_index': i,
+                                'operation': operation,
+                                'error': 'Class routine not found',
+                                'id': str(routine_id)
+                            })
+            
+            except Exception as e:
+                errors.append({
+                    'operation_index': i,
+                    'operation': operation,
+                    'error': str(e),
+                    'id': str(routine_id) if routine_id else None
+                })
         
-        except Exception:
-            # Transaction was rolled back, return errors
+        # Return success even if some operations failed (partial success)
+        success_count = len(results)
+        total_count = len(operations)
+        
+        if success_count == 0:
+            # All operations failed
             return Response({
                 'success': False,
-                'message': 'Bulk operation failed. All changes have been rolled back.',
+                'message': 'All operations failed',
                 'errors': errors,
                 'completed_operations': 0,
-                'total_operations': len(operations)
+                'total_operations': total_count
             }, status=status.HTTP_400_BAD_REQUEST)
+        elif errors:
+            # Partial success
+            return Response({
+                'success': True,
+                'message': f'Completed {success_count} of {total_count} operations with some errors',
+                'results': results,
+                'errors': errors,
+                'completed_operations': success_count,
+                'total_operations': total_count
+            }, status=status.HTTP_200_OK)
         
         # All operations successful
         return Response({

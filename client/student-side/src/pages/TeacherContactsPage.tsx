@@ -24,7 +24,7 @@ export default function TeacherContactsPage() {
       
       const response = await teacherService.getTeachers({
         page_size: 100,
-        ordering: 'fullName'
+        ordering: 'fullNameEnglish'
       });
       
       setTeachers(response.results);
@@ -40,10 +40,9 @@ export default function TeacherContactsPage() {
   };
 
   const filteredTeachers = teachers.filter(teacher =>
-    teacher.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    teacher.department.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (teacher.departmentName && teacher.departmentName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (teacher.subjects && teacher.subjects.some(s => s.toLowerCase().includes(searchQuery.toLowerCase())))
+    (teacher.fullNameEnglish && teacher.fullNameEnglish.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (teacher.department?.name && teacher.department.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (teacher.subjects && teacher.subjects.some(s => s && s.toLowerCase().includes(searchQuery.toLowerCase())))
   );
 
   // Loading state
@@ -122,46 +121,46 @@ export default function TeacherContactsPage() {
                 <User className="w-7 h-7" />
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="font-semibold truncate">{teacher.fullName}</h3>
-                <p className="text-sm text-primary font-medium">{teacher.designation}</p>
-                <p className="text-sm text-muted-foreground">{teacher.departmentName || teacher.department}</p>
+                <h3 className="font-semibold truncate">{teacher.fullNameEnglish || 'N/A'}</h3>
+                <p className="text-sm text-primary font-medium">{teacher.designation || 'N/A'}</p>
+                <p className="text-sm text-muted-foreground">{teacher.department?.name || 'N/A'}</p>
               </div>
             </div>
 
             <div className="mt-4 space-y-3">
               <a
-                href={`tel:${teacher.phone}`}
+                href={`tel:${teacher.mobileNumber || ''}`}
                 className="flex items-center gap-3 text-sm hover:text-primary transition-colors"
               >
                 <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
                   <Phone className="w-4 h-4 text-primary" />
                 </div>
-                <span className="truncate">{teacher.phone || 'N/A'}</span>
+                <span className="truncate">{teacher.mobileNumber || 'N/A'}</span>
               </a>
 
               <a
-                href={`mailto:${teacher.email}`}
+                href={`mailto:${teacher.email || ''}`}
                 className="flex items-center gap-3 text-sm hover:text-primary transition-colors"
               >
                 <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
                   <Mail className="w-4 h-4 text-primary" />
                 </div>
-                <span className="truncate">{teacher.email}</span>
+                <span className="truncate">{teacher.email || 'N/A'}</span>
               </a>
 
-              {teacher.officeRoom && (
+              {teacher.officeLocation && (
                 <div className="flex items-center gap-3 text-sm">
                   <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center">
                     <MapPin className="w-4 h-4 text-muted-foreground" />
                   </div>
-                  <span className="text-muted-foreground truncate">{teacher.officeRoom}</span>
+                  <span className="text-muted-foreground truncate">{teacher.officeLocation}</span>
                 </div>
               )}
             </div>
 
             {teacher.subjects && teacher.subjects.length > 0 && (
               <div className="mt-4 flex flex-wrap gap-2">
-                {teacher.subjects.map(subject => (
+                {teacher.subjects.filter(subject => subject).map(subject => (
                   <span
                     key={subject}
                     className="text-xs px-2 py-1 rounded-full bg-secondary text-muted-foreground"

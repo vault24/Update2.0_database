@@ -52,6 +52,7 @@ export interface MyRoutineParams {
   semester?: number;
   shift?: Shift;
   teacher?: string;
+  _t?: number; // Cache busting parameter
 }
 
 export interface MyRoutineResponse {

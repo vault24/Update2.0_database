@@ -30,25 +30,28 @@ class MarksRecord(models.Model):
     )
     
     # Subject Information
-    subject_code = models.CharField(max_length=50)
-    subject_name = models.CharField(max_length=255)
+    subject_code = models.CharField(max_length=50, blank=True)
+    subject_name = models.CharField(max_length=255, blank=True)
     semester = models.IntegerField(
-        validators=[MinValueValidator(1), MaxValueValidator(8)]
+        validators=[MinValueValidator(1), MaxValueValidator(8)],
+        null=True, blank=True
     )
     
     # Exam Information
-    exam_type = models.CharField(max_length=50, choices=EXAM_TYPE_CHOICES)
+    exam_type = models.CharField(max_length=50, choices=EXAM_TYPE_CHOICES, blank=True)
     
     # Marks Information
     marks_obtained = models.DecimalField(
         max_digits=5,
         decimal_places=2,
-        validators=[MinValueValidator(0)]
+        validators=[MinValueValidator(0)],
+        default=0
     )
     total_marks = models.DecimalField(
         max_digits=5,
         decimal_places=2,
-        validators=[MinValueValidator(0)]
+        validators=[MinValueValidator(0)],
+        default=0
     )
     
     # Recorded By

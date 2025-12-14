@@ -48,18 +48,18 @@ export default function CorrectionRequests() {
       const response = await correctionRequestService.getCorrectionRequests();
       const mapped = response.results.map((req: CorrectionRequest) => ({
         id: req.id,
-        studentName: req.student.full_name_english,
-        studentId: req.student.roll_number,
-        requestedBy: req.requested_by.name,
-        requestedByRole: req.requested_by.role,
-        fieldName: req.field_name,
-        currentValue: req.current_value,
-        requestedValue: req.requested_value,
-        reason: req.reason,
+        studentName: req.student?.full_name_english || 'Unknown Student',
+        studentId: req.student?.roll_number || 'N/A',
+        requestedBy: req.requested_by?.name || 'Unknown User',
+        requestedByRole: req.requested_by?.role || 'Unknown Role',
+        fieldName: req.field_name || 'Unknown Field',
+        currentValue: req.current_value || '',
+        requestedValue: req.requested_value || '',
+        reason: req.reason || '',
         status: req.status,
         submittedAt: req.submitted_at,
-        reviewedAt: req.reviewed_at,
-        reviewedBy: req.reviewed_by,
+        reviewedAt: req.reviewed_at || undefined,
+        reviewedBy: req.reviewed_by || undefined,
         reviewNotes: req.review_notes,
       }));
       setRequests(mapped);
@@ -105,7 +105,7 @@ export default function CorrectionRequests() {
     }
   };
 
-  const openReviewDialog = (request: typeof mockRequests[0], action: 'approve' | 'reject') => {
+  const openReviewDialog = (request: MappedRequest, action: 'approve' | 'reject') => {
     setSelectedRequest(request);
     setReviewAction(action);
     setIsReviewDialogOpen(true);

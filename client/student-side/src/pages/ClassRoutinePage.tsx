@@ -14,6 +14,11 @@ import {
   Users,
   Loader2,
   AlertCircle,
+  PlayCircle,
+  ArrowRight,
+  Timer,
+  CheckCircle,
+  Moon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -71,8 +76,139 @@ export default function ClassRoutinePage() {
   const [profileDepartment, setProfileDepartment] = useState<string | undefined>(undefined);
   const [profileSemester, setProfileSemester] = useState<number | undefined>(undefined);
   const [profileShift, setProfileShift] = useState<string | undefined>(undefined);
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   const formatTime = (time: string) => time?.slice(0, 5) || '';
+
+  // Helper function to convert time to minutes
+  const timeToMinutes = (time: string) => {
+    const [h, m] = time.split(':').map(Number);
+    return h * 60 + m;
+  };
+
+  // Get current running class
+  const getCurrentRunningClass = (): DisplayClassPeriod | null => {
+    const now = currentTime;
+    const dayIndex = now.getDay();
+    const currentDay = (dayIndex >= 0 && dayIndex < days.length) ? days[dayIndex] : null;
+    const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    
+    if (!currentDay || !weeklySchedule[currentDay]) return null;
+    
+    const currentMinutes = timeToMinutes(currentTimeStr);
+    
+    // Find the class that is currently running
+    for (const period of weeklySchedule[currentDay]) {
+      if (!period) continue;
+      
+      const startMinutes = timeToMinutes(period.startTime);
+      const endMinutes = timeToMinutes(period.endTime);
+      
+      // Check if current time is between start and end time
+      if (currentMinutes >= startMinutes && currentMinutes < endMinutes) {
+        return period;
+      }
+    }
+    
+    return null;
+  };
+
+  // Get next upcoming class
+  const getUpcomingClass = (): DisplayClassPeriod | null => {
+    const now = currentTime;
+    const dayIndex = now.getDay();
+    const currentDay = (dayIndex >= 0 && dayIndex < days.length) ? days[dayIndex] : null;
+    const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    
+    if (!currentDay || !weeklySchedule[currentDay]) return null;
+    
+    const currentMinutes = timeToMinutes(currentTimeStr);
+    
+    // Find the next class after current time
+    let nextClass: DisplayClassPeriod | null = null;
+    let minTimeDiff = Infinity;
+    
+    for (const period of weeklySchedule[currentDay]) {
+      if (!period) continue;
+      
+      const startMinutes = timeToMinutes(period.startTime);
+      
+      // Check if class starts after current time
+      if (startMinutes > currentMinutes) {
+        const timeDiff = startMinutes - currentMinutes;
+        if (timeDiff < minTimeDiff) {
+          minTimeDiff = timeDiff;
+          nextClass = period;
+        }
+      }
+    }
+    
+    return nextClass;
+  };
+
+  // Check if currently in break time
+  const isBreakTime = (): boolean => {
+    const now = currentTime;
+    const dayIndex = now.getDay();
+    const currentDay = (dayIndex >= 0 && dayIndex < days.length) ? days[dayIndex] : null;
+    const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    
+    if (!currentDay || !weeklySchedule[currentDay]) return false;
+    
+    const currentMinutes = timeToMinutes(currentTimeStr);
+    const runningClass = getCurrentRunningClass();
+    
+    // If no running class, check if we're between classes
+    if (!runningClass) {
+      const todayClasses = weeklySchedule[currentDay].filter(c => c !== null);
+      if (todayClasses.length === 0) return false;
+      
+      // Check if current time is between any two classes
+      for (let i = 0; i < todayClasses.length - 1; i++) {
+        const currentClassEnd = timeToMinutes(todayClasses[i]!.endTime);
+        const nextClassStart = timeToMinutes(todayClasses[i + 1]!.startTime);
+        
+        if (currentMinutes > currentClassEnd && currentMinutes < nextClassStart) {
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  };
+
+  // Check if all classes are completed for the day
+  const areClassesCompleted = (): boolean => {
+    const now = currentTime;
+    const dayIndex = now.getDay();
+    const currentDay = (dayIndex >= 0 && dayIndex < days.length) ? days[dayIndex] : null;
+    const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    
+    if (!currentDay || !weeklySchedule[currentDay]) return false;
+    
+    const currentMinutes = timeToMinutes(currentTimeStr);
+    const todayClasses = weeklySchedule[currentDay].filter(c => c !== null);
+    
+    if (todayClasses.length === 0) return false;
+    
+    // Check if current time is after the last class
+    const lastClass = todayClasses[todayClasses.length - 1];
+    if (lastClass) {
+      const lastClassEnd = timeToMinutes(lastClass.endTime);
+      return currentMinutes > lastClassEnd;
+    }
+    
+    return false;
+  };
+
+  // Update current time every minute
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000); // Update every minute
+    
+    return () => clearInterval(timer);
+  }, []);
 
   const buildSchedule = (routines: ClassRoutine[]) => {
     const normalized: DisplayClassPeriod[] = routines.map((routineItem) => ({
@@ -135,7 +271,7 @@ export default function ClassRoutinePage() {
           if (user.department && user.semester) {
             setProfileDepartment(user.department);
             setProfileSemester(user.semester);
-            setProfileShift(user.shift as string | undefined);
+            setProfileShift((user as any).shift as string | undefined);
             setProfileLoaded(true);
             return;
           }
@@ -195,11 +331,15 @@ export default function ClassRoutinePage() {
     try {
       setLoading(true);
       setError(null);
+      
       const data = await routineService.getMyRoutine({
         department: departmentId,
         semester: semesterValue,
         shift: shiftValue as any,
+        // Add cache busting parameter
+        _t: Date.now()
       });
+      
       setRoutine(data.routines);
       const { timeSlots, schedule } = buildSchedule(data.routines);
       setTimeSlots(timeSlots);
@@ -207,6 +347,7 @@ export default function ClassRoutinePage() {
     } catch (err) {
       const errorMsg = getErrorMessage(err);
       setError(errorMsg);
+
       toast.error('Failed to load routine', {
         description: errorMsg,
       });
@@ -218,10 +359,20 @@ export default function ClassRoutinePage() {
   const hasData = useMemo(() => routine.length > 0 && timeSlots.length > 0, [routine.length, timeSlots.length]);
   const weeklySchedule = schedule;
 
-  const todayClasses = weeklySchedule[selectedDay]?.filter((c) => c) || [];
+  // Get current day's classes
+  const now = currentTime;
+  const dayIndex = now.getDay();
+  const currentDay = (dayIndex >= 0 && dayIndex < days.length) ? days[dayIndex] : days[0];
+  const todayClasses = weeklySchedule[currentDay]?.filter((c) => c) || [];
   const totalClasses = todayClasses.length;
   const labSessions = todayClasses.filter((c) => c?.subject?.toLowerCase().includes('lab')).length;
   const theorySessions = totalClasses - labSessions;
+  
+  // Get class status
+  const runningClass = getCurrentRunningClass();
+  const upcomingClass = getUpcomingClass();
+  const isInBreak = isBreakTime();
+  const classesCompleted = areClassesCompleted();
 
   // Loading state
   if (loading) {
@@ -283,6 +434,20 @@ export default function ClassRoutinePage() {
           <p className="text-xs md:text-sm text-muted-foreground mt-0.5 md:mt-1">Your weekly schedule at a glance</p>
         </div>
         <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="gap-1.5 md:gap-2 text-xs md:text-sm"
+            onClick={fetchRoutine}
+            disabled={loading}
+          >
+            {loading ? (
+              <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" />
+            ) : (
+              <Timer className="w-3.5 h-3.5 md:w-4 md:h-4" />
+            )}
+            <span className="hidden sm:inline">Refresh</span>
+          </Button>
           <Button variant="outline" size="sm" className="gap-1.5 md:gap-2 text-xs md:text-sm">
             <Filter className="w-3.5 h-3.5 md:w-4 md:h-4" />
             <span className="hidden sm:inline">Filter</span>
@@ -294,13 +459,267 @@ export default function ClassRoutinePage() {
         </div>
       </motion.div>
 
+      {/* Dynamic Highlight Boxes */}
+      <div className="space-y-3 md:space-y-4">
+        {/* Running Class Card */}
+        {runningClass && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={cn(
+              "bg-gradient-to-r border-2 rounded-lg md:rounded-xl lg:rounded-2xl p-3 md:p-4 lg:p-5 shadow-lg",
+              runningClass.subject.toLowerCase().includes('lab')
+                ? "from-emerald-500/20 via-emerald-400/10 to-transparent border-emerald-500/30"
+                : "from-primary/20 via-primary/10 to-transparent border-primary/30"
+            )}
+          >
+            <div className="flex items-center gap-2 md:gap-3 lg:gap-4">
+              <div className={cn(
+                "w-10 h-10 md:w-12 md:h-12 lg:w-14 lg:h-14 rounded-lg md:rounded-xl flex items-center justify-center flex-shrink-0",
+                runningClass.subject.toLowerCase().includes('lab')
+                  ? "bg-emerald-500/20"
+                  : "bg-primary/20"
+              )}>
+                {runningClass.subject.toLowerCase().includes('lab') ? (
+                  <FlaskConical className="w-5 h-5 md:w-6 md:h-6 lg:w-7 lg:h-7 text-emerald-600 animate-pulse" />
+                ) : (
+                  <PlayCircle className="w-5 h-5 md:w-6 md:h-6 lg:w-7 lg:h-7 text-primary animate-pulse" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className={cn(
+                    "px-2 py-0.5 text-[10px] md:text-xs font-semibold rounded-full",
+                    runningClass.subject.toLowerCase().includes('lab')
+                      ? "bg-emerald-500/20 text-emerald-700"
+                      : "bg-primary/20 text-primary"
+                  )}>
+                    {runningClass.subject.toLowerCase().includes('lab') ? 'Lab in Progress' : 'Running Now'}
+                  </span>
+                  <span className="text-[10px] md:text-xs text-muted-foreground">
+                    {runningClass.startTime} - {runningClass.endTime}
+                  </span>
+                </div>
+                <h3 className="text-sm md:text-base lg:text-lg font-bold truncate">{runningClass.subject}</h3>
+                <p className="text-[10px] md:text-xs lg:text-sm text-muted-foreground truncate">
+                  {runningClass.code} • Room: {runningClass.room} • {runningClass.teacher}
+                </p>
+              </div>
+              <div className="text-right flex-shrink-0">
+                <div className="text-[10px] md:text-xs text-muted-foreground">Time Left</div>
+                <div className={cn(
+                  "text-sm md:text-base lg:text-lg font-bold",
+                  runningClass.subject.toLowerCase().includes('lab') ? "text-emerald-600" : "text-primary"
+                )}>
+                  {(() => {
+                    const now = currentTime;
+                    const [endH, endM] = runningClass.endTime.split(':').map(Number);
+                    const endTime = new Date(now);
+                    endTime.setHours(endH, endM, 0, 0);
+                    const diff = endTime.getTime() - now.getTime();
+                    const minutes = Math.floor(diff / 60000);
+                    const hours = Math.floor(minutes / 60);
+                    const mins = minutes % 60;
+                    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+                  })()}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Upcoming Class Card */}
+        {!runningClass && upcomingClass && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-gradient-to-r from-blue-500/20 via-blue-400/10 to-transparent border-2 border-blue-500/30 rounded-lg md:rounded-xl lg:rounded-2xl p-3 md:p-4 lg:p-5 shadow-lg"
+          >
+            <div className="flex items-center gap-2 md:gap-3 lg:gap-4">
+              <div className="w-10 h-10 md:w-12 md:h-12 lg:w-14 lg:h-14 rounded-lg md:rounded-xl bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                <ArrowRight className="w-5 h-5 md:w-6 md:h-6 lg:w-7 lg:h-7 text-blue-600 animate-pulse" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2 py-0.5 bg-blue-500/20 text-blue-700 text-[10px] md:text-xs font-semibold rounded-full">
+                    Up Next
+                  </span>
+                  <span className="text-[10px] md:text-xs text-muted-foreground">
+                    {upcomingClass.startTime} - {upcomingClass.endTime}
+                  </span>
+                </div>
+                <h3 className="text-sm md:text-base lg:text-lg font-bold truncate">{upcomingClass.subject}</h3>
+                <p className="text-[10px] md:text-xs lg:text-sm text-muted-foreground truncate">
+                  {upcomingClass.code} • Room: {upcomingClass.room} • {upcomingClass.teacher}
+                </p>
+              </div>
+              <div className="text-right flex-shrink-0">
+                <div className="text-[10px] md:text-xs text-muted-foreground">Starts In</div>
+                <div className="text-sm md:text-base lg:text-lg font-bold text-blue-600">
+                  {(() => {
+                    const now = currentTime;
+                    const [startH, startM] = upcomingClass.startTime.split(':').map(Number);
+                    const startTime = new Date(now);
+                    startTime.setHours(startH, startM, 0, 0);
+                    const diff = startTime.getTime() - now.getTime();
+                    const minutes = Math.floor(diff / 60000);
+                    const hours = Math.floor(minutes / 60);
+                    const mins = minutes % 60;
+                    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+                  })()}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Break Time Card */}
+        {!runningClass && isInBreak && upcomingClass && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-gradient-to-r from-amber-500/20 via-amber-400/10 to-transparent border-2 border-amber-500/30 rounded-lg md:rounded-xl lg:rounded-2xl p-3 md:p-4 lg:p-5 shadow-lg"
+          >
+            <div className="flex items-center gap-2 md:gap-3 lg:gap-4">
+              <div className="w-10 h-10 md:w-12 md:h-12 lg:w-14 lg:h-14 rounded-lg md:rounded-xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+                <Coffee className="w-5 h-5 md:w-6 md:h-6 lg:w-7 lg:h-7 text-amber-600 animate-bounce" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2 py-0.5 bg-amber-500/20 text-amber-700 text-[10px] md:text-xs font-semibold rounded-full">
+                    Break Time
+                  </span>
+                  <span className="text-[10px] md:text-xs text-muted-foreground">
+                    Relax & Recharge
+                  </span>
+                </div>
+                <h3 className="text-sm md:text-base lg:text-lg font-bold truncate">Take a Break</h3>
+                <p className="text-[10px] md:text-xs lg:text-sm text-muted-foreground truncate">
+                  Next: {upcomingClass.subject} at {upcomingClass.startTime}
+                </p>
+              </div>
+              <div className="text-right flex-shrink-0">
+                <div className="text-[10px] md:text-xs text-muted-foreground">Break Ends In</div>
+                <div className="text-sm md:text-base lg:text-lg font-bold text-amber-600">
+                  {(() => {
+                    const now = currentTime;
+                    const [startH, startM] = upcomingClass.startTime.split(':').map(Number);
+                    const startTime = new Date(now);
+                    startTime.setHours(startH, startM, 0, 0);
+                    const diff = startTime.getTime() - now.getTime();
+                    const minutes = Math.floor(diff / 60000);
+                    const hours = Math.floor(minutes / 60);
+                    const mins = minutes % 60;
+                    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+                  })()}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Classes Completed Card */}
+        {!runningClass && !upcomingClass && classesCompleted && totalClasses > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-gradient-to-r from-green-500/20 via-green-400/10 to-transparent border-2 border-green-500/30 rounded-lg md:rounded-xl lg:rounded-2xl p-3 md:p-4 lg:p-5 shadow-lg"
+          >
+            <div className="flex items-center gap-2 md:gap-3 lg:gap-4">
+              <div className="w-10 h-10 md:w-12 md:h-12 lg:w-14 lg:h-14 rounded-lg md:rounded-xl bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                <CheckCircle className="w-5 h-5 md:w-6 md:h-6 lg:w-7 lg:h-7 text-green-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2 py-0.5 bg-green-500/20 text-green-700 text-[10px] md:text-xs font-semibold rounded-full">
+                    All Done
+                  </span>
+                  <span className="text-[10px] md:text-xs text-muted-foreground">
+                    Great job today!
+                  </span>
+                </div>
+                <h3 className="text-sm md:text-base lg:text-lg font-bold truncate">Classes Completed</h3>
+                <p className="text-[10px] md:text-xs lg:text-sm text-muted-foreground truncate">
+                  You've finished all {totalClasses} classes for today
+                </p>
+              </div>
+              <div className="text-right flex-shrink-0">
+                <div className="text-[10px] md:text-xs text-muted-foreground">Status</div>
+                <div className="text-sm md:text-base lg:text-lg font-bold text-green-600">
+                  Complete
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* No Classes Today Card */}
+        {totalClasses === 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-gradient-to-r from-slate-500/20 via-slate-400/10 to-transparent border-2 border-slate-500/30 rounded-lg md:rounded-xl lg:rounded-2xl p-3 md:p-4 lg:p-5 shadow-lg"
+          >
+            <div className="flex items-center gap-2 md:gap-3 lg:gap-4">
+              <div className="w-10 h-10 md:w-12 md:h-12 lg:w-14 lg:h-14 rounded-lg md:rounded-xl bg-slate-500/20 flex items-center justify-center flex-shrink-0">
+                <Moon className="w-5 h-5 md:w-6 md:h-6 lg:w-7 lg:h-7 text-slate-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2 py-0.5 bg-slate-500/20 text-slate-700 text-[10px] md:text-xs font-semibold rounded-full">
+                    Free Day
+                  </span>
+                  <span className="text-[10px] md:text-xs text-muted-foreground">
+                    Enjoy your day off
+                  </span>
+                </div>
+                <h3 className="text-sm md:text-base lg:text-lg font-bold truncate">No Classes Today</h3>
+                <p className="text-[10px] md:text-xs lg:text-sm text-muted-foreground truncate">
+                  Take some time to relax or catch up on studies
+                </p>
+              </div>
+              <div className="text-right flex-shrink-0">
+                <div className="text-[10px] md:text-xs text-muted-foreground">Status</div>
+                <div className="text-sm md:text-base lg:text-lg font-bold text-slate-600">
+                  Free
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </div>
+
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3 lg:gap-4">
         {[
-          { label: 'Classes Today', value: totalClasses, icon: BookOpen, color: 'text-primary' },
-          { label: 'Lab Sessions', value: labSessions, icon: FlaskConical, color: 'text-warning' },
-          { label: 'Theory', value: theorySessions, icon: Users, color: 'text-success' },
-          { label: 'Working Days', value: days.length, icon: Calendar, color: 'text-accent' },
+          { 
+            label: 'Classes Today', 
+            value: totalClasses, 
+            icon: BookOpen, 
+            color: runningClass ? 'text-primary' : totalClasses > 0 ? 'text-blue-600' : 'text-muted-foreground',
+            bgColor: runningClass ? 'bg-primary/10' : totalClasses > 0 ? 'bg-blue-500/10' : 'bg-muted/10'
+          },
+          { 
+            label: 'Lab Sessions', 
+            value: labSessions, 
+            icon: FlaskConical, 
+            color: runningClass?.subject.toLowerCase().includes('lab') ? 'text-emerald-600' : labSessions > 0 ? 'text-warning' : 'text-muted-foreground',
+            bgColor: runningClass?.subject.toLowerCase().includes('lab') ? 'bg-emerald-500/10' : labSessions > 0 ? 'bg-warning/10' : 'bg-muted/10'
+          },
+          { 
+            label: 'Theory Classes', 
+            value: theorySessions, 
+            icon: Users, 
+            color: runningClass && !runningClass.subject.toLowerCase().includes('lab') ? 'text-primary' : theorySessions > 0 ? 'text-success' : 'text-muted-foreground',
+            bgColor: runningClass && !runningClass.subject.toLowerCase().includes('lab') ? 'bg-primary/10' : theorySessions > 0 ? 'bg-success/10' : 'bg-muted/10'
+          },
+          { 
+            label: 'Working Days', 
+            value: days.length, 
+            icon: Calendar, 
+            color: 'text-accent',
+            bgColor: 'bg-accent/10'
+          },
         ].map((stat, i) => (
           <motion.div
             key={stat.label}
@@ -310,7 +729,7 @@ export default function ClassRoutinePage() {
             className="bg-card rounded-lg md:rounded-xl lg:rounded-2xl border border-border p-2 md:p-3 lg:p-4 shadow-card"
           >
             <div className="flex items-center gap-1.5 md:gap-2 lg:gap-3">
-              <div className={cn("w-7 h-7 md:w-8 md:h-8 lg:w-10 lg:h-10 rounded-md md:rounded-lg lg:rounded-xl bg-secondary flex items-center justify-center flex-shrink-0", stat.color)}>
+              <div className={cn("w-7 h-7 md:w-8 md:h-8 lg:w-10 lg:h-10 rounded-md md:rounded-lg lg:rounded-xl flex items-center justify-center flex-shrink-0", stat.color, stat.bgColor)}>
                 <stat.icon className="w-3.5 h-3.5 md:w-4 md:h-4 lg:w-5 lg:h-5" />
               </div>
               <div className="min-w-0">
@@ -410,16 +829,25 @@ export default function ClassRoutinePage() {
                       }
                       const Icon = getSubjectIcon(period.subject);
                       const colorClass = subjectColors[period.subject.split(' ')[0]] || subjectColors.Computer;
+                      const isRunning = runningClass?.id === period.id;
                       
                       return (
                         <td key={day} className="py-1.5 md:py-2 px-0.5 md:px-1">
                           <motion.div
                             whileHover={{ scale: 1.02 }}
                             className={cn(
-                              "h-12 md:h-14 lg:h-16 rounded-md md:rounded-lg border p-1 md:p-1.5 lg:p-2 bg-gradient-to-br cursor-pointer transition-all",
-                              colorClass
+                              "h-12 md:h-14 lg:h-16 rounded-md md:rounded-lg border p-1 md:p-1.5 lg:p-2 bg-gradient-to-br cursor-pointer transition-all relative",
+                              colorClass,
+                              isRunning && "ring-2 ring-primary ring-offset-2 shadow-lg"
                             )}
                           >
+                            {isRunning && (
+                              <div className="absolute top-0 right-0 -mt-1 -mr-1">
+                                <div className="w-3 h-3 bg-primary rounded-full animate-pulse flex items-center justify-center">
+                                  <PlayCircle className="w-2 h-2 text-primary-foreground" />
+                                </div>
+                              </div>
+                            )}
                             <div className="flex items-start gap-0.5 md:gap-1 lg:gap-1.5 h-full">
                               <Icon className="w-2.5 h-2.5 md:w-3 md:h-3 lg:w-3.5 lg:h-3.5 mt-0.5 flex-shrink-0 opacity-70" />
                               <div className="min-w-0 flex-1">
@@ -452,6 +880,7 @@ export default function ClassRoutinePage() {
                 if (!period) return null;
                 const Icon = getSubjectIcon(period.subject);
                 const colorClass = subjectColors[period.subject.split(' ')[0]] || subjectColors.Computer;
+                const isRunning = runningClass?.id === period.id;
 
                 return (
                   <motion.div
@@ -460,10 +889,19 @@ export default function ClassRoutinePage() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.05 }}
                     className={cn(
-                      'flex items-center gap-2 md:gap-3 lg:gap-4 p-2.5 md:p-3 lg:p-4 rounded-lg md:rounded-xl border bg-gradient-to-r',
-                      colorClass
+                      'flex items-center gap-2 md:gap-3 lg:gap-4 p-2.5 md:p-3 lg:p-4 rounded-lg md:rounded-xl border bg-gradient-to-r relative',
+                      colorClass,
+                      isRunning && "ring-2 ring-primary ring-offset-2 shadow-lg"
                     )}
                   >
+                    {isRunning && (
+                      <div className="absolute top-2 right-2">
+                        <div className="flex items-center gap-1 px-2 py-0.5 bg-primary/20 text-primary rounded-full">
+                          <PlayCircle className="w-3 h-3 animate-pulse" />
+                          <span className="text-[9px] md:text-[10px] font-semibold">Running</span>
+                        </div>
+                      </div>
+                    )}
                     <div className="text-center min-w-[60px] md:min-w-[70px] lg:min-w-[80px]">
                       <p className="text-[9px] md:text-[10px] lg:text-xs opacity-70">Period {index + 1}</p>
                       <p className="text-[10px] md:text-xs lg:text-sm font-semibold leading-tight">{timeSlots[index]}</p>

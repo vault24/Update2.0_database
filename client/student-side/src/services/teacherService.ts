@@ -8,14 +8,19 @@ import api, { PaginatedResponse } from '@/lib/api';
 // Types
 export interface Teacher {
   id: string;
-  fullName: string;
+  fullNameEnglish: string;
   designation: string;
-  department: string;
-  departmentName?: string;
+  department: {
+    id: string;
+    name: string;
+    code: string;
+  };
   email: string;
-  phone: string;
-  officeRoom?: string;
+  mobileNumber: string;
+  officeLocation?: string;
   subjects?: string[];
+  employmentStatus: string;
+  profilePhoto?: string;
 }
 
 export interface TeacherFilters {

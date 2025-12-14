@@ -131,7 +131,8 @@ def login_view(request):
     Request body:
     {
         "username": "string",
-        "password": "string"
+        "password": "string",
+        "remember_me": "boolean" (optional, defaults to false)
     }
     
     Returns:
@@ -147,12 +148,22 @@ def login_view(request):
             # Login user (creates session)
             login(request, user)
             
+            # Handle "Remember Me" functionality
+            remember_me = request.data.get('remember_me', False)
+            if remember_me:
+                # Set session to expire in 7 days (604800 seconds)
+                request.session.set_expiry(604800)
+            else:
+                # Use default session timeout (24 hours)
+                request.session.set_expiry(86400)
+            
             # Return user data
             user_serializer = UserSerializer(user)
             
             response_data = {
                 'message': 'Login successful',
                 'user': user_serializer.data,
+                'remember_me': remember_me,
             }
             
             # Add redirect flag if user needs to complete admission

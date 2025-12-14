@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     'apps.documents',
     'apps.dashboard',
     'apps.notifications',
+    'apps.notices',
     'apps.teachers',
     'apps.teacher_requests',
     'apps.class_routines',
@@ -220,9 +221,13 @@ SESSION_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
 SESSION_SAVE_EVERY_REQUEST = False
-SESSION_COOKIE_AGE = 86400  # 24 hours
+SESSION_COOKIE_AGE = 86400  # 24 hours (default)
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_COOKIE_NAME = 'sessionid'
+
+# Remember Me Configuration
+# When remember_me is True, sessions will be extended to 7 days (604800 seconds)
+# This is handled dynamically in the login view
 
 # Custom User Model
 AUTH_USER_MODEL = 'authentication.User'

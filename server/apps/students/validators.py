@@ -43,14 +43,13 @@ def validate_address_structure(value):
     Validate address has all required fields
     """
     required_fields = [
-        'division', 'district', 'subDistrict', 'policeStation',
-        'postOffice', 'municipality', 'village', 'ward'
+        'division', 'district', 'upazila', 'postOffice', 'village'
     ]
     
     if not isinstance(value, dict):
         raise ValidationError("Address must be a dictionary")
     
-    missing_fields = [field for field in required_fields if field not in value]
+    missing_fields = [field for field in required_fields if field not in value or not value[field]]
     
     if missing_fields:
         raise ValidationError(f"Address missing required fields: {', '.join(missing_fields)}")

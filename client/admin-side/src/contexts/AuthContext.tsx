@@ -15,7 +15,7 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
 }
@@ -95,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return null;
   };
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, rememberMe: boolean = false) => {
     try {
       // Get CSRF token first from the dedicated endpoint
       await fetch(`${API_BASE_URL}/auth/csrf/`, {
@@ -115,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         method: 'POST',
         headers,
         credentials: 'include',
-        body: JSON.stringify({ username: email, password }), // Backend expects 'username' field
+        body: JSON.stringify({ username: email, password, remember_me: rememberMe }), // Backend expects 'username' field
       });
 
       if (!response.ok) {

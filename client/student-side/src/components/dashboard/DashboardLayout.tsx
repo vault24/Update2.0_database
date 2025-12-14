@@ -1,12 +1,33 @@
-import { Outlet } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { Bell, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
+import { noticeService } from '@/services/noticeService';
 
 export function DashboardLayout() {
+  const navigate = useNavigate();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    loadUnreadCount();
+    // Refresh unread count every 30 seconds
+    const interval = setInterval(loadUnreadCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const loadUnreadCount = async () => {
+    try {
+      const response = await noticeService.getUnreadCount();
+      setUnreadCount(response.unread_count);
+    } catch (err) {
+      console.error('Error loading unread count:', err);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background flex">
       <Sidebar />
@@ -29,9 +50,19 @@ export function DashboardLayout() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="relative">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="relative"
+              onClick={() => navigate('/dashboard/notices')}
+              title="View Notices & Updates"
+            >
               <Bell className="w-5 h-5" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground text-xs rounded-full flex items-center justify-center font-medium">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
             </Button>
             <ThemeToggle />
           </div>

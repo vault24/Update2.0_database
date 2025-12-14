@@ -2,7 +2,6 @@ import { motion } from 'framer-motion';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
-  User,
   FileText,
   Calendar,
   ClipboardCheck,
@@ -18,6 +17,8 @@ import {
   UserCheck,
   Phone,
   BookOpen,
+  Bell,
+  User,
 } from 'lucide-react';
 import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -34,7 +35,8 @@ interface MenuItem {
 // Menu items with role-based access
 const menuItems: MenuItem[] = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', roles: ['student', 'captain', 'teacher'] },
-  { icon: User, label: 'Profile', path: '/dashboard/profile', roles: ['student', 'captain', 'teacher'] },
+  { icon: Bell, label: 'Notices & Updates', path: '/dashboard/notices', roles: ['student', 'captain', 'teacher'] },
+  { icon: User, label: 'Profile', path: '/dashboard/profile', roles: ['student', 'captain'] },
   { icon: FileText, label: 'Admission', path: '/dashboard/admission', roles: ['student', 'captain'] },
   { icon: Calendar, label: 'Class Routine', path: '/dashboard/routine', roles: ['student', 'captain', 'teacher'] },
   { icon: ClipboardCheck, label: 'Attendance', path: '/dashboard/attendance', roles: ['student', 'captain', 'teacher'] },

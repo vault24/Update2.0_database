@@ -94,9 +94,17 @@ export default function StudentDetailsPage() {
       } catch (err) {
         const errorMsg = getErrorMessage(err);
         setError(errorMsg);
-        toast.error('Failed to load student details', {
-          description: errorMsg
-        });
+        
+        // Check if it's a 404 error (student not found)
+        if (errorMsg.includes('404') || errorMsg.toLowerCase().includes('not found')) {
+          toast.error('Student not found', {
+            description: 'The student you are looking for does not exist or may have been removed.'
+          });
+        } else {
+          toast.error('Failed to load student details', {
+            description: errorMsg
+          });
+        }
       } finally {
         setLoading(false);
       }
@@ -108,6 +116,14 @@ export default function StudentDetailsPage() {
   const handleRequestCorrection = async () => {
     if (!correctionForm.fieldName || !correctionForm.requestedValue || !correctionForm.reason || !id) {
       toast.error('Please fill in all required fields');
+      return;
+    }
+    
+    // Check if student exists before submitting correction request
+    if (!student) {
+      toast.error('Cannot submit correction request', {
+        description: 'Student information is not available.'
+      });
       return;
     }
     
@@ -128,9 +144,21 @@ export default function StudentDetailsPage() {
       setCorrectionForm({ fieldName: '', currentValue: '', requestedValue: '', reason: '' });
     } catch (err) {
       const errorMsg = getErrorMessage(err);
-      toast.error('Failed to submit correction request', {
-        description: errorMsg
-      });
+      
+      // Provide more specific error messages
+      if (errorMsg.includes('500')) {
+        toast.error('Server error occurred', {
+          description: 'Please try again later or contact support if the problem persists.'
+        });
+      } else if (errorMsg.includes('400')) {
+        toast.error('Invalid request', {
+          description: 'Please check your input and try again.'
+        });
+      } else {
+        toast.error('Failed to submit correction request', {
+          description: errorMsg
+        });
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -159,7 +187,25 @@ export default function StudentDetailsPage() {
   }
 
   if (error || !student) {
-    return <ErrorState error={error || 'Student not found'} />;
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4 max-w-md">
+          <AlertCircle className="w-12 h-12 mx-auto text-destructive" />
+          <h3 className="text-lg font-semibold">Student Not Found</h3>
+          <p className="text-muted-foreground">
+            {error || 'The student you are looking for does not exist or may have been removed.'}
+          </p>
+          <div className="flex gap-2 justify-center">
+            <Button onClick={() => navigate(-1)} variant="outline">
+              Go Back
+            </Button>
+            <Button onClick={() => navigate('/dashboard/students')}>
+              View All Students
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const averageAttendance = student.semesterAttendance && student.semesterAttendance.length > 0
@@ -187,6 +233,8 @@ export default function StudentDetailsPage() {
   };
 
   const getFieldValue = (fieldName: string) => {
+    if (!student) return '';
+    
     const fieldMap: Record<string, any> = {
       'fullNameEnglish': student.fullNameEnglish,
       'fullNameBangla': student.fullNameBangla,
@@ -216,7 +264,11 @@ export default function StudentDetailsPage() {
             <p className="text-muted-foreground">View student information (Read-only)</p>
           </div>
         </div>
-        <Button onClick={() => setIsCorrectionDialogOpen(true)} className="gradient-primary text-primary-foreground">
+        <Button 
+          onClick={() => setIsCorrectionDialogOpen(true)} 
+          className="gradient-primary text-primary-foreground"
+          disabled={!student}
+        >
           <AlertCircle className="w-4 h-4 mr-2" />
           Request Correction
         </Button>

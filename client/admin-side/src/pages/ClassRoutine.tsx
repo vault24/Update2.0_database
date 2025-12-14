@@ -151,8 +151,9 @@ export default function ClassRoutine() {
     } catch (err) {
       const errorMsg = getErrorMessage(err);
       setError(errorMsg);
+
       toast({
-        title: 'Error',
+        title: 'Error loading routine',
         description: errorMsg,
         variant: 'destructive',
       });
@@ -226,27 +227,49 @@ export default function ClassRoutine() {
 
     try {
       setSaving(true);
+      
+      // Clear any existing error state
+      setError(null);
+      
+      console.log('Saving routine with data:', {
+        routineGrid,
+        routineData: routineData.length,
+        filters: { department, semester, shift, session }
+      });
+      
       const saveResponse = await routineTransformers.saveRoutineChanges(
         routineGrid,
         routineData,
         { department, semester, shift, session }
       );
 
+      console.log('Save response:', saveResponse);
+
       if (!saveResponse.success) {
         throw new Error(saveResponse.message || 'Failed to save routine');
       }
 
+      // Force refresh the routine data from server
       await fetchRoutine();
+      
+      // Exit edit mode only after successful save and refresh
       setIsEditMode(false);
-      toast({ title: "Routine Saved", description: saveResponse.message || "Class routine has been saved successfully." });
+      
+      toast({ 
+        title: "Routine Saved", 
+        description: `${saveResponse.message || "Class routine has been saved successfully."} (${saveResponse.completed_operations}/${saveResponse.total_operations} operations completed)` 
+      });
     } catch (err) {
       const errorMsg = getErrorMessage(err);
       setError(errorMsg);
+      console.error('Save error:', err);
       toast({
-        title: 'Error',
+        title: 'Error saving routine',
         description: errorMsg,
         variant: 'destructive',
       });
+      
+      // Don't exit edit mode if save failed
     } finally {
       setSaving(false);
     }

@@ -4,6 +4,7 @@ import { Eye, EyeOff, Mail, Lock, User, Phone, GraduationCap, Sparkles, Users, B
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -25,6 +26,7 @@ export function AuthPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedRole, setSelectedRole] = useState<UserRole>('student');
+  const [rememberMe, setRememberMe] = useState(false);
   const { login, signup } = useAuth();
   const navigate = useNavigate();
 
@@ -68,7 +70,7 @@ export function AuthPage() {
 
     try {
       if (mode === 'login') {
-        await login(formData.email || formData.studentId, formData.password);
+        await login(formData.email || formData.studentId, formData.password, rememberMe);
         toast.success('Welcome back!');
       } else {
         const signupData: any = {
@@ -640,7 +642,17 @@ export function AuthPage() {
               </div>
 
               {mode === 'login' && (
-                <div className="flex justify-end">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="remember-me" 
+                      checked={rememberMe}
+                      onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                    />
+                    <Label htmlFor="remember-me" className="text-sm text-muted-foreground cursor-pointer">
+                      Remember me for 1 week
+                    </Label>
+                  </div>
                   <button
                     type="button"
                     className="text-sm text-primary hover:underline"

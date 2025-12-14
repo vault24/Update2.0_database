@@ -30,6 +30,7 @@ import Departments from "./pages/Departments";
 import DepartmentView from "./pages/DepartmentView";
 import Teachers from "./pages/Teachers";
 import SignupRequests from "./pages/SignupRequests";
+import Notices from "./pages/Notices";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -64,6 +65,7 @@ const App = () => (
                   <Route path="/departments/:id" element={<DepartmentView />} />
                   <Route path="/teachers" element={<Teachers />} />
                   <Route path="/signup-requests" element={<SignupRequests />} />
+                  <Route path="/notices" element={<Notices />} />
                   <Route path="/class-routine" element={<ClassRoutine />} />
                   <Route path="/attendance-marks" element={<AttendanceMarks />} />
                   <Route path="/student-profiles" element={<StudentProfiles />} />

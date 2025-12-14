@@ -5,6 +5,7 @@ import { BookOpen, Mail, Lock, User, Eye, EyeOff, ArrowRight, Phone, Shield } fr
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -36,6 +37,7 @@ export default function Auth() {
     confirmPassword: '',
     requestedRole: '',
   });
+  const [rememberMe, setRememberMe] = useState(false);
   const [signupRequestSubmitted, setSignupRequestSubmitted] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -98,7 +100,7 @@ export default function Auth() {
       } else {
         // Login logic
         try {
-          await login(formData.email, formData.password);
+          await login(formData.email, formData.password, rememberMe);
           
           toast({
             title: "Welcome back!",
@@ -461,7 +463,17 @@ export default function Auth() {
             </AnimatePresence>
 
             {isLogin && (
-              <div className="flex justify-end">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="remember-me" 
+                    checked={rememberMe}
+                    onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                  />
+                  <Label htmlFor="remember-me" className="text-sm text-muted-foreground cursor-pointer">
+                    Remember me for 1 week
+                  </Label>
+                </div>
                 <button type="button" className="text-sm text-primary hover:underline">
                   Forgot password?
                 </button>

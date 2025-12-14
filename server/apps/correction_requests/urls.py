@@ -6,7 +6,7 @@ from rest_framework.routers import DefaultRouter
 from .views import CorrectionRequestViewSet
 
 router = DefaultRouter()
-router.register(r'', CorrectionRequestViewSet, basename='correctionrequest')
+router.register(r'', CorrectionRequestViewSet, basename='correction-request')
 
 urlpatterns = [
     path('', include(router.urls)),

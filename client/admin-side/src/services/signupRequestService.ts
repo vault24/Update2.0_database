@@ -45,6 +45,7 @@ export interface SignupRequestFilters {
 export interface SignupRequestStatusResponse {
   status: 'pending' | 'approved' | 'rejected' | 'not_found';
   message: string;
+  rejection_reason?: string;
 }
 
 export interface PaginatedResponse<T> {
