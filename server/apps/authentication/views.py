@@ -94,6 +94,15 @@ def register_view(request):
         try:
             user = serializer.save()
             
+            # Auto-login user after successful registration (except for teachers who need approval)
+            auto_logged_in = False
+            if user.role != 'teacher' and user.account_status == 'active':
+                login(request, user)
+                auto_logged_in = True
+                
+                # Set session expiry (24 hours default)
+                request.session.set_expiry(86400)
+            
             # Return user data
             user_serializer = UserSerializer(user)
             
@@ -101,11 +110,14 @@ def register_view(request):
                 'message': 'User registered successfully',
                 'user': user_serializer.data,
                 'requires_approval': user.role == 'teacher',
+                'auto_logged_in': auto_logged_in,
             }
             
             # Add specific message for teachers
             if user.role == 'teacher':
                 response_data['message'] = 'Teacher registration submitted successfully. Please wait for admin approval.'
+            else:
+                response_data['message'] = 'Registration successful. You are now logged in.'
             
             return Response(response_data, status=status.HTTP_201_CREATED)
             

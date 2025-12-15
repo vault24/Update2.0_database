@@ -193,21 +193,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       
-      // Store user ID for non-teacher roles
-      if (response.user?.id) {
+      // Check if user was auto-logged in
+      if (response.auto_logged_in && response.user) {
+        // Store user ID for auto-logged in users
         localStorage.setItem('userId', response.user.id);
+        
+        // Set user data for auto-logged in users
+        setUser({
+          id: response.user.id,
+          name: data.fullName,
+          email: data.email,
+          studentId: response.user.related_profile_id || response.user.id,
+          role: data.role,
+          admissionStatus: response.user.admission_status || 'not_started',
+          relatedProfileId: response.user.related_profile_id,
+        });
       }
-      
-      // Set user data for non-teacher roles
-      setUser({
-        id: response.user.id,
-        name: data.fullName,
-        email: data.email,
-        studentId: response.user.related_profile_id || response.user.id,
-        role: data.role,
-        admissionStatus: response.user.admission_status || 'not_started',
-        relatedProfileId: response.user.related_profile_id,
-      });
     } catch (error) {
       console.error('Signup failed:', error);
       throw error;
