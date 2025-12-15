@@ -28,8 +28,17 @@ export interface ClassRoutine {
   subject_code: string;
   teacher?: {
     id: string;
-    full_name_english: string;
+    fullNameEnglish: string;
     designation: string;
+    department: {
+      id: string;
+      name: string;
+      code: string;
+    };
+    email: string;
+    mobileNumber: string;
+    employmentStatus: string;
+    profilePhoto: string;
   };
   room_number: string;
   is_active: boolean;
@@ -235,7 +244,7 @@ export const routineTransformers = {
         gridData[routine.day_of_week][timeSlot] = {
           id: routine.id,
           subject: routine.subject_name,
-          teacher: routine.teacher?.full_name_english || 'TBA',
+          teacher: routine.teacher?.fullNameEnglish || 'TBA',
           room: routine.room_number,
         };
       }
@@ -319,7 +328,7 @@ export const routineTransformers = {
             const hasChanges = 
               existingRoutine.subject_name !== classSlot.subject ||
               existingRoutine.room_number !== classSlot.room ||
-              (existingRoutine.teacher?.full_name_english || 'TBA') !== classSlot.teacher;
+              (existingRoutine.teacher?.fullNameEnglish || 'TBA') !== classSlot.teacher;
             
             if (hasChanges) {
               console.log(`Adding update operation for ${key}`);

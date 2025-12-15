@@ -211,30 +211,52 @@ export default function ClassRoutinePage() {
   }, []);
 
   const buildSchedule = (routines: ClassRoutine[]) => {
-    const normalized: DisplayClassPeriod[] = routines.map((routineItem) => ({
-      id: routineItem.id,
-      day: routineItem.day_of_week,
-      startTime: formatTime(routineItem.start_time),
-      endTime: formatTime(routineItem.end_time),
-      subject: routineItem.subject_name,
-      code: routineItem.subject_code,
-      room: routineItem.room_number || 'TBA',
-      teacher: routineItem.teacher?.full_name_english || 'TBA',
-    }));
+    console.log('Building schedule from routines:', routines);
+    
+    // Validate and normalize routine data
+    const normalized: DisplayClassPeriod[] = routines
+      .filter(routineItem => {
+        // Filter out invalid entries
+        return routineItem && 
+               routineItem.id && 
+               routineItem.day_of_week && 
+               routineItem.start_time && 
+               routineItem.end_time &&
+               routineItem.subject_name;
+      })
+      .map((routineItem) => ({
+        id: routineItem.id,
+        day: routineItem.day_of_week,
+        startTime: formatTime(routineItem.start_time),
+        endTime: formatTime(routineItem.end_time),
+        subject: routineItem.subject_name || 'Unknown Subject',
+        code: routineItem.subject_code || '',
+        room: routineItem.room_number || 'TBA',
+        teacher: routineItem.teacher?.fullNameEnglish || 'TBA',
+      }));
+
+    console.log('Normalized periods:', normalized);
 
     const timeToMinutes = (value: string) => {
-      const [h, m] = value.split(':').map(Number);
-      return h * 60 + m;
+      if (!value || typeof value !== 'string') return 0;
+      const parts = value.split(':');
+      if (parts.length < 2) return 0;
+      const [h, m] = parts.map(Number);
+      return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m);
     };
 
-    const slotKeys = Array.from(new Set(normalized.map((item) => `${item.startTime}-${item.endTime}`))).sort(
-      (a, b) => {
+    // Generate unique time slots and sort them
+    const slotKeys = Array.from(new Set(normalized.map((item) => `${item.startTime}-${item.endTime}`)))
+      .filter(slot => slot && slot.includes('-'))
+      .sort((a, b) => {
         const [aStart] = a.split('-');
         const [bStart] = b.split('-');
         return timeToMinutes(aStart) - timeToMinutes(bStart);
-      }
-    );
+      });
 
+    console.log('Generated time slots:', slotKeys);
+
+    // Initialize empty schedule
     const initialSchedule: Record<DayOfWeek, (DisplayClassPeriod | null)[]> = {
       Sunday: slotKeys.map(() => null),
       Monday: slotKeys.map(() => null),
@@ -243,18 +265,23 @@ export default function ClassRoutinePage() {
       Thursday: slotKeys.map(() => null),
     };
 
+    // Populate schedule with periods
     normalized.forEach((period) => {
       const key = `${period.startTime}-${period.endTime}`;
       const index = slotKeys.indexOf(key);
-      if (index >= 0) {
+      if (index >= 0 && initialSchedule[period.day]) {
         initialSchedule[period.day][index] = period;
+        console.log(`Placed ${period.subject} on ${period.day} at slot ${index} (${key})`);
       }
     });
 
-    return {
+    const result = {
       timeSlots: slotKeys.map((slot) => slot.replace('-', ' - ')),
       schedule: initialSchedule,
     };
+
+    console.log('Final schedule result:', result);
+    return result;
   };
 
   useEffect(() => {
@@ -322,7 +349,7 @@ export default function ClassRoutinePage() {
     if (!departmentId || !semesterValue) {
       // Await profile resolution before showing error
       if (profileLoaded) {
-        setError('User profile incomplete');
+        setError('User profile incomplete. Please ensure your department and semester information is set.');
         setLoading(false);
       }
       return;
@@ -332,6 +359,12 @@ export default function ClassRoutinePage() {
       setLoading(true);
       setError(null);
       
+      console.log('Fetching student routine with params:', {
+        department: departmentId,
+        semester: semesterValue,
+        shift: shiftValue
+      });
+      
       const data = await routineService.getMyRoutine({
         department: departmentId,
         semester: semesterValue,
@@ -340,16 +373,31 @@ export default function ClassRoutinePage() {
         _t: Date.now()
       });
       
+      console.log('Received routine data:', data);
+      
       setRoutine(data.routines);
       const { timeSlots, schedule } = buildSchedule(data.routines);
       setTimeSlots(timeSlots);
       setSchedule(schedule);
+      
+      console.log('Built schedule:', { timeSlots, schedule });
     } catch (err) {
       const errorMsg = getErrorMessage(err);
       setError(errorMsg);
+      console.error('Error fetching student routine:', err);
+
+      // Enhanced error handling
+      let userFriendlyMessage = errorMsg;
+      if (errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError')) {
+        userFriendlyMessage = 'Network error: Please check your internet connection and try again.';
+      } else if (errorMsg.includes('404')) {
+        userFriendlyMessage = 'No routine found for your department and semester.';
+      } else if (errorMsg.includes('403')) {
+        userFriendlyMessage = 'Access denied: Please ensure you are logged in as a student.';
+      }
 
       toast.error('Failed to load routine', {
-        description: errorMsg,
+        description: userFriendlyMessage,
       });
     } finally {
       setLoading(false);
@@ -388,6 +436,10 @@ export default function ClassRoutinePage() {
 
   // Error state
   if (error && routine.length === 0) {
+    const isNetworkError = error.includes('Failed to fetch') || 
+                          error.includes('NetworkError') || 
+                          error.includes('timeout');
+    
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="glass-card p-8 max-w-md text-center space-y-4">
@@ -396,9 +448,19 @@ export default function ClassRoutinePage() {
             <h3 className="text-lg font-semibold mb-2">Error Loading Routine</h3>
             <p className="text-muted-foreground mb-4">{error}</p>
           </div>
-          <Button onClick={fetchRoutine} variant="hero">
-            Try Again
-          </Button>
+          <div className="flex gap-2 justify-center">
+            <Button onClick={fetchRoutine} variant="hero" disabled={loading}>
+              {loading ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : null}
+              Try Again
+            </Button>
+            {isNetworkError && (
+              <Button onClick={fetchRoutine} variant="outline" disabled={loading}>
+                Retry
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     );

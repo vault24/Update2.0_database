@@ -83,10 +83,13 @@ export default function ClassRoutine() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string[]>>({});
+  const [retryCount, setRetryCount] = useState(0);
   const [isEditMode, setIsEditMode] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ day: DayOfWeek; time: string } | null>(null);
   const [slotForm, setSlotForm] = useState({ subject: '', teacher: '', room: '' });
+  const [slotFormErrors, setSlotFormErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
   const timeSlots = timeSlotsByShift[shift] || [];
 
@@ -121,7 +124,7 @@ export default function ClassRoutine() {
     fetchRoutine();
   }, [department, semester, shift]);
 
-  const fetchRoutine = async () => {
+  const fetchRoutine = async (isRetry: boolean = false) => {
     try {
       if (!department) {
         setRoutineGrid(buildEmptyGrid(timeSlots));
@@ -130,7 +133,13 @@ export default function ClassRoutine() {
       }
       setLoading(true);
       setError(null);
-      setRoutineGrid(buildEmptyGrid(timeSlots));
+      setValidationErrors({});
+      
+      if (!isRetry) {
+        setRoutineGrid(buildEmptyGrid(timeSlots));
+      }
+      
+      console.log('Fetching routine with filters:', { department, semester, shift });
       
       const response = await routineService.getRoutine({
         department,
@@ -141,6 +150,7 @@ export default function ClassRoutine() {
         ordering: 'day_of_week,start_time',
       });
 
+      console.log('Fetched routine data:', response.results.length, 'entries');
       setRoutineData(response.results);
       if (response.results.length > 0) {
         setSession(response.results[0].session || session);
@@ -148,15 +158,32 @@ export default function ClassRoutine() {
 
       const gridData = routineTransformers.apiToGrid(response.results, timeSlots);
       setRoutineGrid(gridData);
+      
+      // Reset retry count on successful fetch
+      setRetryCount(0);
     } catch (err) {
       const errorMsg = getErrorMessage(err);
       setError(errorMsg);
+      console.error('Error fetching routine:', err);
 
-      toast({
-        title: 'Error loading routine',
-        description: errorMsg,
-        variant: 'destructive',
-      });
+      // Enhanced error handling with retry logic
+      const isNetworkError = errorMsg.includes('Failed to fetch') || 
+                           errorMsg.includes('NetworkError') || 
+                           errorMsg.includes('timeout');
+      
+      if (isNetworkError && retryCount < 3) {
+        toast({
+          title: 'Network Error',
+          description: `Failed to load routine data. Retry ${retryCount + 1}/3`,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Error loading routine',
+          description: errorMsg,
+          variant: 'destructive',
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -171,11 +198,63 @@ export default function ClassRoutine() {
     } else {
       setSlotForm({ subject: '', teacher: '', room: '' });
     }
+    setSlotFormErrors({}); // Clear any previous errors
     setIsAddDialogOpen(true);
+  };
+
+  const handleSlotFormChange = (field: string, value: string) => {
+    setSlotForm(prev => ({ ...prev, [field]: value }));
+    
+    // Clear error for this field when user starts typing
+    if (slotFormErrors[field]) {
+      setSlotFormErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[field];
+        return newErrors;
+      });
+    }
+  };
+
+  const validateSlotForm = (): boolean => {
+    const errors: Record<string, string> = {};
+    
+    if (slotForm.subject && slotForm.subject.trim().length < 2) {
+      errors.subject = 'Subject name must be at least 2 characters long';
+    }
+    
+    if (slotForm.subject && slotForm.subject.trim().length > 100) {
+      errors.subject = 'Subject name must be less than 100 characters';
+    }
+    
+    if (slotForm.teacher && slotForm.teacher.trim().length > 100) {
+      errors.teacher = 'Teacher name must be less than 100 characters';
+    }
+    
+    if (slotForm.room && slotForm.room.trim().length < 1) {
+      errors.room = 'Room number cannot be empty';
+    }
+    
+    if (slotForm.room && slotForm.room.trim().length > 50) {
+      errors.room = 'Room number must be less than 50 characters';
+    }
+    
+    setSlotFormErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const handleSaveSlot = () => {
     if (!selectedSlot) return;
+    
+    // Validate form if there's content
+    if (slotForm.subject && !validateSlotForm()) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please fix the errors in the form before saving.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     const { day, time } = selectedSlot;
     
     if (!slotForm.subject) {
@@ -192,12 +271,13 @@ export default function ClassRoutine() {
         ...prev,
         [day]: {
           ...prev[day],
-          [time]: { subject: slotForm.subject, teacher: slotForm.teacher, room: slotForm.room }
+          [time]: { subject: slotForm.subject.trim(), teacher: slotForm.teacher.trim(), room: slotForm.room.trim() }
         }
       }));
     }
     
     setIsAddDialogOpen(false);
+    setSlotFormErrors({});
     toast({ title: "Slot Updated", description: "Class routine has been updated." });
   };
 
@@ -215,6 +295,32 @@ export default function ClassRoutine() {
     toast({ title: "Slot Removed", description: "The class has been removed from the routine." });
   };
 
+  const handleRetryFetch = async () => {
+    setRetryCount(prev => prev + 1);
+    await fetchRoutine(true);
+  };
+
+  const parseValidationErrors = (error: any): Record<string, string[]> => {
+    if (typeof error === 'object' && error !== null) {
+      if (error.field_errors) {
+        return error.field_errors;
+      }
+      if (error.operations && Array.isArray(error.operations)) {
+        const fieldErrors: Record<string, string[]> = {};
+        error.operations.forEach((op: any, index: number) => {
+          if (op.data && typeof op.data === 'object') {
+            Object.entries(op.data).forEach(([field, messages]) => {
+              const key = `operation_${index}_${field}`;
+              fieldErrors[key] = Array.isArray(messages) ? messages : [String(messages)];
+            });
+          }
+        });
+        return fieldErrors;
+      }
+    }
+    return {};
+  };
+
   const handleSaveRoutine = async () => {
     if (!department) {
       toast({
@@ -230,6 +336,7 @@ export default function ClassRoutine() {
       
       // Clear any existing error state
       setError(null);
+      setValidationErrors({});
       
       console.log('Saving routine with data:', {
         routineGrid,
@@ -246,6 +353,19 @@ export default function ClassRoutine() {
       console.log('Save response:', saveResponse);
 
       if (!saveResponse.success) {
+        // Handle validation errors from bulk operations
+        if (saveResponse.errors && saveResponse.errors.length > 0) {
+          const validationErrs = parseValidationErrors({ operations: saveResponse.errors });
+          setValidationErrors(validationErrs);
+          
+          toast({
+            title: 'Validation Errors',
+            description: `${saveResponse.errors.length} validation error(s) occurred. Please check the highlighted fields.`,
+            variant: 'destructive',
+          });
+          return;
+        }
+        
         throw new Error(saveResponse.message || 'Failed to save routine');
       }
 
@@ -259,13 +379,36 @@ export default function ClassRoutine() {
         title: "Routine Saved", 
         description: `${saveResponse.message || "Class routine has been saved successfully."} (${saveResponse.completed_operations}/${saveResponse.total_operations} operations completed)` 
       });
-    } catch (err) {
+    } catch (err: any) {
       const errorMsg = getErrorMessage(err);
       setError(errorMsg);
       console.error('Save error:', err);
+      
+      // Parse validation errors if available
+      const validationErrs = parseValidationErrors(err);
+      if (Object.keys(validationErrs).length > 0) {
+        setValidationErrors(validationErrs);
+      }
+      
+      // Enhanced error handling with more specific messages
+      let userFriendlyMessage = errorMsg;
+      let showRetry = false;
+      
+      if (errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError')) {
+        userFriendlyMessage = 'Network error: Please check your internet connection and try again.';
+        showRetry = true;
+      } else if (errorMsg.includes('CORS')) {
+        userFriendlyMessage = 'Server configuration error: Please contact the administrator.';
+      } else if (errorMsg.includes('timeout')) {
+        userFriendlyMessage = 'Request timeout: The server is taking too long to respond. Please try again.';
+        showRetry = true;
+      } else if (errorMsg.includes('schedule_conflict') || errorMsg.includes('conflict')) {
+        userFriendlyMessage = 'Schedule conflict detected. Please check for overlapping time slots, rooms, or teachers.';
+      }
+      
       toast({
         title: 'Error saving routine',
-        description: errorMsg,
+        description: userFriendlyMessage,
         variant: 'destructive',
       });
       
@@ -289,6 +432,10 @@ export default function ClassRoutine() {
 
   // Error state
   if (error && !loading) {
+    const isNetworkError = error.includes('Failed to fetch') || 
+                          error.includes('NetworkError') || 
+                          error.includes('timeout');
+    
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Card className="glass-card max-w-md">
@@ -298,10 +445,33 @@ export default function ClassRoutine() {
               <div>
                 <h3 className="text-lg font-semibold mb-2">Error Loading Routine</h3>
                 <p className="text-muted-foreground mb-4">{error}</p>
+                {retryCount > 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    Retry attempts: {retryCount}/3
+                  </p>
+                )}
               </div>
-              <Button onClick={fetchRoutine} className="gradient-primary text-primary-foreground">
-                Try Again
-              </Button>
+              <div className="flex gap-2 justify-center">
+                <Button 
+                  onClick={() => fetchRoutine(true)} 
+                  className="gradient-primary text-primary-foreground"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : null}
+                  Try Again
+                </Button>
+                {isNetworkError && retryCount < 3 && (
+                  <Button 
+                    onClick={handleRetryFetch} 
+                    variant="outline"
+                    disabled={loading}
+                  >
+                    Auto Retry ({3 - retryCount} left)
+                  </Button>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -320,30 +490,54 @@ export default function ClassRoutine() {
         <div className="flex items-center gap-2">
           {isEditMode ? (
             <>
-              <Button variant="outline" onClick={() => setIsEditMode(false)} disabled={saving}>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setIsEditMode(false);
+                  setValidationErrors({});
+                  setError(null);
+                }} 
+                disabled={saving}
+              >
                 <X className="w-4 h-4 mr-2" />
                 Cancel
               </Button>
               <Button 
                 onClick={handleSaveRoutine} 
                 className="gradient-primary text-primary-foreground"
-                disabled={saving}
+                disabled={saving || loading}
               >
                 {saving ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
                   <Save className="w-4 h-4 mr-2" />
                 )}
-                {saving ? 'Saving...' : 'Save Changes'}
+                {saving ? 'Saving Changes...' : 'Save Changes'}
               </Button>
+              {Object.keys(validationErrors).length > 0 && (
+                <Button 
+                  variant="outline" 
+                  onClick={() => setValidationErrors({})}
+                  disabled={saving}
+                >
+                  Clear Errors
+                </Button>
+              )}
             </>
           ) : (
             <>
-              <Button variant="outline" onClick={() => setIsEditMode(true)}>
+              <Button 
+                variant="outline" 
+                onClick={() => setIsEditMode(true)}
+                disabled={loading}
+              >
                 <Edit className="w-4 h-4 mr-2" />
                 Edit Routine
               </Button>
-              <Button className="gradient-primary text-primary-foreground">
+              <Button 
+                className="gradient-primary text-primary-foreground"
+                disabled={loading}
+              >
                 <Download className="w-4 h-4 mr-2" />
                 Export PDF
               </Button>
@@ -426,15 +620,48 @@ export default function ClassRoutine() {
         )}
       </div>
 
+      {/* Validation Errors Display */}
+      {Object.keys(validationErrors).length > 0 && (
+        <Card className="glass-card border-destructive/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-destructive flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              Validation Errors
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {Object.entries(validationErrors).map(([field, messages]) => (
+                <div key={field} className="text-sm">
+                  <span className="font-medium text-muted-foreground">{field.replace(/_/g, ' ')}:</span>
+                  <ul className="list-disc list-inside ml-2 text-destructive">
+                    {messages.map((message, index) => (
+                      <li key={index}>{message}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Routine Grid */}
       <Card className="glass-card overflow-hidden relative">
         {(loading || saving) && (
           <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-10 flex items-center justify-center">
-            <div className="text-center space-y-2">
-              <Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" />
-              <p className="text-sm text-muted-foreground">
-                {saving ? 'Saving routine changes...' : 'Loading routine...'}
-              </p>
+            <div className="text-center space-y-3">
+              <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  {saving ? 'Saving routine changes...' : 'Loading routine...'}
+                </p>
+                {saving && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Please wait while we update the schedule
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -471,8 +698,8 @@ export default function ClassRoutine() {
                         return (
                           <td key={slot} className="p-2 text-center">
                             <div 
-                              onClick={() => handleSlotClick(day, slot)}
-                              className={`h-16 rounded-lg bg-muted/20 border border-dashed border-border/50 flex items-center justify-center ${isEditMode ? 'cursor-pointer hover:bg-muted/40 hover:border-primary/50' : ''}`}
+                              onClick={() => !saving && handleSlotClick(day, slot)}
+                              className={`h-16 rounded-lg bg-muted/20 border border-dashed border-border/50 flex items-center justify-center ${isEditMode && !saving ? 'cursor-pointer hover:bg-muted/40 hover:border-primary/50' : ''} ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                               {isEditMode ? (
                                 <Plus className="w-4 h-4 text-muted-foreground" />
@@ -486,9 +713,9 @@ export default function ClassRoutine() {
                       return (
                         <td key={slot} className="p-2">
                           <motion.div
-                            whileHover={{ scale: isEditMode ? 1.02 : 1 }}
-                            onClick={() => handleSlotClick(day, slot)}
-                            className={`h-16 rounded-lg border p-2 transition-all ${subjectColors[classInfo.subject] || 'bg-muted/50'} ${isEditMode ? 'cursor-pointer hover:ring-2 hover:ring-primary/50' : ''}`}
+                            whileHover={{ scale: isEditMode && !saving ? 1.02 : 1 }}
+                            onClick={() => !saving && handleSlotClick(day, slot)}
+                            className={`h-16 rounded-lg border p-2 transition-all ${subjectColors[classInfo.subject] || 'bg-muted/50'} ${isEditMode && !saving ? 'cursor-pointer hover:ring-2 hover:ring-primary/50' : ''} ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
                           >
                             <p className="font-medium text-xs truncate">{classInfo.subject}</p>
                             <p className="text-[10px] opacity-80 truncate">{classInfo.teacher}</p>
@@ -541,35 +768,65 @@ export default function ClassRoutine() {
               <Input 
                 placeholder="e.g., Mathematics"
                 value={slotForm.subject}
-                onChange={(e) => setSlotForm({ ...slotForm, subject: e.target.value })}
+                onChange={(e) => handleSlotFormChange('subject', e.target.value)}
+                className={slotFormErrors.subject ? 'border-destructive' : ''}
               />
+              {slotFormErrors.subject && (
+                <p className="text-sm text-destructive">{slotFormErrors.subject}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Teacher Name</Label>
               <Input 
                 placeholder="e.g., Mr. Rahman"
                 value={slotForm.teacher}
-                onChange={(e) => setSlotForm({ ...slotForm, teacher: e.target.value })}
+                onChange={(e) => handleSlotFormChange('teacher', e.target.value)}
+                className={slotFormErrors.teacher ? 'border-destructive' : ''}
               />
+              {slotFormErrors.teacher && (
+                <p className="text-sm text-destructive">{slotFormErrors.teacher}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Room</Label>
               <Input 
                 placeholder="e.g., Room 101 or Lab 1"
                 value={slotForm.room}
-                onChange={(e) => setSlotForm({ ...slotForm, room: e.target.value })}
+                onChange={(e) => handleSlotFormChange('room', e.target.value)}
+                className={slotFormErrors.room ? 'border-destructive' : ''}
               />
+              {slotFormErrors.room && (
+                <p className="text-sm text-destructive">{slotFormErrors.room}</p>
+              )}
             </div>
           </div>
           <DialogFooter>
             {selectedSlot && routineGrid[selectedSlot.day]?.[selectedSlot.time] && (
-              <Button variant="destructive" onClick={handleDeleteSlot} className="mr-auto">
+              <Button 
+                variant="destructive" 
+                onClick={handleDeleteSlot} 
+                className="mr-auto"
+                disabled={saving}
+              >
                 <Trash2 className="w-4 h-4 mr-2" />
                 Remove
               </Button>
             )}
-            <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSaveSlot} className="gradient-primary text-primary-foreground">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setIsAddDialogOpen(false);
+                setSlotFormErrors({});
+              }}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSaveSlot} 
+              className="gradient-primary text-primary-foreground"
+              disabled={saving || (slotForm.subject && Object.keys(slotFormErrors).length > 0)}
+            >
               <Save className="w-4 h-4 mr-2" />
               Save
             </Button>

@@ -26,8 +26,17 @@ export interface ClassRoutine {
   subject_code: string;
   teacher?: {
     id: string;
-    full_name_english: string;
+    fullNameEnglish: string;
     designation: string;
+    department: {
+      id: string;
+      name: string;
+      code: string;
+    };
+    email: string;
+    mobileNumber: string;
+    employmentStatus: string;
+    profilePhoto: string;
   };
   room_number: string;
   is_active: boolean;
