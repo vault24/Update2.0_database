@@ -27,7 +27,7 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-#bwr-tx#5=jeo0s)nf2x2
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,47.128.236.25,ec2-47-128-236-25.ap-southeast-1.compute.amazonaws.com,47.128.236.25:8000, cast=Csv())
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,47.128.236.25,ec2-47-128-236-25.ap-southeast-1.compute.amazonaws.com,47.128.236.25:8000', cast=Csv())
 
 
 # Application definition

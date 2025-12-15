@@ -60,6 +60,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
+        // First, ensure we have a CSRF token
+        await api.get<any>('/auth/csrf/');
+        
         // Try to get current user from session
         const response = await api.get<any>('/auth/me/');
         if (response.user) {
@@ -90,6 +93,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       // Clear any logout flag
       localStorage.removeItem('hasLoggedOut');
+      
+      // First, ensure we have a CSRF token
+      await api.get<any>('/auth/csrf/');
       
       // Backend expects 'username' field, not 'email'
       const response = await api.post<any>('/auth/login/', { username: email, password, remember_me: rememberMe });
@@ -155,6 +161,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       // Clear any logout flag
       localStorage.removeItem('hasLoggedOut');
+      
+      // First, ensure we have a CSRF token
+      await api.get<any>('/auth/csrf/');
       
       // Split full name into first and last name
       const nameParts = data.fullName.trim().split(' ');
