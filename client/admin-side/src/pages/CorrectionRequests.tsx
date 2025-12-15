@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { AlertCircle, CheckCircle, XCircle, Clock, User, FileText, Eye } from 'lucide-react';
+import { AlertCircle, CheckCircle, XCircle, Clock, User, FileText } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -46,22 +46,87 @@ export default function CorrectionRequests() {
     try {
       setLoading(true);
       const response = await correctionRequestService.getCorrectionRequests();
-      const mapped = response.results.map((req: CorrectionRequest) => ({
-        id: req.id,
-        studentName: req.student?.full_name_english || 'Unknown Student',
-        studentId: req.student?.roll_number || 'N/A',
-        requestedBy: req.requested_by?.name || 'Unknown User',
-        requestedByRole: req.requested_by?.role || 'Unknown Role',
-        fieldName: req.field_name || 'Unknown Field',
-        currentValue: req.current_value || '',
-        requestedValue: req.requested_value || '',
-        reason: req.reason || '',
-        status: req.status,
-        submittedAt: req.submitted_at,
-        reviewedAt: req.reviewed_at || undefined,
-        reviewedBy: req.reviewed_by || undefined,
-        reviewNotes: req.review_notes,
-      }));
+      
+      // Ensure response has the expected structure
+      if (!response || !Array.isArray(response.results)) {
+        console.error('Invalid response structure:', response);
+        setRequests([]);
+        return;
+      }
+      
+      const mapped = response.results.map((req: CorrectionRequest) => {
+        try {
+          console.log('Processing correction request:', req);
+          // Handle requested_by field which might have different structure
+          let requestedByName = 'Unknown User';
+          let requestedByRole = 'Unknown Role';
+          
+          if (req.requested_by) {
+            if (typeof req.requested_by === 'object' && req.requested_by !== null) {
+              // Handle UserSerializer structure: first_name, last_name, username
+              const firstName = String(req.requested_by.first_name || '');
+              const lastName = String(req.requested_by.last_name || '');
+              const fullName = `${firstName} ${lastName}`.trim();
+              requestedByName = fullName || String(req.requested_by.username || 'Unknown User');
+              requestedByRole = String(req.requested_by.role || 'Unknown Role');
+            } else if (typeof req.requested_by === 'string') {
+              requestedByName = String(req.requested_by);
+            }
+          }
+
+          // Handle reviewed_by field similarly
+          let reviewedByName = undefined;
+          if (req.reviewed_by) {
+            if (typeof req.reviewed_by === 'string') {
+              reviewedByName = String(req.reviewed_by);
+            } else if (typeof req.reviewed_by === 'object' && req.reviewed_by !== null) {
+              const firstName = String(req.reviewed_by.first_name || '');
+              const lastName = String(req.reviewed_by.last_name || '');
+              const fullName = `${firstName} ${lastName}`.trim();
+              reviewedByName = fullName || String(req.reviewed_by.username || 'Unknown Reviewer');
+            }
+          }
+
+          const mappedRequest = {
+            id: String(req.id || ''),
+            studentName: String(req.student?.full_name_english || 'Unknown Student'),
+            studentId: String(req.student?.roll_number || 'N/A'),
+            requestedBy: String(requestedByName),
+            requestedByRole: String(requestedByRole),
+            fieldName: String(req.field_name || 'Unknown Field'),
+            currentValue: String(req.current_value || ''),
+            requestedValue: String(req.requested_value || ''),
+            reason: String(req.reason || ''),
+            status: req.status,
+            submittedAt: req.submitted_at,
+            reviewedAt: req.reviewed_at || undefined,
+            reviewedBy: reviewedByName ? String(reviewedByName) : undefined,
+            reviewNotes: req.review_notes ? String(req.review_notes) : undefined,
+          };
+          
+          console.log('Mapped correction request:', mappedRequest);
+          return mappedRequest;
+        } catch (error) {
+          console.error('Error mapping correction request:', req, error);
+          // Return a safe fallback object
+          return {
+            id: String(req.id || Math.random()),
+            studentName: 'Error Loading Student',
+            studentId: 'N/A',
+            requestedBy: 'Unknown User',
+            requestedByRole: 'Unknown Role',
+            fieldName: 'Unknown Field',
+            currentValue: '',
+            requestedValue: '',
+            reason: '',
+            status: 'pending' as const,
+            submittedAt: new Date().toISOString(),
+            reviewedAt: undefined,
+            reviewedBy: undefined,
+            reviewNotes: undefined,
+          };
+        }
+      });
       setRequests(mapped);
     } catch (error) {
       console.error('Error fetching correction requests:', error);
@@ -199,40 +264,40 @@ export default function CorrectionRequests() {
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <h3 className="font-semibold text-foreground">{request.studentName}</h3>
-                        <span className="text-sm text-muted-foreground">({request.studentId})</span>
+                        <h3 className="font-semibold text-foreground">{String(request.studentName || 'Unknown Student')}</h3>
+                        <span className="text-sm text-muted-foreground">({String(request.studentId || 'N/A')})</span>
                         {getStatusBadge(request.status)}
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <User className="w-4 h-4" />
-                          <span>Requested by: {request.requestedBy}</span>
+                          <span>Requested by: {String(request.requestedBy || 'Unknown User')}</span>
                         </div>
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <FileText className="w-4 h-4" />
-                          <span>Field: {request.fieldName}</span>
+                          <span>Field: {String(request.fieldName || 'Unknown Field')}</span>
                         </div>
                       </div>
                       <div className="mt-2 p-3 bg-secondary/50 rounded-lg">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                           <div>
                             <span className="text-muted-foreground">Current: </span>
-                            <span className="font-medium text-destructive">{request.currentValue}</span>
+                            <span className="font-medium text-destructive">{String(request.currentValue || '')}</span>
                           </div>
                           <div>
                             <span className="text-muted-foreground">Requested: </span>
-                            <span className="font-medium text-success">{request.requestedValue}</span>
+                            <span className="font-medium text-success">{String(request.requestedValue || '')}</span>
                           </div>
                         </div>
                         <div className="mt-2">
                           <span className="text-muted-foreground text-sm">Reason: </span>
-                          <span className="text-sm">{request.reason}</span>
+                          <span className="text-sm">{String(request.reason || '')}</span>
                         </div>
                       </div>
                       {request.status !== 'pending' && (
                         <div className="mt-2 text-xs text-muted-foreground">
-                          Reviewed by {request.reviewedBy} on {new Date(request.reviewedAt!).toLocaleString()}
-                          {request.reviewNotes && <div className="mt-1">Notes: {request.reviewNotes}</div>}
+                          Reviewed by {String(request.reviewedBy || 'Unknown')} on {request.reviewedAt ? new Date(request.reviewedAt).toLocaleString() : 'Unknown date'}
+                          {request.reviewNotes && <div className="mt-1">Notes: {String(request.reviewNotes)}</div>}
                         </div>
                       )}
                     </div>
@@ -296,10 +361,10 @@ export default function CorrectionRequests() {
           {selectedRequest && (
             <div className="space-y-4 py-4">
               <div className="p-3 bg-secondary/50 rounded-lg">
-                <p className="text-sm"><span className="font-medium">Student:</span> {selectedRequest.studentName}</p>
-                <p className="text-sm"><span className="font-medium">Field:</span> {selectedRequest.fieldName}</p>
-                <p className="text-sm"><span className="font-medium">Current:</span> <span className="text-destructive">{selectedRequest.currentValue}</span></p>
-                <p className="text-sm"><span className="font-medium">Requested:</span> <span className="text-success">{selectedRequest.requestedValue}</span></p>
+                <p className="text-sm"><span className="font-medium">Student:</span> {String(selectedRequest.studentName || 'Unknown')}</p>
+                <p className="text-sm"><span className="font-medium">Field:</span> {String(selectedRequest.fieldName || 'Unknown')}</p>
+                <p className="text-sm"><span className="font-medium">Current:</span> <span className="text-destructive">{String(selectedRequest.currentValue || '')}</span></p>
+                <p className="text-sm"><span className="font-medium">Requested:</span> <span className="text-success">{String(selectedRequest.requestedValue || '')}</span></p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="reviewNotes">Review Notes (Optional)</Label>

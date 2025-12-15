@@ -68,9 +68,7 @@ export default function Alumni() {
       setLoading(true);
       setError(null);
       
-      console.log('Fetching alumni data...');
       const response = await alumniService.getAlumni({ page_size: 1000 });
-      console.log('Alumni API response:', response);
       
       // Transform API data to display format
       const transformedData: DisplayAlumni[] = response.results.map((alumni: AlumniType) => ({
@@ -87,7 +85,6 @@ export default function Alumni() {
         supportStatus: alumni.currentSupportCategory,
       }));
       
-      console.log('Transformed alumni data:', transformedData);
       setAlumniData(transformedData);
       
       // Extract unique departments and years
@@ -107,10 +104,8 @@ export default function Alumni() {
         no_support_needed: transformedData.filter(a => a.supportStatus === 'no_support_needed').length,
       });
     } catch (err) {
-      console.error('Error fetching alumni:', err);
       const errorMessage = getErrorMessage(err);
       setError(errorMessage);
-      console.log('Error details:', errorMessage);
     } finally {
       setLoading(false);
     }

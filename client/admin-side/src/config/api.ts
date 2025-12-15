@@ -28,7 +28,7 @@ export const API_ENDPOINTS = {
     discontinued: '/students/discontinued/',
     search: '/students/search/',
     uploadPhoto: (id: string) => `/students/${id}/upload-photo/`,
-    transitionToAlumni: (id: string) => `/students/${id}/transition-to-alumni/`,
+    transitionToAlumni: (id: string) => `/students/${id}/transition_to_alumni/`,
     disconnectStudies: (id: string) => `/students/${id}/disconnect-studies/`,
     semesterResults: (id: string) => `/students/${id}/semester-results/`,
     semesterAttendance: (id: string) => `/students/${id}/semester-attendance/`,

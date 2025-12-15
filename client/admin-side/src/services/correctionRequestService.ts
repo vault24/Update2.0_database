@@ -16,9 +16,18 @@ export interface CorrectionRequest {
   };
   requested_by: {
     id: string;
-    name: string;
+    username: string;
+    email: string;
+    first_name: string;
+    last_name: string;
     role: string;
-  };
+    account_status: string;
+    admission_status: string;
+    related_profile_id: string | null;
+    mobile_number: string;
+    created_at: string;
+    updated_at: string;
+  } | string;
   field_name: string;
   current_value: string;
   requested_value: string;
@@ -26,7 +35,20 @@ export interface CorrectionRequest {
   status: 'pending' | 'approved' | 'rejected';
   submitted_at: string;
   reviewed_at?: string;
-  reviewed_by?: string;
+  reviewed_by?: {
+    id: string;
+    username: string;
+    email: string;
+    first_name: string;
+    last_name: string;
+    role: string;
+    account_status: string;
+    admission_status: string;
+    related_profile_id: string | null;
+    mobile_number: string;
+    created_at: string;
+    updated_at: string;
+  } | string;
   review_notes?: string;
 }
 

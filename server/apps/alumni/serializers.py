@@ -10,6 +10,7 @@ class CareerPositionSerializer(serializers.Serializer):
     """
     Serializer for career position entries
     """
+    id = serializers.CharField(required=False, allow_blank=True)
     positionType = serializers.CharField(max_length=50)
     organizationName = serializers.CharField(max_length=255)
     positionTitle = serializers.CharField(max_length=255)
@@ -17,6 +18,22 @@ class CareerPositionSerializer(serializers.Serializer):
     endDate = serializers.DateField(required=False, allow_null=True)
     isCurrent = serializers.BooleanField(required=False, default=False)
     description = serializers.CharField(required=False, allow_blank=True)
+    location = serializers.CharField(required=False, allow_blank=True)
+    
+    # Job-specific fields
+    salary = serializers.CharField(required=False, allow_blank=True)
+    
+    # Higher studies specific fields
+    degree = serializers.CharField(required=False, allow_blank=True)
+    field = serializers.CharField(required=False, allow_blank=True)
+    institution = serializers.CharField(required=False, allow_blank=True)
+    
+    # Business specific fields
+    businessName = serializers.CharField(required=False, allow_blank=True)
+    businessType = serializers.CharField(required=False, allow_blank=True)
+    
+    # Other specific fields
+    otherType = serializers.CharField(required=False, allow_blank=True)
 
 
 class SupportHistorySerializer(serializers.Serializer):
@@ -48,6 +65,11 @@ class AlumniSerializer(serializers.ModelSerializer):
             'currentPosition',
             'careerHistory',
             'supportHistory',
+            'bio',
+            'linkedinUrl',
+            'portfolioUrl',
+            'skills',
+            'highlights',
             'createdAt',
             'updatedAt',
         ]
@@ -105,6 +127,22 @@ class AddCareerPositionSerializer(serializers.Serializer):
     endDate = serializers.DateField(required=False, allow_null=True)
     isCurrent = serializers.BooleanField(required=False, default=False)
     description = serializers.CharField(required=False, allow_blank=True, default='')
+    location = serializers.CharField(required=False, allow_blank=True, default='')
+    
+    # Job-specific fields
+    salary = serializers.CharField(required=False, allow_blank=True, default='')
+    
+    # Higher studies specific fields
+    degree = serializers.CharField(required=False, allow_blank=True, default='')
+    field = serializers.CharField(required=False, allow_blank=True, default='')
+    institution = serializers.CharField(required=False, allow_blank=True, default='')
+    
+    # Business specific fields
+    businessName = serializers.CharField(required=False, allow_blank=True, default='')
+    businessType = serializers.CharField(required=False, allow_blank=True, default='')
+    
+    # Other specific fields
+    otherType = serializers.CharField(required=False, allow_blank=True, default='')
 
 
 class UpdateSupportCategorySerializer(serializers.Serializer):

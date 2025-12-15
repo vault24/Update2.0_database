@@ -8,6 +8,7 @@ import { API_ENDPOINTS } from '@/config/api';
 
 // Types
 export interface CareerPosition {
+  id?: string;
   positionType: string;
   organizationName: string;
   positionTitle: string;
@@ -15,6 +16,16 @@ export interface CareerPosition {
   endDate?: string;
   isCurrent?: boolean;
   description?: string;
+  location?: string;
+  // Type-specific fields
+  salary?: string;
+  degree?: string;
+  field?: string;
+  institution?: string;
+  businessName?: string;
+  businessType?: string;
+  otherType?: string;
+  achievements?: string[];
 }
 
 export interface SupportHistoryEntry {
@@ -36,7 +47,17 @@ export interface Student {
   };
   semester: number;
   status: string;
-  // Add other student fields as needed
+  // Extended student fields (matching actual model)
+  email?: string;
+  mobileStudent?: string;
+  presentAddress?: {
+    district?: string;
+    upazila?: string;
+    union?: string;
+    village?: string;
+  };
+  gpa?: number;
+  profilePhoto?: string;
 }
 
 export interface Alumni {
@@ -50,6 +71,12 @@ export interface Alumni {
   supportHistory: SupportHistoryEntry[];
   createdAt: string;
   updatedAt: string;
+  // Extended alumni fields
+  bio?: string;
+  linkedinUrl?: string;
+  portfolioUrl?: string;
+  skills?: SkillData[];
+  highlights?: HighlightData[];
 }
 
 export interface AlumniFilters {
@@ -93,6 +120,31 @@ export interface UpdateSupportCategoryData {
   notes?: string;
 }
 
+export interface SkillData {
+  id?: string;
+  name: string;
+  category: 'technical' | 'soft' | 'language' | 'other';
+  proficiency: number;
+}
+
+export interface HighlightData {
+  id?: string;
+  title: string;
+  description: string;
+  date: string;
+  type: 'achievement' | 'milestone' | 'award' | 'project';
+}
+
+export interface ProfileData {
+  name?: string;
+  email?: string;
+  phone?: string;
+  location?: string;
+  bio?: string;
+  linkedin?: string;
+  portfolio?: string;
+}
+
 // Service
 export const alumniService = {
   /**
@@ -134,14 +186,14 @@ export const alumniService = {
    * Add career position to alumni
    */
   addCareerPosition: async (studentId: string, data: AddCareerPositionData): Promise<Alumni> => {
-    return await apiClient.post<Alumni>(`${API_ENDPOINTS.alumni.detail(studentId).replace('/', '')}/add_career_position/`, data);
+    return await apiClient.post<Alumni>(`/alumni/${studentId}/add_career_position/`, data);
   },
 
   /**
    * Update support category
    */
   updateSupportCategory: async (studentId: string, data: UpdateSupportCategoryData): Promise<Alumni> => {
-    return await apiClient.put<Alumni>(`${API_ENDPOINTS.alumni.detail(studentId).replace('/', '')}/update_support_category/`, data);
+    return await apiClient.put<Alumni>(`/alumni/${studentId}/update_support_category/`, data);
   },
 
   /**
@@ -155,6 +207,69 @@ export const alumniService = {
    * Get alumni statistics
    */
   getAlumniStats: async (): Promise<AlumniStats> => {
-    return await apiClient.get<AlumniStats>('/alumni/stats/');
+    return await apiClient.get<AlumniStats>(`${API_ENDPOINTS.alumni.list}stats/`);
+  },
+
+  /**
+   * Update career position
+   */
+  updateCareerPosition: async (studentId: string, careerId: string, data: AddCareerPositionData): Promise<Alumni> => {
+    return await apiClient.put<Alumni>(`/alumni/${studentId}/career_positions/${careerId}/`, data);
+  },
+
+  /**
+   * Delete career position
+   */
+  deleteCareerPosition: async (studentId: string, careerId: string): Promise<Alumni> => {
+    return await apiClient.delete<Alumni>(`/alumni/${studentId}/career_positions/${careerId}/`);
+  },
+
+  /**
+   * Add skill
+   */
+  addSkill: async (studentId: string, data: SkillData): Promise<Alumni> => {
+    return await apiClient.post<Alumni>(`/alumni/${studentId}/skills/`, data);
+  },
+
+  /**
+   * Update skill
+   */
+  updateSkill: async (studentId: string, skillId: string, data: SkillData): Promise<Alumni> => {
+    return await apiClient.put<Alumni>(`/alumni/${studentId}/skills/${skillId}/`, data);
+  },
+
+  /**
+   * Delete skill
+   */
+  deleteSkill: async (studentId: string, skillId: string): Promise<Alumni> => {
+    return await apiClient.delete<Alumni>(`/alumni/${studentId}/skills/${skillId}/`);
+  },
+
+  /**
+   * Add career highlight
+   */
+  addHighlight: async (studentId: string, data: HighlightData): Promise<Alumni> => {
+    return await apiClient.post<Alumni>(`/alumni/${studentId}/highlights/`, data);
+  },
+
+  /**
+   * Update career highlight
+   */
+  updateHighlight: async (studentId: string, highlightId: string, data: HighlightData): Promise<Alumni> => {
+    return await apiClient.put<Alumni>(`/alumni/${studentId}/highlights/${highlightId}/`, data);
+  },
+
+  /**
+   * Delete career highlight
+   */
+  deleteHighlight: async (studentId: string, highlightId: string): Promise<Alumni> => {
+    return await apiClient.delete<Alumni>(`/alumni/${studentId}/highlights/${highlightId}/`);
+  },
+
+  /**
+   * Update profile
+   */
+  updateProfile: async (studentId: string, data: ProfileData): Promise<Alumni> => {
+    return await apiClient.patch<Alumni>(`/alumni/${studentId}/profile/`, data);
   },
 };

@@ -403,11 +403,6 @@ export default function StudentDetails() {
   const isEligibleForAlumni = () => {
     if (!student) return false;
     
-    console.log('Checking alumni eligibility for student:', student);
-    console.log('Student semester:', student.semester);
-    console.log('Student status:', student.status);
-    console.log('Student semesterResults:', student.semesterResults);
-    
     // Check if student is in 8th semester
     const isIn8thSemester = student.semester === 8;
     
@@ -416,14 +411,8 @@ export default function StudentDetails() {
       result.semester === 8 && result.resultType === 'gpa' && result.gpa && result.gpa > 0
     );
     
-    console.log('Is in 8th semester:', isIn8thSemester);
-    console.log('Has 8th semester result:', has8thSemesterResult);
-    
     // Student should be active and either in 8th semester or have 8th semester results
-    const isEligible = student.status === 'active' && (isIn8thSemester || has8thSemesterResult);
-    console.log('Is eligible for alumni:', isEligible);
-    
-    return isEligible;
+    return student.status === 'active' && (isIn8thSemester || has8thSemesterResult);
   };
 
   const handleTransitionToAlumni = async () => {
@@ -432,20 +421,14 @@ export default function StudentDetails() {
     try {
       setIsSaving(true);
       
-      console.log('Transitioning student to alumni:', id);
-      
       // Use the proper transition to alumni endpoint
-      const alumniResult = await studentService.transitionToAlumni(id, {
+      await studentService.transitionToAlumni(id, {
         graduationYear: new Date().getFullYear()
       });
-      
-      console.log('Alumni transition result:', alumniResult);
       
       // Refresh student data
       const updatedStudent = await studentService.getStudent(id);
       setStudent(updatedStudent);
-      
-      console.log('Updated student after transition:', updatedStudent);
       
       toast({
         title: "Success",
@@ -455,7 +438,6 @@ export default function StudentDetails() {
       // Navigate to alumni page
       navigate('/alumni');
     } catch (err) {
-      console.error('Error transitioning to alumni:', err);
       const errorMessage = getErrorMessage(err);
       toast({
         title: "Error",

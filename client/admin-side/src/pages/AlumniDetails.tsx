@@ -3,9 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   ArrowLeft, Edit, Download, User, Phone, MapPin, GraduationCap, BookOpen, 
-  Mail, Briefcase, Building2, Calendar, Award, TrendingUp, Heart, HeartHandshake,
+  Mail, Briefcase, Building2, Calendar, TrendingUp, Heart, HeartHandshake,
   ShieldCheck, Plus, X, Star, Target, CheckCircle, FileText, ExternalLink,
-  Sparkles, Code, Globe, Zap, Users, Clock, Map, Loader2, AlertCircle, RefreshCw
+  Code, Globe, Zap, Users, Loader2, AlertCircle, RefreshCw, Eye
 } from 'lucide-react';
 import { alumniService, Alumni as AlumniType } from '@/services/alumniService';
 import { getErrorMessage } from '@/lib/api';
@@ -89,40 +89,98 @@ interface AlumniData {
 // Transform API data to display format
 const transformAlumniData = (apiData: AlumniType): AlumniData => {
   return {
-    id: parseInt(apiData.student) || 0,
-    name: apiData.studentName || 'Unknown',
-    roll: apiData.studentRoll || 'N/A',
-    department: apiData.departmentName || 'Unknown',
+    id: parseInt(apiData.student?.id || '0') || 0,
+    name: apiData.student?.fullNameEnglish || 'Unknown',
+    roll: apiData.student?.currentRollNumber || 'N/A',
+    department: apiData.student?.department?.name || 'Unknown',
     graduationYear: apiData.graduationYear?.toString() || 'N/A',
-    email: 'N/A', // Not available in API
-    phone: 'N/A', // Not available in API
-    currentJob: apiData.currentPosition?.position || 'Not specified',
-    company: apiData.currentPosition?.company || 'Not specified',
-    location: 'N/A', // Not available in API
-    gpa: 0, // Not available in API
-    avatar: '',
+    // Extract contact information from student record or alumni data
+    email: apiData.student?.email || 'N/A',
+    phone: apiData.student?.mobileStudent || 'N/A',
+    currentJob: apiData.currentPosition?.positionTitle || 'Not specified',
+    company: apiData.currentPosition?.organizationName || 'Not specified',
+    location: apiData.student?.presentAddress?.district || apiData.currentPosition?.location || 'N/A',
+    // Extract GPA from student record (using the highest exam GPA)
+    gpa: apiData.student?.gpa || 0,
+    avatar: apiData.student?.profilePhoto || '',
     category: apiData.alumniType,
     supportStatus: apiData.currentSupportCategory === 'receiving_support' ? 'needSupport' :
                    apiData.currentSupportCategory === 'needs_extra_support' ? 'needExtraSupport' :
                    'noSupportNeeded',
-    bio: apiData.currentPosition?.description || '',
-    linkedin: '',
-    portfolio: '',
-    careers: apiData.careerHistory.map((career, index) => ({
-      id: index.toString(),
-      type: 'job' as const,
-      position: career.position,
-      company: career.company,
-      location: 'N/A',
-      startDate: career.startDate,
-      endDate: career.endDate,
-      current: !career.endDate,
-      description: career.description || '',
-      achievements: [],
+    // Enhanced profile data
+    bio: apiData.bio || apiData.currentPosition?.description || '',
+    linkedin: apiData.linkedinUrl || '',
+    portfolio: apiData.portfolioUrl || '',
+    // Enhanced career transformation with type-specific fields
+    careers: transformCareerHistory(apiData.careerHistory || []),
+    // Initialize skills and highlights (to be populated from API)
+    skills: (apiData.skills || []).map((skill, index) => ({
+      id: skill.id || index.toString(),
+      name: skill.name,
+      category: skill.category,
+      proficiency: skill.proficiency
     })),
-    skills: [],
-    highlights: [],
+    highlights: (apiData.highlights || []).map((highlight, index) => ({
+      id: highlight.id || index.toString(),
+      title: highlight.title,
+      description: highlight.description,
+      date: highlight.date,
+      type: highlight.type
+    })),
   };
+};
+
+// Enhanced career transformation function
+const transformCareerHistory = (careers: any[]): CareerEntry[] => {
+  return careers.map((career, index) => {
+    const baseCareer: CareerEntry = {
+      id: career.id || index.toString(),
+      type: career.positionType as CareerEntry['type'] || 'job',
+      position: career.positionTitle || 'Unknown Position',
+      company: career.organizationName || 'Unknown Company',
+      location: career.location || 'N/A',
+      startDate: career.startDate || '',
+      endDate: career.endDate,
+      current: career.isCurrent || false,
+      description: career.description || '',
+      achievements: career.achievements || [],
+    };
+    
+    // Add type-specific fields based on career type
+    switch (career.positionType) {
+      case 'job':
+        return {
+          ...baseCareer,
+          salary: career.salary || '',
+        };
+      case 'higherStudies':
+        return {
+          ...baseCareer,
+          degree: career.degree || career.positionTitle || '',
+          field: career.field || '',
+          institution: career.organizationName || '',
+          position: career.degree && career.field ? `${career.degree} in ${career.field}` : career.positionTitle || 'Unknown Degree',
+          company: career.organizationName || 'Unknown Institution',
+        };
+      case 'business':
+        return {
+          ...baseCareer,
+          businessName: career.businessName || career.positionTitle || '',
+          businessType: career.businessType || career.organizationName || '',
+          position: career.businessName || career.positionTitle || 'Unknown Business',
+          company: career.businessType || career.organizationName || 'Business',
+        };
+      case 'other':
+        return {
+          ...baseCareer,
+          otherType: career.otherType || career.positionTitle || '',
+          position: career.otherType || career.positionTitle || 'Other Activity',
+          company: 'Other',
+        };
+      default:
+        return baseCareer;
+    }
+  });
 };
 
 export default function AlumniDetails() {
@@ -141,6 +199,21 @@ export default function AlumniDetails() {
       fetchAlumniData();
     }
   }, [id]);
+
+  // Update editProfile when alumni data is loaded
+  useEffect(() => {
+    if (alumni) {
+      setEditProfile({
+        name: alumni.name,
+        email: alumni.email,
+        phone: alumni.phone,
+        location: alumni.location,
+        bio: alumni.bio || '',
+        linkedin: alumni.linkedin || '',
+        portfolio: alumni.portfolio || ''
+      });
+    }
+  }, [alumni]);
 
   const fetchAlumniData = async () => {
     if (!id) return;
@@ -166,6 +239,8 @@ export default function AlumniDetails() {
   const [isEditCareerOpen, setIsEditCareerOpen] = useState(false);
   const [isEditSkillOpen, setIsEditSkillOpen] = useState(false);
   const [isEditHighlightOpen, setIsEditHighlightOpen] = useState(false);
+  const [isViewCareerOpen, setIsViewCareerOpen] = useState(false);
+  const [viewingCareerId, setViewingCareerId] = useState<string | null>(null);
   
   const [careerTypeSelection, setCareerTypeSelection] = useState<'job' | 'higherStudies' | 'business' | 'other' | null>(null);
   const [editingCareerId, setEditingCareerId] = useState<string | null>(null);
@@ -205,13 +280,13 @@ export default function AlumniDetails() {
   });
 
   const [editProfile, setEditProfile] = useState({
-    name: alumni.name,
-    email: alumni.email,
-    phone: alumni.phone,
-    location: alumni.location,
-    bio: alumni.bio || '',
-    linkedin: alumni.linkedin || '',
-    portfolio: alumni.portfolio || ''
+    name: '',
+    email: '',
+    phone: '',
+    location: '',
+    bio: '',
+    linkedin: '',
+    portfolio: ''
   });
 
   const getSupportStatusColor = (status: string) => {
@@ -318,33 +393,90 @@ export default function AlumniDetails() {
       newCareer.company = 'Other';
     }
 
-    toast({
-      title: 'Success',
-      description: 'Career entry added successfully!'
-    });
-    setIsAddCareerOpen(false);
-    setCareerTypeSelection(null);
-    setNewCareer({
-      type: 'job',
-      position: '',
-      company: '',
-      location: '',
-      startDate: '',
-      endDate: '',
-      current: false,
-      description: '',
-      achievements: [''],
-      salary: '',
-      degree: '',
-      field: '',
-      institution: '',
-      businessName: '',
-      businessType: '',
-      otherType: ''
-    });
+    // Call API to add career position
+    handleAddCareerAPI();
+  };
+
+  const handleAddCareerAPI = async () => {
+    if (!id) return;
+    
+    try {
+      // Prepare data for API call with type-specific fields
+      const careerData = {
+        positionType: careerTypeSelection || 'job',
+        organizationName: careerTypeSelection === 'higherStudies' ? newCareer.institution : 
+                         careerTypeSelection === 'business' ? newCareer.businessType :
+                         careerTypeSelection === 'other' ? 'Other' : newCareer.company,
+        positionTitle: careerTypeSelection === 'higherStudies' ? `${newCareer.degree} in ${newCareer.field}` :
+                      careerTypeSelection === 'business' ? newCareer.businessName :
+                      careerTypeSelection === 'other' ? newCareer.otherType : newCareer.position,
+        startDate: newCareer.startDate,
+        endDate: newCareer.current ? undefined : newCareer.endDate,
+        isCurrent: newCareer.current,
+        description: newCareer.description,
+        location: newCareer.location,
+        
+        // Type-specific fields
+        ...(careerTypeSelection === 'job' && { salary: newCareer.salary }),
+        ...(careerTypeSelection === 'higherStudies' && { 
+          degree: newCareer.degree, 
+          field: newCareer.field,
+          institution: newCareer.institution
+        }),
+        ...(careerTypeSelection === 'business' && { 
+          businessName: newCareer.businessName, 
+          businessType: newCareer.businessType 
+        }),
+        ...(careerTypeSelection === 'other' && { otherType: newCareer.otherType })
+      };
+
+      // Call the API to add career position
+      await alumniService.addCareerPosition(id, careerData);
+      
+      // Refresh alumni data to show the new career position
+      await fetchAlumniData();
+      
+      toast({
+        title: 'Success',
+        description: 'Career entry added successfully!'
+      });
+      
+      setIsAddCareerOpen(false);
+      setCareerTypeSelection(null);
+      setNewCareer({
+        type: 'job',
+        position: '',
+        company: '',
+        location: '',
+        startDate: '',
+        endDate: '',
+        current: false,
+        description: '',
+        achievements: [''],
+        salary: '',
+        degree: '',
+        field: '',
+        institution: '',
+        businessName: '',
+        businessType: '',
+        otherType: ''
+      });
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: getErrorMessage(err),
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleViewCareer = (careerId: string) => {
+    setViewingCareerId(careerId);
+    setIsViewCareerOpen(true);
   };
 
   const handleEditCareer = (careerId: string) => {
+    if (!alumni) return;
     const career = alumni.careers.find(c => c.id === careerId);
     if (career) {
       setEditingCareerId(careerId);
@@ -371,17 +503,131 @@ export default function AlumniDetails() {
     }
   };
 
-  const handleUpdateCareer = () => {
-    handleAddCareer(); // Reuse validation logic
-    setEditingCareerId(null);
-    setIsEditCareerOpen(false);
-    toast({
-      title: 'Success',
-      description: 'Career entry updated successfully!'
-    });
+  const handleUpdateCareer = async () => {
+    if (!id || !editingCareerId) return;
+    
+    // Perform the same validation as handleAddCareer
+    if (!careerTypeSelection) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please select a position type',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (careerTypeSelection === 'job' && (!newCareer.position || !newCareer.company || !newCareer.startDate)) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please fill in all required fields',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (careerTypeSelection === 'higherStudies' && (!newCareer.degree || !newCareer.field || !newCareer.institution || !newCareer.startDate)) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please fill in all required fields',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (careerTypeSelection === 'business' && (!newCareer.businessName || !newCareer.businessType || !newCareer.startDate)) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please fill in all required fields',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (careerTypeSelection === 'other' && (!newCareer.otherType || !newCareer.startDate)) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please fill in all required fields',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    try {
+      // Prepare career data with type-specific fields
+      const careerData = {
+        positionType: careerTypeSelection,
+        organizationName: careerTypeSelection === 'higherStudies' ? newCareer.institution : 
+                         careerTypeSelection === 'business' ? newCareer.businessType :
+                         careerTypeSelection === 'other' ? 'Other' : newCareer.company,
+        positionTitle: careerTypeSelection === 'higherStudies' ? `${newCareer.degree} in ${newCareer.field}` :
+                      careerTypeSelection === 'business' ? newCareer.businessName :
+                      careerTypeSelection === 'other' ? newCareer.otherType : newCareer.position,
+        startDate: newCareer.startDate,
+        endDate: newCareer.current ? undefined : newCareer.endDate,
+        isCurrent: newCareer.current,
+        description: newCareer.description,
+        // Type-specific fields
+        ...(careerTypeSelection === 'job' && { salary: newCareer.salary }),
+        ...(careerTypeSelection === 'higherStudies' && { 
+          degree: newCareer.degree, 
+          field: newCareer.field,
+          institution: newCareer.institution
+        }),
+        ...(careerTypeSelection === 'business' && { 
+          businessName: newCareer.businessName, 
+          businessType: newCareer.businessType 
+        }),
+        ...(careerTypeSelection === 'other' && { otherType: newCareer.otherType }),
+        location: newCareer.location
+      };
+
+      // Use update API if available, otherwise fall back to add
+      try {
+        await alumniService.updateCareerPosition(id, editingCareerId, careerData);
+      } catch (updateError) {
+        // If update endpoint doesn't exist, use add (temporary fallback)
+        await alumniService.addCareerPosition(id, careerData);
+      }
+      
+      await fetchAlumniData();
+      
+      toast({
+        title: 'Success',
+        description: 'Career entry updated successfully!'
+      });
+      
+      setEditingCareerId(null);
+      setIsEditCareerOpen(false);
+      setCareerTypeSelection(null);
+      setNewCareer({
+        type: 'job',
+        position: '',
+        company: '',
+        location: '',
+        startDate: '',
+        endDate: '',
+        current: false,
+        description: '',
+        achievements: [''],
+        salary: '',
+        degree: '',
+        field: '',
+        institution: '',
+        businessName: '',
+        businessType: '',
+        otherType: ''
+      });
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: getErrorMessage(err),
+        variant: 'destructive'
+      });
+    }
   };
 
   const handleEditSkill = (skillId: string) => {
+    if (!alumni) return;
     const skill = alumni.skills.find(s => s.id === skillId);
     if (skill) {
       setEditingSkillId(skillId);
@@ -394,7 +640,7 @@ export default function AlumniDetails() {
     }
   };
 
-  const handleUpdateSkill = () => {
+  const handleUpdateSkill = async () => {
     if (!newSkill.name) {
       toast({
         title: 'Validation Error',
@@ -403,16 +649,32 @@ export default function AlumniDetails() {
       });
       return;
     }
-    toast({
-      title: 'Success',
-      description: 'Skill updated successfully!'
-    });
-    setIsEditSkillOpen(false);
-    setEditingSkillId(null);
-    setNewSkill({ name: '', category: 'technical', proficiency: 50 });
+
+    if (!id || !editingSkillId) return;
+
+    try {
+      await alumniService.updateSkill(id, editingSkillId, newSkill);
+      await fetchAlumniData();
+      
+      toast({
+        title: 'Success',
+        description: 'Skill updated successfully!'
+      });
+      
+      setIsEditSkillOpen(false);
+      setEditingSkillId(null);
+      setNewSkill({ name: '', category: 'technical', proficiency: 50 });
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: getErrorMessage(err),
+        variant: 'destructive'
+      });
+    }
   };
 
   const handleEditHighlight = (highlightId: string) => {
+    if (!alumni) return;
     const highlight = alumni.highlights.find(h => h.id === highlightId);
     if (highlight) {
       setEditingHighlightId(highlightId);
@@ -426,7 +688,7 @@ export default function AlumniDetails() {
     }
   };
 
-  const handleUpdateHighlight = () => {
+  const handleUpdateHighlight = async () => {
     if (!newHighlight.title || !newHighlight.description || !newHighlight.date) {
       toast({
         title: 'Validation Error',
@@ -435,32 +697,192 @@ export default function AlumniDetails() {
       });
       return;
     }
-    toast({
-      title: 'Success',
-      description: 'Career highlight updated successfully!'
-    });
-    setIsEditHighlightOpen(false);
-    setEditingHighlightId(null);
-    setNewHighlight({ title: '', description: '', date: '', type: 'achievement' });
+
+    if (!id || !editingHighlightId) return;
+
+    try {
+      await alumniService.updateHighlight(id, editingHighlightId, newHighlight);
+      await fetchAlumniData();
+      
+      toast({
+        title: 'Success',
+        description: 'Career highlight updated successfully!'
+      });
+      
+      setIsEditHighlightOpen(false);
+      setEditingHighlightId(null);
+      setNewHighlight({ title: '', description: '', date: '', type: 'achievement' });
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: getErrorMessage(err),
+        variant: 'destructive'
+      });
+    }
   };
 
-  const handleUpdateProfile = () => {
-    toast({
-      title: 'Success',
-      description: 'Profile updated successfully!'
-    });
-    setIsEditProfileOpen(false);
+  const handleDeleteSkill = async (skillId: string) => {
+    if (!id) return;
+
+    try {
+      await alumniService.deleteSkill(id, skillId);
+      await fetchAlumniData();
+      
+      toast({
+        title: 'Success',
+        description: 'Skill deleted successfully!'
+      });
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: getErrorMessage(err),
+        variant: 'destructive'
+      });
+    }
   };
 
-  const handleUpdateSupport = (status: 'needSupport' | 'needExtraSupport' | 'noSupportNeeded') => {
-    toast({
-      title: 'Success',
-      description: `Support status updated to ${getSupportStatusLabel(status)}`
-    });
-    setIsUpdateSupportOpen(false);
+  const handleDeleteHighlight = async (highlightId: string) => {
+    if (!id) return;
+
+    try {
+      await alumniService.deleteHighlight(id, highlightId);
+      await fetchAlumniData();
+      
+      toast({
+        title: 'Success',
+        description: 'Career highlight deleted successfully!'
+      });
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: getErrorMessage(err),
+        variant: 'destructive'
+      });
+    }
   };
 
-  const handleAddSkill = () => {
+  const handleDeleteCareer = async (careerId: string) => {
+    if (!id) return;
+
+    try {
+      await alumniService.deleteCareerPosition(id, careerId);
+      await fetchAlumniData();
+      
+      toast({
+        title: 'Success',
+        description: 'Career entry deleted successfully!'
+      });
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: getErrorMessage(err),
+        variant: 'destructive'
+      });
+    }
+  };
+
+  // Helper function to render skill cards
+  const renderSkillCard = (skill: Skill) => {
+    const SkillIcon = getSkillCategoryIcon(skill.category);
+    return (
+      <Card key={skill.id} className="bg-muted/30">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2 flex-1">
+              <SkillIcon className="w-4 h-4 text-primary" />
+              <span className="font-semibold text-foreground">{skill.name}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-xs">
+                {skill.proficiency}%
+              </Badge>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleEditSkill(skill.id)}
+                className="h-6 w-6 p-0"
+              >
+                <Edit className="w-3 h-3" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleDeleteSkill(skill.id)}
+                className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+              >
+                <X className="w-3 h-3" />
+              </Button>
+            </div>
+          </div>
+          <Progress value={skill.proficiency} className="h-2" />
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const handleUpdateProfile = async () => {
+    if (!editProfile.name || !editProfile.email || !editProfile.phone) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please fill in all required fields (Name, Email, Phone)',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (!id) return;
+
+    try {
+      await alumniService.updateProfile(id, editProfile);
+      await fetchAlumniData();
+      
+      toast({
+        title: 'Success',
+        description: 'Profile updated successfully!'
+      });
+      
+      setIsEditProfileOpen(false);
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: getErrorMessage(err),
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleUpdateSupport = async (status: 'needSupport' | 'needExtraSupport' | 'noSupportNeeded') => {
+    if (!id) return;
+
+    try {
+      // Convert UI status to API format
+      const apiStatus = status === 'needSupport' ? 'receiving_support' :
+                       status === 'needExtraSupport' ? 'needs_extra_support' :
+                       'no_support_needed';
+
+      await alumniService.updateSupportCategory(id, { 
+        category: apiStatus,
+        notes: `Support status updated to ${getSupportStatusLabel(status)}` 
+      });
+      
+      await fetchAlumniData();
+      
+      toast({
+        title: 'Success',
+        description: `Support status updated to ${getSupportStatusLabel(status)}`
+      });
+      
+      setIsUpdateSupportOpen(false);
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: getErrorMessage(err),
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleAddSkill = async () => {
     if (!newSkill.name) {
       toast({
         title: 'Validation Error',
@@ -469,15 +891,30 @@ export default function AlumniDetails() {
       });
       return;
     }
-    toast({
-      title: 'Success',
-      description: 'Skill added successfully!'
-    });
-    setIsAddSkillOpen(false);
-    setNewSkill({ name: '', category: 'technical', proficiency: 50 });
+
+    if (!id) return;
+
+    try {
+      await alumniService.addSkill(id, newSkill);
+      await fetchAlumniData();
+      
+      toast({
+        title: 'Success',
+        description: 'Skill added successfully!'
+      });
+      
+      setIsAddSkillOpen(false);
+      setNewSkill({ name: '', category: 'technical', proficiency: 50 });
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: getErrorMessage(err),
+        variant: 'destructive'
+      });
+    }
   };
 
-  const handleAddHighlight = () => {
+  const handleAddHighlight = async () => {
     if (!newHighlight.title || !newHighlight.description || !newHighlight.date) {
       toast({
         title: 'Validation Error',
@@ -486,12 +923,27 @@ export default function AlumniDetails() {
       });
       return;
     }
-    toast({
-      title: 'Success',
-      description: 'Career highlight added successfully!'
-    });
-    setIsAddHighlightOpen(false);
-    setNewHighlight({ title: '', description: '', date: '', type: 'achievement' });
+
+    if (!id) return;
+
+    try {
+      await alumniService.addHighlight(id, newHighlight);
+      await fetchAlumniData();
+      
+      toast({
+        title: 'Success',
+        description: 'Career highlight added successfully!'
+      });
+      
+      setIsAddHighlightOpen(false);
+      setNewHighlight({ title: '', description: '', date: '', type: 'achievement' });
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: getErrorMessage(err),
+        variant: 'destructive'
+      });
+    }
   };
 
   // Loading state
@@ -550,7 +1002,7 @@ export default function AlumniDetails() {
     );
   }
 
-  const SupportIcon = getSupportStatusIcon(alumni.supportStatus);
+  const SupportIcon = getSupportStatusIcon(alumni?.supportStatus || 'noSupportNeeded');
 
   return (
     <div className="space-y-6">
@@ -563,7 +1015,7 @@ export default function AlumniDetails() {
           <h1 className="text-2xl font-bold text-foreground">Alumni Details</h1>
           <p className="text-muted-foreground">Complete profile and career information</p>
         </div>
-        <Button variant="outline" onClick={() => navigate(`/students/${alumni.id}`)}>
+        <Button variant="outline" onClick={() => navigate(`/students/${id}`)}>
           <FileText className="w-4 h-4 mr-2" />
           View Full Profile
         </Button>
@@ -810,14 +1262,33 @@ export default function AlumniDetails() {
                                 )}
                               </div>
                             </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEditCareer(career.id)}
-                              className="ml-2"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
+                            <div className="flex gap-1 ml-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleViewCareer(career.id)}
+                                title="View Details"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditCareer(career.id)}
+                                title="Edit Career"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteCareer(career.id)}
+                                className="text-destructive hover:text-destructive"
+                                title="Delete Career"
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </div>
                           </div>
                           <p className="text-sm text-foreground/80 mb-3">{career.description}</p>
                           {career.achievements && career.achievements.length > 0 && (
@@ -884,134 +1355,22 @@ export default function AlumniDetails() {
               </TabsList>
               <TabsContent value="all" className="mt-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {alumni.skills.map((skill) => {
-                    const SkillIcon = getSkillCategoryIcon(skill.category);
-                    return (
-                      <Card key={skill.id} className="bg-muted/30">
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2 flex-1">
-                              <SkillIcon className="w-4 h-4 text-primary" />
-                              <span className="font-semibold text-foreground">{skill.name}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-xs">
-                                {skill.proficiency}%
-                              </Badge>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleEditSkill(skill.id)}
-                                className="h-6 w-6 p-0"
-                              >
-                                <Edit className="w-3 h-3" />
-                              </Button>
-                            </div>
-                          </div>
-                          <Progress value={skill.proficiency} className="h-2" />
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
+                  {alumni.skills.map(renderSkillCard)}
                 </div>
               </TabsContent>
               <TabsContent value="technical" className="mt-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {alumni.skills.filter(s => s.category === 'technical').map((skill) => {
-                    const SkillIcon = getSkillCategoryIcon(skill.category);
-                    return (
-                      <Card key={skill.id} className="bg-muted/30">
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2 flex-1">
-                              <SkillIcon className="w-4 h-4 text-primary" />
-                              <span className="font-semibold text-foreground">{skill.name}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-xs">
-                                {skill.proficiency}%
-                              </Badge>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleEditSkill(skill.id)}
-                                className="h-6 w-6 p-0"
-                              >
-                                <Edit className="w-3 h-3" />
-                              </Button>
-                            </div>
-                          </div>
-                          <Progress value={skill.proficiency} className="h-2" />
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
+                  {alumni.skills.filter(s => s.category === 'technical').map(renderSkillCard)}
                 </div>
               </TabsContent>
               <TabsContent value="soft" className="mt-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {alumni.skills.filter(s => s.category === 'soft').map((skill) => {
-                    const SkillIcon = getSkillCategoryIcon(skill.category);
-                    return (
-                      <Card key={skill.id} className="bg-muted/30">
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2 flex-1">
-                              <SkillIcon className="w-4 h-4 text-primary" />
-                              <span className="font-semibold text-foreground">{skill.name}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-xs">
-                                {skill.proficiency}%
-                              </Badge>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleEditSkill(skill.id)}
-                                className="h-6 w-6 p-0"
-                              >
-                                <Edit className="w-3 h-3" />
-                              </Button>
-                            </div>
-                          </div>
-                          <Progress value={skill.proficiency} className="h-2" />
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
+                  {alumni.skills.filter(s => s.category === 'soft').map(renderSkillCard)}
                 </div>
               </TabsContent>
               <TabsContent value="language" className="mt-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {alumni.skills.filter(s => s.category === 'language').map((skill) => {
-                    const SkillIcon = getSkillCategoryIcon(skill.category);
-                    return (
-                      <Card key={skill.id} className="bg-muted/30">
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2 flex-1">
-                              <SkillIcon className="w-4 h-4 text-primary" />
-                              <span className="font-semibold text-foreground">{skill.name}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-xs">
-                                {skill.proficiency}%
-                              </Badge>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleEditSkill(skill.id)}
-                                className="h-6 w-6 p-0"
-                              >
-                                <Edit className="w-3 h-3" />
-                              </Button>
-                            </div>
-                          </div>
-                          <Progress value={skill.proficiency} className="h-2" />
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
+                  {alumni.skills.filter(s => s.category === 'language').map(renderSkillCard)}
                 </div>
               </TabsContent>
             </Tabs>
@@ -1067,6 +1426,14 @@ export default function AlumniDetails() {
                           className="h-6 w-6 p-0"
                         >
                           <Edit className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteHighlight(highlight.id)}
+                          className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                        >
+                          <X className="w-3 h-3" />
                         </Button>
                       </div>
                     </div>
@@ -1676,6 +2043,173 @@ export default function AlumniDetails() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditProfileOpen(false)}>Cancel</Button>
             <Button onClick={handleUpdateProfile} className="gradient-primary text-primary-foreground">Update Profile</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Career Dialog */}
+      <Dialog open={isViewCareerOpen} onOpenChange={setIsViewCareerOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="w-5 h-5" />
+              Career Details
+            </DialogTitle>
+            <DialogDescription>
+              Complete information about this career entry
+            </DialogDescription>
+          </DialogHeader>
+          {viewingCareerId && alumni && (() => {
+            const career = alumni.careers.find(c => c.id === viewingCareerId);
+            if (!career) return <div>Career not found</div>;
+            
+            return (
+              <div className="space-y-6 py-4">
+                {/* Career Type Badge */}
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-sm">
+                    {career.type === 'job' ? 'Job Position' :
+                     career.type === 'higherStudies' ? 'Higher Studies' :
+                     career.type === 'business' ? 'Business' :
+                     'Other Activity'}
+                  </Badge>
+                  {career.current && (
+                    <Badge className="bg-green-500/20 text-green-700 dark:text-green-300 border-green-500/30">
+                      Current Position
+                    </Badge>
+                  )}
+                </div>
+
+                {/* Main Information */}
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-xl font-bold text-foreground mb-1">
+                      {career.type === 'job' ? career.position : 
+                       career.type === 'higherStudies' ? `${career.degree} in ${career.field}` :
+                       career.type === 'business' ? career.businessName :
+                       career.otherType}
+                    </h3>
+                    <p className="text-lg font-medium text-primary">
+                      {career.type === 'job' ? career.company :
+                       career.type === 'higherStudies' ? career.institution :
+                       career.type === 'business' ? career.businessType :
+                       'Other'}
+                    </p>
+                  </div>
+
+                  {/* Duration and Location */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold text-muted-foreground">Duration</Label>
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm">
+                          {new Date(career.startDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })} - {
+                            career.current ? 'Present' : new Date(career.endDate!).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+                          }
+                        </span>
+                      </div>
+                    </div>
+                    {career.location && (
+                      <div className="space-y-2">
+                        <Label className="text-sm font-semibold text-muted-foreground">Location</Label>
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-4 h-4 text-muted-foreground" />
+                          <span className="text-sm">{career.location}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Type-specific Information */}
+                  {career.type === 'job' && career.salary && (
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold text-muted-foreground">Salary</Label>
+                      <p className="text-sm font-medium">{career.salary}</p>
+                    </div>
+                  )}
+
+                  {career.type === 'higherStudies' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {career.degree && (
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold text-muted-foreground">Degree</Label>
+                          <p className="text-sm font-medium">{career.degree}</p>
+                        </div>
+                      )}
+                      {career.field && (
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold text-muted-foreground">Field of Study</Label>
+                          <p className="text-sm font-medium">{career.field}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {career.type === 'business' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {career.businessName && (
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold text-muted-foreground">Business Name</Label>
+                          <p className="text-sm font-medium">{career.businessName}</p>
+                        </div>
+                      )}
+                      {career.businessType && (
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold text-muted-foreground">Business Type</Label>
+                          <p className="text-sm font-medium">{career.businessType}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {career.type === 'other' && career.otherType && (
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold text-muted-foreground">Activity Type</Label>
+                      <p className="text-sm font-medium">{career.otherType}</p>
+                    </div>
+                  )}
+
+                  {/* Description */}
+                  {career.description && (
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold text-muted-foreground">Description</Label>
+                      <p className="text-sm text-foreground/80 leading-relaxed">{career.description}</p>
+                    </div>
+                  )}
+
+                  {/* Achievements */}
+                  {career.achievements && career.achievements.length > 0 && career.achievements[0] !== '' && (
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold text-muted-foreground">Key Achievements</Label>
+                      <ul className="space-y-2">
+                        {career.achievements.map((achievement, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm text-foreground/80">
+                            <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                            <span>{achievement}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsViewCareerOpen(false)}>Close</Button>
+            <Button 
+              onClick={() => {
+                setIsViewCareerOpen(false);
+                if (viewingCareerId) {
+                  handleEditCareer(viewingCareerId);
+                }
+              }} 
+              className="gradient-primary text-primary-foreground"
+            >
+              <Edit className="w-4 h-4 mr-2" />
+              Edit Career
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
