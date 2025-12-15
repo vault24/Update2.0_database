@@ -59,11 +59,11 @@ chmod +x deploy-scripts/configure-nginx.sh
 
 if have any error for pg ar migret premition
 
+```bash
 # Make the script executable
 chmod +x ~/Update2.0_database/deploy-scripts/fix-database-permissions.sh
-
-# Run the fix script
 ~/Update2.0_database/deploy-scripts/fix-database-permissions.sh
+```
 
 ## Prerequisites
 
@@ -152,7 +152,7 @@ sudo systemctl restart nginx
 
 2. **Static Files Not Loading**: Permissions issue
    ```bash
-   cd /home/ubuntu/slms-project
+   cd /home/ubuntu/Update2.0_database
    python server/manage.py collectstatic --noinput
    sudo chmod -R 755 server/staticfiles/
    ```
