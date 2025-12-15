@@ -59,7 +59,7 @@ sudo -u postgres psql
 
 
 # Inside psql, run these commands:
-CREATE DATABASE slms_db;
+CREATE DATABASE sipi_db;
 CREATE USER sipi_web WITH PASSWORD 'sipiadmin';
 
 ALTER DATABASE sipi_db OWNER TO sipi_web;

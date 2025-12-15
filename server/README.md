@@ -28,9 +28,9 @@ Download and install PostgreSQL from [postgresql.org](https://www.postgresql.org
 Open PostgreSQL command line (psql) or pgAdmin and create the database:
 
 ```sql
-CREATE DATABASE slms_db;
-CREATE USER slms_user WITH PASSWORD 'your_password';
-GRANT ALL PRIVILEGES ON DATABASE slms_db TO slms_user;
+CREATE DATABASE sipi_db;
+CREATE USER sipi_web WITH PASSWORD 'sipiadmin';
+GRANT ALL PRIVILEGES ON DATABASE sipi_db TO sipi_web;
 ```
 
 ### 3. Set Up Python Environment
@@ -64,9 +64,9 @@ Edit `.env` with your database credentials:
 
 ```env
 # Database Configuration
-DB_NAME=slms_db
-DB_USER=slms_user
-DB_PASSWORD=your_password
+DB_NAME=sipi_db
+DB_USER=sipi_web
+DB_PASSWORD=sipiadmin
 DB_HOST=localhost
 DB_PORT=5432
 

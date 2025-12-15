@@ -59,7 +59,7 @@ DEBUG=False
 ALLOWED_HOSTS=18.138.238.106,ec2-18-138-238-106.ap-southeast-1.compute.amazonaws.com
 
 # Database Configuration
-DB_NAME=slms_db
+DB_NAME=sipi_db
 DB_USER=postgres
 DB_PASSWORD=your-db-password
 DB_HOST=localhost
@@ -77,9 +77,9 @@ CSRF_TRUSTED_ORIGINS=http://18.138.238.106:8000,http://18.138.238.106,http://you
 ```bash
 # Create database
 sudo -u postgres psql
-CREATE DATABASE slms_db;
+CREATE DATABASE sipi_db;
 CREATE USER your_db_user WITH PASSWORD 'your_password';
-GRANT ALL PRIVILEGES ON DATABASE slms_db TO your_db_user;
+GRANT ALL PRIVILEGES ON DATABASE sipi_db TO your_db_user;
 \q
 
 # Run migrations

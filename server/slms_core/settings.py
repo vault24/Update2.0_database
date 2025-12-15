@@ -118,7 +118,7 @@ CHANNEL_LAYERS = {
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('DB_NAME', default='slms_db'),
+        'NAME': config('DB_NAME', default='sipi_db'),
         'USER': config('DB_USER', default='postgres'),
         'PASSWORD': config('DB_PASSWORD', default=''),
         'HOST': config('DB_HOST', default='localhost'),
@@ -128,7 +128,7 @@ DATABASES = {
 
 # Test Database Configuration
 if 'test' in sys.argv:
-    DATABASES['default']['NAME'] = 'test_slms_db'
+    DATABASES['default']['NAME'] = 'test_sipi_db'
 
 
 # Password validation
