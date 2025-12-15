@@ -21,6 +21,7 @@ import {
   Moon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ClassStatusBox } from '@/components/dashboard/ClassStatusBox';
 import { cn } from '@/lib/utils';
 import { routineService, type ClassRoutine, type DayOfWeek } from '@/services/routineService';
 import { studentService } from '@/services/studentService';
@@ -72,15 +73,18 @@ export default function ClassRoutinePage() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [isRetrying, setIsRetrying] = useState(false);
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [profileDepartment, setProfileDepartment] = useState<string | undefined>(undefined);
   const [profileSemester, setProfileSemester] = useState<number | undefined>(undefined);
   const [profileShift, setProfileShift] = useState<string | undefined>(undefined);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [lastRefresh, setLastRefresh] = useState(Date.now());
 
   const formatTime = (time: string) => time?.slice(0, 5) || '';
 
-  // Helper function to convert time to minutes
+  // Helper function to convert time to minutes (used by status functions)
   const timeToMinutes = (time: string) => {
     const [h, m] = time.split(':').map(Number);
     return h * 60 + m;
@@ -210,25 +214,165 @@ export default function ClassRoutinePage() {
     return () => clearInterval(timer);
   }, []);
 
+  // Auto-refresh routine data periodically to catch updates from admin
+  useEffect(() => {
+    if (!user || user.role === 'teacher' || !profileLoaded) return;
+
+    const refreshInterval = setInterval(() => {
+      const timeSinceLastRefresh = Date.now() - lastRefresh;
+      const REFRESH_INTERVAL = 2 * 60 * 1000; // 2 minutes
+
+      if (timeSinceLastRefresh >= REFRESH_INTERVAL) {
+        console.log('Auto-refreshing routine data to check for updates');
+        
+        // Clear cache to force fresh data
+        routineService.cache.invalidateByFilters({
+          department: profileDepartment || user?.department,
+          semester: profileSemester || user?.semester,
+          shift: profileShift || (user as any)?.shift
+        });
+        
+        // Fetch fresh data
+        fetchRoutine(false);
+        setLastRefresh(Date.now());
+      }
+    }, 30000); // Check every 30 seconds
+
+    return () => clearInterval(refreshInterval);
+  }, [user, profileLoaded, profileDepartment, profileSemester, profileShift, lastRefresh]);
+
+  // Enhanced time slot generation utilities
+  const timeSlotUtils = {
+    // Convert time to minutes for sorting and comparison
+    timeToMinutes: (time: string): number => {
+      if (!time || typeof time !== 'string') return 0;
+      const parts = time.split(':');
+      if (parts.length < 2) return 0;
+      const [h, m] = parts.map(Number);
+      return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m);
+    },
+
+    // Format time consistently (remove seconds, ensure HH:MM format)
+    formatTime: (time: string): string => {
+      if (!time) return '';
+      const parts = time.split(':');
+      if (parts.length < 2) return time;
+      const [h, m] = parts;
+      return `${h.padStart(2, '0')}:${m.padStart(2, '0')}`;
+    },
+
+    // Generate comprehensive time slots based on actual routine data
+    generateTimeSlots: (routines: ClassRoutine[]): string[] => {
+      // Extract all unique time periods from routines
+      const timePeriods = new Set<string>();
+      
+      routines.forEach(routine => {
+        if (routine.start_time && routine.end_time) {
+          // Validate time slot before adding
+          if (timeSlotUtils.validateTimeSlot(routine.start_time, routine.end_time)) {
+            const startTime = timeSlotUtils.formatTime(routine.start_time);
+            const endTime = timeSlotUtils.formatTime(routine.end_time);
+            timePeriods.add(`${startTime}-${endTime}`);
+          } else {
+            console.warn('Invalid time slot filtered out:', {
+              start: routine.start_time,
+              end: routine.end_time,
+              subject: routine.subject_name
+            });
+          }
+        }
+      });
+
+      // Convert to array and sort by start time
+      const sortedSlots = Array.from(timePeriods)
+        .filter(slot => slot && slot.includes('-'))
+        .sort((a, b) => {
+          const [aStart] = a.split('-');
+          const [bStart] = b.split('-');
+          return timeSlotUtils.timeToMinutes(aStart) - timeSlotUtils.timeToMinutes(bStart);
+        });
+
+      console.log('Generated time slots from routine data:', sortedSlots);
+      return sortedSlots;
+    },
+
+    // Generate fallback time slots based on shift (for consistency with admin interface)
+    generateFallbackTimeSlots: (shift: string): string[] => {
+      const fallbackSlots: Record<string, string[]> = {
+        Morning: [
+          '08:00-08:45',
+          '08:45-09:30',
+          '09:30-10:15',
+          '10:15-11:00',
+          '11:00-11:45',
+          '11:45-12:30',
+          '12:30-13:15',
+        ],
+        Day: [
+          '13:30-14:15',
+          '14:15-15:00',
+          '15:00-15:45',
+          '15:45-16:30',
+          '16:30-17:15',
+          '17:15-18:00',
+          '18:00-18:45',
+        ],
+        Evening: [
+          '18:30-19:15',
+          '19:15-20:00',
+          '20:00-20:45',
+          '20:45-21:30',
+        ],
+      };
+      
+      return fallbackSlots[shift] || fallbackSlots.Day;
+    },
+
+    // Validate time slot consistency
+    validateTimeSlot: (startTime: string, endTime: string): boolean => {
+      // Check for empty or invalid strings
+      if (!startTime || !endTime || typeof startTime !== 'string' || typeof endTime !== 'string') {
+        return false;
+      }
+      
+      // Check if strings contain valid time format
+      if (!startTime.includes(':') || !endTime.includes(':')) {
+        return false;
+      }
+      
+      const start = timeSlotUtils.timeToMinutes(startTime);
+      const end = timeSlotUtils.timeToMinutes(endTime);
+      
+      // Validate that start is before end and both are within valid 24-hour range
+      return start < end && start >= 0 && end <= 24 * 60 && start !== 0 && end !== 0;
+    }
+  };
+
   const buildSchedule = (routines: ClassRoutine[]) => {
     console.log('Building schedule from routines:', routines);
     
     // Validate and normalize routine data
     const normalized: DisplayClassPeriod[] = routines
       .filter(routineItem => {
-        // Filter out invalid entries
-        return routineItem && 
+        // Enhanced validation
+        const isValid = routineItem && 
                routineItem.id && 
                routineItem.day_of_week && 
                routineItem.start_time && 
                routineItem.end_time &&
-               routineItem.subject_name;
+               routineItem.subject_name &&
+               timeSlotUtils.validateTimeSlot(routineItem.start_time, routineItem.end_time);
+        
+        if (!isValid) {
+          console.warn('Invalid routine item filtered out:', routineItem);
+        }
+        return isValid;
       })
       .map((routineItem) => ({
         id: routineItem.id,
         day: routineItem.day_of_week,
-        startTime: formatTime(routineItem.start_time),
-        endTime: formatTime(routineItem.end_time),
+        startTime: timeSlotUtils.formatTime(routineItem.start_time),
+        endTime: timeSlotUtils.formatTime(routineItem.end_time),
         subject: routineItem.subject_name || 'Unknown Subject',
         code: routineItem.subject_code || '',
         room: routineItem.room_number || 'TBA',
@@ -237,26 +381,32 @@ export default function ClassRoutinePage() {
 
     console.log('Normalized periods:', normalized);
 
-    const timeToMinutes = (value: string) => {
-      if (!value || typeof value !== 'string') return 0;
-      const parts = value.split(':');
-      if (parts.length < 2) return 0;
-      const [h, m] = parts.map(Number);
-      return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m);
-    };
+    // Generate time slots based on actual routine data
+    let slotKeys = timeSlotUtils.generateTimeSlots(routines);
 
-    // Generate unique time slots and sort them
-    const slotKeys = Array.from(new Set(normalized.map((item) => `${item.startTime}-${item.endTime}`)))
-      .filter(slot => slot && slot.includes('-'))
-      .sort((a, b) => {
-        const [aStart] = a.split('-');
-        const [bStart] = b.split('-');
-        return timeToMinutes(aStart) - timeToMinutes(bStart);
-      });
+    // If no time slots found from routine data, use fallback based on shift
+    if (slotKeys.length === 0) {
+      console.warn('No valid time slots found in routine data, using fallback slots');
+      const shift = routines.length > 0 ? routines[0].shift : 'Day';
+      slotKeys = timeSlotUtils.generateFallbackTimeSlots(shift);
+      
+      // If still no slots available, return empty structure
+      if (slotKeys.length === 0) {
+        console.error('No fallback time slots available');
+        return {
+          timeSlots: [],
+          schedule: {
+            Sunday: [],
+            Monday: [],
+            Tuesday: [],
+            Wednesday: [],
+            Thursday: [],
+          }
+        };
+      }
+    }
 
-    console.log('Generated time slots:', slotKeys);
-
-    // Initialize empty schedule
+    // Initialize empty schedule with proper structure
     const initialSchedule: Record<DayOfWeek, (DisplayClassPeriod | null)[]> = {
       Sunday: slotKeys.map(() => null),
       Monday: slotKeys.map(() => null),
@@ -272,6 +422,8 @@ export default function ClassRoutinePage() {
       if (index >= 0 && initialSchedule[period.day]) {
         initialSchedule[period.day][index] = period;
         console.log(`Placed ${period.subject} on ${period.day} at slot ${index} (${key})`);
+      } else {
+        console.warn(`Could not place period ${period.subject} - slot ${key} not found in generated slots`);
       }
     });
 
@@ -310,8 +462,25 @@ export default function ClassRoutinePage() {
             setProfileShift(student.shift);
           }
         } catch (err) {
-          // fall back to existing user fields if available
-          setError(getErrorMessage(err));
+          // Enhanced profile error handling
+          const errorMsg = getErrorMessage(err);
+          console.error('Error loading student profile:', err);
+          
+          // Try to fall back to existing user fields if available
+          if (user?.department && user?.semester) {
+            setProfileDepartment(user.department);
+            setProfileSemester(user.semester);
+            setProfileShift((user as any).shift as string | undefined);
+            
+            toast.warning('Profile data partially loaded', {
+              description: 'Using cached profile information. Some data may be outdated.',
+            });
+          } else {
+            setError(`Profile loading failed: ${errorMsg}`);
+            toast.error('Failed to load profile', {
+              description: 'Unable to load your academic information. Please try refreshing the page.',
+            });
+          }
         } finally {
           setProfileLoaded(true);
         }
@@ -334,7 +503,7 @@ export default function ClassRoutinePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileLoaded, user]);
 
-  const fetchRoutine = async () => {
+  const fetchRoutine = async (isRetry: boolean = false) => {
     // Don't fetch routine for teachers
     if (user?.role === 'teacher') {
       setLoading(false);
@@ -346,6 +515,7 @@ export default function ClassRoutinePage() {
     const semesterValue = profileSemester || user?.semester;
     const shiftValue = profileShift || (user as any)?.shift || 'Day';
 
+    // Validate filter values
     if (!departmentId || !semesterValue) {
       // Await profile resolution before showing error
       if (profileLoaded) {
@@ -355,23 +525,65 @@ export default function ClassRoutinePage() {
       return;
     }
 
+    // Validate semester range
+    if (semesterValue < 1 || semesterValue > 8) {
+      setError(`Invalid semester value: ${semesterValue}. Please contact support to update your profile.`);
+      setLoading(false);
+      return;
+    }
+
+    // Validate shift value
+    if (!['Morning', 'Day', 'Evening'].includes(shiftValue)) {
+      console.warn('Invalid shift value, defaulting to Day:', shiftValue);
+      // Don't error out, just use default
+    }
+
     try {
-      setLoading(true);
+      if (isRetry) {
+        setIsRetrying(true);
+      } else {
+        setLoading(true);
+        setRetryCount(0);
+      }
       setError(null);
       
       console.log('Fetching student routine with params:', {
         department: departmentId,
         semester: semesterValue,
-        shift: shiftValue
+        shift: shiftValue,
+        retry: isRetry,
+        retryCount: retryCount
       });
       
-      const data = await routineService.getMyRoutine({
-        department: departmentId,
-        semester: semesterValue,
-        shift: shiftValue as any,
-        // Add cache busting parameter
-        _t: Date.now()
-      });
+      // Prepare query parameters with validation
+      const queryParams: any = {};
+
+      // Add department (required)
+      if (departmentId && typeof departmentId === 'string' && departmentId.trim()) {
+        queryParams.department = departmentId.trim();
+      } else {
+        throw new Error('Invalid department ID');
+      }
+
+      // Add semester (required, must be 1-8)
+      if (semesterValue && semesterValue >= 1 && semesterValue <= 8) {
+        queryParams.semester = semesterValue;
+      } else {
+        throw new Error(`Invalid semester: ${semesterValue}`);
+      }
+
+      // Add shift (optional, default to Day if invalid)
+      const validShift = ['Morning', 'Day', 'Evening'].includes(shiftValue) ? shiftValue : 'Day';
+      queryParams.shift = validShift;
+
+      // Add cache busting parameter for fresh data
+      if (isRetry || Date.now() - lastRefresh > 60000) { // Only add if retry or stale
+        queryParams._t = Date.now();
+      }
+
+      console.log('Fetching routine with validated parameters:', queryParams);
+      
+      const data = await routineService.getMyRoutine(queryParams);
       
       console.log('Received routine data:', data);
       
@@ -381,19 +593,68 @@ export default function ClassRoutinePage() {
       setSchedule(schedule);
       
       console.log('Built schedule:', { timeSlots, schedule });
+      
+      // Reset retry count on successful fetch
+      setRetryCount(0);
+      setLastRefresh(Date.now());
+      
+      // Validate that we have proper time slots
+      if (timeSlots.length === 0 && data.routines.length > 0) {
+        console.warn('Routine data exists but no valid time slots generated');
+        toast.warning('Schedule data incomplete', {
+          description: 'Some routine data may not display correctly due to invalid time formats.',
+        });
+      } else if (timeSlots.length > 0) {
+        console.log(`Successfully generated ${timeSlots.length} time slots for ${data.routines.length} routine entries`);
+        
+        // Show success message on retry or auto-refresh
+        if (isRetry) {
+          toast.success('Routine loaded successfully', {
+            description: 'Your class schedule has been updated.',
+          });
+        }
+      }
     } catch (err) {
       const errorMsg = getErrorMessage(err);
       setError(errorMsg);
       console.error('Error fetching student routine:', err);
 
-      // Enhanced error handling
+      // Enhanced error handling with specific error types
       let userFriendlyMessage = errorMsg;
+      let errorType = 'general';
+      
       if (errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError')) {
         userFriendlyMessage = 'Network error: Please check your internet connection and try again.';
+        errorType = 'network';
       } else if (errorMsg.includes('404')) {
         userFriendlyMessage = 'No routine found for your department and semester.';
+        errorType = 'not_found';
       } else if (errorMsg.includes('403')) {
         userFriendlyMessage = 'Access denied: Please ensure you are logged in as a student.';
+        errorType = 'access_denied';
+      } else if (errorMsg.includes('500')) {
+        userFriendlyMessage = 'Server error: The system is temporarily unavailable. Please try again later.';
+        errorType = 'server_error';
+      } else if (errorMsg.includes('timeout')) {
+        userFriendlyMessage = 'Request timeout: The server is taking too long to respond. Please try again.';
+        errorType = 'timeout';
+      }
+
+      // Auto-retry for network errors (up to 3 times)
+      const isNetworkError = errorType === 'network' || errorType === 'timeout';
+      if (isNetworkError && retryCount < 3 && !isRetry) {
+        console.log(`Auto-retrying request (attempt ${retryCount + 1}/3)`);
+        setRetryCount(prev => prev + 1);
+        
+        // Retry after a delay
+        setTimeout(() => {
+          fetchRoutine(true);
+        }, 2000 * (retryCount + 1)); // Exponential backoff
+        
+        toast.warning('Connection issue detected', {
+          description: `Retrying automatically (${retryCount + 1}/3)...`,
+        });
+        return;
       }
 
       toast.error('Failed to load routine', {
@@ -401,6 +662,7 @@ export default function ClassRoutinePage() {
       });
     } finally {
       setLoading(false);
+      setIsRetrying(false);
     }
   };
 
@@ -423,12 +685,21 @@ export default function ClassRoutinePage() {
   const classesCompleted = areClassesCompleted();
 
   // Loading state
-  if (loading) {
+  if (loading || isRetrying) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center space-y-4">
           <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
-          <p className="text-muted-foreground">Loading routine...</p>
+          <div>
+            <p className="text-muted-foreground">
+              {isRetrying ? 'Retrying connection...' : 'Loading routine...'}
+            </p>
+            {retryCount > 0 && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Attempt {retryCount + 1}/4
+              </p>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -439,26 +710,95 @@ export default function ClassRoutinePage() {
     const isNetworkError = error.includes('Failed to fetch') || 
                           error.includes('NetworkError') || 
                           error.includes('timeout');
+    const isNotFound = error.includes('404');
+    const isAccessDenied = error.includes('403');
+    const isServerError = error.includes('500');
+    
+    // Determine error icon and color
+    const ErrorIcon = AlertCircle;
+    let errorColor = 'text-destructive';
+    
+    if (isNetworkError) {
+      errorColor = 'text-orange-500';
+    } else if (isNotFound) {
+      errorColor = 'text-blue-500';
+    } else if (isAccessDenied) {
+      errorColor = 'text-yellow-500';
+    }
     
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="glass-card p-8 max-w-md text-center space-y-4">
-          <AlertCircle className="w-12 h-12 text-destructive mx-auto" />
+          <ErrorIcon className={`w-12 h-12 ${errorColor} mx-auto`} />
           <div>
-            <h3 className="text-lg font-semibold mb-2">Error Loading Routine</h3>
+            <h3 className="text-lg font-semibold mb-2">
+              {isNetworkError ? 'Connection Problem' :
+               isNotFound ? 'No Routine Found' :
+               isAccessDenied ? 'Access Denied' :
+               isServerError ? 'Server Error' :
+               'Error Loading Routine'}
+            </h3>
             <p className="text-muted-foreground mb-4">{error}</p>
+            {retryCount > 0 && (
+              <p className="text-sm text-muted-foreground">
+                Retry attempts: {retryCount}/3
+              </p>
+            )}
           </div>
-          <div className="flex gap-2 justify-center">
-            <Button onClick={fetchRoutine} variant="hero" disabled={loading}>
-              {loading ? (
+          <div className="flex gap-2 justify-center flex-wrap">
+            <Button 
+              onClick={() => fetchRoutine(false)} 
+              variant="hero" 
+              disabled={loading || isRetrying}
+            >
+              {loading || isRetrying ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               ) : null}
-              Try Again
+              {isRetrying ? 'Retrying...' : 'Try Again'}
             </Button>
-            {isNetworkError && (
-              <Button onClick={fetchRoutine} variant="outline" disabled={loading}>
-                Retry
+            
+            {isNetworkError && retryCount < 3 && (
+              <Button 
+                onClick={() => fetchRoutine(true)} 
+                variant="outline" 
+                disabled={loading || isRetrying}
+              >
+                {isRetrying ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : null}
+                Auto Retry ({3 - retryCount} left)
               </Button>
+            )}
+            
+            {isNotFound && (
+              <Button 
+                onClick={() => {
+                  // Clear error and try to reload profile
+                  setError(null);
+                  setProfileLoaded(false);
+                  window.location.reload();
+                }} 
+                variant="outline"
+                disabled={loading}
+              >
+                Refresh Profile
+              </Button>
+            )}
+          </div>
+          
+          {/* Additional help text based on error type */}
+          <div className="text-xs text-muted-foreground mt-4 space-y-1">
+            {isNetworkError && (
+              <p>• Check your internet connection<br/>• Try refreshing the page</p>
+            )}
+            {isNotFound && (
+              <p>• Contact your department for routine availability<br/>• Verify your semester and department information</p>
+            )}
+            {isAccessDenied && (
+              <p>• Ensure you are logged in as a student<br/>• Contact support if the problem persists</p>
+            )}
+            {isServerError && (
+              <p>• The system is temporarily unavailable<br/>• Please try again in a few minutes</p>
             )}
           </div>
         </div>
@@ -467,17 +807,68 @@ export default function ClassRoutinePage() {
   }
 
   if (!loading && !error && !hasData) {
+    const departmentName = user?.department || 'your department';
+    const semesterValue = profileSemester || user?.semester || 'your semester';
+    const shiftValue = profileShift || (user as any)?.shift || 'Day';
+    
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="glass-card p-8 max-w-md text-center space-y-4">
           <Calendar className="w-12 h-12 text-muted-foreground mx-auto" />
           <div>
             <h3 className="text-lg font-semibold mb-2">No routine available</h3>
-            <p className="text-muted-foreground mb-4">Your department has not published a routine yet.</p>
+            <p className="text-muted-foreground mb-4">
+              No class schedule found for {semesterValue}{typeof semesterValue === 'number' ? 
+                (semesterValue === 1 ? 'st' : semesterValue === 2 ? 'nd' : semesterValue === 3 ? 'rd' : 'th') : ''} semester, {shiftValue} shift.
+            </p>
+            <div className="text-sm text-muted-foreground space-y-1">
+              <p>Current filters:</p>
+              <div className="bg-muted/50 rounded-lg p-3 space-y-1">
+                <p>• Department: {typeof departmentName === 'string' ? departmentName : 'Not specified'}</p>
+                <p>• Semester: {semesterValue}</p>
+                <p>• Shift: {shiftValue}</p>
+              </div>
+            </div>
           </div>
-          <Button onClick={fetchRoutine} variant="hero">
-            Refresh
-          </Button>
+          <div className="flex gap-2 justify-center flex-wrap">
+            <Button 
+              onClick={() => {
+                // Clear cache and fetch fresh data
+                routineService.cache.clear();
+                fetchRoutine(false);
+              }} 
+              variant="hero" 
+              disabled={loading}
+            >
+              {loading ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : null}
+              Refresh
+            </Button>
+            <Button 
+              onClick={() => {
+                // Clear cache and reload profile
+                setProfileLoaded(false);
+                setRoutine([]);
+                setTimeSlots([]);
+                setSchedule({
+                  Sunday: [],
+                  Monday: [],
+                  Tuesday: [],
+                  Wednesday: [],
+                  Thursday: [],
+                });
+              }} 
+              variant="outline"
+            >
+              Reset Filters
+            </Button>
+          </div>
+          <div className="text-xs text-muted-foreground mt-4">
+            <p>• Contact your department if routine should be available</p>
+            <p>• Check if your profile information is correct</p>
+            <p>• Routine may not be published yet for this semester</p>
+          </div>
         </div>
       </div>
     );
@@ -500,15 +891,21 @@ export default function ClassRoutinePage() {
             variant="outline" 
             size="sm" 
             className="gap-1.5 md:gap-2 text-xs md:text-sm"
-            onClick={fetchRoutine}
-            disabled={loading}
+            onClick={() => {
+              // Clear cache and fetch fresh data
+              routineService.cache.clear();
+              fetchRoutine(false);
+            }}
+            disabled={loading || isRetrying}
           >
-            {loading ? (
+            {loading || isRetrying ? (
               <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" />
             ) : (
               <Timer className="w-3.5 h-3.5 md:w-4 md:h-4" />
             )}
-            <span className="hidden sm:inline">Refresh</span>
+            <span className="hidden sm:inline">
+              {isRetrying ? 'Retrying...' : 'Refresh'}
+            </span>
           </Button>
           <Button variant="outline" size="sm" className="gap-1.5 md:gap-2 text-xs md:text-sm">
             <Filter className="w-3.5 h-3.5 md:w-4 md:h-4" />
@@ -521,235 +918,15 @@ export default function ClassRoutinePage() {
         </div>
       </motion.div>
 
-      {/* Dynamic Highlight Boxes */}
-      <div className="space-y-3 md:space-y-4">
-        {/* Running Class Card */}
-        {runningClass && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className={cn(
-              "bg-gradient-to-r border-2 rounded-lg md:rounded-xl lg:rounded-2xl p-3 md:p-4 lg:p-5 shadow-lg",
-              runningClass.subject.toLowerCase().includes('lab')
-                ? "from-emerald-500/20 via-emerald-400/10 to-transparent border-emerald-500/30"
-                : "from-primary/20 via-primary/10 to-transparent border-primary/30"
-            )}
-          >
-            <div className="flex items-center gap-2 md:gap-3 lg:gap-4">
-              <div className={cn(
-                "w-10 h-10 md:w-12 md:h-12 lg:w-14 lg:h-14 rounded-lg md:rounded-xl flex items-center justify-center flex-shrink-0",
-                runningClass.subject.toLowerCase().includes('lab')
-                  ? "bg-emerald-500/20"
-                  : "bg-primary/20"
-              )}>
-                {runningClass.subject.toLowerCase().includes('lab') ? (
-                  <FlaskConical className="w-5 h-5 md:w-6 md:h-6 lg:w-7 lg:h-7 text-emerald-600 animate-pulse" />
-                ) : (
-                  <PlayCircle className="w-5 h-5 md:w-6 md:h-6 lg:w-7 lg:h-7 text-primary animate-pulse" />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className={cn(
-                    "px-2 py-0.5 text-[10px] md:text-xs font-semibold rounded-full",
-                    runningClass.subject.toLowerCase().includes('lab')
-                      ? "bg-emerald-500/20 text-emerald-700"
-                      : "bg-primary/20 text-primary"
-                  )}>
-                    {runningClass.subject.toLowerCase().includes('lab') ? 'Lab in Progress' : 'Running Now'}
-                  </span>
-                  <span className="text-[10px] md:text-xs text-muted-foreground">
-                    {runningClass.startTime} - {runningClass.endTime}
-                  </span>
-                </div>
-                <h3 className="text-sm md:text-base lg:text-lg font-bold truncate">{runningClass.subject}</h3>
-                <p className="text-[10px] md:text-xs lg:text-sm text-muted-foreground truncate">
-                  {runningClass.code} • Room: {runningClass.room} • {runningClass.teacher}
-                </p>
-              </div>
-              <div className="text-right flex-shrink-0">
-                <div className="text-[10px] md:text-xs text-muted-foreground">Time Left</div>
-                <div className={cn(
-                  "text-sm md:text-base lg:text-lg font-bold",
-                  runningClass.subject.toLowerCase().includes('lab') ? "text-emerald-600" : "text-primary"
-                )}>
-                  {(() => {
-                    const now = currentTime;
-                    const [endH, endM] = runningClass.endTime.split(':').map(Number);
-                    const endTime = new Date(now);
-                    endTime.setHours(endH, endM, 0, 0);
-                    const diff = endTime.getTime() - now.getTime();
-                    const minutes = Math.floor(diff / 60000);
-                    const hours = Math.floor(minutes / 60);
-                    const mins = minutes % 60;
-                    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
-                  })()}
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Upcoming Class Card */}
-        {!runningClass && upcomingClass && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-gradient-to-r from-blue-500/20 via-blue-400/10 to-transparent border-2 border-blue-500/30 rounded-lg md:rounded-xl lg:rounded-2xl p-3 md:p-4 lg:p-5 shadow-lg"
-          >
-            <div className="flex items-center gap-2 md:gap-3 lg:gap-4">
-              <div className="w-10 h-10 md:w-12 md:h-12 lg:w-14 lg:h-14 rounded-lg md:rounded-xl bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-                <ArrowRight className="w-5 h-5 md:w-6 md:h-6 lg:w-7 lg:h-7 text-blue-600 animate-pulse" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="px-2 py-0.5 bg-blue-500/20 text-blue-700 text-[10px] md:text-xs font-semibold rounded-full">
-                    Up Next
-                  </span>
-                  <span className="text-[10px] md:text-xs text-muted-foreground">
-                    {upcomingClass.startTime} - {upcomingClass.endTime}
-                  </span>
-                </div>
-                <h3 className="text-sm md:text-base lg:text-lg font-bold truncate">{upcomingClass.subject}</h3>
-                <p className="text-[10px] md:text-xs lg:text-sm text-muted-foreground truncate">
-                  {upcomingClass.code} • Room: {upcomingClass.room} • {upcomingClass.teacher}
-                </p>
-              </div>
-              <div className="text-right flex-shrink-0">
-                <div className="text-[10px] md:text-xs text-muted-foreground">Starts In</div>
-                <div className="text-sm md:text-base lg:text-lg font-bold text-blue-600">
-                  {(() => {
-                    const now = currentTime;
-                    const [startH, startM] = upcomingClass.startTime.split(':').map(Number);
-                    const startTime = new Date(now);
-                    startTime.setHours(startH, startM, 0, 0);
-                    const diff = startTime.getTime() - now.getTime();
-                    const minutes = Math.floor(diff / 60000);
-                    const hours = Math.floor(minutes / 60);
-                    const mins = minutes % 60;
-                    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
-                  })()}
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Break Time Card */}
-        {!runningClass && isInBreak && upcomingClass && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-gradient-to-r from-amber-500/20 via-amber-400/10 to-transparent border-2 border-amber-500/30 rounded-lg md:rounded-xl lg:rounded-2xl p-3 md:p-4 lg:p-5 shadow-lg"
-          >
-            <div className="flex items-center gap-2 md:gap-3 lg:gap-4">
-              <div className="w-10 h-10 md:w-12 md:h-12 lg:w-14 lg:h-14 rounded-lg md:rounded-xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
-                <Coffee className="w-5 h-5 md:w-6 md:h-6 lg:w-7 lg:h-7 text-amber-600 animate-bounce" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="px-2 py-0.5 bg-amber-500/20 text-amber-700 text-[10px] md:text-xs font-semibold rounded-full">
-                    Break Time
-                  </span>
-                  <span className="text-[10px] md:text-xs text-muted-foreground">
-                    Relax & Recharge
-                  </span>
-                </div>
-                <h3 className="text-sm md:text-base lg:text-lg font-bold truncate">Take a Break</h3>
-                <p className="text-[10px] md:text-xs lg:text-sm text-muted-foreground truncate">
-                  Next: {upcomingClass.subject} at {upcomingClass.startTime}
-                </p>
-              </div>
-              <div className="text-right flex-shrink-0">
-                <div className="text-[10px] md:text-xs text-muted-foreground">Break Ends In</div>
-                <div className="text-sm md:text-base lg:text-lg font-bold text-amber-600">
-                  {(() => {
-                    const now = currentTime;
-                    const [startH, startM] = upcomingClass.startTime.split(':').map(Number);
-                    const startTime = new Date(now);
-                    startTime.setHours(startH, startM, 0, 0);
-                    const diff = startTime.getTime() - now.getTime();
-                    const minutes = Math.floor(diff / 60000);
-                    const hours = Math.floor(minutes / 60);
-                    const mins = minutes % 60;
-                    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
-                  })()}
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Classes Completed Card */}
-        {!runningClass && !upcomingClass && classesCompleted && totalClasses > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-gradient-to-r from-green-500/20 via-green-400/10 to-transparent border-2 border-green-500/30 rounded-lg md:rounded-xl lg:rounded-2xl p-3 md:p-4 lg:p-5 shadow-lg"
-          >
-            <div className="flex items-center gap-2 md:gap-3 lg:gap-4">
-              <div className="w-10 h-10 md:w-12 md:h-12 lg:w-14 lg:h-14 rounded-lg md:rounded-xl bg-green-500/20 flex items-center justify-center flex-shrink-0">
-                <CheckCircle className="w-5 h-5 md:w-6 md:h-6 lg:w-7 lg:h-7 text-green-600" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="px-2 py-0.5 bg-green-500/20 text-green-700 text-[10px] md:text-xs font-semibold rounded-full">
-                    All Done
-                  </span>
-                  <span className="text-[10px] md:text-xs text-muted-foreground">
-                    Great job today!
-                  </span>
-                </div>
-                <h3 className="text-sm md:text-base lg:text-lg font-bold truncate">Classes Completed</h3>
-                <p className="text-[10px] md:text-xs lg:text-sm text-muted-foreground truncate">
-                  You've finished all {totalClasses} classes for today
-                </p>
-              </div>
-              <div className="text-right flex-shrink-0">
-                <div className="text-[10px] md:text-xs text-muted-foreground">Status</div>
-                <div className="text-sm md:text-base lg:text-lg font-bold text-green-600">
-                  Complete
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {/* No Classes Today Card */}
-        {totalClasses === 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-gradient-to-r from-slate-500/20 via-slate-400/10 to-transparent border-2 border-slate-500/30 rounded-lg md:rounded-xl lg:rounded-2xl p-3 md:p-4 lg:p-5 shadow-lg"
-          >
-            <div className="flex items-center gap-2 md:gap-3 lg:gap-4">
-              <div className="w-10 h-10 md:w-12 md:h-12 lg:w-14 lg:h-14 rounded-lg md:rounded-xl bg-slate-500/20 flex items-center justify-center flex-shrink-0">
-                <Moon className="w-5 h-5 md:w-6 md:h-6 lg:w-7 lg:h-7 text-slate-600" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="px-2 py-0.5 bg-slate-500/20 text-slate-700 text-[10px] md:text-xs font-semibold rounded-full">
-                    Free Day
-                  </span>
-                  <span className="text-[10px] md:text-xs text-muted-foreground">
-                    Enjoy your day off
-                  </span>
-                </div>
-                <h3 className="text-sm md:text-base lg:text-lg font-bold truncate">No Classes Today</h3>
-                <p className="text-[10px] md:text-xs lg:text-sm text-muted-foreground truncate">
-                  Take some time to relax or catch up on studies
-                </p>
-              </div>
-              <div className="text-right flex-shrink-0">
-                <div className="text-[10px] md:text-xs text-muted-foreground">Status</div>
-                <div className="text-sm md:text-base lg:text-lg font-bold text-slate-600">
-                  Free
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </div>
+      {/* Enhanced Class Status Box with Motivational Quotes */}
+      <ClassStatusBox
+        runningClass={runningClass}
+        upcomingClass={upcomingClass}
+        isInBreak={isInBreak}
+        classesCompleted={classesCompleted}
+        totalClasses={totalClasses}
+        currentTime={currentTime}
+      />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3 lg:gap-4">

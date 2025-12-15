@@ -43,6 +43,7 @@ dist/
 build/
 
 # Environment variables (keep example files)
+.env
 .env.local
 .env.development.local
 .env.test.local

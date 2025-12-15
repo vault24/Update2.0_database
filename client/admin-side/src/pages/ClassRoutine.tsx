@@ -119,10 +119,40 @@ export default function ClassRoutine() {
     loadDepartments();
   }, [toast]);
 
-  // Fetch routine data when filters change
+  // Validate and fetch routine data when filters change
   useEffect(() => {
-    fetchRoutine();
+    // Validate filters before fetching
+    if (validateFilters()) {
+      fetchRoutine();
+    }
   }, [department, semester, shift]);
+
+  // Filter validation function
+  const validateFilters = (): boolean => {
+    if (!department) {
+      console.log('No department selected, skipping fetch');
+      return false;
+    }
+
+    if (!semester || semester < 1 || semester > 8) {
+      console.warn('Invalid semester value:', semester);
+      setError('Invalid semester selection. Please select a valid semester (1-8).');
+      return false;
+    }
+
+    if (!shift || !['Morning', 'Day', 'Evening'].includes(shift)) {
+      console.warn('Invalid shift value:', shift);
+      setError('Invalid shift selection. Please select a valid shift.');
+      return false;
+    }
+
+    // Clear any previous filter-related errors
+    if (error && (error.includes('Invalid semester') || error.includes('Invalid shift'))) {
+      setError(null);
+    }
+
+    return true;
+  };
 
   const fetchRoutine = async (isRetry: boolean = false) => {
     try {
@@ -141,14 +171,29 @@ export default function ClassRoutine() {
       
       console.log('Fetching routine with filters:', { department, semester, shift });
       
-      const response = await routineService.getRoutine({
-        department,
-        semester,
-        shift,
+      // Prepare query parameters with proper validation
+      const queryParams: any = {
         is_active: true,
         page_size: 100,
         ordering: 'day_of_week,start_time',
-      });
+      };
+
+      // Add filters only if they are valid
+      if (department && department.trim()) {
+        queryParams.department = department.trim();
+      }
+      
+      if (semester && semester >= 1 && semester <= 8) {
+        queryParams.semester = semester;
+      }
+      
+      if (shift && ['Morning', 'Day', 'Evening'].includes(shift)) {
+        queryParams.shift = shift;
+      }
+
+      console.log('Query parameters:', queryParams);
+      
+      const response = await routineService.getRoutine(queryParams);
 
       console.log('Fetched routine data:', response.results.length, 'entries');
       setRoutineData(response.results);
@@ -369,16 +414,20 @@ export default function ClassRoutine() {
         throw new Error(saveResponse.message || 'Failed to save routine');
       }
 
-      // Force refresh the routine data from server
+      // Clear cache and force refresh the routine data from server
+      routineService.cache.invalidateByFilters({ department, semester, shift });
       await fetchRoutine();
       
       // Exit edit mode only after successful save and refresh
       setIsEditMode(false);
       
+      // Notify about successful save with refresh confirmation
       toast({ 
-        title: "Routine Saved", 
-        description: `${saveResponse.message || "Class routine has been saved successfully."} (${saveResponse.completed_operations}/${saveResponse.total_operations} operations completed)` 
+        title: "Routine Saved & Refreshed", 
+        description: `${saveResponse.message || "Class routine has been saved successfully."} (${saveResponse.completed_operations}/${saveResponse.total_operations} operations completed). Data refreshed from server.` 
       });
+
+      console.log('Routine saved and automatically refreshed from server');
     } catch (err: any) {
       const errorMsg = getErrorMessage(err);
       setError(errorMsg);

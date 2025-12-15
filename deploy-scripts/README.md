@@ -1,69 +1,92 @@
 # SLMS Deployment Scripts
 
-This directory contains automated deployment scripts for the Student Learning Management System (SLMS) on AWS Ubuntu server.
+This directory contains streamlined deployment and maintenance scripts for the Student Learning Management System (SLMS) on AWS Ubuntu server.
 
 ## Quick Start
 
-For a complete automated deployment, run:
-
+### Option 1: Interactive Menu (Recommended)
 ```bash
 # Make sure you're in the project root directory
 cd /home/ubuntu/slms-project
 
-# Run the complete deployment script
-chmod +x deploy-scripts/deploy-all.sh
-./deploy-scripts/deploy-all.sh
+# Run the interactive management script
+chmod +x deploy-scripts/slms.sh
+./deploy-scripts/slms.sh
 ```
 
-## Individual Scripts
-
-If you prefer to run steps individually:
-
-### 1. Server Setup
+### Option 2: Direct Deployment
 ```bash
-chmod +x deploy-scripts/setup-server.sh
-./deploy-scripts/setup-server.sh
-```
-- Installs system packages (Python, Node.js, PostgreSQL, NGINX)
-- Configures PostgreSQL database
-- Sets up firewall rules
+# Make sure you're in the project root directory
+cd /home/ubuntu/slms-project
 
-### 2. Backend Deployment
+# Run the single deployment script
+chmod +x deploy-scripts/deploy.sh
+./deploy-scripts/deploy.sh
+```
+
+## Script Organization
+
+The deployment system consists of just **4 essential files**:
+
+```
+deploy-scripts/
+├── slms.sh          # 🎯 Master interactive script (RECOMMENDED)
+├── deploy.sh        # 🚀 Complete automated deployment
+├── maintenance.sh   # 🔧 System maintenance tasks
+├── troubleshoot.sh  # 🩺 Problem diagnosis and fixes
+└── README.md        # 📖 This documentation
+```
+
+### Master Script (`slms.sh`) - **Recommended Entry Point**
 ```bash
-chmod +x deploy-scripts/deploy-backend.sh
-./deploy-scripts/deploy-backend.sh
+chmod +x deploy-scripts/slms.sh
+./deploy-scripts/slms.sh
 ```
-- Sets up Python virtual environment
-- Installs Python dependencies
-- Configures Django settings
-- Sets up Gunicorn service
+- **Interactive menu system** - No need to remember commands
+- **Access to all functionality** - Deploy, maintain, troubleshoot
+- **User-friendly interface** - Guided workflows
+- **Built-in help** - Context-sensitive assistance
 
-### 3. Frontend Deployment
+## Core Scripts
+
+### 1. Main Deployment (`deploy.sh`)
 ```bash
-chmod +x deploy-scripts/deploy-frontend.sh
-./deploy-scripts/deploy-frontend.sh
+chmod +x deploy-scripts/deploy.sh
+./deploy-scripts/deploy.sh
 ```
-- Builds admin frontend (React/Vite)
-- Builds student frontend (React/Vite)
-- Sets proper file permissions
+- Complete automated deployment
+- System setup, database configuration
+- Backend and frontend deployment
+- NGINX configuration and firewall setup
 
-### 4. NGINX Configuration
+### 2. Maintenance (`maintenance.sh`)
 ```bash
-chmod +x deploy-scripts/configure-nginx.sh
-./deploy-scripts/configure-nginx.sh
+chmod +x deploy-scripts/maintenance.sh
+./deploy-scripts/maintenance.sh [COMMAND]
 ```
-- Configures NGINX for both frontends
-- Sets up API proxy to Django backend
-- Enables and starts NGINX service
+Available commands:
+- `status` - Check service status
+- `logs` - View service logs
+- `restart` - Restart services
+- `update` - Update from git
+- `backup` - Create database backup
+- `restore` - Restore database
+- `superuser` - Create Django superuser
+- `rebuild` - Rebuild frontend
+- `monitor` - Real-time monitoring
 
-
-if have any error for pg ar migret premition
-
+### 3. Troubleshooting (`troubleshoot.sh`)
 ```bash
-# Make the script executable
-chmod +x ~/Update2.0_database/deploy-scripts/fix-database-permissions.sh
-~/Update2.0_database/deploy-scripts/fix-database-permissions.sh
+chmod +x deploy-scripts/troubleshoot.sh
+./deploy-scripts/troubleshoot.sh [COMMAND]
 ```
+Available commands:
+- `diagnose` - Full system diagnosis
+- `fix-502` - Fix 502 Bad Gateway errors
+- `fix-cors` - Fix CORS issues
+- `fix-perms` - Fix file permissions
+- `fix-db` - Fix database issues
+- `reset-nginx` - Reset NGINX config
 
 ## Prerequisites
 
@@ -117,50 +140,45 @@ After running the scripts, you may need to:
    - Allow port 80 (HTTP)
    - Allow port 8080 (Admin Frontend)
 
-## Troubleshooting
+## Quick Commands
 
-### Check Service Status
+### Check System Status
 ```bash
-sudo systemctl status gunicorn
-sudo systemctl status nginx
-sudo systemctl status postgresql
+./deploy-scripts/maintenance.sh status
 ```
 
 ### View Logs
 ```bash
-# Gunicorn logs
-sudo journalctl -u gunicorn -f
-
-# NGINX logs
-sudo tail -f /var/log/nginx/error.log
-sudo tail -f /var/log/nginx/access.log
+./deploy-scripts/maintenance.sh logs
 ```
 
 ### Restart Services
 ```bash
-sudo systemctl restart gunicorn
-sudo systemctl restart nginx
+./deploy-scripts/maintenance.sh restart
 ```
 
-### Common Issues
+### Troubleshooting
 
-1. **502 Bad Gateway**: Gunicorn not running
+For common issues, use the troubleshooting script:
+
+1. **502 Bad Gateway**:
    ```bash
-   sudo systemctl restart gunicorn
-   sudo journalctl -u gunicorn -f
+   ./deploy-scripts/troubleshoot.sh fix-502
    ```
 
-2. **Static Files Not Loading**: Permissions issue
+2. **CORS Issues**:
    ```bash
-   cd /home/ubuntu/Update2.0_database
-   python server/manage.py collectstatic --noinput
-   sudo chmod -R 755 server/staticfiles/
+   ./deploy-scripts/troubleshoot.sh fix-cors
    ```
 
-3. **Database Connection Error**: PostgreSQL not configured
+3. **Permission Issues**:
    ```bash
-   sudo systemctl status postgresql
-   # Check server/.env database settings
+   ./deploy-scripts/troubleshoot.sh fix-perms
+   ```
+
+4. **Full Diagnosis**:
+   ```bash
+   ./deploy-scripts/troubleshoot.sh diagnose
    ```
 
 ## File Structure After Deployment
@@ -184,31 +202,60 @@ sudo systemctl restart nginx
 
 ## Maintenance
 
-### Update Code
+### Update Application
 ```bash
-cd /home/ubuntu/slms-project
-git pull origin main
-
-# Update backend
-cd server
-source venv/bin/activate
-pip install -r requirements.txt
-python manage.py migrate
-python manage.py collectstatic --noinput
-sudo systemctl restart gunicorn
-
-# Update frontend
-cd ../client/admin-side
-npm install && npm run build
-cd ../student-side
-npm install && npm run build
-sudo systemctl restart nginx
+./deploy-scripts/maintenance.sh update
 ```
 
-### Database Backup
+### Create Database Backup
 ```bash
-pg_dump -U sipi_web -h localhost sipi_db > backup_$(date +%Y%m%d_%H%M%S).sql
+./deploy-scripts/maintenance.sh backup
 ```
+
+### Monitor System
+```bash
+./deploy-scripts/maintenance.sh monitor
+```
+
+## Benefits of New Structure
+
+### ✅ Simplified Management
+- **Single Entry Point**: Use `slms.sh` for all tasks
+- **Automated Deployment**: One command deploys everything
+- **Built-in Troubleshooting**: Automated fixes for common issues
+- **Comprehensive Logging**: All operations are logged
+
+### ✅ Improved Reliability
+- **Error Handling**: Scripts exit on errors with clear messages
+- **Pre-flight Checks**: Validation before operations
+- **Service Verification**: Automatic status checking
+- **Rollback Capability**: Database backups before updates
+
+### ✅ Better Maintenance
+- **Automated Updates**: Pull code, rebuild, restart services
+- **System Monitoring**: Real-time status monitoring
+- **Log Management**: Easy access to all service logs
+- **Backup Management**: Automated database backups
+
+### ✅ Easier Troubleshooting
+- **Diagnostic Tools**: Comprehensive system diagnosis
+- **Automated Fixes**: One-command fixes for common issues
+- **Permission Management**: Automatic permission fixing
+- **Service Recovery**: Automated service restart and recovery
+
+## Clean, Minimal Structure
+
+### ✅ What We Removed
+- **30+ individual scripts** consolidated into 4 essential files
+- **Duplicate functionality** merged into unified commands
+- **Legacy fixes** replaced with comprehensive troubleshooting
+- **Scattered configurations** centralized in single scripts
+
+### ✅ What You Get Now
+- **Single command deployment**: `./deploy-scripts/slms.sh`
+- **Everything in one place**: No hunting through multiple files
+- **Consistent interface**: Same commands, predictable behavior
+- **Easy maintenance**: Only 4 files to manage
 
 ## Security Notes
 
@@ -221,7 +268,9 @@ pg_dump -U sipi_web -h localhost sipi_db > backup_$(date +%Y%m%d_%H%M%S).sql
 ## Support
 
 For issues with deployment:
-1. Check the troubleshooting section above
-2. Review service logs
-3. Verify AWS Security Group settings
-4. Ensure all prerequisites are met
+1. Use `./deploy-scripts/slms.sh` and select troubleshooting
+2. Run `./deploy-scripts/troubleshoot.sh diagnose` for full diagnosis
+3. Check the troubleshooting section above
+4. Review service logs via the maintenance script
+5. Verify AWS Security Group settings
+6. Ensure all prerequisites are met

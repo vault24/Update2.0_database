@@ -5,6 +5,187 @@
 
 import { apiClient, PaginatedResponse } from '@/lib/api';
 
+// Cache management for routine data
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+  key: string;
+}
+
+class RoutineCache {
+  private cache = new Map<string, CacheEntry<any>>();
+  private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+  // Generate cache key from parameters
+  private generateKey(prefix: string, params?: any): string {
+    if (!params) return prefix;
+    const sortedParams = Object.keys(params)
+      .sort()
+      .reduce((result, key) => {
+        result[key] = params[key];
+        return result;
+      }, {} as any);
+    return `${prefix}:${JSON.stringify(sortedParams)}`;
+  }
+
+  // Get cached data if valid
+  get<T>(key: string): T | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+
+    const isExpired = Date.now() - entry.timestamp > this.CACHE_DURATION;
+    if (isExpired) {
+      this.cache.delete(key);
+      return null;
+    }
+
+    console.log(`Cache hit for key: ${key}`);
+    return entry.data;
+  }
+
+  // Set cache data
+  set<T>(key: string, data: T): void {
+    this.cache.set(key, {
+      data,
+      timestamp: Date.now(),
+      key
+    });
+    console.log(`Cache set for key: ${key}`);
+  }
+
+  // Invalidate specific cache entries
+  invalidate(pattern?: string): void {
+    if (!pattern) {
+      // Clear all cache
+      console.log('Clearing all routine cache');
+      this.cache.clear();
+      return;
+    }
+
+    // Clear entries matching pattern
+    const keysToDelete: string[] = [];
+    for (const [key] of this.cache) {
+      if (key.includes(pattern)) {
+        keysToDelete.push(key);
+      }
+    }
+
+    keysToDelete.forEach(key => {
+      this.cache.delete(key);
+      console.log(`Cache invalidated for key: ${key}`);
+    });
+  }
+
+  // Invalidate by filters (department, semester, shift)
+  invalidateByFilters(filters: { department?: string; semester?: number; shift?: Shift }): void {
+    const patterns: string[] = [];
+    
+    if (filters.department) patterns.push(`department":"${filters.department}"`);
+    if (filters.semester) patterns.push(`semester":${filters.semester}`);
+    if (filters.shift) patterns.push(`shift":"${filters.shift}"`);
+
+    if (patterns.length === 0) {
+      this.invalidate(); // Clear all if no specific filters
+      return;
+    }
+
+    patterns.forEach(pattern => this.invalidate(pattern));
+  }
+
+  // Get cache statistics
+  getStats(): { size: number; keys: string[] } {
+    return {
+      size: this.cache.size,
+      keys: Array.from(this.cache.keys())
+    };
+  }
+}
+
+// Global cache instance
+const routineCache = new RoutineCache();
+
+// Filter validation utilities
+export const filterValidation = {
+  /**
+   * Validate department ID
+   */
+  validateDepartment: (department?: string): boolean => {
+    return !!(department && typeof department === 'string' && department.trim().length > 0);
+  },
+
+  /**
+   * Validate semester value
+   */
+  validateSemester: (semester?: number): boolean => {
+    return !!(semester && typeof semester === 'number' && semester >= 1 && semester <= 8);
+  },
+
+  /**
+   * Validate shift value
+   */
+  validateShift: (shift?: Shift): boolean => {
+    return !!(shift && ['Morning', 'Day', 'Evening'].includes(shift));
+  },
+
+  /**
+   * Validate complete filter set
+   */
+  validateFilters: (filters: { department?: string; semester?: number; shift?: Shift }): {
+    isValid: boolean;
+    errors: string[];
+  } => {
+    const errors: string[] = [];
+
+    if (!filterValidation.validateDepartment(filters.department)) {
+      errors.push('Invalid or missing department');
+    }
+
+    if (!filterValidation.validateSemester(filters.semester)) {
+      errors.push('Invalid semester (must be 1-8)');
+    }
+
+    if (!filterValidation.validateShift(filters.shift)) {
+      errors.push('Invalid shift (must be Morning, Day, or Evening)');
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  },
+
+  /**
+   * Sanitize filters by removing invalid values
+   */
+  sanitizeFilters: (filters: any): any => {
+    const sanitized: any = {};
+
+    if (filterValidation.validateDepartment(filters.department)) {
+      sanitized.department = filters.department.trim();
+    }
+
+    if (filterValidation.validateSemester(filters.semester)) {
+      sanitized.semester = filters.semester;
+    }
+
+    if (filterValidation.validateShift(filters.shift)) {
+      sanitized.shift = filters.shift;
+    } else if (filters.shift) {
+      // Default to Day if shift is provided but invalid
+      sanitized.shift = 'Day';
+    }
+
+    // Copy other valid parameters
+    Object.keys(filters).forEach(key => {
+      if (!['department', 'semester', 'shift'].includes(key) && filters[key] !== undefined) {
+        sanitized[key] = filters[key];
+      }
+    });
+
+    return sanitized;
+  }
+};
+
 // Types
 export type DayOfWeek = 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday';
 export type Shift = 'Morning' | 'Day' | 'Evening';
@@ -116,53 +297,179 @@ export interface BulkUpdateResponse {
 // Service
 export const routineService = {
   /**
-   * Get paginated list of class routines
+   * Get paginated list of class routines with caching and filter validation
    */
   getRoutine: async (filters?: RoutineFilters): Promise<PaginatedResponse<ClassRoutine>> => {
-    return await apiClient.get<PaginatedResponse<ClassRoutine>>('class-routines/', filters);
+    // Sanitize filters to ensure valid values
+    const sanitizedFilters = filters ? filterValidation.sanitizeFilters(filters) : undefined;
+    const cacheKey = routineCache['generateKey']('getRoutine', sanitizedFilters);
+    
+    // Try to get from cache first
+    const cached = routineCache.get<PaginatedResponse<ClassRoutine>>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    // Fetch from API with sanitized filters and cache the result
+    const result = await apiClient.get<PaginatedResponse<ClassRoutine>>('class-routines/', sanitizedFilters);
+    routineCache.set(cacheKey, result);
+    return result;
   },
 
   /**
-   * Get single class routine by ID
+   * Get single class routine by ID with caching
    */
   getRoutineById: async (id: string): Promise<ClassRoutine> => {
-    return await apiClient.get<ClassRoutine>(`class-routines/${id}/`);
+    const cacheKey = routineCache['generateKey']('getRoutineById', { id });
+    
+    // Try to get from cache first
+    const cached = routineCache.get<ClassRoutine>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    // Fetch from API and cache the result
+    const result = await apiClient.get<ClassRoutine>(`class-routines/${id}/`);
+    routineCache.set(cacheKey, result);
+    return result;
   },
 
   /**
-   * Create class routine
+   * Create class routine with cache invalidation
    */
   createRoutine: async (data: RoutineCreateData): Promise<ClassRoutine> => {
-    return await apiClient.post<ClassRoutine>('class-routines/', data);
+    const result = await apiClient.post<ClassRoutine>('class-routines/', data);
+    
+    // Invalidate relevant cache entries
+    routineCache.invalidateByFilters({
+      department: data.department,
+      semester: data.semester,
+      shift: data.shift
+    });
+    
+    console.log('Cache invalidated after routine creation');
+    return result;
   },
 
   /**
-   * Update class routine
+   * Update class routine with cache invalidation
    */
   updateRoutine: async (id: string, data: Partial<RoutineCreateData>): Promise<ClassRoutine> => {
-    return await apiClient.patch<ClassRoutine>(`class-routines/${id}/`, data);
+    const result = await apiClient.patch<ClassRoutine>(`class-routines/${id}/`, data);
+    
+    // Invalidate relevant cache entries
+    if (data.department || data.semester || data.shift) {
+      routineCache.invalidateByFilters({
+        department: data.department,
+        semester: data.semester,
+        shift: data.shift
+      });
+    } else {
+      // If we don't know the specific filters, clear all cache
+      routineCache.invalidate();
+    }
+    
+    console.log('Cache invalidated after routine update');
+    return result;
   },
 
   /**
-   * Delete class routine
+   * Delete class routine with cache invalidation
    */
   deleteRoutine: async (id: string): Promise<void> => {
-    return await apiClient.delete<void>(`class-routines/${id}/`);
+    const result = await apiClient.delete<void>(`class-routines/${id}/`);
+    
+    // Since we don't know which filters this routine belonged to, clear all cache
+    routineCache.invalidate();
+    
+    console.log('Cache invalidated after routine deletion');
+    return result;
   },
 
   /**
-   * Get routine for student or teacher
+   * Get routine for student or teacher with caching
    */
   getMyRoutine: async (params: MyRoutineParams): Promise<MyRoutineResponse> => {
-    return await apiClient.get<MyRoutineResponse>('class-routines/my-routine/', params);
+    const cacheKey = routineCache['generateKey']('getMyRoutine', params);
+    
+    // Try to get from cache first
+    const cached = routineCache.get<MyRoutineResponse>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    // Fetch from API and cache the result
+    const result = await apiClient.get<MyRoutineResponse>('class-routines/my-routine/', params);
+    routineCache.set(cacheKey, result);
+    return result;
   },
 
   /**
-   * Bulk update class routines
+   * Bulk update class routines with cache invalidation
    */
   bulkUpdate: async (request: BulkUpdateRequest): Promise<BulkUpdateResponse> => {
-    return await apiClient.post<BulkUpdateResponse>('class-routines/bulk-update/', request);
+    const result = await apiClient.post<BulkUpdateResponse>('class-routines/bulk-update/', request);
+    
+    // Extract affected filters from operations
+    const affectedFilters = new Set<string>();
+    request.operations.forEach(op => {
+      if (op.data) {
+        const key = `${op.data.department}-${op.data.semester}-${op.data.shift}`;
+        affectedFilters.add(key);
+      }
+    });
+
+    // Invalidate cache for affected filters
+    if (affectedFilters.size > 0) {
+      affectedFilters.forEach(filterKey => {
+        const [department, semester, shift] = filterKey.split('-');
+        routineCache.invalidateByFilters({
+          department,
+          semester: semester ? parseInt(semester) : undefined,
+          shift: shift as Shift
+        });
+      });
+    } else {
+      // If we can't determine specific filters, clear all cache
+      routineCache.invalidate();
+    }
+    
+    console.log('Cache invalidated after bulk update');
+    return result;
   },
+
+  /**
+   * Cache management utilities
+   */
+  cache: {
+    /**
+     * Manually invalidate cache
+     */
+    invalidate: (pattern?: string) => {
+      routineCache.invalidate(pattern);
+    },
+
+    /**
+     * Invalidate cache by filters
+     */
+    invalidateByFilters: (filters: { department?: string; semester?: number; shift?: Shift }) => {
+      routineCache.invalidateByFilters(filters);
+    },
+
+    /**
+     * Get cache statistics
+     */
+    getStats: () => {
+      return routineCache.getStats();
+    },
+
+    /**
+     * Clear all cache
+     */
+    clear: () => {
+      routineCache.invalidate();
+    }
+  }
 };
 
 // Data transformation utilities
