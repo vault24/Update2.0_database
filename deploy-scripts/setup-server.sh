@@ -59,14 +59,29 @@ ALTER USER sipi_web CREATEDB;
 EOF
 
 print_status "Configuring PostgreSQL authentication..."
-PG_VERSION=$(sudo -u postgres psql -t -c "SELECT version();" | grep -oP '\d+\.\d+' | head -1)
-PG_CONFIG_PATH="/etc/postgresql/$PG_VERSION/main/pg_hba.conf"
 
-# Backup original config
-sudo cp "$PG_CONFIG_PATH" "$PG_CONFIG_PATH.backup"
+# Find the correct PostgreSQL configuration directory
+PG_CONFIG_DIR=$(sudo find /etc/postgresql -name "pg_hba.conf" -type f | head -1 | xargs dirname)
+PG_CONFIG_PATH="$PG_CONFIG_DIR/pg_hba.conf"
 
-# Add authentication line for sipi_web user
-echo "local   all             sipi_web                                md5" | sudo tee -a "$PG_CONFIG_PATH"
+if [ ! -f "$PG_CONFIG_PATH" ]; then
+    print_error "Could not find pg_hba.conf file. Please configure PostgreSQL manually."
+    print_warning "You may need to add this line to your pg_hba.conf:"
+    print_warning "local   all             sipi_web                                md5"
+else
+    print_status "Found PostgreSQL config at: $PG_CONFIG_PATH"
+    
+    # Backup original config
+    sudo cp "$PG_CONFIG_PATH" "$PG_CONFIG_PATH.backup"
+    
+    # Add authentication line for sipi_web user if it doesn't exist
+    if ! sudo grep -q "sipi_web" "$PG_CONFIG_PATH"; then
+        echo "local   all             sipi_web                                md5" | sudo tee -a "$PG_CONFIG_PATH"
+        print_status "Added sipi_web authentication to PostgreSQL"
+    else
+        print_warning "sipi_web authentication already exists in PostgreSQL config"
+    fi
+fi
 
 print_status "Restarting and enabling PostgreSQL..."
 sudo systemctl restart postgresql
