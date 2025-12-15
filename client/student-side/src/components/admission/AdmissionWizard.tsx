@@ -373,7 +373,7 @@ export function AdmissionWizard() {
     setIsSubmitting(true);
     
     try {
-      // Capitalize gender (Male/Female/Other)
+      // Capitalize gender (Male/Female)
       const capitalizeGender = (gender: string) => {
         if (!gender) return '';
         return gender.charAt(0).toUpperCase() + gender.slice(1).toLowerCase();
