@@ -56,6 +56,15 @@ chmod +x deploy-scripts/configure-nginx.sh
 - Sets up API proxy to Django backend
 - Enables and starts NGINX service
 
+
+if have any error for pg ar migret premition
+
+# Make the script executable
+chmod +x ~/Update2.0_database/deploy-scripts/fix-database-permissions.sh
+
+# Run the fix script
+~/Update2.0_database/deploy-scripts/fix-database-permissions.sh
+
 ## Prerequisites
 
 - AWS Ubuntu EC2 instance

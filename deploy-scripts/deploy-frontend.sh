@@ -48,7 +48,7 @@ print_status "Installing admin frontend dependencies..."
 npm install
 
 print_status "Building admin frontend for production..."
-npm run build
+npx vite build
 
 if [ ! -d "dist" ]; then
     print_error "Admin frontend build failed - dist directory not found"
@@ -70,7 +70,7 @@ print_status "Installing student frontend dependencies..."
 npm install
 
 print_status "Building student frontend for production..."
-npm run build
+npx vite build
 
 if [ ! -d "dist" ]; then
     print_error "Student frontend build failed - dist directory not found"
