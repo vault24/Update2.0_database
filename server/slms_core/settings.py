@@ -198,6 +198,9 @@ CORS_ALLOW_CREDENTIALS = True
 # Allow all origins in development (be more restrictive in production)
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
+else:
+    # In production, use specific origins only
+    CORS_ALLOW_ALL_ORIGINS = False
 
 # CSRF Configuration for frontend
 CSRF_TRUSTED_ORIGINS = config(
