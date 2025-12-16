@@ -107,7 +107,28 @@ export function ClassStatusBox({
     setCurrentQuoteIndex(Math.floor(Math.random() * motivationalQuotes.length));
   }, []);
 
-  // Auto-toggle functionality
+  // Auto-show motivation when no class is running
+  useEffect(() => {
+    if (!runningClass) {
+      setShowMotivation(true);
+      setAutoToggle(false); // Disable auto-toggle when no class is running
+    } else {
+      setShowMotivation(false); // Show class info when class is running
+    }
+  }, [runningClass]);
+
+  // Change quotes periodically when showing motivation and no class is running
+  useEffect(() => {
+    if (!runningClass && showMotivation) {
+      const quoteInterval = setInterval(() => {
+        setCurrentQuoteIndex(Math.floor(Math.random() * motivationalQuotes.length));
+      }, 45000); // Change quote every 45 seconds when no class is running
+      
+      return () => clearInterval(quoteInterval);
+    }
+  }, [runningClass, showMotivation]);
+
+  // Auto-toggle functionality - only when class is running
   useEffect(() => {
     if (autoToggle && runningClass) {
       const interval = setInterval(() => {
@@ -136,6 +157,9 @@ export function ClassStatusBox({
   }, [autoToggleInterval]);
 
   const handleToggleAutoMode = () => {
+    // Only allow auto-toggle when class is running
+    if (!runningClass) return;
+    
     setAutoToggle(!autoToggle);
     if (!autoToggle) {
       setShowMotivation(false); // Start with class info when enabling auto-toggle
@@ -143,6 +167,9 @@ export function ClassStatusBox({
   };
 
   const handleManualToggle = () => {
+    // Only allow manual toggle when class is running
+    if (!runningClass) return;
+    
     if (autoToggle) {
       setAutoToggle(false); // Disable auto-toggle when manually toggling
     }
@@ -416,29 +443,29 @@ export function ClassStatusBox({
       animate={{ opacity: 1, y: 0 }}
       className={cn("space-y-3", className)}
     >
-      {/* Control Buttons */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleManualToggle}
-            className="gap-2 text-xs"
-          >
-            {showMotivation ? (
-              <>
-                <BookOpen className="w-3 h-3" />
-                Show Class Info
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-3 h-3" />
-                Show Motivation
-              </>
-            )}
-          </Button>
-          
-          {runningClass && (
+      {/* Control Buttons - Only show when class is running */}
+      {runningClass && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleManualToggle}
+              className="gap-2 text-xs"
+            >
+              {showMotivation ? (
+                <>
+                  <BookOpen className="w-3 h-3" />
+                  Show Class Info
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3 h-3" />
+                  Show Motivation
+                </>
+              )}
+            </Button>
+            
             <Button
               variant={autoToggle ? "default" : "outline"}
               size="sm"
@@ -457,16 +484,16 @@ export function ClassStatusBox({
                 </>
               )}
             </Button>
+          </div>
+          
+          {autoToggle && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Timer className="w-3 h-3" />
+              <span>Auto-switching every 30s</span>
+            </div>
           )}
         </div>
-        
-        {autoToggle && (
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Timer className="w-3 h-3" />
-            <span>Auto-switching every 30s</span>
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Content Area */}
       <AnimatePresence mode="wait">

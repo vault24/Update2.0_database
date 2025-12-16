@@ -110,6 +110,61 @@ class AdmissionService {
   }
 
   /**
+   * Submit admission application with documents
+   * POST /api/admissions/ followed by POST /api/admissions/upload-documents/
+   */
+  async submitApplicationWithDocuments(
+    data: AdmissionFormData, 
+    documents: Record<string, File>
+  ): Promise<Admission> {
+    // First submit the admission application
+    const admission = await this.submitApplication(data);
+    
+    // If admission was already submitted, return it
+    if (admission.alreadySubmitted) {
+      return admission;
+    }
+    
+    // If there are documents to upload, upload them
+    if (documents && Object.keys(documents).length > 0) {
+      try {
+        await this.uploadDocuments(admission.id, documents);
+      } catch (error) {
+        console.error('Document upload failed after admission submission:', error);
+        // Don't fail the entire submission if documents fail
+        // The admission is already created, just log the error
+        throw new Error(
+          'Admission submitted successfully, but document upload failed. ' +
+          'Please try uploading documents again from your dashboard.'
+        );
+      }
+    }
+    
+    return admission;
+  }
+
+  /**
+   * Upload documents for an admission
+   * POST /api/admissions/upload-documents/
+   */
+  async uploadDocuments(
+    admissionId: string, 
+    documents: Record<string, File>
+  ): Promise<void> {
+    const formData = new FormData();
+    formData.append('admission_id', admissionId);
+    
+    // Add each document file to the form data
+    Object.entries(documents).forEach(([fieldName, file]) => {
+      if (file) {
+        formData.append(`documents[${fieldName}]`, file);
+      }
+    });
+    
+    await api.post('/admissions/upload-documents/', formData, true);
+  }
+
+  /**
    * Get current user's admission status
    * GET /api/admissions/my_admission/
    */

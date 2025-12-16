@@ -26,6 +26,9 @@ export interface Document {
   filePath: string;
   fileSize: number;
   uploadDate: string;
+  source_type?: 'admission' | 'manual';
+  source_id?: string;
+  original_field_name?: string;
 }
 
 export interface DocumentFilters {
@@ -33,6 +36,7 @@ export interface DocumentFilters {
   page_size?: number;
   student?: string;
   category?: DocumentCategory;
+  source_type?: 'admission' | 'manual';
   ordering?: string;
 }
 

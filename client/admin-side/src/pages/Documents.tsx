@@ -25,6 +25,7 @@ import { GeneratedDocument } from '@/types/template';
 
 
 const documentTypes = ['All Types', 'Certificate', 'NID', 'Birth Certificate', 'Marksheet', 'Testimonial', 'Photo', 'Other'];
+const sourceTypes = ['All Sources', 'Admission Upload', 'Manual Upload'];
 
 const getFileIcon = (format: string) => {
   switch (format) {
@@ -44,6 +45,7 @@ const getFileIcon = (format: string) => {
 export default function Documents() {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('All Types');
+  const [sourceFilter, setSourceFilter] = useState('All Sources');
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isViewOpen, setIsViewOpen] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
@@ -53,6 +55,13 @@ export default function Documents() {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [searchedStudents, setSearchedStudents] = useState<Student[]>([]);
   const [studentSearchLoading, setStudentSearchLoading] = useState(false);
+  const [uploadFormData, setUploadFormData] = useState({
+    fileName: '',
+    category: '' as DocumentCategory | '',
+    studentId: '',
+    file: null as File | null
+  });
+  const [isUploading, setIsUploading] = useState(false);
   const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
   const [isBatchGeneratorOpen, setIsBatchGeneratorOpen] = useState(false);
   const [generatedDocuments, setGeneratedDocuments] = useState<GeneratedDocument[]>([]);
@@ -73,7 +82,7 @@ export default function Documents() {
   // Fetch documents
   useEffect(() => {
     fetchDocuments();
-  }, [search, typeFilter]);
+  }, [search, typeFilter, sourceFilter]);
 
   // Load templates for quick generate + display
   useEffect(() => {
@@ -109,6 +118,10 @@ export default function Documents() {
       
       if (typeFilter !== 'All Types') {
         filters.category = typeFilter as DocumentCategory;
+      }
+      
+      if (sourceFilter !== 'All Sources') {
+        filters.source_type = sourceFilter === 'Admission Upload' ? 'admission' : 'manual';
       }
       
       const response = await documentService.getDocuments(filters);
@@ -171,12 +184,74 @@ export default function Documents() {
     return () => clearTimeout(timeoutId);
   }, [studentSearch]);
 
-  const handleUpload = () => {
-    toast({
-      title: "Document Uploaded",
-      description: "The document has been uploaded successfully.",
-    });
-    setIsUploadOpen(false);
+  const handleUpload = async () => {
+    if (!uploadFormData.file || !uploadFormData.category || !uploadFormData.studentId) {
+      toast({
+        title: 'Error',
+        description: 'Please fill in all required fields and select a file.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      
+      await documentService.uploadDocument({
+        student: uploadFormData.studentId,
+        category: uploadFormData.category as DocumentCategory,
+        file: uploadFormData.file
+      });
+
+      toast({
+        title: "Document Uploaded",
+        description: "The document has been uploaded successfully.",
+      });
+      
+      // Reset form and close dialog
+      setUploadFormData({
+        fileName: '',
+        category: '',
+        studentId: '',
+        file: null
+      });
+      setSelectedStudent(null);
+      setIsUploadOpen(false);
+      
+      // Refresh documents list
+      fetchDocuments();
+      
+    } catch (err) {
+      const errorMsg = getErrorMessage(err);
+      toast({
+        title: 'Error',
+        description: `Failed to upload document: ${errorMsg}`,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setUploadFormData(prev => ({
+        ...prev,
+        file,
+        fileName: file.name
+      }));
+    }
+  };
+
+  const handleStudentSelect = (student: Student) => {
+    setSelectedStudent(student);
+    setUploadFormData(prev => ({
+      ...prev,
+      studentId: student.id
+    }));
+    setStudentSearch('');
+    setSearchedStudents([]);
   };
 
   const handleView = (doc: Document) => {
@@ -330,16 +405,16 @@ export default function Documents() {
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
               <Card className="glass-card">
                 <CardContent className="p-4 text-center">
-                  <p className="text-2xl font-bold text-primary">{documents.filter(d => d.category === 'Certificate').length}</p>
-                  <p className="text-xs text-muted-foreground">Certificates</p>
+                  <p className="text-2xl font-bold text-primary">{documents.filter(d => d.source_type === 'admission').length}</p>
+                  <p className="text-xs text-muted-foreground">Admission Docs</p>
                 </CardContent>
               </Card>
             </motion.div>
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
               <Card className="glass-card">
                 <CardContent className="p-4 text-center">
-                  <p className="text-2xl font-bold text-success">{documents.filter(d => d.category === 'NID' || d.category === 'Birth Certificate').length}</p>
-                  <p className="text-xs text-muted-foreground">Identity Docs</p>
+                  <p className="text-2xl font-bold text-success">{documents.filter(d => d.source_type === 'manual').length}</p>
+                  <p className="text-xs text-muted-foreground">Manual Uploads</p>
                 </CardContent>
               </Card>
             </motion.div>
@@ -375,6 +450,16 @@ export default function Documents() {
                   <SelectContent>
                     {documentTypes.map(t => (
                       <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={sourceFilter} onValueChange={setSourceFilter}>
+                  <SelectTrigger className="w-full sm:w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sourceTypes.map(s => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -415,6 +500,7 @@ export default function Documents() {
                       <tr className="border-b border-border bg-muted/50">
                         <th className="text-left p-4 text-sm font-medium text-muted-foreground">Document</th>
                         <th className="text-left p-4 text-sm font-medium text-muted-foreground">Type</th>
+                        <th className="text-left p-4 text-sm font-medium text-muted-foreground">Source</th>
                         <th className="text-left p-4 text-sm font-medium text-muted-foreground">Student</th>
                         <th className="text-left p-4 text-sm font-medium text-muted-foreground">Date</th>
                         <th className="text-left p-4 text-sm font-medium text-muted-foreground">Size</th>
@@ -441,6 +527,31 @@ export default function Documents() {
                           </td>
                           <td className="p-4">
                             <Badge variant="outline">{doc.category}</Badge>
+                          </td>
+                          <td className="p-4">
+                            <div className="flex items-center gap-2">
+                              <Badge 
+                                variant={doc.source_type === 'admission' ? 'default' : 'secondary'}
+                                className="text-xs"
+                              >
+                                {doc.source_type === 'admission' ? (
+                                  <>
+                                    <Users className="w-3 h-3 mr-1" />
+                                    Admission
+                                  </>
+                                ) : (
+                                  <>
+                                    <Upload className="w-3 h-3 mr-1" />
+                                    Manual
+                                  </>
+                                )}
+                              </Badge>
+                              {doc.source_type === 'admission' && doc.original_field_name && (
+                                <Badge variant="outline" className="text-xs">
+                                  {doc.original_field_name}
+                                </Badge>
+                              )}
+                            </div>
                           </td>
                           <td className="p-4">
                             <div>
@@ -639,20 +750,87 @@ export default function Documents() {
 
       {/* Upload Dialog */}
       <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Upload Document</DialogTitle>
+            <DialogDescription>
+              Upload a document for a student. All fields are required.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* Student Selection */}
             <div className="space-y-2">
-              <Label htmlFor="docName">Document Name</Label>
-              <Input id="docName" placeholder="Enter document name" />
+              <Label htmlFor="studentSearch">Student *</Label>
+              {selectedStudent ? (
+                <div className="flex items-center gap-3 p-3 border rounded-lg bg-muted/50">
+                  <Avatar className="w-8 h-8">
+                    <AvatarFallback className="text-xs">
+                      {selectedStudent.fullNameEnglish?.split(' ').map(n => n[0]).join('') || 'ST'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{selectedStudent.fullNameEnglish}</p>
+                    <p className="text-xs text-muted-foreground">Roll: {selectedStudent.currentRollNumber}</p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedStudent(null);
+                      setUploadFormData(prev => ({ ...prev, studentId: '' }));
+                    }}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Input
+                    id="studentSearch"
+                    placeholder="Search by name or roll number..."
+                    value={studentSearch}
+                    onChange={(e) => setStudentSearch(e.target.value)}
+                  />
+                  {studentSearchLoading && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Searching...
+                    </div>
+                  )}
+                  {searchedStudents.length > 0 && (
+                    <div className="border rounded-lg max-h-40 overflow-y-auto">
+                      {searchedStudents.map((student) => (
+                        <div
+                          key={student.id}
+                          className="flex items-center gap-3 p-3 hover:bg-muted/50 cursor-pointer border-b last:border-0"
+                          onClick={() => handleStudentSelect(student)}
+                        >
+                          <Avatar className="w-8 h-8">
+                            <AvatarFallback className="text-xs">
+                              {student.fullNameEnglish?.split(' ').map(n => n[0]).join('') || 'ST'}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="text-sm font-medium">{student.fullNameEnglish}</p>
+                            <p className="text-xs text-muted-foreground">Roll: {student.currentRollNumber}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
+
+            {/* Document Category */}
             <div className="space-y-2">
-              <Label htmlFor="docType">Document Type</Label>
-              <Select>
+              <Label htmlFor="docType">Document Category *</Label>
+              <Select 
+                value={uploadFormData.category} 
+                onValueChange={(value) => setUploadFormData(prev => ({ ...prev, category: value as DocumentCategory }))}
+              >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select type" />
+                  <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
                   {documentTypes.filter(t => t !== 'All Types').map(t => (
@@ -661,22 +839,74 @@ export default function Documents() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* File Upload */}
             <div className="space-y-2">
-              <Label htmlFor="student">Student Roll Number</Label>
-              <Input id="student" placeholder="Enter student roll" />
-            </div>
-            <div className="space-y-2">
-              <Label>Upload File</Label>
-              <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/50 transition-colors cursor-pointer">
-                <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">Click to upload or drag and drop</p>
-                <p className="text-xs text-muted-foreground mt-1">PDF, JPG, PNG (Max 10MB)</p>
-              </div>
+              <Label>Upload File *</Label>
+              {uploadFormData.file ? (
+                <div className="flex items-center gap-3 p-3 border rounded-lg bg-muted/50">
+                  {getFileIcon(uploadFormData.file.name.split('.').pop() || '')}
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{uploadFormData.file.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {(uploadFormData.file.size / 1024 / 1024).toFixed(2)} MB
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setUploadFormData(prev => ({ ...prev, file: null, fileName: '' }))}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
+                  <input
+                    type="file"
+                    className="hidden"
+                    id="fileUpload"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={handleFileSelect}
+                  />
+                  <label htmlFor="fileUpload" className="cursor-pointer">
+                    <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">Click to upload or drag and drop</p>
+                    <p className="text-xs text-muted-foreground mt-1">PDF, JPG, PNG (Max 10MB)</p>
+                  </label>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsUploadOpen(false)}>Cancel</Button>
-            <Button className="gradient-primary text-primary-foreground" onClick={handleUpload}>Upload</Button>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setIsUploadOpen(false);
+                setUploadFormData({ fileName: '', category: '', studentId: '', file: null });
+                setSelectedStudent(null);
+              }}
+              disabled={isUploading}
+            >
+              Cancel
+            </Button>
+            <Button 
+              className="gradient-primary text-primary-foreground" 
+              onClick={handleUpload}
+              disabled={isUploading || !uploadFormData.file || !uploadFormData.category || !uploadFormData.studentId}
+            >
+              {isUploading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload
+                </>
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -30,6 +30,8 @@ export function AdmissionWizard() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingDocuments, setIsUploadingDocuments] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string>('');
   const [applicationId, setApplicationId] = useState('');
   const [departments, setDepartments] = useState<Department[]>([]);
   const [isDraftLoading, setIsDraftLoading] = useState(true);
@@ -451,8 +453,80 @@ export function AdmissionWizard() {
         desired_shift: capitalizeShift(formData.shift),
         session: formData.session,
       };
+
+      // Collect documents from form data
+      const documents: Record<string, File> = {};
       
-      const admission = await admissionService.submitApplication(admissionData);
+      // Map form document fields to API field names
+      const documentFieldMapping = {
+        photo: 'photo',
+        sscMarksheet: 'sscMarksheet',
+        sscCertificate: 'sscCertificate',
+        birthCertificateDoc: 'birthCertificateDoc',
+        studentNIDCopy: 'studentNIDCopy',
+        fatherNIDFront: 'fatherNIDFront',
+        fatherNIDBack: 'fatherNIDBack',
+        motherNIDFront: 'motherNIDFront',
+        motherNIDBack: 'motherNIDBack',
+        testimonial: 'testimonial',
+        medicalCertificate: 'medicalCertificate',
+        quotaDocument: 'quotaDocument',
+        extraCertificates: 'extraCertificates'
+      };
+
+      // Add files to documents object if they exist
+      Object.entries(documentFieldMapping).forEach(([formField, apiField]) => {
+        const file = formData[formField as keyof AdmissionFormState] as File | null;
+        if (file) {
+          documents[apiField] = file;
+        }
+      });
+
+      // Submit application with documents
+      let admission;
+      if (Object.keys(documents).length > 0) {
+        setIsUploadingDocuments(true);
+        setUploadProgress(`Uploading ${Object.keys(documents).length} document(s)...`);
+        
+        // Show progress toast for document upload
+        toast.info('Uploading documents...', {
+          description: `Processing ${Object.keys(documents).length} document(s)`
+        });
+        
+        try {
+          admission = await admissionService.submitApplicationWithDocuments(admissionData, documents);
+          
+          toast.success('Documents uploaded successfully!', {
+            description: 'All documents have been processed and saved.'
+          });
+        } catch (error: any) {
+          // Handle document upload specific errors
+          if (error.message && error.message.includes('document upload failed')) {
+            toast.warning('Partial success', {
+              description: error.message,
+              action: {
+                label: 'Continue',
+                onClick: () => {
+                  // User can continue to dashboard and retry document upload later
+                }
+              }
+            });
+            // Still try to get the admission that was created
+            try {
+              admission = await admissionService.getMyAdmission();
+            } catch (fetchError) {
+              throw error; // Re-throw original error if we can't fetch admission
+            }
+          } else {
+            throw error; // Re-throw for other types of errors
+          }
+        } finally {
+          setIsUploadingDocuments(false);
+          setUploadProgress('');
+        }
+      } else {
+        admission = await admissionService.submitApplication(admissionData);
+      }
 
       // Clear drafts from server and local storage
       await admissionService.clearDraft();
@@ -534,14 +608,16 @@ export function AdmissionWizard() {
   return (
     <div className="max-w-4xl mx-auto">
       <div className="flex flex-wrap items-center gap-3 mb-4">
-        {(isDraftLoading || isDraftSaving || isCheckingExisting) && (
+        {(isDraftLoading || isDraftSaving || isCheckingExisting || isUploadingDocuments) && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className={`w-4 h-4 ${isDraftLoading || isDraftSaving ? 'animate-spin' : ''}`} />
+            <Loader2 className={`w-4 h-4 ${isDraftLoading || isDraftSaving || isUploadingDocuments ? 'animate-spin' : ''}`} />
             <span>
               {isDraftLoading
                 ? 'Loading draft...'
                 : isCheckingExisting
                 ? 'Checking for existing submission...'
+                : isUploadingDocuments
+                ? uploadProgress
                 : usingLocalFallback
                 ? 'Saving locally (offline)'
                 : 'Saving draft...'}
@@ -690,7 +766,7 @@ export function AdmissionWizard() {
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Submitting...
+                  {isUploadingDocuments ? 'Uploading Documents...' : 'Submitting...'}
                 </>
               ) : (
                 <>

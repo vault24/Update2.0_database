@@ -331,3 +331,76 @@ class AdmissionViewSet(viewsets.ModelViewSet):
             'message': 'Admission rejected',
             'admission': response_serializer.data
         }, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=['post'], url_path='upload-documents')
+    def upload_documents(self, request):
+        """
+        Upload documents for admission
+        
+        POST /api/admissions/upload-documents/
+        
+        Request body:
+        {
+            "admission_id": "uuid",
+            "documents": {
+                "photo": <file>,
+                "sscMarksheet": <file>,
+                "sscCertificate": <file>,
+                // ... other document fields
+            }
+        }
+        """
+        from apps.documents.serializers import AdmissionDocumentUploadSerializer
+        
+        serializer = AdmissionDocumentUploadSerializer(data=request.data)
+        
+        if not serializer.is_valid():
+            return Response(
+                serializer.errors,
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        validated_data = serializer.validated_data
+        admission_id = validated_data['admission_id']
+        document_files = validated_data['documents']
+        
+        try:
+            # Get the admission
+            admission = Admission.objects.get(id=admission_id)
+            
+            # Check permissions - user must own the admission or be admin
+            if admission.user != request.user and not request.user.is_staff:
+                return Response({
+                    'error': 'Permission denied',
+                    'details': 'You can only upload documents for your own admission'
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            # Process documents using the admission model method
+            success = admission.process_documents(document_files)
+            
+            if success:
+                # Return success response with updated admission
+                response_serializer = AdmissionDetailSerializer(admission)
+                return Response({
+                    'message': 'Documents uploaded successfully',
+                    'documents_processed': True,
+                    'admission': response_serializer.data
+                }, status=status.HTTP_200_OK)
+            else:
+                # Return error response with details
+                return Response({
+                    'error': 'Document processing failed',
+                    'details': admission.document_processing_errors,
+                    'documents_processed': False
+                }, status=status.HTTP_400_BAD_REQUEST)
+                
+        except Admission.DoesNotExist:
+            return Response({
+                'error': 'Admission not found',
+                'details': 'The specified admission does not exist'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({
+                'error': 'Unexpected error',
+                'details': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

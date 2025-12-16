@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
-  FileText, Download, Loader2, AlertCircle, FolderOpen
+  FileText, Download, Loader2, AlertCircle, FolderOpen, 
+  GraduationCap, Upload, Filter, Badge
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { documentService, type Document } from '@/services/documentService';
+import { documentService, type Document, type DocumentCategory } from '@/services/documentService';
 import { getErrorMessage } from '@/lib/api';
 import { toast } from 'sonner';
 
