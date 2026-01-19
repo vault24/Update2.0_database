@@ -417,7 +417,7 @@ export default function MarksPage() {
   }
 
   return (
-    <div className="space-y-4 md:space-y-6">
+    <div className="space-y-4 md:space-y-6 max-w-full overflow-x-hidden">
       {/* Page Header */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -617,21 +617,21 @@ export default function MarksPage() {
           </motion.div>
         )}
 
-        <div className="overflow-x-auto -mx-3 px-3 md:-mx-4 md:px-4 lg:mx-0 lg:px-0">
-          <table className="w-full min-w-[600px] md:min-w-[700px]">
+        <div className="overflow-x-auto -mx-2 px-2 sm:-mx-3 sm:px-3 md:-mx-4 md:px-4 lg:mx-0 lg:px-0">
+          <table className="w-full min-w-[480px] sm:min-w-[600px] md:min-w-[700px]">
             <thead>
               <tr className="border-b border-border bg-secondary/30">
-                <th className="text-left py-1.5 md:py-2 lg:py-3 px-1.5 md:px-2 lg:px-4 text-[10px] md:text-xs lg:text-sm font-medium text-muted-foreground">Subject</th>
-                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground">CT-1</th>
-                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground">CT-2</th>
-                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground">CT-3</th>
-                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground hidden sm:table-cell">Assgn</th>
-                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground hidden sm:table-cell">Attend</th>
-                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground">Int.</th>
-                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground">Final</th>
-                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground">Total</th>
-                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground">Grade</th>
-                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground hidden md:table-cell">GPA</th>
+                <th className="text-left py-1.5 md:py-2 lg:py-3 px-1 sm:px-1.5 md:px-2 lg:px-4 text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-medium text-muted-foreground">Subject</th>
+                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground">CT1</th>
+                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground">CT2</th>
+                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground hidden sm:table-cell">CT3</th>
+                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground hidden md:table-cell">Asgn</th>
+                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground hidden md:table-cell">Att</th>
+                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground hidden sm:table-cell">Int</th>
+                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground hidden sm:table-cell">Fin</th>
+                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground">Tot</th>
+                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground">Grd</th>
+                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground hidden lg:table-cell">GPA</th>
               </tr>
             </thead>
             <tbody>
@@ -647,57 +647,57 @@ export default function MarksPage() {
                       i === marksData.length - 1 && "border-0"
                     )}
                   >
-                  <td className="py-1.5 md:py-2 lg:py-3 px-1.5 md:px-2 lg:px-4">
+                  <td className="py-1.5 md:py-2 lg:py-3 px-1 sm:px-1.5 md:px-2 lg:px-4">
                     <div className="min-w-0">
-                      <p className="text-[10px] md:text-xs lg:text-sm font-medium truncate">{row.subject}</p>
-                      <p className="text-[9px] md:text-[10px] lg:text-xs text-muted-foreground">{row.code}</p>
+                      <p className="text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-medium truncate max-w-[60px] sm:max-w-[100px] md:max-w-none">{row.subject}</p>
+                      <p className="text-[8px] sm:text-[9px] md:text-[10px] lg:text-xs text-muted-foreground">{row.code}</p>
                     </div>
                   </td>
-                  <td className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-center text-[10px] md:text-xs lg:text-sm">
+                  <td className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-center text-[9px] sm:text-[10px] md:text-xs lg:text-sm">
                     {row.ct1 > 0 ? row.ct1 : <span className="text-muted-foreground">-</span>}
                   </td>
-                  <td className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-center text-[10px] md:text-xs lg:text-sm">
+                  <td className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-center text-[9px] sm:text-[10px] md:text-xs lg:text-sm">
                     {row.ct2 > 0 ? row.ct2 : <span className="text-muted-foreground">-</span>}
                   </td>
-                  <td className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-center text-[10px] md:text-xs lg:text-sm">
+                  <td className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-center text-[9px] sm:text-[10px] md:text-xs lg:text-sm hidden sm:table-cell">
                     {row.ct3 > 0 ? row.ct3 : <span className="text-muted-foreground">-</span>}
                   </td>
-                  <td className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-center text-[10px] md:text-xs lg:text-sm hidden sm:table-cell">
+                  <td className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-center text-[9px] sm:text-[10px] md:text-xs lg:text-sm hidden md:table-cell">
                     {row.assignment > 0 ? row.assignment : <span className="text-muted-foreground">-</span>}
                   </td>
-                  <td className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-center text-[10px] md:text-xs lg:text-sm hidden sm:table-cell">
+                  <td className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-center text-[9px] sm:text-[10px] md:text-xs lg:text-sm hidden md:table-cell">
                     {row.attendance > 0 ? row.attendance : <span className="text-muted-foreground">-</span>}
                   </td>
-                  <td className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-center text-[10px] md:text-xs lg:text-sm font-medium">
+                  <td className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-center text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-medium hidden sm:table-cell">
                     {row.internalTotal > 0 ? row.internalTotal : <span className="text-muted-foreground">-</span>}
                   </td>
-                  <td className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-center text-[10px] md:text-xs lg:text-sm">
+                  <td className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-center text-[9px] sm:text-[10px] md:text-xs lg:text-sm hidden sm:table-cell">
                     {row.finalExam !== null ? row.finalExam : (
-                      <span className="text-[9px] md:text-[10px] lg:text-xs text-muted-foreground italic">-</span>
+                      <span className="text-[8px] sm:text-[9px] md:text-[10px] lg:text-xs text-muted-foreground italic">-</span>
                     )}
                   </td>
                   <td className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-center">
                     {row.total !== null ? (
                       <span className={cn(
-                        "inline-flex items-center justify-center w-7 h-5 md:w-8 md:h-6 lg:w-12 lg:h-8 rounded-md lg:rounded-lg text-[9px] md:text-[10px] lg:text-sm font-bold text-white",
+                        "inline-flex items-center justify-center w-6 h-4 sm:w-7 sm:h-5 md:w-8 md:h-6 lg:w-12 lg:h-8 rounded sm:rounded-md lg:rounded-lg text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-bold text-white",
                         getPercentageColor(row.total)
                       )}>
                         {row.total}
                       </span>
                     ) : (
-                      <span className="text-[9px] md:text-[10px] lg:text-xs text-muted-foreground italic">-</span>
+                      <span className="text-[8px] sm:text-[9px] md:text-[10px] lg:text-xs text-muted-foreground italic">-</span>
                     )}
                   </td>
                   <td className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-center">
                     {row.grade ? (
-                      <span className={cn("text-xs md:text-sm lg:text-lg font-bold", getGradeColor(row.grade))}>
+                      <span className={cn("text-[10px] sm:text-xs md:text-sm lg:text-lg font-bold", getGradeColor(row.grade))}>
                         {row.grade}
                       </span>
                     ) : (
-                      <span className="text-[9px] md:text-[10px] lg:text-xs text-muted-foreground italic">-</span>
+                      <span className="text-[8px] sm:text-[9px] md:text-[10px] lg:text-xs text-muted-foreground italic">-</span>
                     )}
                   </td>
-                  <td className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-center hidden md:table-cell">
+                  <td className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-center hidden lg:table-cell">
                     {row.gpa !== null ? (
                       <span className="text-xs md:text-sm font-medium">{row.gpa.toFixed(2)}</span>
                     ) : (

@@ -1,11 +1,23 @@
 import { useState, useEffect } from 'react';
-import { WelcomeCard } from '@/components/dashboard/WelcomeCard';
+import { PremiumWelcomeCard } from '@/components/dashboard/PremiumWelcomeCard';
 import { StatusCard } from '@/components/dashboard/StatusCard';
-import { QuickActions } from '@/components/dashboard/QuickActions';
-import { NoticeBoard } from '@/components/dashboard/NoticeBoard';
+import { PremiumQuickActions } from '@/components/dashboard/PremiumQuickActions';
+import { EnhancedNoticeBoard } from '@/components/dashboard/EnhancedNoticeBoard';
 import { ClassStatusBox } from '@/components/dashboard/ClassStatusBox';
+import { PomodoroTimer } from '@/components/widgets/PomodoroTimer';
+import { QuickNotes } from '@/components/widgets/QuickNotes';
+import { StudyStreak } from '@/components/widgets/StudyStreak';
+import { PremiumStatsGrid } from '@/components/dashboard/PremiumStatsGrid';
+import { UpcomingEventsWidget } from '@/components/dashboard/UpcomingEventsWidget';
+import { AcademicProgressWidget } from '@/components/dashboard/AcademicProgressWidget';
+// Teacher-specific components
+import { TeacherWelcomeCard } from '@/components/dashboard/TeacherWelcomeCard';
+import { TeacherQuickActions } from '@/components/dashboard/TeacherQuickActions';
+import { TeacherScheduleWidget } from '@/components/dashboard/TeacherScheduleWidget';
+import { TeacherStatsGrid } from '@/components/dashboard/TeacherStatsGrid';
+import { TeacherActivityFeed } from '@/components/dashboard/TeacherActivityFeed';
 import { motion } from 'framer-motion';
-import { BarChart3, Users, BookOpen, Award, Loader2, AlertCircle } from 'lucide-react';
+import { BarChart3, Users, BookOpen, Award, Loader2, AlertCircle, GraduationCap, TrendingUp } from 'lucide-react';
 import { dashboardService, type StudentDashboardData, type TeacherDashboardData } from '@/services/dashboardService';
 import { routineService, type ClassRoutine, type DayOfWeek } from '@/services/routineService';
 import { studentService } from '@/services/studentService';
@@ -482,58 +494,110 @@ export function Dashboard() {
   const todayClasses = user?.role !== 'teacher' ? (schedule[currentDay]?.filter((c) => c) || []) : [];
   const totalClasses = todayClasses.length;
 
-  return (
-    <div className="space-y-4 md:space-y-6">
-      <WelcomeCard />
+  // Teacher Dashboard Layout
+  if (user?.role === 'teacher') {
+    const teacherData = dashboardData as TeacherDashboardData;
+    const teacherStats = {
+      assignedClasses: teacherData.assignedClasses?.total || 0,
+      totalStudents: teacherData.students?.total || 0,
+      departments: teacherData.assignedClasses?.departments?.length || 0,
+      semesters: teacherData.assignedClasses?.semesters?.length || 0,
+    };
 
-      {/* Class Status Box - Only for students */}
-      {user?.role !== 'teacher' && (
-        <ClassStatusBox
-          runningClass={runningClass}
-          upcomingClass={upcomingClass}
-          isInBreak={isInBreak}
-          classesCompleted={classesCompleted}
-          totalClasses={totalClasses}
-          currentTime={currentTime}
-        />
-      )}
+    return (
+      <div className="space-y-4 md:space-y-6 max-w-full overflow-x-hidden">
+        {/* Teacher Welcome Card with embedded stats */}
+        <TeacherWelcomeCard stats={teacherStats} />
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3 lg:gap-4">
-        {stats.map((stat, index) => (
-          <motion.div
-            key={stat.label}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 * index }}
-            className="bg-card rounded-lg md:rounded-xl lg:rounded-2xl border border-border p-2 md:p-3 lg:p-4 shadow-card hover:shadow-card-hover transition-shadow"
-          >
-            <div className="flex items-center gap-1.5 md:gap-2 lg:gap-3">
-              <div
-                className={`w-7 h-7 md:w-8 md:h-8 lg:w-10 lg:h-10 rounded-md md:rounded-lg lg:rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center flex-shrink-0`}
-              >
-                <stat.icon className="w-3.5 h-3.5 md:w-4 md:h-4 lg:w-5 lg:h-5 text-primary-foreground" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-base md:text-lg lg:text-2xl font-bold truncate">
-                  {stat.value}
-                </p>
-                <p className="text-[9px] md:text-[10px] lg:text-xs text-muted-foreground truncate">
-                  {stat.label}
-                </p>
-              </div>
+        {/* Enhanced Stats Grid */}
+        <TeacherStatsGrid stats={teacherStats} />
+
+        {/* Main Content Grid */}
+        <div className="grid lg:grid-cols-3 gap-4 md:gap-6">
+          <div className="lg:col-span-2 space-y-4 md:space-y-6">
+            {/* Quick Actions for Teachers */}
+            <TeacherQuickActions />
+            
+            {/* Widgets Grid */}
+            <div className="grid md:grid-cols-2 gap-4">
+              <PomodoroTimer />
+              <QuickNotes />
             </div>
-          </motion.div>
-        ))}
+          </div>
+          
+          <div className="space-y-4 md:space-y-6">
+            {/* Today's Schedule */}
+            <TeacherScheduleWidget />
+            
+            {/* Recent Activity Feed */}
+            <TeacherActivityFeed />
+            
+            {/* Notice Board */}
+            <EnhancedNoticeBoard />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Student Dashboard Layout - Premium Design
+  const studentData = dashboardData as StudentDashboardData;
+  const attendancePercentage = studentData?.attendance?.percentage || 0;
+  const semester = studentData?.student?.semester || 1;
+  const department = studentData?.student?.department || 'Department';
+
+  return (
+    <div className="space-y-5 md:space-y-6 max-w-full overflow-x-hidden pb-8">
+      {/* Premium Welcome Card */}
+      <PremiumWelcomeCard 
+        attendancePercentage={attendancePercentage}
+        semester={semester}
+        department={department}
+      />
+
+      {/* Class Status Box - for students/captains */}
+      <ClassStatusBox
+        runningClass={runningClass}
+        upcomingClass={upcomingClass}
+        isInBreak={isInBreak}
+        classesCompleted={classesCompleted}
+        totalClasses={totalClasses}
+        currentTime={currentTime}
+      />
+
+      {/* Premium Stats Grid */}
+      <PremiumStatsGrid stats={stats} />
+
+      {/* Two Column Layout - Study Streak & Academic Progress */}
+      <div className="grid md:grid-cols-2 gap-4 md:gap-6">
+        <StudyStreak />
+        <AcademicProgressWidget 
+          currentSemester={semester}
+        />
       </div>
 
+      {/* Quick Actions */}
+      <PremiumQuickActions />
+
+      {/* Main Content Grid */}
       <div className="grid lg:grid-cols-3 gap-4 md:gap-6">
         <div className="lg:col-span-2 space-y-4 md:space-y-6">
-          <QuickActions />
+          {/* Upcoming Events */}
+          <UpcomingEventsWidget />
+          
+          {/* Widgets Grid */}
+          <div className="grid md:grid-cols-2 gap-4">
+            <PomodoroTimer />
+            <QuickNotes />
+          </div>
+          
+          {/* Status Card */}
           <StatusCard />
         </div>
-        <div>
-          <NoticeBoard />
+        
+        <div className="space-y-4 md:space-y-6">
+          {/* Enhanced Notice Board */}
+          <EnhancedNoticeBoard />
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, Mail, Lock, User, Eye, EyeOff, ArrowRight, Phone, Shield } from 'lucide-react';
+import { BookOpen, Mail, Lock, User, Eye, EyeOff, ArrowRight, Phone, Shield, UserCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,7 +18,7 @@ export default function Auth() {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { login, isAuthenticated } = useAuth();
+  const { login, loginAsDemo, isAuthenticated } = useAuth();
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -496,6 +496,34 @@ export default function Auth() {
                     <ArrowRight className="w-4 h-4" />
                   </div>
                 )}
+              </Button>
+
+              {/* Demo Login Button */}
+              <div className="relative my-4">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">Or</span>
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full border-dashed border-2 hover:bg-accent/50"
+                onClick={() => {
+                  loginAsDemo();
+                  toast({
+                    title: "Demo Mode Activated",
+                    description: "You're now logged in as a demo admin. Explore freely!",
+                  });
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <UserCheck className="w-4 h-4" />
+                  Try Demo (No Password Required)
+                </div>
               </Button>
             </form>
           )}

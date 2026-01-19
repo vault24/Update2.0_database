@@ -52,6 +52,14 @@ const reasons = ['All', 'Dropout', 'Expelled', 'Migrated', 'Financial Issue', 'H
 const departments = ['All', 'Computer', 'Electrical', 'Civil', 'Mechanical', 'Electronics', 'Power'];
 const years = ['All', '2024', '2023', '2022', '2021', '2020'];
 
+// Helper function to safely get department name
+const getDepartmentName = (student: Student): string => {
+  if (student.departmentName) return student.departmentName;
+  if (typeof student.department === 'string') return student.department;
+  if (typeof student.department === 'object' && student.department?.name) return student.department.name;
+  return 'Unknown';
+};
+
 const getReasonColor = (reason: string) => {
   switch (reason) {
     case 'Dropout':
@@ -373,7 +381,7 @@ export default function DiscontinuedStudents() {
                       <p className="text-muted-foreground font-mono text-sm">{student.currentRollNumber}</p>
                     </td>
                     <td className="p-4 hidden md:table-cell">
-                      <p className="text-muted-foreground">{student.departmentName || student.department}</p>
+                      <p className="text-muted-foreground">{getDepartmentName(student)}</p>
                     </td>
                     <td className="p-4 hidden lg:table-cell">
                       <p className="text-muted-foreground text-sm">{student.session}</p>
@@ -479,7 +487,7 @@ export default function DiscontinuedStudents() {
                   <div>
                     <h2 className="text-xl font-bold">{selectedStudent.fullNameEnglish}</h2>
                     <p className="text-sm text-muted-foreground font-normal">
-                      Roll: {selectedStudent.currentRollNumber} | {selectedStudent.departmentName || selectedStudent.department}
+                      Roll: {selectedStudent.currentRollNumber} | {getDepartmentName(selectedStudent)}
                     </p>
                     <Badge className={cn('mt-1 border', getReasonColor(selectedStudent.discontinuedReason || 'Unknown'))}>
                       {selectedStudent.discontinuedReason || 'Not specified'}
@@ -632,7 +640,7 @@ export default function DiscontinuedStudents() {
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                     <div>
                       <p className="text-muted-foreground">Department</p>
-                      <p className="font-medium">{selectedStudent.departmentName || selectedStudent.department}</p>
+                      <p className="font-medium">{getDepartmentName(selectedStudent)}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Semester</p>

@@ -16,15 +16,27 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
+  loginAsDemo: () => void;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Demo user for testing without password
+const DEMO_USER: User = {
+  id: 'demo-user-001',
+  username: 'demo_admin',
+  email: 'demo@sipi.edu.bd',
+  first_name: 'Demo',
+  last_name: 'Admin',
+  role: 'registrar',
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDemoMode, setIsDemoMode] = useState(false);
   const navigate = useNavigate();
 
   const checkAuth = async () => {
@@ -191,7 +203,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Demo login - no password required
+  const loginAsDemo = () => {
+    setUser(DEMO_USER);
+    setIsDemoMode(true);
+    navigate('/');
+  };
+
   const logout = async () => {
+    // If in demo mode, just clear user without API call
+    if (isDemoMode) {
+      setUser(null);
+      setIsDemoMode(false);
+      navigate('/auth');
+      return;
+    }
+    
     try {
       const csrfToken = getCsrfToken();
       const headers: HeadersInit = {};
@@ -220,6 +247,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated: !!user,
         isLoading,
         login,
+        loginAsDemo,
         logout,
         checkAuth,
       }}

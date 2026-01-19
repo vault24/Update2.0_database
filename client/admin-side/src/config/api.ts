@@ -4,8 +4,8 @@
  */
 
 // Base API URL - can be configured via environment variables
-// Default to production API URL, override with .env for local development
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://47.128.236.25/api';
+// Default to localhost for development, override with .env for production
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
 // API Endpoints
 export const API_ENDPOINTS = {

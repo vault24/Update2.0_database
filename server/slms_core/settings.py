@@ -20,7 +20,7 @@ DEBUG = config('DEBUG', default=True, cast=bool)
 
 ALLOWED_HOSTS = config(
     'ALLOWED_HOSTS',
-    default='localhost,127.0.0.1,47.128.236.25,ec2-47-128-236-25.ap-southeast-1.compute.amazonaws.com',
+    default='localhost,127.0.0.1',
     cast=Csv()
 )
 
@@ -186,16 +186,24 @@ CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOWED_ORIGINS = [
-    "http://47.128.236.25",        # admin
-    "http://47.128.236.25:8080",   # student
+    "http://localhost:3000",      # admin dev
+    "http://localhost:5173",      # admin vite dev
+    "http://localhost:8080",      # student dev
+    "http://127.0.0.1:3000",      # admin dev
+    "http://127.0.0.1:5173",      # admin vite dev
+    "http://127.0.0.1:8080",      # student dev
 ]
 
 # --------------------------------------------------
 # ✅ CSRF
 # --------------------------------------------------
 CSRF_TRUSTED_ORIGINS = [
-    "http://47.128.236.25",
-    "http://47.128.236.25:8080",
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://localhost:8080",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:8080",
 ]
 
 CSRF_COOKIE_HTTPONLY = False

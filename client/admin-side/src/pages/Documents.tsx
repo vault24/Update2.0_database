@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Upload, Eye, Download, FileText, File, Image, FileSpreadsheet, Trash2, Award, CreditCard, GraduationCap, FileCheck, Users, Loader2, AlertCircle, Plus, Layers } from 'lucide-react';
+import { Search, Upload, Eye, Download, FileText, File, Image, FileSpreadsheet, Trash2, Award, CreditCard, GraduationCap, FileCheck, Users, Loader2, AlertCircle, Plus, Layers, X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

@@ -14,7 +14,7 @@ interface User {
   department?: string;
   semester?: number;
   role: UserRole;
-  relatedProfileId?: string; // Links to Student or Teacher profile
+  relatedProfileId?: string;
 }
 
 interface AuthContextType {
@@ -23,6 +23,7 @@ interface AuthContextType {
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   signup: (data: SignupData) => Promise<void>;
   logout: () => void;
+  demoLogin: (role: UserRole) => void;
   loading: boolean;
 }
 
@@ -32,7 +33,6 @@ interface SignupData {
   mobile: string;
   password: string;
   role: UserRole;
-  // Teacher-specific fields (optional)
   fullNameBangla?: string;
   designation?: string;
   department?: string;
@@ -41,29 +41,66 @@ interface SignupData {
   officeLocation?: string;
 }
 
+// Demo users for testing without backend
+const demoUsers: Record<UserRole, User> = {
+  student: {
+    id: 'demo-student-001',
+    name: 'Rakib Ahmed',
+    email: 'student@demo.com',
+    studentId: 'SPI-2024-0001',
+    admissionStatus: 'approved',
+    department: 'Computer Technology',
+    semester: 4,
+    role: 'student',
+    relatedProfileId: 'demo-student-001',
+  },
+  captain: {
+    id: 'demo-captain-001',
+    name: 'Fatima Khan',
+    email: 'captain@demo.com',
+    studentId: 'SPI-2024-0002',
+    admissionStatus: 'approved',
+    department: 'Computer Technology',
+    semester: 4,
+    role: 'captain',
+    relatedProfileId: 'demo-captain-001',
+  },
+  teacher: {
+    id: 'demo-teacher-001',
+    name: 'Dr. Kamal Hossain',
+    email: 'teacher@demo.com',
+    studentId: 'T-001',
+    admissionStatus: 'approved',
+    department: 'Computer Technology',
+    role: 'teacher',
+    relatedProfileId: 'demo-teacher-001',
+  },
+};
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Check for existing session on mount
   useEffect(() => {
     const checkAuth = async () => {
-      // Check if user explicitly logged out
+      // Check for demo user first
+      const demoRole = localStorage.getItem('demoRole') as UserRole | null;
+      if (demoRole && demoUsers[demoRole]) {
+        setUser(demoUsers[demoRole]);
+        setLoading(false);
+        return;
+      }
+
       const hasLoggedOut = localStorage.getItem('hasLoggedOut');
       if (hasLoggedOut === 'true') {
-        // User logged out, don't auto-login
-        // Keep the flag until next successful login
         setLoading(false);
         return;
       }
 
       try {
-        // First, ensure we have a CSRF token
         await api.get<any>('/auth/csrf/');
-        
-        // Try to get current user from session
         const response = await api.get<any>('/auth/me/');
         if (response.user) {
           localStorage.setItem('userId', response.user.id);
@@ -80,7 +117,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           });
         }
       } catch (error) {
-        // No active session, clear storage
         localStorage.removeItem('userId');
       }
       setLoading(false);
@@ -89,23 +125,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkAuth();
   }, []);
 
+  const demoLogin = (role: UserRole) => {
+    localStorage.setItem('demoRole', role);
+    localStorage.removeItem('hasLoggedOut');
+    setUser(demoUsers[role]);
+  };
+
   const login = async (email: string, password: string, rememberMe: boolean = false) => {
     try {
-      // Clear any logout flag
       localStorage.removeItem('hasLoggedOut');
+      localStorage.removeItem('demoRole');
       
-      // First, ensure we have a CSRF token
       await api.get<any>('/auth/csrf/');
-      
-      // Backend expects 'username' field, not 'email'
       const response = await api.post<any>('/auth/login/', { username: email, password, remember_me: rememberMe });
       
-      // Store user ID (no token in session-based auth)
       if (response.user?.id) {
         localStorage.setItem('userId', response.user.id);
       }
       
-      // Set user data
       setUser({
         id: response.user.id,
         name: response.user.first_name && response.user.last_name 
@@ -118,25 +155,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         relatedProfileId: response.user.related_profile_id,
       });
       
-      // Check if user needs to complete admission
       if (response.redirect_to_admission) {
-        // Redirect will be handled by the component
         console.log('User needs to complete admission');
       }
     } catch (error: any) {
-      // Login failed - clear any existing session to prevent auto-login on refresh
       setUser(null);
       localStorage.removeItem('userId');
       localStorage.setItem('hasLoggedOut', 'true');
       
-      // Try to clear backend session if one exists
       try {
         await api.post('/auth/logout/', {});
-      } catch (logoutError) {
-        // Ignore logout errors
-      }
+      } catch (logoutError) {}
       
-      // Handle specific teacher pending approval error
       if (
         error.response?.data?.code === 'pending_approval' ||
         error.response?.data?.message?.includes('pending approval') ||
@@ -159,30 +189,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signup = async (data: SignupData) => {
     try {
-      // Clear any logout flag
       localStorage.removeItem('hasLoggedOut');
+      localStorage.removeItem('demoRole');
       
-      // First, ensure we have a CSRF token
       await api.get<any>('/auth/csrf/');
       
-      // Split full name into first and last name
       const nameParts = data.fullName.trim().split(' ');
       const firstName = nameParts[0] || '';
       const lastName = nameParts.slice(1).join(' ') || '';
       
-      // Prepare registration payload
       const registrationData: any = {
-        username: data.email, // Use email as username
+        username: data.email,
         email: data.email,
         password: data.password,
-        password_confirm: data.password, // Backend requires password confirmation
+        password_confirm: data.password,
         first_name: firstName,
         last_name: lastName,
         mobile_number: data.mobile,
         role: data.role,
       };
       
-      // Add teacher-specific fields if role is teacher
       if (data.role === 'teacher') {
         registrationData.full_name_english = data.fullName;
         registrationData.full_name_bangla = data.fullNameBangla || '';
@@ -195,19 +221,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       const response = await api.post<any>('/auth/register/', registrationData);
       
-      // Handle teacher pending approval
       if (data.role === 'teacher') {
-        // For teachers, don't set user data since they need approval
-        // Just return success message
         return;
       }
       
-      // Check if user was auto-logged in
       if (response.auto_logged_in && response.user) {
-        // Store user ID for auto-logged in users
         localStorage.setItem('userId', response.user.id);
         
-        // Set user data for auto-logged in users
         setUser({
           id: response.user.id,
           name: data.fullName,
@@ -225,19 +245,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
-    // Set logout flag to prevent auto-login on refresh
     localStorage.setItem('hasLoggedOut', 'true');
+    localStorage.removeItem('demoRole');
     
-    // Clear local state first
     setUser(null);
     localStorage.removeItem('userId');
     
-    // Then call backend logout to clear session
     try {
       await api.post('/auth/logout/', {});
     } catch (error) {
       console.error('Logout error:', error);
-      // Even if backend logout fails, we've already cleared local state
     }
   };
 
@@ -248,6 +265,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login, 
       signup, 
       logout,
+      demoLogin,
       loading
     }}>
       {children}

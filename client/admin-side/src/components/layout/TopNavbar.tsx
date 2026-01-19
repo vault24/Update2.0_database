@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Menu,
   Search,
@@ -53,17 +53,42 @@ const notifications = [
 
 export function TopNavbar({ onMenuToggle, sidebarOpen }: TopNavbarProps) {
   const location = useLocation();
+  const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
   const [searchOpen, setSearchOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  
+  const notificationsRef = useRef<HTMLDivElement>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
 
   const currentPage = pageNames[location.pathname] || 'Dashboard';
   const unreadCount = notifications.filter((n) => n.unread).length;
 
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (notificationsRef.current && !notificationsRef.current.contains(event.target as Node)) {
+        setNotificationsOpen(false);
+      }
+      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+        setProfileOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const handleLogout = async () => {
+    setProfileOpen(false);
     await logout();
+  };
+
+  const handleNavigate = (path: string) => {
+    setProfileOpen(false);
+    navigate(path);
   };
 
   return (
@@ -138,7 +163,7 @@ export function TopNavbar({ onMenuToggle, sidebarOpen }: TopNavbarProps) {
           </Button>
 
           {/* Notifications */}
-          <div className="relative">
+          <div className="relative" ref={notificationsRef}>
             <Button
               variant="ghost"
               size="icon"
@@ -162,7 +187,7 @@ export function TopNavbar({ onMenuToggle, sidebarOpen }: TopNavbarProps) {
                   initial={{ opacity: 0, y: 10, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  className="absolute right-0 top-12 w-80 glass-card rounded-xl shadow-xl overflow-hidden z-50"
+                  className="absolute right-0 top-12 w-80 bg-popover border border-border rounded-xl shadow-xl overflow-hidden z-50"
                 >
                   <div className="p-4 border-b border-border">
                     <div className="flex items-center justify-between">
@@ -206,7 +231,7 @@ export function TopNavbar({ onMenuToggle, sidebarOpen }: TopNavbarProps) {
           </div>
 
           {/* Profile Dropdown */}
-          <div className="relative">
+          <div className="relative" ref={profileRef}>
             <Button
               variant="ghost"
               onClick={() => {
@@ -232,7 +257,7 @@ export function TopNavbar({ onMenuToggle, sidebarOpen }: TopNavbarProps) {
                   initial={{ opacity: 0, y: 10, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  className="absolute right-0 top-12 w-56 glass-card rounded-xl shadow-xl overflow-hidden z-50"
+                  className="absolute right-0 top-12 w-56 bg-popover border border-border rounded-xl shadow-xl overflow-hidden z-50"
                 >
                   <div className="p-4 border-b border-border">
                     <p className="font-semibold text-foreground">
@@ -241,11 +266,17 @@ export function TopNavbar({ onMenuToggle, sidebarOpen }: TopNavbarProps) {
                     <p className="text-sm text-muted-foreground">{user?.email}</p>
                   </div>
                   <div className="p-2">
-                    <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-foreground hover:bg-secondary transition-colors">
+                    <button 
+                      onClick={() => handleNavigate('/student-profiles')}
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-foreground hover:bg-secondary transition-colors"
+                    >
                       <User className="w-4 h-4" />
                       Profile
                     </button>
-                    <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-foreground hover:bg-secondary transition-colors">
+                    <button 
+                      onClick={() => handleNavigate('/settings')}
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-foreground hover:bg-secondary transition-colors"
+                    >
                       <Settings className="w-4 h-4" />
                       Settings
                     </button>

@@ -3,10 +3,7 @@ import { motion } from 'framer-motion';
 import {
   Calendar,
   Clock,
-  Filter,
   Download,
-  ChevronLeft,
-  ChevronRight,
   BookOpen,
   FlaskConical,
   Coffee,
@@ -15,21 +12,29 @@ import {
   Loader2,
   AlertCircle,
   PlayCircle,
-  ArrowRight,
   Timer,
-  CheckCircle,
-  Moon,
+  RefreshCw,
+  LayoutGrid,
+  Layers,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { ClassStatusBox } from '@/components/dashboard/ClassStatusBox';
 import { cn } from '@/lib/utils';
 import { routineService, type ClassRoutine, type DayOfWeek } from '@/services/routineService';
 import { studentService } from '@/services/studentService';
 import { getErrorMessage } from '@/lib/api';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { SwipeableDays } from '@/components/routine/SwipeableDays';
+import { CurrentClassStatus } from '@/components/routine/CurrentClassStatus';
 
 const days: DayOfWeek[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
+const dayAbbreviations: Record<DayOfWeek, string> = {
+  'Sunday': 'Sun',
+  'Monday': 'Mon', 
+  'Tuesday': 'Tue',
+  'Wednesday': 'Wed',
+  'Thursday': 'Thu'
+};
 
 type DisplayClassPeriod = {
   id: string;
@@ -60,8 +65,7 @@ const getSubjectIcon = (subject: string) => {
 
 export default function ClassRoutinePage() {
   const { user, loading: authLoading } = useAuth();
-  const [selectedDay, setSelectedDay] = useState(days[0]);
-  const [viewMode, setViewMode] = useState<'week' | 'day'>('week');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [routine, setRoutine] = useState<ClassRoutine[]>([]);
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
   const [schedule, setSchedule] = useState<Record<DayOfWeek, (DisplayClassPeriod | null)[]>>({
@@ -84,7 +88,6 @@ export default function ClassRoutinePage() {
 
   const formatTime = (time: string) => time?.slice(0, 5) || '';
 
-  // Helper function to convert time to minutes (used by status functions)
   const timeToMinutes = (time: string) => {
     const [h, m] = time.split(':').map(Number);
     return h * 60 + m;
@@ -101,19 +104,14 @@ export default function ClassRoutinePage() {
     
     const currentMinutes = timeToMinutes(currentTimeStr);
     
-    // Find the class that is currently running
     for (const period of weeklySchedule[currentDay]) {
       if (!period) continue;
-      
       const startMinutes = timeToMinutes(period.startTime);
       const endMinutes = timeToMinutes(period.endTime);
-      
-      // Check if current time is between start and end time
       if (currentMinutes >= startMinutes && currentMinutes < endMinutes) {
         return period;
       }
     }
-    
     return null;
   };
 
@@ -127,17 +125,12 @@ export default function ClassRoutinePage() {
     if (!currentDay || !weeklySchedule[currentDay]) return null;
     
     const currentMinutes = timeToMinutes(currentTimeStr);
-    
-    // Find the next class after current time
     let nextClass: DisplayClassPeriod | null = null;
     let minTimeDiff = Infinity;
     
     for (const period of weeklySchedule[currentDay]) {
       if (!period) continue;
-      
       const startMinutes = timeToMinutes(period.startTime);
-      
-      // Check if class starts after current time
       if (startMinutes > currentMinutes) {
         const timeDiff = startMinutes - currentMinutes;
         if (timeDiff < minTimeDiff) {
@@ -146,7 +139,6 @@ export default function ClassRoutinePage() {
         }
       }
     }
-    
     return nextClass;
   };
 
@@ -162,26 +154,22 @@ export default function ClassRoutinePage() {
     const currentMinutes = timeToMinutes(currentTimeStr);
     const runningClass = getCurrentRunningClass();
     
-    // If no running class, check if we're between classes
     if (!runningClass) {
       const todayClasses = weeklySchedule[currentDay].filter(c => c !== null);
       if (todayClasses.length === 0) return false;
       
-      // Check if current time is between any two classes
       for (let i = 0; i < todayClasses.length - 1; i++) {
         const currentClassEnd = timeToMinutes(todayClasses[i]!.endTime);
         const nextClassStart = timeToMinutes(todayClasses[i + 1]!.startTime);
-        
         if (currentMinutes > currentClassEnd && currentMinutes < nextClassStart) {
           return true;
         }
       }
     }
-    
     return false;
   };
 
-  // Check if all classes are completed for the day
+  // Check if all classes are completed
   const areClassesCompleted = (): boolean => {
     const now = currentTime;
     const dayIndex = now.getDay();
@@ -195,55 +183,39 @@ export default function ClassRoutinePage() {
     
     if (todayClasses.length === 0) return false;
     
-    // Check if current time is after the last class
     const lastClass = todayClasses[todayClasses.length - 1];
     if (lastClass) {
       const lastClassEnd = timeToMinutes(lastClass.endTime);
       return currentMinutes > lastClassEnd;
     }
-    
     return false;
   };
 
-  // Update current time every minute
+  // Update time every minute
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 60000); // Update every minute
-    
+    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
 
-  // Auto-refresh routine data periodically to catch updates from admin
+  // Auto-refresh
   useEffect(() => {
     if (!user || user.role === 'teacher' || !profileLoaded) return;
-
     const refreshInterval = setInterval(() => {
       const timeSinceLastRefresh = Date.now() - lastRefresh;
-      const REFRESH_INTERVAL = 2 * 60 * 1000; // 2 minutes
-
-      if (timeSinceLastRefresh >= REFRESH_INTERVAL) {
-        console.log('Auto-refreshing routine data to check for updates');
-        
-        // Clear cache to force fresh data
+      if (timeSinceLastRefresh >= 2 * 60 * 1000) {
         routineService.cache.invalidateByFilters({
           department: profileDepartment || user?.department,
           semester: profileSemester || user?.semester,
           shift: profileShift || (user as any)?.shift
         });
-        
-        // Fetch fresh data
         fetchRoutine(false);
         setLastRefresh(Date.now());
       }
-    }, 30000); // Check every 30 seconds
-
+    }, 30000);
     return () => clearInterval(refreshInterval);
   }, [user, profileLoaded, profileDepartment, profileSemester, profileShift, lastRefresh]);
 
-  // Enhanced time slot generation utilities
   const timeSlotUtils = {
-    // Convert time to minutes for sorting and comparison
     timeToMinutes: (time: string): number => {
       if (!time || typeof time !== 'string') return 0;
       const parts = time.split(':');
@@ -251,8 +223,6 @@ export default function ClassRoutinePage() {
       const [h, m] = parts.map(Number);
       return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m);
     },
-
-    // Format time consistently (remove seconds, ensure HH:MM format)
     formatTime: (time: string): string => {
       if (!time) return '';
       const parts = time.split(':');
@@ -260,114 +230,47 @@ export default function ClassRoutinePage() {
       const [h, m] = parts;
       return `${h.padStart(2, '0')}:${m.padStart(2, '0')}`;
     },
-
-    // Generate comprehensive time slots based on actual routine data
     generateTimeSlots: (routines: ClassRoutine[]): string[] => {
-      // Extract all unique time periods from routines
       const timePeriods = new Set<string>();
-      
       routines.forEach(routine => {
         if (routine.start_time && routine.end_time) {
-          // Validate time slot before adding
           if (timeSlotUtils.validateTimeSlot(routine.start_time, routine.end_time)) {
             const startTime = timeSlotUtils.formatTime(routine.start_time);
             const endTime = timeSlotUtils.formatTime(routine.end_time);
             timePeriods.add(`${startTime}-${endTime}`);
-          } else {
-            console.warn('Invalid time slot filtered out:', {
-              start: routine.start_time,
-              end: routine.end_time,
-              subject: routine.subject_name
-            });
           }
         }
       });
-
-      // Convert to array and sort by start time
-      const sortedSlots = Array.from(timePeriods)
+      return Array.from(timePeriods)
         .filter(slot => slot && slot.includes('-'))
         .sort((a, b) => {
           const [aStart] = a.split('-');
           const [bStart] = b.split('-');
           return timeSlotUtils.timeToMinutes(aStart) - timeSlotUtils.timeToMinutes(bStart);
         });
-
-      console.log('Generated time slots from routine data:', sortedSlots);
-      return sortedSlots;
     },
-
-    // Generate fallback time slots based on shift (for consistency with admin interface)
     generateFallbackTimeSlots: (shift: string): string[] => {
       const fallbackSlots: Record<string, string[]> = {
-        Morning: [
-          '08:00-08:45',
-          '08:45-09:30',
-          '09:30-10:15',
-          '10:15-11:00',
-          '11:00-11:45',
-          '11:45-12:30',
-          '12:30-13:15',
-        ],
-        Day: [
-          '13:30-14:15',
-          '14:15-15:00',
-          '15:00-15:45',
-          '15:45-16:30',
-          '16:30-17:15',
-          '17:15-18:00',
-          '18:00-18:45',
-        ],
-        Evening: [
-          '18:30-19:15',
-          '19:15-20:00',
-          '20:00-20:45',
-          '20:45-21:30',
-        ],
+        Morning: ['08:00-08:45', '08:45-09:30', '09:30-10:15', '10:15-11:00', '11:00-11:45', '11:45-12:30', '12:30-13:15'],
+        Day: ['13:30-14:15', '14:15-15:00', '15:00-15:45', '15:45-16:30', '16:30-17:15', '17:15-18:00', '18:00-18:45'],
+        Evening: ['18:30-19:15', '19:15-20:00', '20:00-20:45', '20:45-21:30'],
       };
-      
       return fallbackSlots[shift] || fallbackSlots.Day;
     },
-
-    // Validate time slot consistency
     validateTimeSlot: (startTime: string, endTime: string): boolean => {
-      // Check for empty or invalid strings
-      if (!startTime || !endTime || typeof startTime !== 'string' || typeof endTime !== 'string') {
-        return false;
-      }
-      
-      // Check if strings contain valid time format
-      if (!startTime.includes(':') || !endTime.includes(':')) {
-        return false;
-      }
-      
+      if (!startTime || !endTime || typeof startTime !== 'string' || typeof endTime !== 'string') return false;
+      if (!startTime.includes(':') || !endTime.includes(':')) return false;
       const start = timeSlotUtils.timeToMinutes(startTime);
       const end = timeSlotUtils.timeToMinutes(endTime);
-      
-      // Validate that start is before end and both are within valid 24-hour range
       return start < end && start >= 0 && end <= 24 * 60 && start !== 0 && end !== 0;
     }
   };
 
   const buildSchedule = (routines: ClassRoutine[]) => {
-    console.log('Building schedule from routines:', routines);
-    
-    // Validate and normalize routine data
     const normalized: DisplayClassPeriod[] = routines
-      .filter(routineItem => {
-        // Enhanced validation
-        const isValid = routineItem && 
-               routineItem.id && 
-               routineItem.day_of_week && 
-               routineItem.start_time && 
-               routineItem.end_time &&
-               routineItem.subject_name &&
-               timeSlotUtils.validateTimeSlot(routineItem.start_time, routineItem.end_time);
-        
-        if (!isValid) {
-          console.warn('Invalid routine item filtered out:', routineItem);
-        }
-        return isValid;
-      })
+      .filter(routineItem => routineItem && routineItem.id && routineItem.day_of_week && 
+        routineItem.start_time && routineItem.end_time && routineItem.subject_name &&
+        timeSlotUtils.validateTimeSlot(routineItem.start_time, routineItem.end_time))
       .map((routineItem) => ({
         id: routineItem.id,
         day: routineItem.day_of_week,
@@ -379,34 +282,15 @@ export default function ClassRoutinePage() {
         teacher: routineItem.teacher?.fullNameEnglish || 'TBA',
       }));
 
-    console.log('Normalized periods:', normalized);
-
-    // Generate time slots based on actual routine data
     let slotKeys = timeSlotUtils.generateTimeSlots(routines);
-
-    // If no time slots found from routine data, use fallback based on shift
     if (slotKeys.length === 0) {
-      console.warn('No valid time slots found in routine data, using fallback slots');
       const shift = routines.length > 0 ? routines[0].shift : 'Day';
       slotKeys = timeSlotUtils.generateFallbackTimeSlots(shift);
-      
-      // If still no slots available, return empty structure
       if (slotKeys.length === 0) {
-        console.error('No fallback time slots available');
-        return {
-          timeSlots: [],
-          schedule: {
-            Sunday: [],
-            Monday: [],
-            Tuesday: [],
-            Wednesday: [],
-            Thursday: [],
-          }
-        };
+        return { timeSlots: [], schedule: { Sunday: [], Monday: [], Tuesday: [], Wednesday: [], Thursday: [] } };
       }
     }
 
-    // Initialize empty schedule with proper structure
     const initialSchedule: Record<DayOfWeek, (DisplayClassPeriod | null)[]> = {
       Sunday: slotKeys.map(() => null),
       Monday: slotKeys.map(() => null),
@@ -415,38 +299,25 @@ export default function ClassRoutinePage() {
       Thursday: slotKeys.map(() => null),
     };
 
-    // Populate schedule with periods
     normalized.forEach((period) => {
       const key = `${period.startTime}-${period.endTime}`;
       const index = slotKeys.indexOf(key);
       if (index >= 0 && initialSchedule[period.day]) {
         initialSchedule[period.day][index] = period;
-        console.log(`Placed ${period.subject} on ${period.day} at slot ${index} (${key})`);
-      } else {
-        console.warn(`Could not place period ${period.subject} - slot ${key} not found in generated slots`);
       }
     });
 
-    const result = {
-      timeSlots: slotKeys.map((slot) => slot.replace('-', ' - ')),
-      schedule: initialSchedule,
-    };
-
-    console.log('Final schedule result:', result);
-    return result;
+    return { timeSlots: slotKeys.map((slot) => slot.replace('-', ' - ')), schedule: initialSchedule };
   };
 
   useEffect(() => {
     if (!authLoading && user) {
-      // Load missing academic profile fields if not present on auth user
       const ensureProfile = async () => {
         try {
-          // Skip student profile fetch for teachers
           if (user.role === 'teacher') {
             setProfileLoaded(true);
             return;
           }
-
           if (user.department && user.semester) {
             setProfileDepartment(user.department);
             setProfileSemester(user.semester);
@@ -462,52 +333,38 @@ export default function ClassRoutinePage() {
             setProfileShift(student.shift);
           }
         } catch (err) {
-          // Enhanced profile error handling
           const errorMsg = getErrorMessage(err);
-          console.error('Error loading student profile:', err);
-          
-          // Try to fall back to existing user fields if available
           if (user?.department && user?.semester) {
             setProfileDepartment(user.department);
             setProfileSemester(user.semester);
             setProfileShift((user as any).shift as string | undefined);
-            
-            toast.warning('Profile data partially loaded', {
-              description: 'Using cached profile information. Some data may be outdated.',
-            });
+            toast.warning('Profile data partially loaded');
           } else {
             setError(`Profile loading failed: ${errorMsg}`);
-            toast.error('Failed to load profile', {
-              description: 'Unable to load your academic information. Please try refreshing the page.',
-            });
           }
         } finally {
           setProfileLoaded(true);
         }
       };
-
       ensureProfile();
     }
   }, [authLoading, user]);
 
   useEffect(() => {
     if (profileLoaded && user) {
-      // Skip routine fetch for teachers
       if (user.role === 'teacher') {
         setLoading(false);
-        setError('Class routine is not available for teachers. Please use the teacher dashboard.');
+        setError('Class routine is not available for teachers.');
         return;
       }
       fetchRoutine();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileLoaded, user]);
 
   const fetchRoutine = async (isRetry: boolean = false) => {
-    // Don't fetch routine for teachers
     if (user?.role === 'teacher') {
       setLoading(false);
-      setError('Class routine is not available for teachers. Please use the teacher dashboard.');
+      setError('Class routine is not available for teachers.');
       return;
     }
 
@@ -515,151 +372,43 @@ export default function ClassRoutinePage() {
     const semesterValue = profileSemester || user?.semester;
     const shiftValue = profileShift || (user as any)?.shift || 'Day';
 
-    // Validate filter values
     if (!departmentId || !semesterValue) {
-      // Await profile resolution before showing error
       if (profileLoaded) {
-        setError('User profile incomplete. Please ensure your department and semester information is set.');
+        setError('User profile incomplete.');
         setLoading(false);
       }
       return;
     }
 
-    // Validate semester range
-    if (semesterValue < 1 || semesterValue > 8) {
-      setError(`Invalid semester value: ${semesterValue}. Please contact support to update your profile.`);
-      setLoading(false);
-      return;
-    }
-
-    // Validate shift value
-    if (!['Morning', 'Day', 'Evening'].includes(shiftValue)) {
-      console.warn('Invalid shift value, defaulting to Day:', shiftValue);
-      // Don't error out, just use default
-    }
-
     try {
-      if (isRetry) {
-        setIsRetrying(true);
-      } else {
-        setLoading(true);
-        setRetryCount(0);
-      }
+      if (isRetry) setIsRetrying(true);
+      else { setLoading(true); setRetryCount(0); }
       setError(null);
       
-      console.log('Fetching student routine with params:', {
-        department: departmentId,
-        semester: semesterValue,
-        shift: shiftValue,
-        retry: isRetry,
-        retryCount: retryCount
-      });
-      
-      // Prepare query parameters with validation
-      const queryParams: any = {};
-
-      // Add department (required)
-      if (departmentId && typeof departmentId === 'string' && departmentId.trim()) {
-        queryParams.department = departmentId.trim();
-      } else {
-        throw new Error('Invalid department ID');
-      }
-
-      // Add semester (required, must be 1-8)
-      if (semesterValue && semesterValue >= 1 && semesterValue <= 8) {
-        queryParams.semester = semesterValue;
-      } else {
-        throw new Error(`Invalid semester: ${semesterValue}`);
-      }
-
-      // Add shift (optional, default to Day if invalid)
-      const validShift = ['Morning', 'Day', 'Evening'].includes(shiftValue) ? shiftValue : 'Day';
-      queryParams.shift = validShift;
-
-      // Add cache busting parameter for fresh data
-      if (isRetry || Date.now() - lastRefresh > 60000) { // Only add if retry or stale
-        queryParams._t = Date.now();
-      }
-
-      console.log('Fetching routine with validated parameters:', queryParams);
+      const queryParams: any = { department: departmentId, semester: semesterValue, shift: shiftValue };
+      if (isRetry || Date.now() - lastRefresh > 60000) queryParams._t = Date.now();
       
       const data = await routineService.getMyRoutine(queryParams);
-      
-      console.log('Received routine data:', data);
-      
       setRoutine(data.routines);
       const { timeSlots, schedule } = buildSchedule(data.routines);
       setTimeSlots(timeSlots);
       setSchedule(schedule);
-      
-      console.log('Built schedule:', { timeSlots, schedule });
-      
-      // Reset retry count on successful fetch
       setRetryCount(0);
       setLastRefresh(Date.now());
       
-      // Validate that we have proper time slots
-      if (timeSlots.length === 0 && data.routines.length > 0) {
-        console.warn('Routine data exists but no valid time slots generated');
-        toast.warning('Schedule data incomplete', {
-          description: 'Some routine data may not display correctly due to invalid time formats.',
-        });
-      } else if (timeSlots.length > 0) {
-        console.log(`Successfully generated ${timeSlots.length} time slots for ${data.routines.length} routine entries`);
-        
-        // Show success message on retry or auto-refresh
-        if (isRetry) {
-          toast.success('Routine loaded successfully', {
-            description: 'Your class schedule has been updated.',
-          });
-        }
-      }
+      if (isRetry) toast.success('Routine loaded successfully');
     } catch (err) {
       const errorMsg = getErrorMessage(err);
       setError(errorMsg);
-      console.error('Error fetching student routine:', err);
-
-      // Enhanced error handling with specific error types
-      let userFriendlyMessage = errorMsg;
-      let errorType = 'general';
       
-      if (errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError')) {
-        userFriendlyMessage = 'Network error: Please check your internet connection and try again.';
-        errorType = 'network';
-      } else if (errorMsg.includes('404')) {
-        userFriendlyMessage = 'No routine found for your department and semester.';
-        errorType = 'not_found';
-      } else if (errorMsg.includes('403')) {
-        userFriendlyMessage = 'Access denied: Please ensure you are logged in as a student.';
-        errorType = 'access_denied';
-      } else if (errorMsg.includes('500')) {
-        userFriendlyMessage = 'Server error: The system is temporarily unavailable. Please try again later.';
-        errorType = 'server_error';
-      } else if (errorMsg.includes('timeout')) {
-        userFriendlyMessage = 'Request timeout: The server is taking too long to respond. Please try again.';
-        errorType = 'timeout';
-      }
-
-      // Auto-retry for network errors (up to 3 times)
-      const isNetworkError = errorType === 'network' || errorType === 'timeout';
+      const isNetworkError = errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError') || errorMsg.includes('timeout');
       if (isNetworkError && retryCount < 3 && !isRetry) {
-        console.log(`Auto-retrying request (attempt ${retryCount + 1}/3)`);
         setRetryCount(prev => prev + 1);
-        
-        // Retry after a delay
-        setTimeout(() => {
-          fetchRoutine(true);
-        }, 2000 * (retryCount + 1)); // Exponential backoff
-        
-        toast.warning('Connection issue detected', {
-          description: `Retrying automatically (${retryCount + 1}/3)...`,
-        });
+        setTimeout(() => fetchRoutine(true), 2000 * (retryCount + 1));
+        toast.warning('Connection issue detected', { description: `Retrying (${retryCount + 1}/3)...` });
         return;
       }
-
-      toast.error('Failed to load routine', {
-        description: userFriendlyMessage,
-      });
+      toast.error('Failed to load routine', { description: errorMsg });
     } finally {
       setLoading(false);
       setIsRetrying(false);
@@ -669,7 +418,6 @@ export default function ClassRoutinePage() {
   const hasData = useMemo(() => routine.length > 0 && timeSlots.length > 0, [routine.length, timeSlots.length]);
   const weeklySchedule = schedule;
 
-  // Get current day's classes
   const now = currentTime;
   const dayIndex = now.getDay();
   const currentDay = (dayIndex >= 0 && dayIndex < days.length) ? days[dayIndex] : days[0];
@@ -678,374 +426,200 @@ export default function ClassRoutinePage() {
   const labSessions = todayClasses.filter((c) => c?.subject?.toLowerCase().includes('lab')).length;
   const theorySessions = totalClasses - labSessions;
   
-  // Get class status
   const runningClass = getCurrentRunningClass();
   const upcomingClass = getUpcomingClass();
   const isInBreak = isBreakTime();
   const classesCompleted = areClassesCompleted();
 
-  // Loading state
+  // Loading
   if (loading || isRetrying) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center space-y-4">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
+          <div className="w-16 h-16 mx-auto rounded-2xl bg-primary/10 flex items-center justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
           <div>
-            <p className="text-muted-foreground">
-              {isRetrying ? 'Retrying connection...' : 'Loading routine...'}
-            </p>
-            {retryCount > 0 && (
-              <p className="text-xs text-muted-foreground mt-2">
-                Attempt {retryCount + 1}/4
-              </p>
-            )}
+            <p className="text-sm font-medium">{isRetrying ? 'Retrying...' : 'Loading routine...'}</p>
+            {retryCount > 0 && <p className="text-xs text-muted-foreground mt-1">Attempt {retryCount + 1}/4</p>}
           </div>
         </div>
       </div>
     );
   }
 
-  // Error state
+  // Error
   if (error && routine.length === 0) {
-    const isNetworkError = error.includes('Failed to fetch') || 
-                          error.includes('NetworkError') || 
-                          error.includes('timeout');
-    const isNotFound = error.includes('404');
-    const isAccessDenied = error.includes('403');
-    const isServerError = error.includes('500');
-    
-    // Determine error icon and color
-    const ErrorIcon = AlertCircle;
-    let errorColor = 'text-destructive';
-    
-    if (isNetworkError) {
-      errorColor = 'text-orange-500';
-    } else if (isNotFound) {
-      errorColor = 'text-blue-500';
-    } else if (isAccessDenied) {
-      errorColor = 'text-yellow-500';
-    }
-    
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="glass-card p-8 max-w-md text-center space-y-4">
-          <ErrorIcon className={`w-12 h-12 ${errorColor} mx-auto`} />
+      <div className="flex items-center justify-center min-h-[60vh] px-4">
+        <div className="bg-card rounded-2xl border border-border p-6 max-w-sm text-center space-y-4">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-destructive/10 flex items-center justify-center">
+            <AlertCircle className="w-7 h-7 text-destructive" />
+          </div>
           <div>
-            <h3 className="text-lg font-semibold mb-2">
-              {isNetworkError ? 'Connection Problem' :
-               isNotFound ? 'No Routine Found' :
-               isAccessDenied ? 'Access Denied' :
-               isServerError ? 'Server Error' :
-               'Error Loading Routine'}
-            </h3>
-            <p className="text-muted-foreground mb-4">{error}</p>
-            {retryCount > 0 && (
-              <p className="text-sm text-muted-foreground">
-                Retry attempts: {retryCount}/3
-              </p>
-            )}
+            <h3 className="font-semibold mb-1">Unable to Load</h3>
+            <p className="text-sm text-muted-foreground">{error}</p>
           </div>
-          <div className="flex gap-2 justify-center flex-wrap">
-            <Button 
-              onClick={() => fetchRoutine(false)} 
-              variant="hero" 
-              disabled={loading || isRetrying}
-            >
-              {loading || isRetrying ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : null}
-              {isRetrying ? 'Retrying...' : 'Try Again'}
-            </Button>
-            
-            {isNetworkError && retryCount < 3 && (
-              <Button 
-                onClick={() => fetchRoutine(true)} 
-                variant="outline" 
-                disabled={loading || isRetrying}
-              >
-                {isRetrying ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : null}
-                Auto Retry ({3 - retryCount} left)
-              </Button>
-            )}
-            
-            {isNotFound && (
-              <Button 
-                onClick={() => {
-                  // Clear error and try to reload profile
-                  setError(null);
-                  setProfileLoaded(false);
-                  window.location.reload();
-                }} 
-                variant="outline"
-                disabled={loading}
-              >
-                Refresh Profile
-              </Button>
-            )}
-          </div>
-          
-          {/* Additional help text based on error type */}
-          <div className="text-xs text-muted-foreground mt-4 space-y-1">
-            {isNetworkError && (
-              <p>• Check your internet connection<br/>• Try refreshing the page</p>
-            )}
-            {isNotFound && (
-              <p>• Contact your department for routine availability<br/>• Verify your semester and department information</p>
-            )}
-            {isAccessDenied && (
-              <p>• Ensure you are logged in as a student<br/>• Contact support if the problem persists</p>
-            )}
-            {isServerError && (
-              <p>• The system is temporarily unavailable<br/>• Please try again in a few minutes</p>
-            )}
-          </div>
+          <Button onClick={() => fetchRoutine(false)} disabled={loading} className="w-full">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Try Again
+          </Button>
         </div>
       </div>
     );
   }
 
+  // No data
   if (!loading && !error && !hasData) {
-    const departmentName = user?.department || 'your department';
-    const semesterValue = profileSemester || user?.semester || 'your semester';
-    const shiftValue = profileShift || (user as any)?.shift || 'Day';
-    
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="glass-card p-8 max-w-md text-center space-y-4">
-          <Calendar className="w-12 h-12 text-muted-foreground mx-auto" />
+      <div className="flex items-center justify-center min-h-[60vh] px-4">
+        <div className="bg-card rounded-2xl border border-border p-6 max-w-sm text-center space-y-4">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-muted flex items-center justify-center">
+            <Calendar className="w-7 h-7 text-muted-foreground" />
+          </div>
           <div>
-            <h3 className="text-lg font-semibold mb-2">No routine available</h3>
-            <p className="text-muted-foreground mb-4">
-              No class schedule found for {semesterValue}{typeof semesterValue === 'number' ? 
-                (semesterValue === 1 ? 'st' : semesterValue === 2 ? 'nd' : semesterValue === 3 ? 'rd' : 'th') : ''} semester, {shiftValue} shift.
-            </p>
-            <div className="text-sm text-muted-foreground space-y-1">
-              <p>Current filters:</p>
-              <div className="bg-muted/50 rounded-lg p-3 space-y-1">
-                <p>• Department: {typeof departmentName === 'string' ? departmentName : 'Not specified'}</p>
-                <p>• Semester: {semesterValue}</p>
-                <p>• Shift: {shiftValue}</p>
-              </div>
-            </div>
+            <h3 className="font-semibold mb-1">No Routine Available</h3>
+            <p className="text-sm text-muted-foreground">No class schedule found for your semester.</p>
           </div>
-          <div className="flex gap-2 justify-center flex-wrap">
-            <Button 
-              onClick={() => {
-                // Clear cache and fetch fresh data
-                routineService.cache.clear();
-                fetchRoutine(false);
-              }} 
-              variant="hero" 
-              disabled={loading}
-            >
-              {loading ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : null}
-              Refresh
-            </Button>
-            <Button 
-              onClick={() => {
-                // Clear cache and reload profile
-                setProfileLoaded(false);
-                setRoutine([]);
-                setTimeSlots([]);
-                setSchedule({
-                  Sunday: [],
-                  Monday: [],
-                  Tuesday: [],
-                  Wednesday: [],
-                  Thursday: [],
-                });
-              }} 
-              variant="outline"
-            >
-              Reset Filters
-            </Button>
-          </div>
-          <div className="text-xs text-muted-foreground mt-4">
-            <p>• Contact your department if routine should be available</p>
-            <p>• Check if your profile information is correct</p>
-            <p>• Routine may not be published yet for this semester</p>
-          </div>
+          <Button onClick={() => fetchRoutine(false)} variant="outline" className="w-full">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Refresh
+          </Button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 md:space-y-6">
-      {/* Page Header */}
+    <div className="space-y-4 pb-6 max-w-full overflow-x-hidden">
+      {/* Header */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4"
+        className="flex items-center justify-between"
       >
         <div>
-          <h1 className="text-xl md:text-2xl lg:text-3xl font-display font-bold">Class Routine</h1>
-          <p className="text-xs md:text-sm text-muted-foreground mt-0.5 md:mt-1">Your weekly schedule at a glance</p>
+          <h1 className="text-xl font-bold">Class Routine</h1>
+          <p className="text-xs text-muted-foreground">Your weekly schedule</p>
         </div>
-        <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="gap-1.5 md:gap-2 text-xs md:text-sm"
-            onClick={() => {
-              // Clear cache and fetch fresh data
-              routineService.cache.clear();
-              fetchRoutine(false);
-            }}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9"
+            onClick={() => { routineService.cache.clear(); fetchRoutine(false); }}
             disabled={loading || isRetrying}
           >
-            {loading || isRetrying ? (
-              <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" />
-            ) : (
-              <Timer className="w-3.5 h-3.5 md:w-4 md:h-4" />
-            )}
-            <span className="hidden sm:inline">
-              {isRetrying ? 'Retrying...' : 'Refresh'}
-            </span>
+            <RefreshCw className={cn("w-4 h-4", (loading || isRetrying) && "animate-spin")} />
           </Button>
-          <Button variant="outline" size="sm" className="gap-1.5 md:gap-2 text-xs md:text-sm">
-            <Filter className="w-3.5 h-3.5 md:w-4 md:h-4" />
-            <span className="hidden sm:inline">Filter</span>
-          </Button>
-          <Button variant="outline" size="sm" className="gap-1.5 md:gap-2 text-xs md:text-sm">
-            <Download className="w-3.5 h-3.5 md:w-4 md:h-4" />
-            <span className="hidden sm:inline">Download</span>
+          <Button variant="ghost" size="icon" className="h-9 w-9">
+            <Download className="w-4 h-4" />
           </Button>
         </div>
       </motion.div>
 
-      {/* Enhanced Class Status Box with Motivational Quotes */}
-      <ClassStatusBox
+      {/* Current Status Card */}
+      <CurrentClassStatus
         runningClass={runningClass}
         upcomingClass={upcomingClass}
-        isInBreak={isInBreak}
+        isBreak={isInBreak}
         classesCompleted={classesCompleted}
         totalClasses={totalClasses}
         currentTime={currentTime}
       />
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3 lg:gap-4">
-        {[
-          { 
-            label: 'Classes Today', 
-            value: totalClasses, 
-            icon: BookOpen, 
-            color: runningClass ? 'text-primary' : totalClasses > 0 ? 'text-blue-600' : 'text-muted-foreground',
-            bgColor: runningClass ? 'bg-primary/10' : totalClasses > 0 ? 'bg-blue-500/10' : 'bg-muted/10'
-          },
-          { 
-            label: 'Lab Sessions', 
-            value: labSessions, 
-            icon: FlaskConical, 
-            color: runningClass?.subject.toLowerCase().includes('lab') ? 'text-emerald-600' : labSessions > 0 ? 'text-warning' : 'text-muted-foreground',
-            bgColor: runningClass?.subject.toLowerCase().includes('lab') ? 'bg-emerald-500/10' : labSessions > 0 ? 'bg-warning/10' : 'bg-muted/10'
-          },
-          { 
-            label: 'Theory Classes', 
-            value: theorySessions, 
-            icon: Users, 
-            color: runningClass && !runningClass.subject.toLowerCase().includes('lab') ? 'text-primary' : theorySessions > 0 ? 'text-success' : 'text-muted-foreground',
-            bgColor: runningClass && !runningClass.subject.toLowerCase().includes('lab') ? 'bg-primary/10' : theorySessions > 0 ? 'bg-success/10' : 'bg-muted/10'
-          },
-          { 
-            label: 'Working Days', 
-            value: days.length, 
-            icon: Calendar, 
-            color: 'text-accent',
-            bgColor: 'bg-accent/10'
-          },
-        ].map((stat, i) => (
-          <motion.div
-            key={stat.label}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-            className="bg-card rounded-lg md:rounded-xl lg:rounded-2xl border border-border p-2 md:p-3 lg:p-4 shadow-card"
-          >
-            <div className="flex items-center gap-1.5 md:gap-2 lg:gap-3">
-              <div className={cn("w-7 h-7 md:w-8 md:h-8 lg:w-10 lg:h-10 rounded-md md:rounded-lg lg:rounded-xl flex items-center justify-center flex-shrink-0", stat.color, stat.bgColor)}>
-                <stat.icon className="w-3.5 h-3.5 md:w-4 md:h-4 lg:w-5 lg:h-5" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-base md:text-lg lg:text-2xl font-bold">{stat.value}</p>
-                <p className="text-[9px] md:text-[10px] lg:text-xs text-muted-foreground truncate">{stat.label}</p>
-              </div>
-            </div>
-          </motion.div>
-        ))}
-      </div>
-
-      {/* View Toggle & Day Selector */}
+      {/* Quick Stats */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="bg-card rounded-lg md:rounded-xl lg:rounded-2xl border border-border p-3 md:p-4 shadow-card"
+        transition={{ delay: 0.1 }}
+        className="grid grid-cols-3 gap-2"
       >
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4 mb-3 md:mb-4">
-          <div className="flex items-center gap-1.5 md:gap-2">
-            <Button
-              variant={viewMode === 'week' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('week')}
-              className="text-xs md:text-sm"
-            >
-              Week View
-            </Button>
-            <Button
-              variant={viewMode === 'day' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('day')}
-              className="text-xs md:text-sm"
-            >
-              Day View
-            </Button>
-          </div>
-          
-          {viewMode === 'day' && (
-            <div className="flex items-center gap-1.5 md:gap-2">
-              <Button variant="ghost" size="icon" className="h-7 w-7 md:h-8 md:w-8">
-                <ChevronLeft className="w-3.5 h-3.5 md:w-4 md:h-4" />
-              </Button>
-              <div className="flex gap-1 overflow-x-auto">
-                {days.map((day) => (
-                  <Button
-                    key={day}
-                    variant={selectedDay === day ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setSelectedDay(day)}
-                    className="min-w-[60px] md:min-w-[80px] text-xs md:text-sm"
-                  >
-                    {day.slice(0, 3)}
-                  </Button>
-                ))}
-              </div>
-              <Button variant="ghost" size="icon" className="h-7 w-7 md:h-8 md:w-8">
-                <ChevronRight className="w-3.5 h-3.5 md:w-4 md:h-4" />
-              </Button>
+        {[
+          { label: 'Today', value: totalClasses, icon: BookOpen, color: 'text-primary bg-primary/10' },
+          { label: 'Labs', value: labSessions, icon: FlaskConical, color: 'text-warning bg-warning/10' },
+          { label: 'Theory', value: theorySessions, icon: Users, color: 'text-success bg-success/10' },
+        ].map((stat) => (
+          <div key={stat.label} className="bg-card rounded-xl border border-border p-3 text-center">
+            <div className={cn("w-8 h-8 mx-auto rounded-lg flex items-center justify-center mb-1.5", stat.color)}>
+              <stat.icon className="w-4 h-4" />
             </div>
-          )}
-        </div>
+            <p className="text-lg font-bold">{stat.value}</p>
+            <p className="text-[10px] text-muted-foreground">{stat.label}</p>
+          </div>
+        ))}
+      </motion.div>
 
-        {/* Week View */}
-        {viewMode === 'week' && (
-          <div className="overflow-x-auto -mx-3 px-3 md:-mx-4 md:px-4 lg:mx-0 lg:px-0">
-            <table className="w-full min-w-[600px] md:min-w-[700px]">
+      {/* View Toggle */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+        className="flex items-center gap-1 p-1 bg-muted rounded-lg w-fit"
+      >
+        <button
+          onClick={() => setViewMode('cards')}
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all",
+            viewMode === 'cards' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+          )}
+        >
+          <Layers className="w-3.5 h-3.5" />
+          Cards
+        </button>
+        <button
+          onClick={() => setViewMode('table')}
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all",
+            viewMode === 'table' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+          )}
+        >
+          <LayoutGrid className="w-3.5 h-3.5" />
+          Table
+        </button>
+      </motion.div>
+
+      {/* Swipeable Cards View */}
+      {viewMode === 'cards' && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <SwipeableDays
+            days={days}
+            schedule={weeklySchedule}
+            timeSlots={timeSlots}
+            currentDay={currentDay}
+            runningClassId={runningClass?.id}
+            upcomingClassId={upcomingClass?.id}
+          />
+        </motion.div>
+      )}
+
+      {/* Table View */}
+      {viewMode === 'table' && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="bg-card rounded-xl sm:rounded-2xl border border-border overflow-hidden"
+        >
+          <div className="overflow-x-auto -mx-1 px-1">
+            <table className="w-full min-w-[320px] sm:min-w-[500px]">
               <thead>
-                <tr className="border-b border-border">
-                  <th className="py-1.5 md:py-2 lg:py-3 px-1.5 md:px-2 lg:px-3 text-left text-[10px] md:text-xs lg:text-sm font-medium text-muted-foreground w-12 md:w-16 lg:w-24">
-                    <Clock className="w-2.5 h-2.5 md:w-3 md:h-3 lg:w-4 lg:h-4 inline mr-0.5 md:mr-1" />
-                    <span className="hidden md:inline">Time</span>
+                <tr className="border-b border-border bg-muted/30">
+                  <th className="py-2 sm:py-3 px-1.5 sm:px-3 text-left text-[10px] sm:text-xs font-medium text-muted-foreground">
+                    <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5 inline mr-1" />
+                    <span className="hidden sm:inline">Time</span>
                   </th>
                   {days.map((day) => (
-                    <th key={day} className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-2 text-center text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground">
-                      <span className="md:hidden">{day.slice(0, 3)}</span>
-                      <span className="hidden md:inline">{day}</span>
+                    <th key={day} className={cn(
+                      "py-2 sm:py-3 px-0.5 sm:px-2 text-center text-[9px] sm:text-xs font-medium",
+                      day === currentDay ? "text-primary" : "text-muted-foreground"
+                    )}>
+                      {day.slice(0, 2)}
+                      <span className="hidden sm:inline">{day.slice(2, 3)}</span>
                     </th>
                   ))}
                 </tr>
@@ -1053,16 +627,15 @@ export default function ClassRoutinePage() {
               <tbody>
                 {timeSlots.map((time, timeIndex) => (
                   <tr key={time} className="border-b border-border/50">
-                    <td className="py-1.5 md:py-2 px-1.5 md:px-2 lg:px-3 text-[9px] md:text-[10px] lg:text-xs text-muted-foreground font-medium whitespace-nowrap">
-                      <span className="hidden sm:inline">{time}</span>
-                      <span className="sm:hidden">{time.split(' - ')[0]}</span>
+                    <td className="py-1.5 sm:py-2 px-1 sm:px-3 text-[9px] sm:text-[11px] text-muted-foreground font-medium whitespace-nowrap">
+                      {time.split(' - ')[0]}
                     </td>
                     {days.map((day) => {
                       const period = weeklySchedule[day]?.[timeIndex];
                       if (!period) {
                         return (
-                          <td key={day} className="py-1.5 md:py-2 px-0.5 md:px-1">
-                            <div className="h-12 md:h-14 lg:h-16 rounded-md md:rounded-lg bg-secondary/30 border border-dashed border-border/50" />
+                          <td key={day} className="py-1 sm:py-2 px-0.5 sm:px-1">
+                            <div className="h-8 sm:h-12 rounded sm:rounded-lg bg-muted/30 border border-dashed border-border/50" />
                           </td>
                         );
                       }
@@ -1071,31 +644,27 @@ export default function ClassRoutinePage() {
                       const isRunning = runningClass?.id === period.id;
                       
                       return (
-                        <td key={day} className="py-1.5 md:py-2 px-0.5 md:px-1">
-                          <motion.div
-                            whileHover={{ scale: 1.02 }}
+                        <td key={day} className="py-1 sm:py-2 px-0.5 sm:px-1">
+                          <div
                             className={cn(
-                              "h-12 md:h-14 lg:h-16 rounded-md md:rounded-lg border p-1 md:p-1.5 lg:p-2 bg-gradient-to-br cursor-pointer transition-all relative",
+                              "h-8 sm:h-12 rounded sm:rounded-lg border p-1 sm:p-1.5 bg-gradient-to-br relative",
                               colorClass,
-                              isRunning && "ring-2 ring-primary ring-offset-2 shadow-lg"
+                              isRunning && "ring-1 sm:ring-2 ring-primary ring-offset-1"
                             )}
                           >
                             {isRunning && (
-                              <div className="absolute top-0 right-0 -mt-1 -mr-1">
-                                <div className="w-3 h-3 bg-primary rounded-full animate-pulse flex items-center justify-center">
-                                  <PlayCircle className="w-2 h-2 text-primary-foreground" />
-                                </div>
+                              <div className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-2 h-2 sm:w-3 sm:h-3 bg-primary rounded-full animate-pulse flex items-center justify-center">
+                                <PlayCircle className="w-1.5 h-1.5 sm:w-2 sm:h-2 text-primary-foreground" />
                               </div>
                             )}
-                            <div className="flex items-start gap-0.5 md:gap-1 lg:gap-1.5 h-full">
-                              <Icon className="w-2.5 h-2.5 md:w-3 md:h-3 lg:w-3.5 lg:h-3.5 mt-0.5 flex-shrink-0 opacity-70" />
+                            <div className="flex items-start gap-0.5 sm:gap-1 h-full">
+                              <Icon className="w-2.5 h-2.5 sm:w-3 sm:h-3 mt-0.5 flex-shrink-0 opacity-70 hidden sm:block" />
                               <div className="min-w-0 flex-1">
-                                <p className="text-[9px] md:text-[10px] lg:text-xs font-semibold truncate leading-tight">{period.subject}</p>
-                                <p className="text-[8px] md:text-[9px] lg:text-[10px] opacity-70 truncate leading-tight">{period.room}</p>
-                                <p className="text-[8px] md:text-[9px] lg:text-[10px] opacity-60 truncate leading-tight hidden md:block">{period.teacher}</p>
+                                <p className="text-[7px] sm:text-[9px] font-semibold truncate leading-tight">{period.subject}</p>
+                                <p className="text-[6px] sm:text-[8px] opacity-70 truncate hidden sm:block">{period.room}</p>
                               </div>
                             </div>
-                          </motion.div>
+                          </div>
                         </td>
                       );
                     })}
@@ -1104,83 +673,22 @@ export default function ClassRoutinePage() {
               </tbody>
             </table>
           </div>
-        )}
-
-        {/* Day View */}
-        {viewMode === 'day' && (
-          <div className="space-y-2 md:space-y-3">
-            <h3 className="text-sm md:text-base lg:text-lg font-semibold">{selectedDay}'s Schedule</h3>
-            {weeklySchedule[selectedDay]?.filter((p) => p !== null).length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No classes scheduled for {selectedDay}
-              </div>
-            ) : (
-              weeklySchedule[selectedDay]?.map((period, index) => {
-                if (!period) return null;
-                const Icon = getSubjectIcon(period.subject);
-                const colorClass = subjectColors[period.subject.split(' ')[0]] || subjectColors.Computer;
-                const isRunning = runningClass?.id === period.id;
-
-                return (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    className={cn(
-                      'flex items-center gap-2 md:gap-3 lg:gap-4 p-2.5 md:p-3 lg:p-4 rounded-lg md:rounded-xl border bg-gradient-to-r relative',
-                      colorClass,
-                      isRunning && "ring-2 ring-primary ring-offset-2 shadow-lg"
-                    )}
-                  >
-                    {isRunning && (
-                      <div className="absolute top-2 right-2">
-                        <div className="flex items-center gap-1 px-2 py-0.5 bg-primary/20 text-primary rounded-full">
-                          <PlayCircle className="w-3 h-3 animate-pulse" />
-                          <span className="text-[9px] md:text-[10px] font-semibold">Running</span>
-                        </div>
-                      </div>
-                    )}
-                    <div className="text-center min-w-[60px] md:min-w-[70px] lg:min-w-[80px]">
-                      <p className="text-[9px] md:text-[10px] lg:text-xs opacity-70">Period {index + 1}</p>
-                      <p className="text-[10px] md:text-xs lg:text-sm font-semibold leading-tight">{timeSlots[index]}</p>
-                    </div>
-                    <div className="w-px h-8 md:h-10 lg:h-12 bg-current opacity-20" />
-                    <div className="w-7 h-7 md:w-8 md:h-8 lg:w-10 lg:h-10 rounded-md md:rounded-lg bg-background/50 flex items-center justify-center flex-shrink-0">
-                      <Icon className="w-3.5 h-3.5 md:w-4 md:h-4 lg:w-5 lg:h-5" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs md:text-sm lg:text-base font-semibold truncate">{period.subject}</p>
-                      <p className="text-[10px] md:text-xs lg:text-sm opacity-70 truncate">
-                        {period.code} • {period.room} • {period.teacher}
-                      </p>
-                    </div>
-                    {period.subject.toLowerCase().includes('lab') && (
-                      <span className="px-1.5 md:px-2 py-0.5 md:py-1 text-[9px] md:text-[10px] lg:text-xs font-medium bg-warning/20 text-warning rounded-full flex-shrink-0">
-                        Lab
-                      </span>
-                    )}
-                  </motion.div>
-                );
-              })
-            )}
-          </div>
-        )}
-      </motion.div>
+        </motion.div>
+      )}
 
       {/* Legend */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-        className="bg-card rounded-lg md:rounded-xl lg:rounded-2xl border border-border p-2.5 md:p-3 lg:p-4 shadow-card"
+        transition={{ delay: 0.25 }}
+        className="bg-card rounded-lg sm:rounded-xl border border-border p-2 sm:p-3"
       >
-        <h4 className="text-xs md:text-sm lg:text-base font-semibold mb-2 md:mb-3">Subject Legend</h4>
-        <div className="flex flex-wrap gap-1.5 md:gap-2 lg:gap-3">
+        <h4 className="text-[10px] sm:text-xs font-semibold mb-1.5 sm:mb-2">Legend</h4>
+        <div className="flex flex-wrap gap-1.5 sm:gap-2">
           {Object.entries(subjectColors).filter(([k]) => k !== 'Break').map(([subject, colorClass]) => (
-            <div key={subject} className={cn("flex items-center gap-1 md:gap-1.5 lg:gap-2 px-1.5 md:px-2 lg:px-3 py-0.5 md:py-1 lg:py-1.5 rounded-md lg:rounded-lg border bg-gradient-to-r", colorClass)}>
-              <div className="w-1 h-1 md:w-1.5 md:h-1.5 lg:w-2 lg:h-2 rounded-full bg-current" />
-              <span className="text-[9px] md:text-[10px] lg:text-xs font-medium">{subject}</span>
+            <div key={subject} className={cn("flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded sm:rounded-lg border bg-gradient-to-r text-[8px] sm:text-[10px] font-medium", colorClass)}>
+              <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-current" />
+              {subject}
             </div>
           ))}
         </div>

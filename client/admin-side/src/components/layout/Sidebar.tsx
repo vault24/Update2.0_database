@@ -143,9 +143,9 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
   const isSectionCollapsed = (sectionLabel: string) => collapsedSections.has(sectionLabel);
 
   return (
-    <div className="h-full bg-sidebar border-r border-sidebar-border flex flex-col">
+    <div className="h-screen bg-sidebar border-r border-sidebar-border flex flex-col sticky top-0">
       {/* Header */}
-      <div className="p-6 border-b border-sidebar-border">
+      <div className="p-6 border-b border-sidebar-border shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center shadow-glow">
@@ -238,21 +238,6 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
           );
         })}
       </nav>
-
-      {/* Footer */}
-      <div className="p-4 border-t border-sidebar-border">
-        <div className="glass-card rounded-xl p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full gradient-accent flex items-center justify-center">
-              <span className="text-sm font-bold text-accent-foreground">A</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-foreground truncate">Admin User</p>
-              <p className="text-xs text-muted-foreground truncate">Super Admin</p>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
