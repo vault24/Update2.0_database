@@ -33,7 +33,6 @@ const pageNames: Record<string, string> = {
   '/admissions': 'Admissions',
   '/class-routine': 'Class Routine',
   '/attendance-marks': 'Attendance & Marks',
-  '/student-profiles': 'Student Profiles',
   '/alumni': 'Alumni',
   '/documents': 'Documents',
   '/applications': 'Applications',
@@ -267,7 +266,7 @@ export function TopNavbar({ onMenuToggle, sidebarOpen }: TopNavbarProps) {
                   </div>
                   <div className="p-2">
                     <button 
-                      onClick={() => handleNavigate('/student-profiles')}
+                      onClick={() => handleNavigate('/settings')}
                       className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-foreground hover:bg-secondary transition-colors"
                     >
                       <User className="w-4 h-4" />

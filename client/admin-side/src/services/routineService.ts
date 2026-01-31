@@ -76,13 +76,14 @@ class RoutineCache {
     });
   }
 
-  // Invalidate by filters (department, semester, shift)
-  invalidateByFilters(filters: { department?: string; semester?: number; shift?: Shift }): void {
+  // Invalidate by filters (department, semester, shift, teacher)
+  invalidateByFilters(filters: { department?: string; semester?: number; shift?: Shift; teacher?: string }): void {
     const patterns: string[] = [];
     
     if (filters.department) patterns.push(`department":"${filters.department}"`);
     if (filters.semester) patterns.push(`semester":${filters.semester}`);
     if (filters.shift) patterns.push(`shift":"${filters.shift}"`);
+    if (filters.teacher) patterns.push(`teacher":"${filters.teacher}"`);
 
     if (patterns.length === 0) {
       this.invalidate(); // Clear all if no specific filters
@@ -452,7 +453,7 @@ export const routineService = {
     /**
      * Invalidate cache by filters
      */
-    invalidateByFilters: (filters: { department?: string; semester?: number; shift?: Shift }) => {
+    invalidateByFilters: (filters: { department?: string; semester?: number; shift?: Shift; teacher?: string }) => {
       routineCache.invalidateByFilters(filters);
     },
 
@@ -566,7 +567,7 @@ export const routineTransformers = {
   gridToOperations: (
     currentGrid: RoutineGridData,
     originalRoutines: ClassRoutine[],
-    filters: { department: string; semester: number; shift: Shift; session: string }
+    filters: { department?: string; semester?: number; shift?: Shift; session?: string; teacher?: string }
   ): RoutineOperation[] => {
     const operations: RoutineOperation[] = [];
     const days: DayOfWeek[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
@@ -621,7 +622,9 @@ export const routineTransformers = {
             subject_name: classSlot.subject,
             subject_code: classSlot.subject.toUpperCase().replace(/\s+/g, ''),
             room_number: classSlot.room,
-            is_active: true
+            is_active: true,
+            // Include teacher if provided in filters
+            ...(filters.teacher && { teacher: filters.teacher })
           };
 
           // Add teacher if provided and not 'TBA'
@@ -684,7 +687,7 @@ export const routineTransformers = {
   saveRoutineChanges: async (
     currentGrid: RoutineGridData,
     originalRoutines: ClassRoutine[],
-    filters: { department: string; semester: number; shift: Shift; session: string }
+    filters: { department?: string; semester?: number; shift?: Shift; session?: string; teacher?: string }
   ): Promise<BulkUpdateResponse> => {
     try {
       console.log('saveRoutineChanges called with:', {

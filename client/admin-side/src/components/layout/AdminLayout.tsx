@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sidebar } from './Sidebar';
 import { TopNavbar } from './TopNavbar';
+import { Footer } from './Footer';
 
 export function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -71,6 +72,8 @@ export function AdminLayout() {
             <Outlet />
           </motion.div>
         </main>
+        
+        <Footer />
       </div>
     </div>
   );

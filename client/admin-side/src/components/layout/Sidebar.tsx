@@ -23,6 +23,7 @@ import {
   UserCog,
   Bell,
   ChevronRight,
+  MessageSquareWarning,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -58,6 +59,7 @@ const menuItems: MenuGroup[] = [
       { icon: UserPlus, label: 'Add Student', path: '/add-student' },
       { icon: UserX, label: 'Discontinued Students', path: '/discontinued-students' },
       { icon: GraduationCap, label: 'Admissions', path: '/admissions' },
+      { icon: Award, label: 'Stipend Eligible', path: '/stipend-eligible' },
     ],
   },
   {
@@ -74,7 +76,6 @@ const menuItems: MenuGroup[] = [
     label: 'Profiles & Records',
     collapsible: true,
     items: [
-      { icon: UserCircle, label: 'Student Profiles', path: '/student-profiles' },
       { icon: Award, label: 'Alumni', path: '/alumni' },
       { icon: FileText, label: 'Documents', path: '/documents' },
     ],
@@ -86,6 +87,7 @@ const menuItems: MenuGroup[] = [
       { icon: Inbox, label: 'Applications', path: '/applications' },
       { icon: FileEdit, label: 'Correction Requests', path: '/correction-requests' },
       { icon: UserCog, label: 'Signup Requests', path: '/signup-requests' },
+      { icon: MessageSquareWarning, label: 'Complaints', path: '/complaints' },
     ],
   },
   {

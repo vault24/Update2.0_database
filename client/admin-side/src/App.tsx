@@ -15,7 +15,7 @@ import Admissions from "./pages/Admissions";
 import AdmissionDetails from "./pages/AdmissionDetails";
 import ClassRoutine from "./pages/ClassRoutine";
 import AttendanceMarks from "./pages/AttendanceMarks";
-import StudentProfiles from "./pages/StudentProfiles";
+
 import StudentDetails from "./pages/StudentDetails";
 import EditStudent from "./pages/EditStudent";
 import Alumni from "./pages/Alumni";
@@ -31,8 +31,10 @@ import DepartmentView from "./pages/DepartmentView";
 import Teachers from "./pages/Teachers";
 import SignupRequests from "./pages/SignupRequests";
 import Notices from "./pages/Notices";
+import StipendEligible from "./pages/StipendEligible";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import Complaints from "./pages/Complaints";
 
 const queryClient = new QueryClient();
 
@@ -61,6 +63,7 @@ const App = () => (
                   <Route path="/discontinued-students" element={<DiscontinuedStudents />} />
                   <Route path="/admissions" element={<Admissions />} />
                   <Route path="/admissions/:id" element={<AdmissionDetails />} />
+                  <Route path="/stipend-eligible" element={<StipendEligible />} />
                   <Route path="/departments" element={<Departments />} />
                   <Route path="/departments/:id" element={<DepartmentView />} />
                   <Route path="/teachers" element={<Teachers />} />
@@ -68,12 +71,13 @@ const App = () => (
                   <Route path="/notices" element={<Notices />} />
                   <Route path="/class-routine" element={<ClassRoutine />} />
                   <Route path="/attendance-marks" element={<AttendanceMarks />} />
-                  <Route path="/student-profiles" element={<StudentProfiles />} />
+
                   <Route path="/alumni" element={<Alumni />} />
                   <Route path="/alumni/:id" element={<AlumniDetails />} />
                   <Route path="/documents" element={<Documents />} />
                   <Route path="/applications" element={<Applications />} />
                   <Route path="/correction-requests" element={<CorrectionRequests />} />
+                  <Route path="/complaints" element={<Complaints />} />
                   <Route path="/analytics" element={<Analytics />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/activity-logs" element={<ActivityLogs />} />
