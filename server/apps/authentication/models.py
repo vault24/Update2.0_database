@@ -3,6 +3,8 @@ Authentication Models
 """
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.utils import timezone
+from datetime import timedelta
 import uuid
 
 
@@ -203,3 +205,96 @@ class SignupRequest(models.Model):
     
     def __str__(self):
         return f"{self.username} - {self.get_status_display()}"
+
+
+class OTPToken(models.Model):
+    """
+    Model to store OTP tokens for password reset functionality
+    """
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='otp_tokens'
+    )
+    token = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    is_used = models.BooleanField(default=False)
+    attempts = models.IntegerField(default=0)
+    max_attempts = models.IntegerField(default=3)
+    
+    class Meta:
+        db_table = 'auth_otp_token'
+        ordering = ['-created_at']
+        verbose_name = 'OTP Token'
+        verbose_name_plural = 'OTP Tokens'
+        indexes = [
+            models.Index(fields=['user', 'created_at']),
+            models.Index(fields=['token']),
+            models.Index(fields=['expires_at']),
+            models.Index(fields=['is_used']),
+        ]
+    
+    def __str__(self):
+        return f"OTP for {self.user.email} - {self.token}"
+    
+    def is_valid(self):
+        """Check if OTP is still valid"""
+        return (
+            not self.is_used and
+            self.attempts < self.max_attempts and
+            timezone.now() < self.expires_at
+        )
+    
+    def is_expired(self):
+        """Check if OTP has expired"""
+        return timezone.now() >= self.expires_at
+    
+    def increment_attempts(self):
+        """Increment the number of verification attempts"""
+        self.attempts += 1
+        self.save(update_fields=['attempts'])
+    
+    def mark_as_used(self):
+        """Mark the OTP as used"""
+        self.is_used = True
+        self.save(update_fields=['is_used'])
+
+
+class PasswordResetAttempt(models.Model):
+    """
+    Model to track password reset attempts for rate limiting
+    """
+    email = models.EmailField()
+    ip_address = models.GenericIPAddressField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    success = models.BooleanField(default=False)
+    user_agent = models.TextField(blank=True)
+    
+    class Meta:
+        db_table = 'auth_password_reset_attempt'
+        ordering = ['-created_at']
+        verbose_name = 'Password Reset Attempt'
+        verbose_name_plural = 'Password Reset Attempts'
+        indexes = [
+            models.Index(fields=['email', 'created_at']),
+            models.Index(fields=['ip_address', 'created_at']),
+            models.Index(fields=['created_at']),
+        ]
+    
+    def __str__(self):
+        return f"Reset attempt for {self.email} from {self.ip_address}"
+    
+    @classmethod
+    def get_recent_attempts(cls, email, hours=1):
+        """Get recent attempts for an email within specified hours"""
+        since = timezone.now() - timedelta(hours=hours)
+        return cls.objects.filter(
+            email=email,
+            created_at__gte=since
+        ).count()
+    
+    @classmethod
+    def is_rate_limited(cls, email, max_attempts=3, hours=1):
+        """Check if email is rate limited"""
+        return cls.get_recent_attempts(email, hours) >= max_attempts

@@ -671,7 +671,11 @@ export function AuthPage() {
                           Remember me
                         </Label>
                       </div>
-                      <button type="button" className="text-xs text-primary hover:underline font-medium">
+                      <button 
+                        type="button" 
+                        onClick={() => navigate('/password-reset')}
+                        className="text-xs text-primary hover:underline font-medium"
+                      >
                         Forgot password?
                       </button>
                     </div>

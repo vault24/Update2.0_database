@@ -1,452 +1,284 @@
 """
 Authentication Serializers
 """
+import re
 from rest_framework import serializers
-from django.contrib.auth import authenticate
+from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
-from django.contrib.auth.hashers import make_password
-from .models import User, SignupRequest
+from django.core.exceptions import ValidationError
 
-
-class UserSerializer(serializers.ModelSerializer):
-    """
-    Serializer for User model
-    """
-    class Meta:
-        model = User
-        fields = [
-            'id',
-            'username',
-            'email',
-            'first_name',
-            'last_name',
-            'role',
-            'account_status',
-            'admission_status',
-            'related_profile_id',
-            'mobile_number',
-            'created_at',
-            'updated_at'
-        ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+User = get_user_model()
 
 
 class RegisterSerializer(serializers.ModelSerializer):
-    """
-    Serializer for user registration
-    """
-    password = serializers.CharField(
-        write_only=True,
-        required=True,
-        validators=[validate_password],
-        style={'input_type': 'password'}
-    )
-    password_confirm = serializers.CharField(
-        write_only=True,
-        required=True,
-        style={'input_type': 'password'}
-    )
-    
-    # Teacher-specific fields (conditional)
-    full_name_english = serializers.CharField(required=False, allow_blank=True)
-    full_name_bangla = serializers.CharField(required=False, allow_blank=True)
-    designation = serializers.CharField(required=False, allow_blank=True)
-    department = serializers.UUIDField(required=False, allow_null=True)
-    qualifications = serializers.ListField(
-        child=serializers.CharField(),
-        required=False,
-        default=list
-    )
-    specializations = serializers.ListField(
-        child=serializers.CharField(),
-        required=False,
-        default=list
-    )
-    office_location = serializers.CharField(required=False, allow_blank=True)
+    """Serializer for user registration"""
+    password = serializers.CharField(write_only=True, min_length=8)
+    confirm_password = serializers.CharField(write_only=True)
     
     class Meta:
         model = User
-        fields = [
-            'username',
-            'email',
-            'password',
-            'password_confirm',
-            'first_name',
-            'last_name',
-            'role',
-            'mobile_number',
-            # Teacher-specific fields
-            'full_name_english',
-            'full_name_bangla',
-            'designation',
-            'department',
-            'qualifications',
-            'specializations',
-            'office_location',
-        ]
+        fields = ['username', 'email', 'password', 'confirm_password', 'first_name', 'last_name', 'role']
     
     def validate(self, attrs):
-        """Validate password confirmation and teacher fields"""
-        if attrs['password'] != attrs['password_confirm']:
-            raise serializers.ValidationError({
-                'password_confirm': 'Passwords do not match'
-            })
-        
-        # Validate teacher fields if role is teacher
-        if attrs.get('role') == 'teacher':
-            required_teacher_fields = [
-                'full_name_english', 'full_name_bangla', 
-                'designation', 'department'
-            ]
-            for field in required_teacher_fields:
-                if not attrs.get(field):
-                    raise serializers.ValidationError({
-                        field: 'This field is required for teacher registration'
-                    })
-            
-            # Validate department exists
-            if attrs.get('department'):
-                from apps.departments.models import Department
-                try:
-                    Department.objects.get(id=attrs['department'])
-                except Department.DoesNotExist:
-                    raise serializers.ValidationError({
-                        'department': 'Invalid department selected'
-                    })
-        
+        if attrs['password'] != attrs['confirm_password']:
+            raise serializers.ValidationError("Passwords don't match")
         return attrs
     
-    def validate_role(self, value):
-        """Validate role selection"""
-        # Only allow student, captain, and teacher roles during registration
-        # Admin roles should be created through Django admin
-        allowed_roles = ['student', 'captain', 'teacher']
-        if value not in allowed_roles:
-            raise serializers.ValidationError(
-                f'Invalid role. Allowed roles: {", ".join(allowed_roles)}'
-            )
-        return value
-    
     def create(self, validated_data):
-        """Create user with appropriate account status based on role"""
-        from django.db import transaction
-        from .services import create_teacher_signup_request, extract_teacher_data_from_request
-        
-        # Remove password_confirm from validated data
-        validated_data.pop('password_confirm')
-        
-        # Extract teacher-specific data before creating user
-        teacher_data = {}
-        teacher_fields = [
-            'full_name_english', 'full_name_bangla', 'designation', 
-            'department', 'qualifications', 'specializations', 'office_location'
-        ]
-        
-        for field in teacher_fields:
-            if field in validated_data:
-                teacher_data[field] = validated_data.pop(field)
-        
-        # Extract password
-        password = validated_data.pop('password')
-        
-        # Set account status based on role
-        role = validated_data.get('role', 'student')
-        if role == 'teacher':
-            validated_data['account_status'] = 'pending'
-        else:
-            validated_data['account_status'] = 'active'
-        
-        # Set admission status for students and captains
-        if role in ['student', 'captain']:
-            validated_data['admission_status'] = 'not_started'
-        
-        # Create user and teacher signup request atomically
-        with transaction.atomic():
-            # Create user
-            user = User.objects.create_user(
-                password=password,
-                **validated_data
-            )
-            
-            # Create teacher signup request if role is teacher
-            if role == 'teacher':
-                create_teacher_signup_request(user, teacher_data)
-        
+        validated_data.pop('confirm_password')
+        user = User.objects.create_user(**validated_data)
         return user
 
 
 class LoginSerializer(serializers.Serializer):
-    """
-    Serializer for user login
-    """
-    username = serializers.CharField(required=True)
-    password = serializers.CharField(
-        required=True,
-        write_only=True,
-        style={'input_type': 'password'}
-    )
+    """Serializer for user login"""
+    username = serializers.CharField()
+    password = serializers.CharField()
+    remember_me = serializers.BooleanField(required=False, default=False)
     
     def validate(self, attrs):
-        """Validate credentials and check if user can login"""
+        """Validate login credentials"""
         username = attrs.get('username')
         password = attrs.get('password')
         
-        if username and password:
-            # Authenticate user
-            user = authenticate(
-                request=self.context.get('request'),
-                username=username,
-                password=password
-            )
-            
-            if not user:
-                # Check if there's a pending or rejected signup request
-                try:
-                    signup_request = SignupRequest.objects.get(username=username)
-                    if signup_request.status == 'pending':
-                        raise serializers.ValidationError(
-                            'Your signup request is pending approval. Please wait for admin review.',
-                            code='authorization'
-                        )
-                    elif signup_request.status == 'rejected':
-                        rejection_msg = 'Your signup request has been rejected.'
-                        if signup_request.rejection_reason:
-                            rejection_msg += f' Reason: {signup_request.rejection_reason}'
-                        raise serializers.ValidationError(
-                            rejection_msg,
-                            code='authorization'
-                        )
-                except SignupRequest.DoesNotExist:
-                    pass
-                
-                # Default error message
-                raise serializers.ValidationError(
-                    'Invalid username or password',
-                    code='authorization'
-                )
-            
-            # Check if user can login
-            if not user.can_login():
-                error_message = user.get_login_error_message()
-                error_code = 'authorization'
-                
-                # Provide specific error code for pending teacher approval
-                if user.role == 'teacher' and user.account_status == 'pending':
-                    error_code = 'pending_approval'
-                
-                raise serializers.ValidationError(
-                    error_message,
-                    code=error_code
-                )
-            
-            attrs['user'] = user
-            return attrs
-        else:
-            raise serializers.ValidationError(
-                'Must include "username" and "password"',
-                code='authorization'
-            )
+        if not username or not password:
+            raise serializers.ValidationError('Username and password are required')
+        
+        # Try to authenticate user
+        from django.contrib.auth import authenticate, get_user_model
+        User = get_user_model()
+        
+        # Try to find user by email or username
+        user = None
+        try:
+            # First try by email
+            if '@' in username:
+                user = User.objects.get(email=username)
+            else:
+                # Then try by username
+                user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            raise serializers.ValidationError('Invalid credentials')
+        
+        # Check if user can login
+        if not user.can_login():
+            raise serializers.ValidationError(user.get_login_error_message())
+        
+        # Verify password
+        if not user.check_password(password):
+            raise serializers.ValidationError('Invalid credentials')
+        
+        attrs['user'] = user
+        return attrs
 
 
 class ChangePasswordSerializer(serializers.Serializer):
-    """
-    Serializer for changing password
-    """
-    old_password = serializers.CharField(
-        required=True,
-        write_only=True,
-        style={'input_type': 'password'}
-    )
-    new_password = serializers.CharField(
-        required=True,
-        write_only=True,
-        validators=[validate_password],
-        style={'input_type': 'password'}
-    )
-    new_password_confirm = serializers.CharField(
-        required=True,
-        write_only=True,
-        style={'input_type': 'password'}
-    )
+    """Serializer for changing password"""
+    old_password = serializers.CharField()
+    new_password = serializers.CharField(min_length=8)
+    confirm_password = serializers.CharField()
     
     def validate(self, attrs):
-        """Validate password confirmation"""
-        if attrs['new_password'] != attrs['new_password_confirm']:
-            raise serializers.ValidationError({
-                'new_password_confirm': 'Passwords do not match'
-            })
+        if attrs['new_password'] != attrs['confirm_password']:
+            raise serializers.ValidationError("New passwords don't match")
         return attrs
-    
-    def validate_old_password(self, value):
-        """Validate old password"""
-        user = self.context['request'].user
-        if not user.check_password(value):
-            raise serializers.ValidationError('Old password is incorrect')
-        return value
 
 
-
-class SignupRequestSerializer(serializers.ModelSerializer):
-    """
-    Serializer for creating signup requests
-    """
-    password = serializers.CharField(
-        write_only=True,
-        required=True,
-        validators=[validate_password],
-        style={'input_type': 'password'}
-    )
-    password_confirm = serializers.CharField(
-        write_only=True,
-        required=True,
-        style={'input_type': 'password'}
-    )
-    
-    class Meta:
-        model = SignupRequest
-        fields = [
-            'username',
-            'email',
-            'password',
-            'password_confirm',
-            'first_name',
-            'last_name',
-            'requested_role',
-            'mobile_number'
-        ]
-    
-    def validate(self, attrs):
-        """Validate password confirmation"""
-        if attrs['password'] != attrs['password_confirm']:
-            raise serializers.ValidationError({
-                'password_confirm': 'Passwords do not match'
-            })
-        return attrs
-    
-    def validate_username(self, value):
-        """Check if username already exists in SignupRequest or User"""
-        if SignupRequest.objects.filter(username=value).exists():
-            raise serializers.ValidationError(
-                'A signup request with this username already exists'
-            )
-        if User.objects.filter(username=value).exists():
-            raise serializers.ValidationError(
-                'This username is already taken'
-            )
-        return value
-    
-    def validate_email(self, value):
-        """Check if email already exists in SignupRequest or User"""
-        if SignupRequest.objects.filter(email=value).exists():
-            raise serializers.ValidationError(
-                'A signup request with this email already exists'
-            )
-        if User.objects.filter(email=value).exists():
-            raise serializers.ValidationError(
-                'This email is already registered'
-            )
-        return value
-    
-    def validate_requested_role(self, value):
-        """Validate requested role is an admin role"""
-        allowed_roles = ['registrar', 'institute_head']
-        if value not in allowed_roles:
-            raise serializers.ValidationError(
-                f'Invalid role. Allowed roles: {", ".join(allowed_roles)}'
-            )
-        return value
-    
-    def create(self, validated_data):
-        """Create signup request with hashed password"""
-        # Remove password_confirm from validated data
-        validated_data.pop('password_confirm')
-        
-        # Extract and hash password
-        password = validated_data.pop('password')
-        password_hash = make_password(password)
-        
-        # Create signup request
-        signup_request = SignupRequest.objects.create(
-            password_hash=password_hash,
-            **validated_data
-        )
-        
-        return signup_request
+class SignupRequestSerializer(serializers.Serializer):
+    """Serializer for signup requests"""
+    username = serializers.CharField()
+    email = serializers.EmailField()
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+    mobile_number = serializers.CharField(required=False)
+    requested_role = serializers.CharField()
+    password = serializers.CharField()
+    password_confirm = serializers.CharField()
 
 
-class SignupRequestListSerializer(serializers.ModelSerializer):
-    """
-    Serializer for listing signup requests
-    """
-    reviewed_by_name = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = SignupRequest
-        fields = [
-            'id',
-            'username',
-            'email',
-            'first_name',
-            'last_name',
-            'requested_role',
-            'status',
-            'reviewed_by_name',
-            'reviewed_at',
-            'created_at'
-        ]
-        read_only_fields = fields
-    
-    def get_reviewed_by_name(self, obj):
-        """Get the name of the reviewer"""
-        if obj.reviewed_by:
-            return f"{obj.reviewed_by.first_name} {obj.reviewed_by.last_name}".strip() or obj.reviewed_by.username
-        return None
+class SignupRequestListSerializer(serializers.Serializer):
+    """Serializer for listing signup requests"""
+    pass
 
 
-class SignupRequestDetailSerializer(serializers.ModelSerializer):
-    """
-    Serializer for detailed signup request view
-    """
-    reviewed_by_details = UserSerializer(source='reviewed_by', read_only=True)
-    created_user_details = UserSerializer(source='created_user', read_only=True)
-    
-    class Meta:
-        model = SignupRequest
-        fields = [
-            'id',
-            'username',
-            'email',
-            'first_name',
-            'last_name',
-            'mobile_number',
-            'requested_role',
-            'status',
-            'reviewed_by',
-            'reviewed_by_details',
-            'reviewed_at',
-            'rejection_reason',
-            'created_user',
-            'created_user_details',
-            'created_at',
-            'updated_at'
-        ]
-        read_only_fields = fields
+class SignupRequestDetailSerializer(serializers.Serializer):
+    """Serializer for signup request details"""
+    pass
 
 
 class ApproveSignupRequestSerializer(serializers.Serializer):
-    """
-    Serializer for approving signup requests
-    """
-    pass  # No additional fields needed
+    """Serializer for approving signup requests"""
+    pass
 
 
 class RejectSignupRequestSerializer(serializers.Serializer):
-    """
-    Serializer for rejecting signup requests
-    """
-    rejection_reason = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        max_length=1000,
-        help_text='Optional reason for rejection'
-    )
+    """Serializer for rejecting signup requests"""
+    reason = serializers.CharField(required=False)
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    """Serializer for password reset request"""
+    email = serializers.EmailField()
+    
+    def validate_email(self, value):
+        """Validate email format"""
+        # Basic email format validation (already handled by EmailField)
+        # Additional custom validation can be added here
+        if not value:
+            raise serializers.ValidationError("Email is required")
+        
+        # Normalize email
+        value = value.lower().strip()
+        
+        # Additional email format validation
+        email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_regex, value):
+            raise serializers.ValidationError("Please enter a valid email address")
+        
+        return value
+
+
+class OTPVerificationSerializer(serializers.Serializer):
+    """Serializer for OTP verification"""
+    email = serializers.EmailField()
+    otp = serializers.CharField(max_length=6, min_length=6)
+    
+    def validate_email(self, value):
+        """Validate email format"""
+        if not value:
+            raise serializers.ValidationError("Email is required")
+        
+        # Normalize email
+        value = value.lower().strip()
+        
+        # Email format validation
+        email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_regex, value):
+            raise serializers.ValidationError("Please enter a valid email address")
+        
+        return value
+    
+    def validate_otp(self, value):
+        """Validate OTP format"""
+        if not value:
+            raise serializers.ValidationError("OTP is required")
+        
+        # Remove any whitespace
+        value = value.strip()
+        
+        # Check if OTP is exactly 6 digits
+        if len(value) != 6:
+            raise serializers.ValidationError("OTP must be exactly 6 digits")
+        
+        # Check if OTP contains only digits
+        if not value.isdigit():
+            raise serializers.ValidationError("OTP must contain only numbers")
+        
+        return value
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    """Serializer for password reset confirmation"""
+    email = serializers.EmailField()
+    otp = serializers.CharField(max_length=6, min_length=6)
+    new_password = serializers.CharField(min_length=8, write_only=True)
+    confirm_password = serializers.CharField(min_length=8, write_only=True)
+    
+    def validate_email(self, value):
+        """Validate email format"""
+        if not value:
+            raise serializers.ValidationError("Email is required")
+        
+        # Normalize email
+        value = value.lower().strip()
+        
+        # Email format validation
+        email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_regex, value):
+            raise serializers.ValidationError("Please enter a valid email address")
+        
+        return value
+    
+    def validate_otp(self, value):
+        """Validate OTP format"""
+        if not value:
+            raise serializers.ValidationError("OTP is required")
+        
+        # Remove any whitespace
+        value = value.strip()
+        
+        # Check if OTP is exactly 6 digits
+        if len(value) != 6:
+            raise serializers.ValidationError("OTP must be exactly 6 digits")
+        
+        # Check if OTP contains only digits
+        if not value.isdigit():
+            raise serializers.ValidationError("OTP must contain only numbers")
+        
+        return value
+    
+    def validate_new_password(self, value):
+        """Validate new password strength"""
+        if not value:
+            raise serializers.ValidationError("New password is required")
+        
+        # Use Django's built-in password validators
+        try:
+            validate_password(value)
+        except ValidationError as e:
+            raise serializers.ValidationError(e.messages)
+        
+        # Additional custom password validation
+        if len(value) < 8:
+            raise serializers.ValidationError("Password must be at least 8 characters long")
+        
+        # Check for at least one letter and one number
+        if not re.search(r'[A-Za-z]', value):
+            raise serializers.ValidationError("Password must contain at least one letter")
+        
+        if not re.search(r'\d', value):
+            raise serializers.ValidationError("Password must contain at least one number")
+        
+        return value
+    
+    def validate(self, attrs):
+        """Validate that passwords match"""
+        new_password = attrs.get('new_password')
+        confirm_password = attrs.get('confirm_password')
+        
+        if new_password and confirm_password:
+            if new_password != confirm_password:
+                raise serializers.ValidationError({
+                    'confirm_password': 'Passwords do not match'
+                })
+        
+        return attrs
+
+
+class UserSerializer(serializers.ModelSerializer):
+    """Basic user serializer for responses"""
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'role']
+        read_only_fields = ['id', 'username', 'role']
+
+
+class PasswordResetResponseSerializer(serializers.Serializer):
+    """Serializer for password reset responses"""
+    success = serializers.BooleanField()
+    message = serializers.CharField()
+    remaining_attempts = serializers.IntegerField(required=False)
+    
+    
+class OTPVerificationResponseSerializer(serializers.Serializer):
+    """Serializer for OTP verification responses"""
+    success = serializers.BooleanField()
+    message = serializers.CharField()
+    verified = serializers.BooleanField(required=False)
+
+
+class PasswordResetConfirmResponseSerializer(serializers.Serializer):
+    """Serializer for password reset confirmation responses"""
+    success = serializers.BooleanField()
+    message = serializers.CharField()
+    user = UserSerializer(required=False)
