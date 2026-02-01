@@ -1,16 +1,23 @@
 """
-Document Serializers
+Enhanced Document Serializers
 """
 from rest_framework import serializers
-from .models import Document
+from django.core.exceptions import ValidationError as DjangoValidationError
+from .models import Document, DocumentAccessLog
+from utils.file_storage import file_storage
 
 
 class DocumentSerializer(serializers.ModelSerializer):
     """
-    Complete serializer for document data
+    Complete serializer for document data with enhanced fields
     """
     studentName = serializers.CharField(source='student.fullNameEnglish', read_only=True)
     source_type_display = serializers.CharField(source='get_source_type_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    file_url = serializers.ReadOnlyField()
+    file_size_mb = serializers.ReadOnlyField()
+    is_image = serializers.ReadOnlyField()
+    is_pdf = serializers.ReadOnlyField()
     
     class Meta:
         model = Document
@@ -23,57 +30,109 @@ class DocumentSerializer(serializers.ModelSerializer):
             'category',
             'filePath',
             'fileSize',
+            'file_size_mb',
+            'fileHash',
+            'mimeType',
             'uploadDate',
+            'lastModified',
+            'status',
+            'status_display',
             'source_type',
             'source_type_display',
             'source_id',
             'original_field_name',
+            'is_public',
+            'access_permissions',
+            'description',
+            'tags',
+            'metadata',
+            'file_url',
+            'is_image',
+            'is_pdf',
         ]
-        read_only_fields = ['id', 'uploadDate', 'filePath', 'fileSize']
+        read_only_fields = [
+            'id', 'uploadDate', 'lastModified', 'filePath', 
+            'fileSize', 'fileHash', 'mimeType', 'file_url',
+            'file_size_mb', 'is_image', 'is_pdf'
+        ]
 
 
 class DocumentUploadSerializer(serializers.Serializer):
     """
-    Serializer for document uploads
+    Enhanced serializer for document uploads with better validation
     """
-    student = serializers.UUIDField(required=True)
+    student = serializers.UUIDField(required=False, allow_null=True)
     category = serializers.ChoiceField(
         choices=Document.CATEGORY_CHOICES,
         required=True
     )
     file = serializers.FileField(required=True)
+    source_type = serializers.ChoiceField(
+        choices=Document.SOURCE_TYPE_CHOICES,
+        default='manual'
+    )
+    source_id = serializers.UUIDField(required=False, allow_null=True)
+    original_field_name = serializers.CharField(required=False, allow_blank=True)
+    description = serializers.CharField(required=False, allow_blank=True)
+    tags = serializers.ListField(
+        child=serializers.CharField(max_length=50),
+        required=False,
+        allow_empty=True
+    )
+    is_public = serializers.BooleanField(default=False)
+    custom_filename = serializers.CharField(required=False, allow_blank=True)
     
     def validate_file(self, value):
-        """Validate file type and size"""
-        # Check file type (allow PDF, JPG, PNG for documents)
-        allowed_extensions = ['.pdf', '.jpg', '.jpeg', '.png']
-        if not any(value.name.lower().endswith(ext) for ext in allowed_extensions):
-            raise serializers.ValidationError(
-                "Only PDF, JPG, JPEG, and PNG files are allowed for documents."
-            )
-        
-        # Check file size (max 10MB)
-        max_size = 10 * 1024 * 1024  # 10MB in bytes
-        if value.size > max_size:
-            raise serializers.ValidationError(
-                f"File size must not exceed 10MB. Current size: {value.size / (1024 * 1024):.2f}MB"
-            )
-        
-        return value
+        """Enhanced file validation"""
+        try:
+            # Use the file storage service for validation
+            file_storage.validate_file(value, 'documents')
+            return value
+        except DjangoValidationError as e:
+            raise serializers.ValidationError(str(e))
     
     def validate_student(self, value):
-        """Validate that student exists"""
+        """Validate that student exists (if provided)"""
+        if value is None:
+            return value
+            
         from apps.students.models import Student
         try:
             Student.objects.get(id=value)
         except Student.DoesNotExist:
             raise serializers.ValidationError("Student not found.")
         return value
+    
+    def validate_tags(self, value):
+        """Validate tags"""
+        if len(value) > 10:
+            raise serializers.ValidationError("Maximum 10 tags allowed")
+        
+        for tag in value:
+            if len(tag.strip()) < 2:
+                raise serializers.ValidationError("Each tag must be at least 2 characters long")
+        
+        return [tag.strip().lower() for tag in value]
+    
+    def validate_custom_filename(self, value):
+        """Validate custom filename"""
+        if value:
+            # Check for dangerous characters
+            dangerous_chars = '<>:"/\\|?*'
+            if any(char in value for char in dangerous_chars):
+                raise serializers.ValidationError(
+                    "Filename contains invalid characters: " + ', '.join(dangerous_chars)
+                )
+            
+            if len(value) > 100:
+                raise serializers.ValidationError("Filename too long (max 100 characters)")
+        
+        return value
 
 
 class BatchDocumentUploadSerializer(serializers.Serializer):
     """
-    Serializer for batch document uploads
+    Enhanced serializer for batch document uploads
     """
     student = serializers.UUIDField(required=False, allow_null=True)
     documents = serializers.ListField(
@@ -89,8 +148,10 @@ class BatchDocumentUploadSerializer(serializers.Serializer):
     source_id = serializers.UUIDField(required=False, allow_null=True)
     
     def validate_documents(self, value):
-        """Validate each document in the batch"""
+        """Enhanced validation for batch documents"""
         validated_documents = []
+        total_size = 0
+        max_batch_size = 100 * 1024 * 1024  # 100MB total
         
         for i, doc_data in enumerate(value):
             # Validate required fields
@@ -112,25 +173,32 @@ class BatchDocumentUploadSerializer(serializers.Serializer):
             if not hasattr(file_obj, 'name') or not hasattr(file_obj, 'size'):
                 raise serializers.ValidationError(f"Document {i+1}: Invalid file object")
             
-            # File type validation
-            allowed_extensions = ['.pdf', '.jpg', '.jpeg', '.png']
-            if not any(file_obj.name.lower().endswith(ext) for ext in allowed_extensions):
+            # Use file storage service for validation
+            try:
+                file_storage.validate_file(file_obj, 'documents')
+            except DjangoValidationError as e:
+                raise serializers.ValidationError(f"Document {i+1}: {str(e)}")
+            
+            # Check batch size limit
+            total_size += file_obj.size
+            if total_size > max_batch_size:
                 raise serializers.ValidationError(
-                    f"Document {i+1}: Only PDF, JPG, JPEG, and PNG files are allowed"
+                    f"Total batch size ({total_size / (1024 * 1024):.2f}MB) exceeds "
+                    f"maximum allowed ({max_batch_size / (1024 * 1024):.2f}MB)"
                 )
             
-            # File size validation (max 10MB)
-            max_size = 10 * 1024 * 1024
-            if file_obj.size > max_size:
-                raise serializers.ValidationError(
-                    f"Document {i+1}: File size must not exceed 10MB. "
-                    f"Current size: {file_obj.size / (1024 * 1024):.2f}MB"
-                )
+            # Validate optional fields
+            tags = doc_data.get('tags', [])
+            if tags and len(tags) > 10:
+                raise serializers.ValidationError(f"Document {i+1}: Maximum 10 tags allowed")
             
             validated_documents.append({
                 'file': file_obj,
                 'category': category,
                 'original_field_name': doc_data.get('original_field_name', ''),
+                'description': doc_data.get('description', ''),
+                'tags': [tag.strip().lower() for tag in tags] if tags else [],
+                'is_public': doc_data.get('is_public', False),
                 'metadata': doc_data.get('metadata', {})
             })
         
@@ -149,6 +217,49 @@ class BatchDocumentUploadSerializer(serializers.Serializer):
         return value
 
 
+class DocumentAccessLogSerializer(serializers.ModelSerializer):
+    """
+    Serializer for document access logs
+    """
+    document_name = serializers.CharField(source='document.fileName', read_only=True)
+    user_name = serializers.CharField(source='user.username', read_only=True)
+    
+    class Meta:
+        model = DocumentAccessLog
+        fields = [
+            'id',
+            'document',
+            'document_name',
+            'user',
+            'user_name',
+            'access_type',
+            'ip_address',
+            'user_agent',
+            'timestamp',
+            'success',
+            'error_message',
+        ]
+        read_only_fields = ['id', 'timestamp']
+
+
+class DocumentIntegritySerializer(serializers.Serializer):
+    """
+    Serializer for document integrity check results
+    """
+    document_id = serializers.UUIDField()
+    file_name = serializers.CharField()
+    file_path = serializers.CharField()
+    exists = serializers.BooleanField()
+    accessible = serializers.BooleanField()
+    size_match = serializers.BooleanField()
+    hash_match = serializers.BooleanField(required=False)
+    expected_size = serializers.IntegerField()
+    actual_size = serializers.IntegerField(required=False, allow_null=True)
+    status = serializers.CharField()
+    errors = serializers.ListField(child=serializers.CharField(), required=False)
+    warnings = serializers.ListField(child=serializers.CharField(), required=False)
+
+
 class AdmissionDocumentUploadSerializer(serializers.Serializer):
     """
     Serializer for admission document uploads
@@ -164,7 +275,7 @@ class AdmissionDocumentUploadSerializer(serializers.Serializer):
         from apps.admissions.models import Admission
         try:
             admission = Admission.objects.get(id=value)
-            if admission.status != 'pending':
+            if admission.status not in ['pending']:
                 raise serializers.ValidationError(
                     f"Cannot upload documents for {admission.status} admission"
                 )
@@ -199,21 +310,25 @@ class AdmissionDocumentUploadSerializer(serializers.Serializer):
             if not hasattr(file_obj, 'name') or not hasattr(file_obj, 'size'):
                 raise serializers.ValidationError(f"Invalid file object for '{field_name}'")
             
-            # File type validation
-            allowed_extensions = ['.pdf', '.jpg', '.jpeg', '.png']
-            if not any(file_obj.name.lower().endswith(ext) for ext in allowed_extensions):
-                raise serializers.ValidationError(
-                    f"Document '{field_name}': Only PDF, JPG, JPEG, and PNG files are allowed"
-                )
-            
-            # File size validation (max 10MB)
-            max_size = 10 * 1024 * 1024
-            if file_obj.size > max_size:
-                raise serializers.ValidationError(
-                    f"Document '{field_name}': File size must not exceed 10MB. "
-                    f"Current size: {file_obj.size / (1024 * 1024):.2f}MB"
-                )
+            # Use file storage service for validation
+            try:
+                file_storage.validate_file(file_obj, 'documents')
+            except DjangoValidationError as e:
+                raise serializers.ValidationError(f"Document '{field_name}': {str(e)}")
             
             validated_documents[field_name] = file_obj
         
         return validated_documents
+
+
+class FileUploadProgressSerializer(serializers.Serializer):
+    """
+    Serializer for file upload progress tracking
+    """
+    upload_id = serializers.UUIDField()
+    filename = serializers.CharField()
+    total_size = serializers.IntegerField()
+    uploaded_size = serializers.IntegerField()
+    progress_percent = serializers.FloatField()
+    status = serializers.CharField()
+    error_message = serializers.CharField(required=False, allow_blank=True)

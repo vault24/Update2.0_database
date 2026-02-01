@@ -51,8 +51,8 @@ class AdmissionViewSet(viewsets.ModelViewSet):
     
     def get_permissions(self):
         """Set permissions based on action"""
-        if self.action in ['create', 'my_admission', 'save_draft', 'get_draft', 'clear_draft']:
-            # Students and captains can submit, view, and manage drafts
+        if self.action in ['create', 'my_admission', 'save_draft', 'get_draft', 'clear_draft', 'upload_documents']:
+            # Students and captains can submit, view, manage drafts, and upload documents
             return [permissions.IsAuthenticated()]
         else:
             # Admin actions require staff permissions
@@ -339,30 +339,18 @@ class AdmissionViewSet(viewsets.ModelViewSet):
         
         POST /api/admissions/upload-documents/
         
-        Request body:
-        {
-            "admission_id": "uuid",
-            "documents": {
-                "photo": <file>,
-                "sscMarksheet": <file>,
-                "sscCertificate": <file>,
-                // ... other document fields
-            }
-        }
+        Request body (FormData):
+        - admission_id: UUID of the admission
+        - documents[fieldName]: File objects for each document field
         """
-        from apps.documents.serializers import AdmissionDocumentUploadSerializer
+        # Handle both request.data and request.POST for admission_id
+        admission_id = request.data.get('admission_id') or request.POST.get('admission_id')
         
-        serializer = AdmissionDocumentUploadSerializer(data=request.data)
-        
-        if not serializer.is_valid():
-            return Response(
-                serializer.errors,
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        validated_data = serializer.validated_data
-        admission_id = validated_data['admission_id']
-        document_files = validated_data['documents']
+        if not admission_id:
+            return Response({
+                'error': 'Missing admission_id',
+                'details': 'admission_id is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         try:
             # Get the admission
@@ -374,6 +362,38 @@ class AdmissionViewSet(viewsets.ModelViewSet):
                     'error': 'Permission denied',
                     'details': 'You can only upload documents for your own admission'
                 }, status=status.HTTP_403_FORBIDDEN)
+            
+            # Extract documents from request.FILES
+            document_files = {}
+            for key, file_obj in request.FILES.items():
+                # Handle both formats: documents[fieldName] and direct fieldName
+                if key.startswith('documents[') and key.endswith(']'):
+                    field_name = key[10:-1]  # Remove 'documents[' and ']'
+                else:
+                    field_name = key
+                
+                document_files[field_name] = file_obj
+            
+            if not document_files:
+                return Response({
+                    'error': 'No documents provided',
+                    'details': 'At least one document file is required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Validate document fields
+            valid_fields = [
+                'photo', 'sscMarksheet', 'sscCertificate', 'birthCertificateDoc',
+                'studentNIDCopy', 'fatherNIDFront', 'fatherNIDBack', 
+                'motherNIDFront', 'motherNIDBack', 'testimonial',
+                'medicalCertificate', 'quotaDocument', 'extraCertificates'
+            ]
+            
+            invalid_fields = [field for field in document_files.keys() if field not in valid_fields]
+            if invalid_fields:
+                return Response({
+                    'error': 'Invalid document fields',
+                    'details': f'Invalid fields: {invalid_fields}. Valid fields: {valid_fields}'
+                }, status=status.HTTP_400_BAD_REQUEST)
             
             # Process documents using the admission model method
             success = admission.process_documents(document_files)

@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   GraduationCap, Mail, Phone, MapPin, Building, Award, Calendar, 
   BookOpen, Copy, Check, Share2, FileText, Star, Clock, Target,
-  TrendingUp, User, BarChart3
+  TrendingUp, User, BarChart3, Loader2, AlertCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
+import { studentService } from '@/services/studentService';
+import { documentService } from '@/services/documentService';
+import { getErrorMessage } from '@/lib/api';
 
 // Mock student data
 const mockStudentData = {
@@ -53,15 +56,109 @@ I believe in continuous learning and regularly participate in coding competition
 export default function PublicStudentProfilePage() {
   const { studentId } = useParams();
   const [copied, setCopied] = useState(false);
-  const student = mockStudentData;
+  const [student, setStudent] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [profilePicture, setProfilePicture] = useState<string | null>(null);
 
-  const publicProfileUrl = `${window.location.origin}/student/${student.id}`;
+  const publicProfileUrl = `${window.location.origin}/student/${studentId}`;
+
+  useEffect(() => {
+    if (studentId) {
+      fetchStudentData();
+    }
+  }, [studentId]);
+
+  const fetchStudentData = async () => {
+    if (!studentId) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Fetch student data
+      const studentData = await studentService.getStudent(studentId);
+      setStudent(studentData);
+
+      // Try to fetch profile picture
+      try {
+        const response = await documentService.getMyDocuments(studentId, 'Photo');
+        const photoDoc = response.documents.find((doc: any) => doc.category === 'Photo');
+        if (photoDoc) {
+          setProfilePicture(documentService.getDocumentPreviewUrl(photoDoc.id));
+        }
+      } catch (docError) {
+        console.log('Could not fetch profile picture:', docError);
+      }
+    } catch (err: any) {
+      console.error('Failed to load student profile:', err);
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(publicProfileUrl);
     setCopied(true);
     toast.success('Profile link copied!');
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground">Loading student profile...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !student) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4 max-w-md">
+          <AlertCircle className="w-12 h-12 mx-auto text-destructive" />
+          <h3 className="text-lg font-semibold">Profile Not Found</h3>
+          <p className="text-muted-foreground">
+            {error || 'The student profile you are looking for could not be found.'}
+          </p>
+          <Button onClick={() => window.location.href = '/'}>
+            Go Home
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Transform student data to match the expected format
+  const transformedStudent = {
+    id: student.id,
+    name: student.fullNameEnglish || 'Student',
+    headline: `${student.departmentName || (typeof student.department === 'object' ? student.department?.name : student.department) || 'Student'} • Semester ${student.semester || 1}`,
+    department: student.departmentName || (typeof student.department === 'object' ? student.department?.name : student.department) || 'N/A',
+    semester: student.semester || 1,
+    session: student.session || '2024-25',
+    rollNumber: student.currentRollNumber || studentId,
+    email: student.email || 'N/A',
+    phone: student.mobileStudent || 'N/A',
+    location: student.presentAddress ? 
+      `${student.presentAddress.district || ''}, ${student.presentAddress.division || 'Bangladesh'}`.replace(/^,\s*|,\s*$/g, '') : 
+      'Bangladesh',
+    university: 'Sylhet Polytechnic Institute',
+    about: `${student.fullNameEnglish || 'Student'} is currently studying ${student.departmentName || (typeof student.department === 'object' ? student.department?.name : student.department) || 'at our institute'} in semester ${student.semester || 1}. 
+
+This is a public profile showcasing academic information and achievements.`,
+    skills: ['Academic Excellence', 'Problem Solving', 'Team Work', 'Communication'],
+    interests: ['Technology', 'Learning', 'Innovation', 'Development'],
+    cgpa: 0, // Would need to be calculated from marks
+    attendanceRate: 0, // Would need to be calculated from attendance
+    completedCourses: 0, // Would need to be calculated
+    currentCourses: [],
+    achievements: [],
+    projects: [],
   };
 
   return (
@@ -99,29 +196,37 @@ export default function PublicStudentProfilePage() {
         <div className="px-4 md:px-6 pb-5">
           {/* Avatar - positioned to overlap banner */}
           <div className="-mt-12 sm:-mt-14 md:-mt-16 mb-4">
-            <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-xl sm:text-2xl md:text-3xl font-bold text-white border-4 border-card shadow-xl">
-              {student.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-            </div>
+            {profilePicture ? (
+              <img 
+                src={profilePicture} 
+                alt={transformedStudent.name}
+                className="w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 rounded-full object-cover border-4 border-card shadow-xl"
+              />
+            ) : (
+              <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-xl sm:text-2xl md:text-3xl font-bold text-white border-4 border-card shadow-xl">
+                {transformedStudent.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+              </div>
+            )}
           </div>
 
           {/* Name and Info - separated from avatar to prevent cutoff */}
           <div className="space-y-3">
             <div>
-              <h1 className="text-lg sm:text-xl md:text-2xl font-bold break-words">{student.name}</h1>
-              <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 line-clamp-2">{student.headline}</p>
+              <h1 className="text-lg sm:text-xl md:text-2xl font-bold break-words">{transformedStudent.name}</h1>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 line-clamp-2">{transformedStudent.headline}</p>
             </div>
             
             <div className="flex flex-wrap items-center gap-2 text-xs md:text-sm text-muted-foreground">
-              <Badge variant="secondary" className="text-[10px] sm:text-xs">{student.department}</Badge>
+              <Badge variant="secondary" className="text-[10px] sm:text-xs">{transformedStudent.department}</Badge>
               <span className="hidden sm:inline">•</span>
-              <span>Semester {student.semester}</span>
+              <span>Semester {transformedStudent.semester}</span>
               <span className="hidden sm:inline">•</span>
-              <span className="hidden sm:inline">Roll: {student.rollNumber}</span>
+              <span className="hidden sm:inline">Roll: {transformedStudent.rollNumber}</span>
             </div>
             
             <div className="flex items-center gap-1.5 text-xs sm:text-sm">
               <Building className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground flex-shrink-0" />
-              <span className="font-medium text-primary truncate">{student.university}</span>
+              <span className="font-medium text-primary truncate">{transformedStudent.university}</span>
             </div>
           </div>
 
@@ -147,9 +252,9 @@ export default function PublicStudentProfilePage() {
           className="grid grid-cols-3 gap-2 sm:gap-3"
         >
           {[
-            { icon: BarChart3, label: 'CGPA', value: student.cgpa.toFixed(2), color: 'text-emerald-500 bg-emerald-500/10' },
-            { icon: Clock, label: 'Attendance', value: `${student.attendanceRate}%`, color: 'text-blue-500 bg-blue-500/10' },
-            { icon: BookOpen, label: 'Courses', value: student.completedCourses, color: 'text-violet-500 bg-violet-500/10' },
+            { icon: BarChart3, label: 'CGPA', value: transformedStudent.cgpa.toFixed(2), color: 'text-emerald-500 bg-emerald-500/10' },
+            { icon: Clock, label: 'Attendance', value: `${transformedStudent.attendanceRate}%`, color: 'text-blue-500 bg-blue-500/10' },
+            { icon: BookOpen, label: 'Semester', value: transformedStudent.semester, color: 'text-violet-500 bg-violet-500/10' },
           ].map((stat) => (
             <div key={stat.label} className="bg-card rounded-lg sm:rounded-xl border border-border p-2 sm:p-3 md:p-4 shadow-card flex flex-col sm:flex-row items-center gap-1.5 sm:gap-3 text-center sm:text-left">
               <div className={cn("w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0", stat.color)}>
@@ -174,7 +279,7 @@ export default function PublicStudentProfilePage() {
             <User className="w-5 h-5 text-primary" />
             About
           </h2>
-          <p className="text-sm text-muted-foreground whitespace-pre-line">{student.about}</p>
+          <p className="text-sm text-muted-foreground whitespace-pre-line">{transformedStudent.about}</p>
         </motion.div>
 
         {/* Tabs */}
@@ -201,17 +306,28 @@ export default function PublicStudentProfilePage() {
             <div className="bg-card rounded-xl border border-border p-4 md:p-6 shadow-card space-y-4">
               <h3 className="font-semibold flex items-center gap-2">
                 <BookOpen className="w-5 h-5 text-primary" />
-                Current Courses
+                Academic Information
               </h3>
-              {student.currentCourses.map((course, i) => (
-                <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 border border-border">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 border border-border">
                   <div>
-                    <h4 className="font-medium text-sm">{course.name}</h4>
-                    <p className="text-xs text-muted-foreground">{course.code}</p>
+                    <h4 className="font-medium text-sm">Department</h4>
+                    <p className="text-xs text-muted-foreground">{transformedStudent.department}</p>
                   </div>
-                  <Badge variant="secondary">{course.grade}</Badge>
                 </div>
-              ))}
+                <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 border border-border">
+                  <div>
+                    <h4 className="font-medium text-sm">Current Semester</h4>
+                    <p className="text-xs text-muted-foreground">Semester {transformedStudent.semester}</p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 border border-border">
+                  <div>
+                    <h4 className="font-medium text-sm">Session</h4>
+                    <p className="text-xs text-muted-foreground">{transformedStudent.session}</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </TabsContent>
 
@@ -219,19 +335,28 @@ export default function PublicStudentProfilePage() {
             <div className="bg-card rounded-xl border border-border p-4 md:p-6 shadow-card space-y-4">
               <h3 className="font-semibold flex items-center gap-2">
                 <Award className="w-5 h-5 text-primary" />
-                Achievements
+                Student Information
               </h3>
-              {student.achievements.map((ach, i) => (
-                <div key={i} className="flex gap-3 p-3 rounded-lg bg-gradient-to-br from-amber-500/10 to-orange-500/5 border border-amber-500/20">
-                  <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
-                    <Star className="w-5 h-5 text-amber-600" />
+              <div className="space-y-3">
+                <div className="flex gap-3 p-3 rounded-lg bg-gradient-to-br from-blue-500/10 to-indigo-500/5 border border-blue-500/20">
+                  <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
+                    <User className="w-5 h-5 text-blue-600" />
                   </div>
                   <div>
-                    <h4 className="font-medium text-sm">{ach.title}</h4>
-                    <p className="text-xs text-muted-foreground">{ach.issuer} • {ach.year}</p>
+                    <h4 className="font-medium text-sm">Roll Number</h4>
+                    <p className="text-xs text-muted-foreground">{transformedStudent.rollNumber}</p>
                   </div>
                 </div>
-              ))}
+                <div className="flex gap-3 p-3 rounded-lg bg-gradient-to-br from-green-500/10 to-emerald-500/5 border border-green-500/20">
+                  <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
+                    <GraduationCap className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-sm">Academic Status</h4>
+                    <p className="text-xs text-muted-foreground">{student.status || 'Active'}</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </TabsContent>
 
@@ -239,15 +364,24 @@ export default function PublicStudentProfilePage() {
             <div className="bg-card rounded-xl border border-border p-4 md:p-6 shadow-card space-y-4">
               <h3 className="font-semibold flex items-center gap-2">
                 <FileText className="w-5 h-5 text-primary" />
-                Projects
+                Contact Information
               </h3>
-              {student.projects.map((proj, i) => (
-                <div key={i} className="p-4 rounded-lg border border-border">
-                  <h4 className="font-medium">{proj.title}</h4>
-                  <p className="text-xs text-muted-foreground mt-0.5">{proj.year}</p>
-                  <p className="text-sm text-muted-foreground mt-2">{proj.description}</p>
+              <div className="space-y-3">
+                <div className="p-4 rounded-lg border border-border">
+                  <h4 className="font-medium">Email</h4>
+                  <p className="text-sm text-muted-foreground mt-1">{transformedStudent.email}</p>
                 </div>
-              ))}
+                {transformedStudent.phone !== 'N/A' && (
+                  <div className="p-4 rounded-lg border border-border">
+                    <h4 className="font-medium">Phone</h4>
+                    <p className="text-sm text-muted-foreground mt-1">{transformedStudent.phone}</p>
+                  </div>
+                )}
+                <div className="p-4 rounded-lg border border-border">
+                  <h4 className="font-medium">Location</h4>
+                  <p className="text-sm text-muted-foreground mt-1">{transformedStudent.location}</p>
+                </div>
+              </div>
             </div>
           </TabsContent>
         </Tabs>
@@ -260,7 +394,7 @@ export default function PublicStudentProfilePage() {
               Skills
             </h3>
             <div className="flex flex-wrap gap-2">
-              {student.skills.map((skill, i) => (
+              {transformedStudent.skills.map((skill, i) => (
                 <Badge key={i} variant="secondary" className="text-xs">{skill}</Badge>
               ))}
             </div>
@@ -272,7 +406,7 @@ export default function PublicStudentProfilePage() {
               Interests
             </h3>
             <div className="flex flex-wrap gap-2">
-              {student.interests.map((interest, i) => (
+              {transformedStudent.interests.map((interest, i) => (
                 <Badge key={i} variant="outline" className="text-xs">{interest}</Badge>
               ))}
             </div>
@@ -292,7 +426,7 @@ export default function PublicStudentProfilePage() {
               </div>
               <div className="min-w-0">
                 <p className="text-[10px] sm:text-xs text-muted-foreground">Email</p>
-                <p className="text-xs sm:text-sm font-medium truncate">{student.email}</p>
+                <p className="text-xs sm:text-sm font-medium truncate">{transformedStudent.email}</p>
               </div>
             </div>
             <div className="flex items-center gap-2 sm:gap-3">
@@ -301,7 +435,7 @@ export default function PublicStudentProfilePage() {
               </div>
               <div className="min-w-0">
                 <p className="text-[10px] sm:text-xs text-muted-foreground">Phone</p>
-                <p className="text-xs sm:text-sm font-medium truncate">{student.phone}</p>
+                <p className="text-xs sm:text-sm font-medium truncate">{transformedStudent.phone}</p>
               </div>
             </div>
             <div className="flex items-center gap-2 sm:gap-3">
@@ -310,7 +444,7 @@ export default function PublicStudentProfilePage() {
               </div>
               <div className="min-w-0">
                 <p className="text-[10px] sm:text-xs text-muted-foreground">Location</p>
-                <p className="text-xs sm:text-sm font-medium truncate">{student.location}</p>
+                <p className="text-xs sm:text-sm font-medium truncate">{transformedStudent.location}</p>
               </div>
             </div>
           </div>

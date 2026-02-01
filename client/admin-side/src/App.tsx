@@ -35,6 +35,7 @@ import StipendEligible from "./pages/StipendEligible";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import Complaints from "./pages/Complaints";
+import MotivationManagement from "./pages/MotivationManagement";
 
 const queryClient = new QueryClient();
 
@@ -81,6 +82,7 @@ const App = () => (
                   <Route path="/analytics" element={<Analytics />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/activity-logs" element={<ActivityLogs />} />
+                  <Route path="/motivation-management" element={<MotivationManagement />} />
                 </Route>
               </Route>
               <Route path="*" element={<NotFound />} />

@@ -1,0 +1,1026 @@
+import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { 
+  Heart, Sparkles, Star, Plus, Edit, Trash2, Save, X, 
+  Loader2, Eye, Calendar, User,
+  MessageSquare, Search, RefreshCw, Globe, Clock,
+  BookOpen, TrendingUp
+} from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
+import { motivationService, type MotivationMessage, type CreateMotivationData, type MotivationStats } from '@/services/motivationService';
+
+const categoryConfig = {
+  success: {
+    icon: Star,
+    label: 'Success',
+    color: 'text-emerald-600',
+    bgColor: 'bg-emerald-100',
+    borderColor: 'border-emerald-200'
+  },
+  inspiration: {
+    icon: Sparkles,
+    label: 'Inspiration',
+    color: 'text-violet-600',
+    bgColor: 'bg-violet-100',
+    borderColor: 'border-violet-200'
+  },
+  encouragement: {
+    icon: Heart,
+    label: 'Encouragement',
+    color: 'text-pink-600',
+    bgColor: 'bg-pink-100',
+    borderColor: 'border-pink-200'
+  },
+  wisdom: {
+    icon: Star,
+    label: 'Wisdom',
+    color: 'text-amber-600',
+    bgColor: 'bg-amber-100',
+    borderColor: 'border-amber-200'
+  },
+  academic: {
+    icon: BookOpen,
+    label: 'Academic',
+    color: 'text-blue-600',
+    bgColor: 'bg-blue-100',
+    borderColor: 'border-blue-200'
+  },
+  career: {
+    icon: TrendingUp,
+    label: 'Career',
+    color: 'text-indigo-600',
+    bgColor: 'bg-indigo-100',
+    borderColor: 'border-indigo-200'
+  },
+  personal: {
+    icon: User,
+    label: 'Personal',
+    color: 'text-purple-600',
+    bgColor: 'bg-purple-100',
+    borderColor: 'border-purple-200'
+  },
+  spiritual: {
+    icon: Star,
+    label: 'Spiritual',
+    color: 'text-teal-600',
+    bgColor: 'bg-teal-100',
+    borderColor: 'border-teal-200'
+  }
+};
+
+export default function MotivationManagement() {
+  const { toast } = useToast();
+  
+  // State
+  const [motivations, setMotivations] = useState<MotivationMessage[]>([]);
+  const [stats, setStats] = useState<MotivationStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  
+  // Form state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formData, setFormData] = useState<CreateMotivationData>({
+    title: '',
+    message: '',
+    author: '',
+    category: 'inspiration',
+    title_bn: '',
+    message_bn: '',
+    author_bn: '',
+    title_ar: '',
+    message_ar: '',
+    author_ar: '',
+    reference_source: '',
+    reference_url: '',
+    reference_date: '',
+    reference_context: '',
+    primary_language: 'en',
+    display_duration: 86400,
+    priority: 5,
+    is_active: true,
+    is_featured: false,
+    start_date: '',
+    end_date: ''
+  });
+
+  // Fetch motivations
+  const fetchMotivations = async () => {
+    try {
+      setLoading(true);
+      const [motivationsResponse, statsResponse] = await Promise.all([
+        motivationService.getAllMotivations({
+          search: searchTerm || undefined,
+          category: filterCategory !== 'all' ? filterCategory : undefined,
+          is_active: filterStatus === 'active' ? true : filterStatus === 'inactive' ? false : undefined,
+          ordering: '-priority'
+        }),
+        motivationService.getStats()
+      ]);
+      
+      setMotivations(motivationsResponse.results);
+      setStats(statsResponse);
+    } catch (error) {
+      console.error('Error fetching motivations:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch motivational messages',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Save motivation
+  const handleSave = async () => {
+    if (!formData.title.trim() || !formData.message.trim() || !formData.author.trim()) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please fill in all required fields',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setSaving(true);
+      
+      if (editingId) {
+        // Update existing
+        const updated = await motivationService.updateMotivation(editingId, formData);
+        setMotivations(prev => prev.map(m => 
+          m.id === editingId ? updated : m
+        ));
+        toast({
+          title: 'Success',
+          description: 'Motivational message updated successfully',
+        });
+      } else {
+        // Create new
+        const newMotivation = await motivationService.createMotivation(formData);
+        setMotivations(prev => [newMotivation, ...prev]);
+        toast({
+          title: 'Success',
+          description: 'Motivational message created successfully',
+        });
+      }
+      
+      // Reset form
+      setFormData({
+        title: '',
+        message: '',
+        author: '',
+        category: 'inspiration',
+        title_bn: '',
+        message_bn: '',
+        author_bn: '',
+        title_ar: '',
+        message_ar: '',
+        author_ar: '',
+        reference_source: '',
+        reference_url: '',
+        reference_date: '',
+        reference_context: '',
+        primary_language: 'en',
+        display_duration: 86400,
+        priority: 5,
+        is_active: true,
+        is_featured: false,
+        start_date: '',
+        end_date: ''
+      });
+      setIsEditing(false);
+      setEditingId(null);
+      
+      // Refresh stats
+      const statsResponse = await motivationService.getStats();
+      setStats(statsResponse);
+    } catch (error) {
+      console.error('Error saving motivation:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to save motivational message',
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Edit motivation
+  const handleEdit = (motivation: MotivationMessage) => {
+    if (!motivation) return;
+    
+    setFormData({
+      title: motivation.title || '',
+      message: motivation.message || '',
+      author: motivation.author || '',
+      category: motivation.category || 'inspiration',
+      title_bn: motivation.title_bn || '',
+      message_bn: motivation.message_bn || '',
+      author_bn: motivation.author_bn || '',
+      title_ar: motivation.title_ar || '',
+      message_ar: motivation.message_ar || '',
+      author_ar: motivation.author_ar || '',
+      reference_source: motivation.reference_source || '',
+      reference_url: motivation.reference_url || '',
+      reference_date: motivation.reference_date || '',
+      reference_context: motivation.reference_context || '',
+      primary_language: motivation.primary_language || 'en',
+      display_duration: motivation.display_duration || 86400,
+      priority: motivation.priority || 5,
+      is_active: motivation.is_active !== undefined ? motivation.is_active : true,
+      is_featured: motivation.is_featured !== undefined ? motivation.is_featured : false,
+      start_date: motivation.start_date || '',
+      end_date: motivation.end_date || ''
+    });
+    setEditingId(motivation.id || '');
+    setIsEditing(true);
+  };
+
+  // Delete motivation
+  const handleDelete = async (id: string) => {
+    try {
+      await motivationService.deleteMotivation(id);
+      setMotivations(prev => prev.filter(m => m.id !== id));
+      toast({
+        title: 'Success',
+        description: 'Motivational message deleted successfully',
+      });
+      
+      // Refresh stats
+      const statsResponse = await motivationService.getStats();
+      setStats(statsResponse);
+    } catch (error) {
+      console.error('Error deleting motivation:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete motivational message',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Toggle active status
+  const handleToggleActive = async (id: string) => {
+    try {
+      const response = await motivationService.toggleActive(id);
+      setMotivations(prev => prev.map(m => 
+        m.id === id 
+          ? { ...m, is_active: response.is_active, updated_at: new Date().toISOString() }
+          : m
+      ));
+      toast({
+        title: 'Success',
+        description: response.message,
+      });
+    } catch (error) {
+      console.error('Error toggling active status:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update status',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Toggle featured status
+  const handleToggleFeatured = async (id: string) => {
+    try {
+      const response = await motivationService.toggleFeatured(id);
+      setMotivations(prev => prev.map(m => 
+        m.id === id 
+          ? { ...m, is_featured: response.is_featured, updated_at: new Date().toISOString() }
+          : m
+      ));
+      toast({
+        title: 'Success',
+        description: response.message,
+      });
+    } catch (error) {
+      console.error('Error toggling featured status:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update featured status',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Cancel editing
+  const handleCancel = () => {
+    setFormData({
+      title: '',
+      message: '',
+      author: '',
+      category: 'inspiration',
+      title_bn: '',
+      message_bn: '',
+      author_bn: '',
+      title_ar: '',
+      message_ar: '',
+      author_ar: '',
+      reference_source: '',
+      reference_url: '',
+      reference_date: '',
+      reference_context: '',
+      primary_language: 'en',
+      display_duration: 86400,
+      priority: 5,
+      is_active: true,
+      is_featured: false,
+      start_date: '',
+      end_date: ''
+    });
+    setIsEditing(false);
+    setEditingId(null);
+  };
+
+  // Filter motivations
+  const filteredMotivations = motivations.filter(motivation => {
+    if (!motivation) return false;
+    
+    const searchLower = searchTerm.toLowerCase();
+    const matchesSearch = !searchTerm || 
+                         (motivation.title && motivation.title.toLowerCase().includes(searchLower)) ||
+                         (motivation.message && motivation.message.toLowerCase().includes(searchLower)) ||
+                         (motivation.author && motivation.author.toLowerCase().includes(searchLower)) ||
+                         (motivation.title_bn && motivation.title_bn.toLowerCase().includes(searchLower)) ||
+                         (motivation.message_bn && motivation.message_bn.toLowerCase().includes(searchLower)) ||
+                         (motivation.author_bn && motivation.author_bn.toLowerCase().includes(searchLower));
+    
+    const matchesCategory = filterCategory === 'all' || (motivation.category && motivation.category === filterCategory);
+    const matchesStatus = filterStatus === 'all' || 
+                         (filterStatus === 'active' && motivation.is_active) ||
+                         (filterStatus === 'inactive' && !motivation.is_active);
+    
+    return matchesSearch && matchesCategory && matchesStatus;
+  });
+
+  useEffect(() => {
+    fetchMotivations();
+  }, []);
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground">Loading motivational messages...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+            <Heart className="w-6 h-6 text-primary" />
+            Motivation Management
+          </h1>
+          <p className="text-muted-foreground">Manage inspirational messages for students</p>
+        </div>
+        <Button 
+          onClick={() => setIsEditing(true)}
+          className="gradient-primary text-primary-foreground"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Add Message
+        </Button>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="glass-card">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                <MessageSquare className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{stats?.total_messages || 0}</p>
+                <p className="text-xs text-muted-foreground">Total Messages</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="glass-card">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                <Eye className="w-5 h-5 text-emerald-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{stats?.active_messages || 0}</p>
+                <p className="text-xs text-muted-foreground">Active Messages</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="glass-card">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                <Star className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{stats?.total_views || 0}</p>
+                <p className="text-xs text-muted-foreground">Total Views</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="glass-card">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-violet-500/10 flex items-center justify-center">
+                <Heart className="w-5 h-5 text-violet-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{stats?.total_likes || 0}</p>
+                <p className="text-xs text-muted-foreground">Total Likes</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters */}
+      <Card className="glass-card">
+        <CardContent className="p-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search messages..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            <Select value={filterCategory} onValueChange={setFilterCategory}>
+              <SelectTrigger className="w-full sm:w-40">
+                <SelectValue placeholder="Category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                <SelectItem value="success">Success</SelectItem>
+                <SelectItem value="inspiration">Inspiration</SelectItem>
+                <SelectItem value="encouragement">Encouragement</SelectItem>
+                <SelectItem value="wisdom">Wisdom</SelectItem>
+                <SelectItem value="academic">Academic</SelectItem>
+                <SelectItem value="career">Career</SelectItem>
+                <SelectItem value="personal">Personal</SelectItem>
+                <SelectItem value="spiritual">Spiritual</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="w-full sm:w-32">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button variant="outline" onClick={fetchMotivations}>
+              <RefreshCw className="w-4 h-4" />
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Messages List */}
+      <div className="space-y-4">
+        {filteredMotivations.length === 0 ? (
+          <Card className="glass-card">
+            <CardContent className="p-8 text-center">
+              <Heart className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
+              <h3 className="text-lg font-semibold mb-2">No Messages Found</h3>
+              <p className="text-muted-foreground mb-4">
+                {searchTerm || filterCategory !== 'all' || filterStatus !== 'all'
+                  ? 'No messages match your current filters.'
+                  : 'Start by creating your first motivational message.'}
+              </p>
+              {!searchTerm && filterCategory === 'all' && filterStatus === 'all' && (
+                <Button onClick={() => setIsEditing(true)}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add First Message
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        ) : (
+          filteredMotivations.map((motivation, index) => {
+            if (!motivation || !motivation.category) {
+              return null;
+            }
+            
+            const config = categoryConfig[motivation.category];
+            if (!config) {
+              return null;
+            }
+            
+            const IconComponent = config.icon;
+            
+            return (
+              <motion.div
+                key={motivation.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+              >
+                <Card className={cn(
+                  "glass-card transition-all hover:shadow-lg",
+                  !motivation.is_active && "opacity-60"
+                )}>
+                  <CardContent className="p-6">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 space-y-3">
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "w-8 h-8 rounded-lg flex items-center justify-center",
+                            config.bgColor
+                          )}>
+                            <IconComponent className={cn("w-4 h-4", config.color)} />
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-foreground">
+                              {motivation.title || 'Untitled'}
+                            </h3>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <Badge variant="outline" className={cn(
+                                "text-xs",
+                                config.color,
+                                config.borderColor
+                              )}>
+                                {config.label}
+                              </Badge>
+                              <span>•</span>
+                              <User className="w-3 h-3" />
+                              <span>{motivation.author || 'Unknown'}</span>
+                              <span>•</span>
+                              <Calendar className="w-3 h-3" />
+                              <span>{motivation.created_at ? new Date(motivation.created_at).toLocaleDateString() : 'Unknown'}</span>
+                              <span>•</span>
+                              <Eye className="w-3 h-3" />
+                              <span>{motivation.view_count || 0} views</span>
+                              <span>•</span>
+                              <Heart className="w-3 h-3" />
+                              <span>{motivation.like_count || 0} likes</span>
+                              {motivation.is_featured && (
+                                <>
+                                  <span>•</span>
+                                  <Star className="w-3 h-3 text-amber-500" />
+                                  <span className="text-amber-600">Featured</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <p className="text-sm text-muted-foreground leading-relaxed">
+                          {motivation.message || 'No message available'}
+                        </p>
+                        
+                        {motivation.reference_source && (
+                          <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+                            <strong>Reference:</strong> {motivation.reference_source}
+                            {motivation.reference_context && (
+                              <span> - {motivation.reference_context}</span>
+                            )}
+                          </div>
+                        )}
+                        
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <Globe className="w-3 h-3" />
+                            <span>{motivation.primary_language ? motivation.primary_language.toUpperCase() : 'EN'}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            <span>{Math.round((motivation.display_duration || 86400) / 3600)}h display</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <TrendingUp className="w-3 h-3" />
+                            <span>Priority {motivation.priority || 1}</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={motivation.is_active}
+                          onCheckedChange={() => handleToggleActive(motivation.id)}
+                          className="data-[state=checked]:bg-emerald-600"
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleToggleFeatured(motivation.id)}
+                          className={cn(
+                            "h-8 w-8",
+                            motivation.is_featured ? "text-amber-600" : "text-muted-foreground"
+                          )}
+                        >
+                          <Star className={cn("w-4 h-4", motivation.is_featured && "fill-current")} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEdit(motivation)}
+                          className="h-8 w-8"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDelete(motivation.id)}
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Add/Edit Dialog */}
+      <Dialog open={isEditing} onOpenChange={setIsEditing}>
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Heart className="w-5 h-5 text-primary" />
+              {editingId ? 'Edit Message' : 'Add New Message'}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <Tabs defaultValue="basic" className="w-full">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="basic">Basic Info</TabsTrigger>
+              <TabsTrigger value="translations">Translations</TabsTrigger>
+              <TabsTrigger value="reference">Reference</TabsTrigger>
+              <TabsTrigger value="settings">Settings</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="basic" className="space-y-4 mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="title">Title * <span className="text-xs text-muted-foreground">(English)</span></Label>
+                  <Input
+                    id="title"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    placeholder="Enter message title"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="author">Author *</Label>
+                  <Input
+                    id="author"
+                    value={formData.author}
+                    onChange={(e) => setFormData({ ...formData, author: e.target.value })}
+                    placeholder="e.g., Principal, Faculty, etc."
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="message">Message * <span className="text-xs text-muted-foreground">(English)</span></Label>
+                <Textarea
+                  id="message"
+                  value={formData.message}
+                  onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                  placeholder="Enter your motivational message..."
+                  rows={4}
+                  className="resize-none"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {formData.message.length}/1000 characters
+                </p>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="category">Category</Label>
+                  <Select 
+                    value={formData.category} 
+                    onValueChange={(value) => setFormData({ ...formData, category: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="success">Success</SelectItem>
+                      <SelectItem value="inspiration">Inspiration</SelectItem>
+                      <SelectItem value="encouragement">Encouragement</SelectItem>
+                      <SelectItem value="wisdom">Wisdom</SelectItem>
+                      <SelectItem value="academic">Academic</SelectItem>
+                      <SelectItem value="career">Career</SelectItem>
+                      <SelectItem value="personal">Personal</SelectItem>
+                      <SelectItem value="spiritual">Spiritual</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="primary_language">Primary Language</Label>
+                  <Select 
+                    value={formData.primary_language} 
+                    onValueChange={(value) => setFormData({ ...formData, primary_language: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="en">English</SelectItem>
+                      <SelectItem value="bn">Bengali</SelectItem>
+                      <SelectItem value="ar">Arabic</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="translations" className="space-y-4 mt-4">
+              <div className="space-y-6">
+                <div className="space-y-4">
+                  <h4 className="font-medium flex items-center gap-2">
+                    <Globe className="w-4 h-4" />
+                    Bengali Translation (বাংলা)
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="title_bn">Title (Bengali)</Label>
+                      <Input
+                        id="title_bn"
+                        value={formData.title_bn || ''}
+                        onChange={(e) => setFormData({ ...formData, title_bn: e.target.value })}
+                        placeholder="বাংলা শিরোনাম"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="author_bn">Author (Bengali)</Label>
+                      <Input
+                        id="author_bn"
+                        value={formData.author_bn || ''}
+                        onChange={(e) => setFormData({ ...formData, author_bn: e.target.value })}
+                        placeholder="লেখকের নাম"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="message_bn">Message (Bengali)</Label>
+                    <Textarea
+                      id="message_bn"
+                      value={formData.message_bn || ''}
+                      onChange={(e) => setFormData({ ...formData, message_bn: e.target.value })}
+                      placeholder="বাংলা বার্তা..."
+                      rows={3}
+                      className="resize-none"
+                    />
+                  </div>
+                </div>
+                
+                <Separator />
+                
+                <div className="space-y-4">
+                  <h4 className="font-medium flex items-center gap-2">
+                    <Globe className="w-4 h-4" />
+                    Arabic Translation (العربية)
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="title_ar">Title (Arabic)</Label>
+                      <Input
+                        id="title_ar"
+                        value={formData.title_ar || ''}
+                        onChange={(e) => setFormData({ ...formData, title_ar: e.target.value })}
+                        placeholder="العنوان بالعربية"
+                        dir="rtl"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="author_ar">Author (Arabic)</Label>
+                      <Input
+                        id="author_ar"
+                        value={formData.author_ar || ''}
+                        onChange={(e) => setFormData({ ...formData, author_ar: e.target.value })}
+                        placeholder="اسم المؤلف"
+                        dir="rtl"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="message_ar">Message (Arabic)</Label>
+                    <Textarea
+                      id="message_ar"
+                      value={formData.message_ar || ''}
+                      onChange={(e) => setFormData({ ...formData, message_ar: e.target.value })}
+                      placeholder="الرسالة بالعربية..."
+                      rows={3}
+                      className="resize-none"
+                      dir="rtl"
+                    />
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="reference" className="space-y-4 mt-4">
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="reference_source">Reference Source</Label>
+                    <Input
+                      id="reference_source"
+                      value={formData.reference_source || ''}
+                      onChange={(e) => setFormData({ ...formData, reference_source: e.target.value })}
+                      placeholder="e.g., Book title, Speech, Interview"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reference_url">Reference URL</Label>
+                    <Input
+                      id="reference_url"
+                      type="url"
+                      value={formData.reference_url || ''}
+                      onChange={(e) => setFormData({ ...formData, reference_url: e.target.value })}
+                      placeholder="https://example.com"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reference_date">Reference Date</Label>
+                  <Input
+                    id="reference_date"
+                    type="date"
+                    value={formData.reference_date || ''}
+                    onChange={(e) => setFormData({ ...formData, reference_date: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reference_context">Reference Context</Label>
+                  <Textarea
+                    id="reference_context"
+                    value={formData.reference_context || ''}
+                    onChange={(e) => setFormData({ ...formData, reference_context: e.target.value })}
+                    placeholder="Background information or context about this quote..."
+                    rows={3}
+                    className="resize-none"
+                  />
+                </div>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="settings" className="space-y-4 mt-4">
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="priority">Priority (1-10)</Label>
+                    <Select 
+                      value={formData.priority?.toString()} 
+                      onValueChange={(value) => setFormData({ ...formData, priority: parseInt(value) })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[1,2,3,4,5,6,7,8,9,10].map(num => (
+                          <SelectItem key={num} value={num.toString()}>{num} {num >= 8 ? '(High)' : num >= 5 ? '(Medium)' : '(Low)'}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="display_duration">Display Duration</Label>
+                    <Select 
+                      value={formData.display_duration?.toString()} 
+                      onValueChange={(value) => setFormData({ ...formData, display_duration: parseInt(value) })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">5 seconds</SelectItem>
+                        <SelectItem value="10">10 seconds</SelectItem>
+                        <SelectItem value="15">15 seconds</SelectItem>
+                        <SelectItem value="30">30 seconds</SelectItem>
+                        <SelectItem value="60">1 minute</SelectItem>
+                        <SelectItem value="300">5 minutes</SelectItem>
+                        <SelectItem value="600">10 minutes</SelectItem>
+                        <SelectItem value="1800">30 minutes</SelectItem>
+                        <SelectItem value="3600">1 hour</SelectItem>
+                        <SelectItem value="86400">1 day</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <p className="font-medium">Active Status</p>
+                      <p className="text-sm text-muted-foreground">Whether this message is currently active</p>
+                    </div>
+                    <Switch
+                      checked={formData.is_active}
+                      onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
+                    />
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <p className="font-medium">Featured Message</p>
+                      <p className="text-sm text-muted-foreground">Featured messages appear more frequently</p>
+                    </div>
+                    <Switch
+                      checked={formData.is_featured}
+                      onCheckedChange={(checked) => setFormData({ ...formData, is_featured: checked })}
+                    />
+                  </div>
+                </div>
+                
+                <Separator />
+                
+                <div className="space-y-4">
+                  <h4 className="font-medium flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    Scheduling (Optional)
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="start_date">Start Date</Label>
+                      <Input
+                        id="start_date"
+                        type="datetime-local"
+                        value={formData.start_date || ''}
+                        onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="end_date">End Date</Label>
+                      <Input
+                        id="end_date"
+                        type="datetime-local"
+                        value={formData.end_date || ''}
+                        onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+          
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <Button variant="outline" onClick={handleCancel}>
+              <X className="w-4 h-4 mr-2" />
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSave}
+              disabled={saving}
+              className="gradient-primary text-primary-foreground"
+            >
+              {saving ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4 mr-2" />
+              )}
+              {editingId ? 'Update' : 'Create'} Message
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

@@ -92,7 +92,6 @@ export function StepPersonal({ formData, onChange }: Props) {
             <option value="">Select Gender</option>
             <option value="male">Male</option>
             <option value="female">Female</option>
-            <option value="other">Other</option>
           </select>
         </div>
         <div className="space-y-2">
@@ -154,9 +153,8 @@ export function StepPersonal({ formData, onChange }: Props) {
           <Label>Nationality</Label>
           <Input 
             placeholder="Enter nationality"
-            value={formData.nationality}
+            value={formData.nationality || 'Bangladeshi'}
             onChange={(e) => onChange('nationality', e.target.value)}
-            defaultValue="Bangladeshi"
           />
         </div>
       </div>

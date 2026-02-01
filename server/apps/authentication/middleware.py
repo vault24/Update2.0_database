@@ -17,7 +17,6 @@ class RoleBasedAccessMiddleware:
         # Format: {url_pattern: [allowed_roles]}
         self.access_rules = {
             # Admin-only endpoints
-            '/api/admissions/': ['registrar', 'institute_head'],
             '/api/teachers/requests/': ['registrar', 'institute_head'],
             '/api/activity-logs/': ['registrar', 'institute_head'],
             '/api/analytics/': ['registrar', 'institute_head'],
@@ -26,6 +25,7 @@ class RoleBasedAccessMiddleware:
             # Teacher and Student endpoints
             '/api/attendance/': ['student', 'teacher', 'captain', 'registrar', 'institute_head'],
             '/api/marks/': ['student', 'teacher', 'captain', 'registrar', 'institute_head'],
+            '/api/documents/': ['student', 'teacher', 'captain', 'registrar', 'institute_head'],
             
             # Student/Captain endpoints
             '/api/applications/': ['student', 'captain', 'registrar', 'institute_head'],
@@ -74,6 +74,7 @@ class RoleBasedAccessMiddleware:
                     '/api/admissions/save-draft/',
                     '/api/admissions/get-draft/',
                     '/api/admissions/clear-draft/',
+                    '/api/admissions/upload-documents/',
                 ]:
                     logger.info(f"Student draft access granted to {request.user.username} on {request.method} {request.path}")
                     return self.get_response(request)

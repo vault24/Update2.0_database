@@ -10,6 +10,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { noticeService } from '@/services/noticeService';
 import { useAuth } from '@/contexts/AuthContext';
 import { mockAllegations, SeverityLevel } from '@/data/mockAllegations';
+import ErrorBoundary from '@/components/ErrorBoundary';
+import ProfileAvatar from '@/components/ProfileAvatar';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -181,8 +183,8 @@ export function DashboardLayout() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className={`relative flex items-center gap-2 px-2 ${highestSeverity ? 'ring-2 ring-offset-2 ring-offset-background ' + severityColors.border : ''}`}>
-                  <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${severityColors.gradient} flex items-center justify-center text-white font-semibold text-sm ${highestSeverity ? 'shadow-lg ' + severityColors.glow : ''}`}>
-                    {user?.name ? user.name.charAt(0) : 'U'}
+                  <div className={highestSeverity ? 'ring-2 ring-offset-2 ring-offset-background ' + severityColors.border + ' rounded-full' : ''}>
+                    <ProfileAvatar size="sm" />
                   </div>
                   <ChevronDown className="w-4 h-4 text-muted-foreground hidden sm:block" />
                 </Button>
@@ -191,8 +193,8 @@ export function DashboardLayout() {
                 {/* Profile Header */}
                 <div className="px-3 py-3 border-b border-border">
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${severityColors.gradient} flex items-center justify-center text-white font-semibold ${highestSeverity ? 'shadow-lg ' + severityColors.glow : ''}`}>
-                      {user?.name?.charAt(0) || 'U'}
+                    <div className={highestSeverity ? 'ring-2 ring-offset-2 ring-offset-background ' + severityColors.border + ' rounded-full' : ''}>
+                      <ProfileAvatar size="md" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{user?.name || 'User'}</p>
@@ -227,7 +229,9 @@ export function DashboardLayout() {
         {/* Main Content */}
         <main className="flex-1 p-4 md:p-6 overflow-x-hidden overflow-y-auto">
           <div className="max-w-full">
-            <Outlet />
+            <ErrorBoundary>
+              <Outlet />
+            </ErrorBoundary>
           </div>
         </main>
 

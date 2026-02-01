@@ -259,8 +259,22 @@ class UserSerializer(serializers.ModelSerializer):
     """Basic user serializer for responses"""
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'role']
+        fields = [
+            'id', 'username', 'email', 'first_name', 'last_name', 'role',
+            'related_profile_id', 'admission_status', 'account_status',
+            'mobile_number'
+        ]
         read_only_fields = ['id', 'username', 'role']
+    
+    def to_representation(self, instance):
+        """Customize the representation to handle null related_profile_id"""
+        data = super().to_representation(instance)
+        
+        # If related_profile_id is null, use the user's ID as fallback
+        if not data.get('related_profile_id'):
+            data['related_profile_id'] = str(instance.id)
+        
+        return data
 
 
 class PasswordResetResponseSerializer(serializers.Serializer):

@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useProfilePicture } from '@/hooks/useProfilePicture';
 
 interface StudentProfileHeaderProps {
   name: string;
@@ -43,6 +44,10 @@ export function StudentProfileHeader({
 }: StudentProfileHeaderProps) {
   const [copied, setCopied] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const { profilePictureUrl } = useProfilePicture();
+
+  // Use profile picture from hook if available, fallback to avatarUrl prop
+  const displayAvatarUrl = profilePictureUrl || avatarUrl;
 
   const publicProfileUrl = `${window.location.origin}/student/${studentId}`;
 
@@ -93,12 +98,23 @@ export function StudentProfileHeader({
             className="flex-shrink-0"
           >
             <div className="relative">
-              <div className="w-24 h-24 md:w-32 md:h-32 lg:w-36 lg:h-36 rounded-2xl lg:rounded-3xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-3xl md:text-4xl lg:text-5xl font-bold text-white shadow-2xl ring-4 ring-white/30">
-                {avatarUrl ? (
-                  <img src={avatarUrl} alt={name} className="w-full h-full object-cover rounded-2xl lg:rounded-3xl" />
-                ) : (
-                  name.charAt(0).toUpperCase()
-                )}
+              <div className="w-24 h-24 md:w-32 md:h-32 lg:w-36 lg:h-36 rounded-2xl lg:rounded-3xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-3xl md:text-4xl lg:text-5xl font-bold text-white shadow-2xl ring-4 ring-white/30 overflow-hidden">
+                {displayAvatarUrl ? (
+                  <img 
+                    src={displayAvatarUrl} 
+                    alt={name} 
+                    className="w-full h-full object-cover" 
+                    onError={(e) => {
+                      // Fallback to initials if image fails to load
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      target.nextElementSibling?.classList.remove('hidden');
+                    }}
+                  />
+                ) : null}
+                <span className={displayAvatarUrl ? 'hidden' : ''}>
+                  {name.charAt(0).toUpperCase()}
+                </span>
               </div>
               <motion.div
                 animate={{ scale: [1, 1.2, 1] }}

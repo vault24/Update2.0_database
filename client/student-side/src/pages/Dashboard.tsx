@@ -200,7 +200,7 @@ export function Dashboard() {
         (user.role === 'student' || user.role === 'captain') &&
         (user.admissionStatus === 'not_started' || user.admissionStatus === 'pending')
       ) {
-        navigate('admission'); // Relative path within /dashboard
+        navigate('/dashboard/admission'); // Use absolute path
         return;
       }
     }
@@ -284,13 +284,38 @@ export function Dashboard() {
   };
 
   const fetchDashboardData = async () => {
-    if (!user?.relatedProfileId) {
-      // For teachers, relatedProfileId might not be set immediately after approval
-      if (user?.role === 'teacher') {
-        setError('Teacher profile not found. Please contact administrator.');
-      } else {
-        setError('User not authenticated or student profile not found');
+    // For teachers, we can proceed without relatedProfileId check
+    if (user?.role === 'teacher') {
+      if (!user?.relatedProfileId) {
+        // Try to get teacher profile ID from localStorage or use user ID
+        const fallbackProfileId = localStorage.getItem('relatedProfileId') || user.id;
+        if (fallbackProfileId) {
+          // Update user with fallback profile ID
+          setUser(prev => prev ? { ...prev, relatedProfileId: fallbackProfileId } : null);
+        } else {
+          setError('Teacher profile not found. Please contact administrator.');
+          setLoading(false);
+          return;
+        }
       }
+    } else {
+      // For students, ensure we have relatedProfileId
+      if (!user?.relatedProfileId) {
+        const fallbackProfileId = localStorage.getItem('relatedProfileId');
+        if (fallbackProfileId) {
+          // Update user with fallback profile ID
+          setUser(prev => prev ? { ...prev, relatedProfileId: fallbackProfileId } : null);
+        } else {
+          setError('Student profile not found. Please complete your admission.');
+          setLoading(false);
+          return;
+        }
+      }
+    }
+
+    const profileId = user?.relatedProfileId || localStorage.getItem('relatedProfileId');
+    if (!profileId) {
+      setError('User profile not found');
       setLoading(false);
       return;
     }
@@ -300,11 +325,11 @@ export function Dashboard() {
       setError(null);
 
       // Fetch appropriate dashboard data based on user role
-      if (user.role === 'teacher') {
-        const data = await dashboardService.getTeacherStats(user.relatedProfileId);
+      if (user?.role === 'teacher') {
+        const data = await dashboardService.getTeacherStats(profileId);
         setDashboardData(data);
       } else {
-        const data = await dashboardService.getStudentStats(user.relatedProfileId);
+        const data = await dashboardService.getStudentStats(profileId);
         setDashboardData(data);
       }
     } catch (err) {
@@ -564,6 +589,8 @@ export function Dashboard() {
         totalClasses={totalClasses}
         currentTime={currentTime}
       />
+
+
 
       {/* Premium Stats Grid */}
       <PremiumStatsGrid stats={stats} />

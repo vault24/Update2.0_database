@@ -16,6 +16,8 @@ import {
   Calendar,
   Download,
   AlertCircle,
+  Eye,
+  Loader2,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -35,6 +37,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { admissionService, Admission } from '@/services/admissionService';
+import { documentService, Document } from '@/services/documentService';
 import { LoadingState } from '@/components/LoadingState';
 import { ErrorState } from '@/components/ErrorState';
 import { useAuth } from '@/contexts/AuthContext';
@@ -86,18 +89,29 @@ export default function AdmissionDetails() {
   const { toast } = useToast();
   const { user } = useAuth();
   const [admission, setAdmission] = useState<Admission | null>(null);
+  const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
+  const [documentsLoading, setDocumentsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
+  const [isViewOpen, setIsViewOpen] = useState(false);
 
   useEffect(() => {
     if (id) {
       fetchAdmissionDetails();
     }
   }, [id]);
+
+  // Fetch documents after admission details are loaded
+  useEffect(() => {
+    if (id && !loading) {
+      fetchAdmissionDocuments();
+    }
+  }, [id, loading, admission]);
 
   const fetchAdmissionDetails = async () => {
     try {
@@ -115,6 +129,70 @@ export default function AdmissionDetails() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAdmissionDocuments = async () => {
+    if (!id) return;
+    
+    try {
+      setDocumentsLoading(true);
+      
+      // First, try to get documents by source_type='admission' and source_id=admission_id
+      const response = await documentService.getDocuments({
+        source_type: 'admission',
+        source_id: id, // This is the admission ID
+        page_size: 100
+      });
+      
+      // STRICT filtering to ensure we only get documents for this specific admission
+      // The backend filter might not be working correctly, so we do client-side filtering
+      let admissionDocuments = (response.results || []).filter(doc => {
+        const isAdmissionDoc = doc.source_type === 'admission';
+        const isCorrectAdmission = doc.source_id === id;
+        
+        console.log(`Document ${doc.fileName}: source_type=${doc.source_type}, source_id=${doc.source_id}, matches=${isAdmissionDoc && isCorrectAdmission}`);
+        
+        return isAdmissionDoc && isCorrectAdmission;
+      });
+      
+      // If we have the admission data and no documents found, try alternative filtering
+      if (admissionDocuments.length === 0 && admission?.user) {
+        console.log('No documents found with source_id, trying user-based filtering...');
+        
+        // Try to get documents by student ID if available
+        const userResponse = await documentService.getDocuments({
+          source_type: 'admission',
+          student: admission.user.id || admission.user,
+          page_size: 100
+        });
+        
+        // Filter these results to only include documents that might be related to this admission
+        admissionDocuments = (userResponse.results || []).filter(doc => {
+          const isAdmissionDoc = doc.source_type === 'admission';
+          const isCorrectAdmission = doc.source_id === id;
+          const isCorrectStudent = doc.student === admission.user?.id || doc.student === admission.user;
+          
+          console.log(`Alt Document ${doc.fileName}: source_type=${doc.source_type}, source_id=${doc.source_id}, student=${doc.student}, matches=${isAdmissionDoc && (isCorrectAdmission || isCorrectStudent)}`);
+          
+          return isAdmissionDoc && (isCorrectAdmission || isCorrectStudent);
+        });
+      }
+      
+      setDocuments(admissionDocuments);
+      
+      console.log(`✅ Filtered to ${admissionDocuments.length} documents for admission ${id}`);
+      if (admissionDocuments.length > 0) {
+        console.log('✅ Document source_ids:', admissionDocuments.map(d => `${d.fileName} -> ${d.source_id}`));
+      } else {
+        console.log('ℹ️  No documents found for this specific admission');
+      }
+    } catch (err: any) {
+      console.error('❌ Error fetching admission documents:', err);
+      // Don't show error toast for documents as it's not critical
+      setDocuments([]); // Ensure we set empty array on error
+    } finally {
+      setDocumentsLoading(false);
     }
   };
 
@@ -193,6 +271,52 @@ export default function AdmissionDetails() {
       });
     } finally {
       setProcessing(false);
+    }
+  };
+
+  const handleViewDocument = (doc: Document) => {
+    setSelectedDoc(doc);
+    setIsViewOpen(true);
+  };
+
+  const handleDownloadDocument = async (doc: Document) => {
+    try {
+      const blob = await documentService.downloadDocument(doc.id);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = doc.fileName;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast({
+        title: "Download Started",
+        description: "Your document is being downloaded.",
+      });
+    } catch (err: any) {
+      console.error('Error downloading document:', err);
+      toast({
+        title: 'Error',
+        description: 'Failed to download document. Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const getFileIcon = (format: string) => {
+    switch (format) {
+      case 'pdf':
+        return <FileText className="w-8 h-8 text-red-500" />;
+      case 'jpg':
+      case 'png':
+        return <FileText className="w-8 h-8 text-blue-500" />;
+      case 'xlsx':
+      case 'xls':
+        return <FileText className="w-8 h-8 text-green-500" />;
+      default:
+        return <FileText className="w-8 h-8 text-muted-foreground" />;
     }
   };
 
@@ -391,45 +515,91 @@ export default function AdmissionDetails() {
       </div>
 
       {/* Documents Section */}
-      {admission.documents && Object.keys(admission.documents).length > 0 && (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-          <Card className="glass-card">
-            <CardHeader>
-              <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <FileText className="w-4 h-4" />
-                Documents
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {Object.entries(admission.documents).map(([key, value]) => {
-                  if (!value) return null;
-                  const label = key
-                    .replace(/([A-Z])/g, ' $1')
-                    .replace(/^./, (str) => str.toUpperCase())
-                    .trim();
-                  return (
-                    <Card key={key} className="bg-muted/50 hover:bg-muted/70 transition-colors">
-                      <CardContent className="p-4 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <FileText className="w-8 h-8 text-primary" />
-                          <div>
-                            <p className="font-medium text-sm">{label}</p>
-                            <p className="text-xs text-muted-foreground">{value}</p>
-                          </div>
-                        </div>
-                        <Button variant="ghost" size="icon">
-                          <Download className="w-4 h-4" />
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+        <Card className="glass-card">
+          <CardHeader>
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <FileText className="w-4 h-4" />
+              Documents
+              {documentsLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {documentsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin mr-2" />
+                <span className="text-muted-foreground">Loading admission documents...</span>
               </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
+            ) : documents.length > 0 ? (
+              <>
+                <div className="mb-4 p-3 bg-muted/30 rounded-lg">
+                  <p className="text-sm text-muted-foreground">
+                    Showing {documents.length} document{documents.length !== 1 ? 's' : ''} uploaded for this admission
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Admission ID: {id}
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {documents.map((doc) => (
+                  <Card key={doc.id} className="bg-muted/50 hover:bg-muted/70 transition-colors">
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3">
+                        {getFileIcon(doc.fileType)}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{doc.fileName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {doc.original_field_name || doc.category}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {(doc.fileSize / 1024).toFixed(0)} KB • {doc.fileType.toUpperCase()}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(doc.uploadDate).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 mt-3">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => handleViewDocument(doc)}
+                          className="flex-1"
+                        >
+                          <Eye className="w-4 h-4 mr-1" />
+                          View
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => handleDownloadDocument(doc)}
+                          className="flex-1"
+                        >
+                          <Download className="w-4 h-4 mr-1" />
+                          Download
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <FileText className="w-12 h-12 text-muted-foreground mb-2" />
+                <p className="text-muted-foreground">No documents found for this admission</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Only documents uploaded specifically for admission ID: {id} will appear here
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Check the browser console for debugging information
+                </p>
+              </div>
+            )}
+
+          </CardContent>
+        </Card>
+      </motion.div>
 
       {/* Approve Dialog */}
       <Dialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>
@@ -520,6 +690,232 @@ export default function AdmissionDetails() {
               {processing ? 'Rejecting...' : 'Reject Application'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Document Preview Dialog */}
+      <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
+          {selectedDoc && (
+            <>
+              <DialogHeader className="px-6 pt-6 pb-4 border-b">
+                <DialogTitle className="flex items-center gap-3">
+                  {getFileIcon(selectedDoc.fileType)}
+                  {selectedDoc.fileName}
+                </DialogTitle>
+              </DialogHeader>
+              
+              {/* Scrollable Content Area */}
+              <div 
+                className="flex-1 overflow-auto px-6 pb-6"
+                style={{
+                  maxHeight: 'calc(90vh - 140px)',
+                  overflowY: 'scroll'
+                }}
+              >
+                {/* Enhanced Scrollbar Styling for Dialog */}
+                <style dangerouslySetInnerHTML={{
+                  __html: `
+                    .admission-dialog-scroll-container {
+                      scrollbar-width: auto !important;
+                      scrollbar-color: #9ca3af #f3f4f6 !important;
+                    }
+                    
+                    .admission-dialog-scroll-container::-webkit-scrollbar {
+                      width: 14px !important;
+                    }
+                    
+                    .admission-dialog-scroll-container::-webkit-scrollbar-track {
+                      background: #f3f4f6 !important;
+                      border-radius: 7px !important;
+                    }
+                    
+                    .admission-dialog-scroll-container::-webkit-scrollbar-thumb {
+                      background: #9ca3af !important;
+                      border-radius: 7px !important;
+                      border: 2px solid #f3f4f6 !important;
+                    }
+                    
+                    .admission-dialog-scroll-container::-webkit-scrollbar-thumb:hover {
+                      background: #6b7280 !important;
+                    }
+                    
+                    .admission-dialog-scroll-container::-webkit-scrollbar-thumb:active {
+                      background: #4b5563 !important;
+                    }
+                    
+                    /* Dark mode */
+                    .dark .admission-dialog-scroll-container {
+                      scrollbar-color: #6b7280 #374151 !important;
+                    }
+                    
+                    .dark .admission-dialog-scroll-container::-webkit-scrollbar-track {
+                      background: #374151 !important;
+                    }
+                    
+                    .dark .admission-dialog-scroll-container::-webkit-scrollbar-thumb {
+                      background: #6b7280 !important;
+                      border: 2px solid #374151 !important;
+                    }
+                    
+                    .dark .admission-dialog-scroll-container::-webkit-scrollbar-thumb:hover {
+                      background: #9ca3af !important;
+                    }
+                  `
+                }} />
+                
+                <div className="admission-dialog-scroll-container space-y-6">
+                  {/* Document Metadata */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Category</p>
+                      <p className="font-medium">{selectedDoc.category}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Format</p>
+                      <p className="font-medium uppercase">{selectedDoc.fileType}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Original Field</p>
+                      <p className="font-medium">{selectedDoc.original_field_name || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Upload Date</p>
+                      <p className="font-medium">{new Date(selectedDoc.uploadDate).toLocaleDateString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">File Size</p>
+                      <p className="font-medium">{(selectedDoc.fileSize / 1024).toFixed(0)} KB</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Source</p>
+                      <p className="font-medium">Admission Upload</p>
+                    </div>
+                  </div>
+
+                  {/* Document Preview */}
+                  <div className="bg-muted/50 rounded-lg overflow-hidden">
+                    <div className="p-4 bg-muted/30 border-b">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="font-medium text-foreground">Document Preview</h3>
+                          <p className="text-sm text-muted-foreground">
+                            {selectedDoc.is_pdf ? 'PDF Document' : selectedDoc.is_image ? 'Image File' : 'Document File'}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>Admission document</span>
+                          <div className="flex items-center gap-1">
+                            <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+                            <span>↕</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Document Content */}
+                    <div className="bg-white dark:bg-gray-900 p-4">
+                      {selectedDoc.is_pdf ? (
+                        <div className="w-full">
+                          <iframe
+                            src={documentService.getDocumentPreviewUrl(selectedDoc.id)}
+                            className="w-full border-0 rounded"
+                            title={`Preview of ${selectedDoc.fileName}`}
+                            style={{ 
+                              height: '600px',
+                              minHeight: '600px',
+                              width: '100%'
+                            }}
+                          />
+                        </div>
+                      ) : selectedDoc.is_image ? (
+                        <div className="text-center">
+                          <div className="relative inline-block">
+                            <img
+                              src={documentService.getDocumentPreviewUrl(selectedDoc.id)}
+                              alt={selectedDoc.fileName}
+                              className="max-w-full h-auto object-contain rounded shadow-lg cursor-zoom-in"
+                              style={{ 
+                                maxHeight: '500px',
+                                minHeight: '200px'
+                              }}
+                              onClick={(e) => {
+                                const img = e.target as HTMLImageElement;
+                                if (img.style.transform === 'scale(1.5)') {
+                                  img.style.transform = 'scale(1)';
+                                  img.style.cursor = 'zoom-in';
+                                } else {
+                                  img.style.transform = 'scale(1.5)';
+                                  img.style.cursor = 'zoom-out';
+                                  img.style.transformOrigin = 'center';
+                                  img.style.transition = 'transform 0.3s ease';
+                                }
+                              }}
+                            />
+                          </div>
+                          
+                          {/* Image Controls */}
+                          <div className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground bg-background/80 backdrop-blur-sm rounded-md px-3 py-2 inline-flex">
+                            <span>Click to zoom</span>
+                            <span>•</span>
+                            <span>Right-click to save</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center text-center py-12">
+                          <FileText className="w-16 h-16 text-muted-foreground mb-4" />
+                          <p className="text-muted-foreground mb-2">Preview not available for this file type</p>
+                          <p className="text-sm text-muted-foreground mb-4">
+                            File type: {selectedDoc.fileType.toUpperCase()}
+                          </p>
+                          <Button 
+                            variant="outline" 
+                            onClick={() => handleDownloadDocument(selectedDoc)}
+                          >
+                            <Download className="w-4 h-4 mr-2" />
+                            Download to View
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Document Information */}
+                  <div className="bg-muted/30 rounded-lg p-4">
+                    <h4 className="font-medium mb-2">Document Information</h4>
+                    <div className="text-sm text-muted-foreground space-y-1">
+                      <p>• Uploaded during admission process</p>
+                      <p>• Source: Student submission</p>
+                      <p>• Status: {selectedDoc.status === 'active' ? 'Active' : selectedDoc.status}</p>
+                      <p>• File integrity: Verified</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <DialogFooter className="px-6 py-4 border-t bg-background">
+                <Button variant="outline" onClick={() => setIsViewOpen(false)}>
+                  Close
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    window.open(documentService.getDocumentPreviewUrl(selectedDoc.id), '_blank');
+                  }}
+                >
+                  <Eye className="w-4 h-4 mr-2" />
+                  Open in New Tab
+                </Button>
+                <Button 
+                  className="gradient-primary text-primary-foreground" 
+                  onClick={() => handleDownloadDocument(selectedDoc)}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

@@ -1,12 +1,15 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { useState, useEffect } from "react";
+import { AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import Index from "./pages/Index";
 import PasswordResetPage from "./pages/PasswordResetPage";
 import { Dashboard } from "./pages/Dashboard";
 import { DashboardLayout } from "./components/dashboard/DashboardLayout";
 import AdmissionPage from "./pages/AdmissionPage";
-import ProfilePage from "./pages/ProfilePage";
+import ProfilePageFixed from "./pages/ProfilePageFixed";
 import SettingsPage from "./pages/SettingsPage";
 import NoticesPage from "./pages/NoticesPage";
 import StudentAllegationsPage from "./pages/StudentAllegationsPage";
@@ -28,14 +31,49 @@ import TeacherContactsPage from "./pages/TeacherContactsPage";
 import TeacherAttendancePage from "./pages/TeacherAttendancePage";
 import ManageMarksPage from "./pages/ManageMarksPage";
 import TeacherAllegationsPage from "./pages/TeacherAllegationsPage";
+import PublicStudentProfilePage from "./pages/PublicStudentProfilePage";
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
+  const [timeoutReached, setTimeoutReached] = useState(false);
 
-  if (loading) {
+  // Set timeout for loading state
+  useEffect(() => {
+    if (loading) {
+      const timer = setTimeout(() => {
+        setTimeoutReached(true);
+      }, 30000); // 30 second timeout
+
+      return () => clearTimeout(timer);
+    } else {
+      setTimeoutReached(false);
+    }
+  }, [loading]);
+
+  if (loading && !timeoutReached) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (timeoutReached) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center space-y-4 max-w-md">
+          <AlertCircle className="w-12 h-12 mx-auto text-destructive" />
+          <h3 className="text-lg font-semibold">Loading Timeout</h3>
+          <p className="text-muted-foreground">
+            The application is taking too long to load. Please check your connection and try refreshing the page.
+          </p>
+          <Button onClick={() => window.location.reload()}>
+            Refresh Page
+          </Button>
+        </div>
       </div>
     );
   }
@@ -54,6 +92,9 @@ const App = () => (
       <Route path="/auth" element={<Index />} />
       <Route path="/password-reset" element={<PasswordResetPage />} />
       
+      {/* Public routes - no authentication required */}
+      <Route path="/student/:studentId" element={<PublicStudentProfilePage />} />
+      
       {/* Dashboard routes with nested structure */}
       <Route 
         path="/dashboard" 
@@ -68,7 +109,7 @@ const App = () => (
         
         {/* Common routes */}
         <Route path="notices" element={<NoticesPage />} />
-        <Route path="profile" element={<ProfilePage />} />
+        <Route path="profile" element={<ProfilePageFixed />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="learning-hub" element={<LearningHubPage />} />
         <Route path="live-classes" element={<LiveClassesPage />} />

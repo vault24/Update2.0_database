@@ -155,7 +155,7 @@ class Admission(models.Model):
     
     def process_documents(self, document_files):
         """
-        Process and save admission documents
+        Process and save admission documents using the enhanced file storage system
         
         Args:
             document_files: Dictionary of field_name -> File objects
@@ -164,8 +164,8 @@ class Admission(models.Model):
             bool: True if all documents processed successfully
         """
         from apps.documents.models import Document
-        from utils.file_handler import save_uploaded_file
-        import os
+        from utils.file_storage import file_storage
+        from django.core.exceptions import ValidationError
         
         errors = []
         processed_documents = []
@@ -176,12 +176,6 @@ class Admission(models.Model):
                     continue
                     
                 try:
-                    # Save file to filesystem
-                    relative_path = save_uploaded_file(file_obj, 'documents')
-                    
-                    # Get file extension
-                    file_extension = os.path.splitext(file_obj.name)[1][1:]  # Remove the dot
-                    
                     # Map field name to document category
                     category_mapping = {
                         'photo': 'Photo',
@@ -194,26 +188,36 @@ class Admission(models.Model):
                         'motherNIDFront': 'NID',
                         'motherNIDBack': 'NID',
                         'testimonial': 'Testimonial',
-                        'medicalCertificate': 'Certificate',
-                        'quotaDocument': 'Other',
+                        'medicalCertificate': 'Medical Certificate',
+                        'quotaDocument': 'Quota Document',
                         'extraCertificates': 'Certificate',
                     }
                     
                     category = category_mapping.get(field_name, 'Other')
                     
-                    # Create document record
-                    # For admission documents, we'll link to student later during approval
-                    # For now, we create the document without a student link
+                    # Use enhanced file storage service
+                    file_info = file_storage.save_file(
+                        uploaded_file=file_obj,
+                        category='documents',
+                        subfolder=f'admission/{field_name}',
+                        validate=True
+                    )
+                    
+                    # Create document record with enhanced fields
                     document = Document.objects.create(
                         student_id=getattr(self.user, 'related_profile_id', None),  # Link to student if exists
-                        fileName=file_obj.name,
-                        fileType=file_extension,
+                        fileName=file_info['file_name'],
+                        fileType=file_info['file_type'],
                         category=category,
-                        filePath=relative_path,
-                        fileSize=file_obj.size,
+                        filePath=file_info['file_path'],
+                        fileSize=file_info['file_size'],
+                        fileHash=file_info['file_hash'],
+                        mimeType=file_info['mime_type'],
                         source_type='admission',
                         source_id=self.id,
-                        original_field_name=field_name
+                        original_field_name=field_name,
+                        description=f'Admission document: {field_name}',
+                        status='active'
                     )
                     
                     processed_documents.append(document.id)
@@ -221,8 +225,10 @@ class Admission(models.Model):
                     # Update documents JSON field
                     if not self.documents:
                         self.documents = {}
-                    self.documents[field_name] = relative_path
+                    self.documents[field_name] = file_info['file_path']
                     
+                except ValidationError as e:
+                    errors.append(f"Validation error for {field_name}: {str(e)}")
                 except Exception as e:
                     errors.append(f"Error processing {field_name}: {str(e)}")
             

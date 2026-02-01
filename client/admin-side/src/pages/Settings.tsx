@@ -3,7 +3,8 @@ import { motion } from 'framer-motion';
 import { 
   Settings as SettingsIcon, Building, GraduationCap, Calendar, Users, Save, Plus, Trash2, Upload, 
   Loader2, AlertCircle, User, Lock, Bell, Palette, Shield, Eye, EyeOff, Moon, Sun, Monitor,
-  Mail, Phone, Camera, Key, Smartphone, Globe, Database, Server, Clock, CheckCircle2, XCircle
+  Mail, Phone, Camera, Key, Smartphone, Globe, Database, Server, Clock, CheckCircle2, XCircle,
+  Heart, MessageSquare
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,6 +18,7 @@ import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useNavigate } from 'react-router-dom';
 import { settingsService, type SystemSettings } from '@/services/settingsService';
 import { getErrorMessage } from '@/lib/api';
 import { apiClient } from '@/lib/api';
@@ -45,6 +47,7 @@ interface AdminProfile {
 export default function Settings() {
   const { theme, setTheme } = useTheme();
   const { toast } = useToast();
+  const navigate = useNavigate();
   
   // Profile state
   const [profile, setProfile] = useState<AdminProfile>({
@@ -830,6 +833,48 @@ export default function Settings() {
                     />
                   </div>
                 ))}
+              </CardContent>
+            </Card>
+
+            {/* Motivation Management */}
+            <Card className="glass-card">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Heart className="w-5 h-5 text-primary" />
+                  Student Motivation
+                </CardTitle>
+                <CardDescription>Manage motivational quotes displayed in student welcome cards</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-pink-500/10 to-rose-500/10 rounded-lg border border-pink-500/20">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center">
+                      <Heart className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <p className="font-medium">Manage Motivational Section</p>
+                      <p className="text-sm text-muted-foreground">Control inspirational quotes shown to students on their dashboard</p>
+                    </div>
+                  </div>
+                  <Button 
+                    onClick={() => navigate('/motivation-management')}
+                    className="gradient-primary text-primary-foreground"
+                  >
+                    <MessageSquare className="w-4 h-4 mr-2" />
+                    Manage
+                  </Button>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4 text-center">
+                  <div className="p-3 bg-muted/50 rounded-lg">
+                    <p className="text-2xl font-bold text-primary">4</p>
+                    <p className="text-xs text-muted-foreground">Active Messages</p>
+                  </div>
+                  <div className="p-3 bg-muted/50 rounded-lg">
+                    <p className="text-2xl font-bold text-emerald-600">793</p>
+                    <p className="text-xs text-muted-foreground">Total Views</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 

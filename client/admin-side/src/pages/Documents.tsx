@@ -24,8 +24,8 @@ import { GeneratedDocument } from '@/types/template';
 
 
 
-const documentTypes = ['All Types', 'Certificate', 'NID', 'Birth Certificate', 'Marksheet', 'Testimonial', 'Photo', 'Other'];
-const sourceTypes = ['All Sources', 'Admission Upload', 'Manual Upload'];
+const documentTypes = ['All Types', 'Certificate', 'NID', 'Birth Certificate', 'Marksheet', 'Testimonial', 'Photo', 'Medical Certificate', 'Quota Document', 'Other'];
+const sourceTypes = ['All Sources', 'Admission Upload', 'Manual Upload', 'System Generated'];
 
 const getFileIcon = (format: string) => {
   switch (format) {
@@ -74,6 +74,138 @@ export default function Documents() {
   const [templateError, setTemplateError] = useState<string | null>(null);
 
   // API state
+  // Handle keyboard shortcuts for document preview
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!isViewOpen || !selectedDoc) return;
+      
+      // Only handle keys if not typing in an input
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      
+      switch (event.key) {
+        case 'Escape':
+          setIsViewOpen(false);
+          break;
+        case 'ArrowDown':
+          event.preventDefault();
+          // Scroll down in preview
+          const previewContainer = document.querySelector('.preview-container');
+          if (previewContainer) {
+            previewContainer.scrollBy({ top: 50, behavior: 'smooth' });
+          }
+          break;
+        case 'ArrowUp':
+          event.preventDefault();
+          // Scroll up in preview
+          const previewContainerUp = document.querySelector('.preview-container');
+          if (previewContainerUp) {
+            previewContainerUp.scrollBy({ top: -50, behavior: 'smooth' });
+          }
+          break;
+        case 'PageDown':
+          event.preventDefault();
+          // Scroll down by viewport height
+          const previewContainerPageDown = document.querySelector('.preview-container');
+          if (previewContainerPageDown) {
+            previewContainerPageDown.scrollBy({ 
+              top: previewContainerPageDown.clientHeight * 0.8, 
+              behavior: 'smooth' 
+            });
+          }
+          break;
+        case 'PageUp':
+          event.preventDefault();
+          // Scroll up by viewport height
+          const previewContainerPageUp = document.querySelector('.preview-container');
+          if (previewContainerPageUp) {
+            previewContainerPageUp.scrollBy({ 
+              top: -previewContainerPageUp.clientHeight * 0.8, 
+              behavior: 'smooth' 
+            });
+          }
+          break;
+        case 'Home':
+          event.preventDefault();
+          // Scroll to top
+          const previewContainerHome = document.querySelector('.preview-container');
+          if (previewContainerHome) {
+            previewContainerHome.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+          break;
+        case 'End':
+          event.preventDefault();
+          // Scroll to bottom
+          const previewContainerEnd = document.querySelector('.preview-container');
+          if (previewContainerEnd) {
+            previewContainerEnd.scrollTo({ top: previewContainerEnd.scrollHeight, behavior: 'smooth' });
+          }
+          break;
+        case 'd':
+        case 'D':
+          if (event.ctrlKey || event.metaKey) {
+            event.preventDefault();
+            handleDownload(selectedDoc);
+          }
+          break;
+        case 'o':
+        case 'O':
+          if (event.ctrlKey || event.metaKey) {
+            event.preventDefault();
+            window.open(documentService.getDocumentPreviewUrl(selectedDoc.id), '_blank');
+          }
+          break;
+        case '+':
+        case '=':
+          if (event.ctrlKey || event.metaKey) {
+            event.preventDefault();
+            // Zoom in for images
+            const img = document.querySelector('.preview-container img') as HTMLImageElement;
+            if (img && selectedDoc.is_image) {
+              const currentScale = parseFloat(img.style.transform.replace('scale(', '').replace(')', '') || '1');
+              const newScale = Math.min(currentScale * 1.2, 3);
+              img.style.transform = `scale(${newScale})`;
+              img.style.transformOrigin = 'center';
+              img.style.transition = 'transform 0.3s ease';
+            }
+          }
+          break;
+        case '-':
+          if (event.ctrlKey || event.metaKey) {
+            event.preventDefault();
+            // Zoom out for images
+            const img = document.querySelector('.preview-container img') as HTMLImageElement;
+            if (img && selectedDoc.is_image) {
+              const currentScale = parseFloat(img.style.transform.replace('scale(', '').replace(')', '') || '1');
+              const newScale = Math.max(currentScale / 1.2, 0.5);
+              img.style.transform = `scale(${newScale})`;
+              img.style.transformOrigin = 'center';
+              img.style.transition = 'transform 0.3s ease';
+            }
+          }
+          break;
+        case '0':
+          if (event.ctrlKey || event.metaKey) {
+            event.preventDefault();
+            // Reset zoom for images
+            const img = document.querySelector('.preview-container img') as HTMLImageElement;
+            if (img && selectedDoc.is_image) {
+              img.style.transform = 'scale(1)';
+              img.style.transformOrigin = 'center';
+              img.style.transition = 'transform 0.3s ease';
+            }
+          }
+          break;
+      }
+    };
+
+    if (isViewOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [isViewOpen, selectedDoc]);
+
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -121,13 +253,19 @@ export default function Documents() {
       }
       
       if (sourceFilter !== 'All Sources') {
-        filters.source_type = sourceFilter === 'Admission Upload' ? 'admission' : 'manual';
+        if (sourceFilter === 'Admission Upload') {
+          filters.source_type = 'admission';
+        } else if (sourceFilter === 'Manual Upload') {
+          filters.source_type = 'manual';
+        } else if (sourceFilter === 'System Generated') {
+          filters.source_type = 'system';
+        }
       }
       
       const response = await documentService.getDocuments(filters);
       
       // Client-side search filtering
-      let filteredResults = response.results;
+      let filteredResults = response.results || [];
       if (search) {
         filteredResults = filteredResults.filter(d =>
           d.fileName.toLowerCase().includes(search.toLowerCase()) ||
@@ -141,6 +279,7 @@ export default function Documents() {
     } catch (err) {
       const errorMsg = getErrorMessage(err);
       setError(errorMsg);
+      setDocuments([]); // Ensure documents is always an array
       toast({
         title: 'Error',
         description: errorMsg,
@@ -405,7 +544,7 @@ export default function Documents() {
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
               <Card className="glass-card">
                 <CardContent className="p-4 text-center">
-                  <p className="text-2xl font-bold text-primary">{documents.filter(d => d.source_type === 'admission').length}</p>
+                  <p className="text-2xl font-bold text-primary">{documents?.filter(d => d.source_type === 'admission').length || 0}</p>
                   <p className="text-xs text-muted-foreground">Admission Docs</p>
                 </CardContent>
               </Card>
@@ -413,7 +552,7 @@ export default function Documents() {
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
               <Card className="glass-card">
                 <CardContent className="p-4 text-center">
-                  <p className="text-2xl font-bold text-success">{documents.filter(d => d.source_type === 'manual').length}</p>
+                  <p className="text-2xl font-bold text-success">{documents?.filter(d => d.source_type === 'manual').length || 0}</p>
                   <p className="text-xs text-muted-foreground">Manual Uploads</p>
                 </CardContent>
               </Card>
@@ -422,7 +561,7 @@ export default function Documents() {
               <Card className="glass-card">
                 <CardContent className="p-4 text-center">
                   <p className="text-2xl font-bold text-accent-foreground">
-                    {(documents.reduce((sum, d) => sum + d.fileSize, 0) / (1024 * 1024)).toFixed(1)} MB
+                    {((documents?.reduce((sum, d) => sum + d.fileSize, 0) || 0) / (1024 * 1024)).toFixed(1)} MB
                   </p>
                   <p className="text-xs text-muted-foreground">Total Size</p>
                 </CardContent>
@@ -486,17 +625,17 @@ export default function Documents() {
               </CardContent>
             )}
             
-            {!loading && !error && documents.length === 0 && (
+            {!loading && !error && (documents?.length || 0) === 0 && (
               <CardContent className="p-8 text-center">
                 <p className="text-muted-foreground">No documents found</p>
               </CardContent>
             )}
             
-            {!loading && !error && documents.length > 0 && (
+            {!loading && !error && (documents?.length || 0) > 0 && (
               <CardContent className="p-0">
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
                   <table className="w-full">
-                    <thead>
+                    <thead className="sticky top-0 bg-background z-10">
                       <tr className="border-b border-border bg-muted/50">
                         <th className="text-left p-4 text-sm font-medium text-muted-foreground">Document</th>
                         <th className="text-left p-4 text-sm font-medium text-muted-foreground">Type</th>
@@ -508,7 +647,7 @@ export default function Documents() {
                       </tr>
                     </thead>
                     <tbody>
-                      {documents.map((doc, index) => (
+                      {(documents || []).map((doc, index) => (
                         <motion.tr
                           key={doc.id}
                           initial={{ opacity: 0, x: -20 }}
@@ -567,10 +706,20 @@ export default function Documents() {
                           </td>
                           <td className="p-4">
                             <div className="flex items-center justify-end gap-2">
-                              <Button variant="ghost" size="icon" onClick={() => handleView(doc)}>
+                              <Button variant="ghost" size="icon" onClick={() => handleView(doc)} title="Preview Document">
                                 <Eye className="w-4 h-4" />
                               </Button>
-                              <Button variant="ghost" size="icon" onClick={() => handleDownload(doc)}>
+                              {(doc.is_pdf || doc.is_image) && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  onClick={() => window.open(documentService.getDocumentPreviewUrl(doc.id), '_blank')}
+                                  title="Open in New Tab"
+                                >
+                                  <FileText className="w-4 h-4" />
+                                </Button>
+                              )}
+                              <Button variant="ghost" size="icon" onClick={() => handleDownload(doc)} title="Download Document">
                                 <Download className="w-4 h-4" />
                               </Button>
                               <Button 
@@ -578,6 +727,7 @@ export default function Documents() {
                                 size="icon" 
                                 className="text-destructive hover:text-destructive"
                                 onClick={() => handleDelete(doc.id)}
+                                title="Delete Document"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </Button>
@@ -913,51 +1063,336 @@ export default function Documents() {
 
       {/* View Dialog */}
       <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
           {selectedDoc && (
             <>
-              <DialogHeader>
+              <DialogHeader className="px-6 pt-6 pb-4 border-b">
                 <DialogTitle className="flex items-center gap-3">
                   {getFileIcon(selectedDoc.fileType)}
                   {selectedDoc.fileName}
                 </DialogTitle>
               </DialogHeader>
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Category</p>
-                    <p className="font-medium">{selectedDoc.category}</p>
+              
+              {/* Scrollable Content Area */}
+              <div 
+                className="flex-1 overflow-auto px-6 pb-6"
+                style={{
+                  maxHeight: 'calc(90vh - 140px)',
+                  overflowY: 'scroll'
+                }}
+              >
+                {/* Enhanced Scrollbar Styling for Dialog */}
+                <style dangerouslySetInnerHTML={{
+                  __html: `
+                    .dialog-scroll-container {
+                      scrollbar-width: auto !important;
+                      scrollbar-color: #9ca3af #f3f4f6 !important;
+                    }
+                    
+                    .dialog-scroll-container::-webkit-scrollbar {
+                      width: 14px !important;
+                    }
+                    
+                    .dialog-scroll-container::-webkit-scrollbar-track {
+                      background: #f3f4f6 !important;
+                      border-radius: 7px !important;
+                    }
+                    
+                    .dialog-scroll-container::-webkit-scrollbar-thumb {
+                      background: #9ca3af !important;
+                      border-radius: 7px !important;
+                      border: 2px solid #f3f4f6 !important;
+                    }
+                    
+                    .dialog-scroll-container::-webkit-scrollbar-thumb:hover {
+                      background: #6b7280 !important;
+                    }
+                    
+                    .dialog-scroll-container::-webkit-scrollbar-thumb:active {
+                      background: #4b5563 !important;
+                    }
+                    
+                    /* Dark mode */
+                    .dark .dialog-scroll-container {
+                      scrollbar-color: #6b7280 #374151 !important;
+                    }
+                    
+                    .dark .dialog-scroll-container::-webkit-scrollbar-track {
+                      background: #374151 !important;
+                    }
+                    
+                    .dark .dialog-scroll-container::-webkit-scrollbar-thumb {
+                      background: #6b7280 !important;
+                      border: 2px solid #374151 !important;
+                    }
+                    
+                    .dark .dialog-scroll-container::-webkit-scrollbar-thumb:hover {
+                      background: #9ca3af !important;
+                    }
+                  `
+                }} />
+                
+                <div className="dialog-scroll-container space-y-6">
+                  {/* Document Metadata */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Category</p>
+                      <p className="font-medium">{selectedDoc.category}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Format</p>
+                      <p className="font-medium uppercase">{selectedDoc.fileType}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Student</p>
+                      <p className="font-medium">{selectedDoc.studentName || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Roll Number</p>
+                      <p className="font-medium">{selectedDoc.studentRoll || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Upload Date</p>
+                      <p className="font-medium">{new Date(selectedDoc.uploadDate).toLocaleDateString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">File Size</p>
+                      <p className="font-medium">{(selectedDoc.fileSize / 1024).toFixed(0)} KB</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Format</p>
-                    <p className="font-medium uppercase">{selectedDoc.fileType}</p>
+                
+                  {/* Document Preview */}
+                  <div className="bg-muted/50 rounded-lg overflow-hidden">
+                    <div className="p-4 bg-muted/30 border-b">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="font-medium text-foreground">Document Preview</h3>
+                          <p className="text-sm text-muted-foreground">
+                            {selectedDoc.is_pdf ? 'PDF Document' : selectedDoc.is_image ? 'Image File' : 'Document File'}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>Full dialog scrollable</span>
+                          <div className="flex items-center gap-1">
+                            <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+                            <span>↕</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Document Content */}
+                    <div className="bg-white dark:bg-gray-900 p-4">
+                      {selectedDoc.is_pdf ? (
+                        <div className="w-full">
+                          <iframe
+                            src={documentService.getDocumentPreviewUrl(selectedDoc.id)}
+                            className="w-full border-0 rounded"
+                            title={`Preview of ${selectedDoc.fileName}`}
+                            style={{ 
+                              height: '600px',
+                              minHeight: '600px',
+                              width: '100%'
+                            }}
+                            onLoad={() => {
+                              setTimeout(() => {
+                                const loading = document.querySelector('.pdf-loading') as HTMLElement;
+                                if (loading) {
+                                  loading.classList.add('hidden');
+                                }
+                              }, 1000);
+                            }}
+                            onError={(e) => {
+                              console.error('PDF preview failed:', e);
+                              const iframe = e.target as HTMLIFrameElement;
+                              iframe.style.display = 'none';
+                              const fallback = iframe.parentElement?.querySelector('.preview-fallback') as HTMLElement;
+                              if (fallback) fallback.style.display = 'flex';
+                            }}
+                          />
+                          
+                          {/* PDF Loading indicator */}
+                          <div className="pdf-loading absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm z-10 rounded">
+                            <div className="text-center">
+                              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-primary" />
+                              <p className="text-sm text-muted-foreground">Loading PDF...</p>
+                              <p className="text-xs text-muted-foreground mt-1">This may take a moment for large files</p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : selectedDoc.is_image ? (
+                        <div className="text-center">
+                          <div className="relative inline-block">
+                            <img
+                              src={documentService.getDocumentPreviewUrl(selectedDoc.id)}
+                              alt={selectedDoc.fileName}
+                              className="max-w-full h-auto object-contain rounded shadow-lg cursor-zoom-in"
+                              style={{ 
+                                maxHeight: '500px',
+                                minHeight: '200px'
+                              }}
+                              onClick={(e) => {
+                                const img = e.target as HTMLImageElement;
+                                if (img.style.transform === 'scale(1.5)') {
+                                  img.style.transform = 'scale(1)';
+                                  img.style.cursor = 'zoom-in';
+                                } else {
+                                  img.style.transform = 'scale(1.5)';
+                                  img.style.cursor = 'zoom-out';
+                                  img.style.transformOrigin = 'center';
+                                  img.style.transition = 'transform 0.3s ease';
+                                }
+                              }}
+                              onLoad={() => {
+                                setTimeout(() => {
+                                  const loading = document.querySelector('.image-loading') as HTMLElement;
+                                  if (loading) {
+                                    loading.style.display = 'none';
+                                  }
+                                }, 500);
+                              }}
+                              onError={(e) => {
+                                console.error('Image preview failed:', e);
+                                const img = e.target as HTMLImageElement;
+                                img.style.display = 'none';
+                                const fallback = img.parentElement?.querySelector('.preview-fallback') as HTMLElement;
+                                if (fallback) fallback.style.display = 'flex';
+                              }}
+                            />
+                            
+                            {/* Image Loading indicator */}
+                            <div className="image-loading absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm rounded z-10">
+                              <div className="text-center">
+                                <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-primary" />
+                                <p className="text-sm text-muted-foreground">Loading image...</p>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Image Controls */}
+                          <div className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground bg-background/80 backdrop-blur-sm rounded-md px-3 py-2 inline-flex">
+                            <span>Click to zoom</span>
+                            <span>•</span>
+                            <span>Right-click to save</span>
+                            <span>•</span>
+                            <span>Scroll dialog to navigate</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center text-center py-12">
+                          <FileText className="w-16 h-16 text-muted-foreground mb-4" />
+                          <p className="text-muted-foreground mb-2">Preview not available for this file type</p>
+                          <p className="text-sm text-muted-foreground mb-4">
+                            File type: {selectedDoc.fileType.toUpperCase()}
+                          </p>
+                          <div className="space-y-2">
+                            <Button 
+                              variant="outline" 
+                              onClick={() => handleDownload(selectedDoc)}
+                              className="mb-2"
+                            >
+                              <Download className="w-4 h-4 mr-2" />
+                              Download to View
+                            </Button>
+                            <p className="text-xs text-muted-foreground">
+                              Supported preview formats: PDF, JPG, PNG, GIF, BMP
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Fallback for failed previews */}
+                      <div className="preview-fallback hidden flex-col items-center justify-center text-center py-12">
+                        <AlertCircle className="w-16 h-16 text-muted-foreground mb-4" />
+                        <p className="text-muted-foreground mb-2">Preview failed to load</p>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          The document preview could not be displayed. This might be due to:
+                        </p>
+                        <ul className="text-xs text-muted-foreground mb-4 text-left space-y-1">
+                          <li>• File format not supported for preview</li>
+                          <li>• File is corrupted or inaccessible</li>
+                          <li>• Network connection issues</li>
+                          <li>• Browser security restrictions</li>
+                        </ul>
+                        <div className="space-y-2">
+                          <Button 
+                            variant="outline" 
+                            onClick={() => handleDownload(selectedDoc)}
+                          >
+                            <Download className="w-4 h-4 mr-2" />
+                            Download Document
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => {
+                              // Retry preview
+                              setIsViewOpen(false);
+                              setTimeout(() => setIsViewOpen(true), 100);
+                            }}
+                          >
+                            <Eye className="w-4 h-4 mr-2" />
+                            Retry Preview
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Student</p>
-                    <p className="font-medium">{selectedDoc.studentName || 'N/A'}</p>
+                  
+                  {/* Additional Content to Test Scrolling */}
+                  <div className="space-y-4">
+                    <div className="bg-muted/30 rounded-lg p-4">
+                      <h4 className="font-medium mb-2">Document Information</h4>
+                      <div className="text-sm text-muted-foreground space-y-1">
+                        <p>• File uploaded on {new Date(selectedDoc.uploadDate).toLocaleDateString()}</p>
+                        <p>• Source: {selectedDoc.source_type === 'admission' ? 'Student Admission' : 'Manual Upload'}</p>
+                        <p>• Status: {selectedDoc.status === 'active' ? 'Active' : selectedDoc.status}</p>
+                        {selectedDoc.original_field_name && (
+                          <p>• Original field: {selectedDoc.original_field_name}</p>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="bg-muted/30 rounded-lg p-4">
+                      <h4 className="font-medium mb-2">Actions Available</h4>
+                      <div className="text-sm text-muted-foreground space-y-1">
+                        <p>• Download document for offline viewing</p>
+                        <p>• Open in new tab for full-screen preview</p>
+                        <p>• Use keyboard shortcuts for quick actions</p>
+                        <p>• Scroll this dialog to see all content</p>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-muted/30 rounded-lg p-4">
+                      <h4 className="font-medium mb-2">Keyboard Shortcuts</h4>
+                      <div className="text-sm text-muted-foreground space-y-1">
+                        <p>• <kbd className="px-1 py-0.5 bg-muted rounded text-xs">Ctrl+D</kbd> - Download document</p>
+                        <p>• <kbd className="px-1 py-0.5 bg-muted rounded text-xs">Ctrl+O</kbd> - Open in new tab</p>
+                        <p>• <kbd className="px-1 py-0.5 bg-muted rounded text-xs">Escape</kbd> - Close dialog</p>
+                        <p>• <kbd className="px-1 py-0.5 bg-muted rounded text-xs">↑↓</kbd> - Scroll dialog content</p>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Roll Number</p>
-                    <p className="font-medium">{selectedDoc.studentRoll || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Upload Date</p>
-                    <p className="font-medium">{new Date(selectedDoc.uploadDate).toLocaleDateString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">File Size</p>
-                    <p className="font-medium">{(selectedDoc.fileSize / 1024).toFixed(0)} KB</p>
-                  </div>
-                </div>
-                <div className="bg-muted/50 rounded-lg p-8 text-center">
-                  <FileText className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">Document Preview</p>
-                  <p className="text-xs text-muted-foreground mt-1">(Preview not available)</p>
                 </div>
               </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsViewOpen(false)}>Close</Button>
-                <Button className="gradient-primary text-primary-foreground" onClick={() => handleDownload(selectedDoc)}>
+              
+              <DialogFooter className="px-6 py-4 border-t bg-background">
+                <Button variant="outline" onClick={() => setIsViewOpen(false)}>
+                  Close
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    window.open(documentService.getDocumentPreviewUrl(selectedDoc.id), '_blank');
+                  }}
+                >
+                  <Eye className="w-4 h-4 mr-2" />
+                  Open in New Tab
+                </Button>
+                <Button 
+                  className="gradient-primary text-primary-foreground" 
+                  onClick={() => handleDownload(selectedDoc)}
+                >
                   <Download className="w-4 h-4 mr-2" />
                   Download
                 </Button>

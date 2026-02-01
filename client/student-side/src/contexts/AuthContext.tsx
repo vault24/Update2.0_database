@@ -104,6 +104,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const response = await api.get<any>('/auth/me/');
         if (response.user) {
           localStorage.setItem('userId', response.user.id);
+          
+          // Ensure relatedProfileId is properly set
+          const relatedProfileId = response.user.related_profile_id || response.user.student_profile_id || response.user.teacher_profile_id || response.user.id;
+          
           setUser({
             id: response.user.id,
             name: response.user.first_name && response.user.last_name 
@@ -113,11 +117,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             studentId: response.user.related_profile_id || response.user.id,
             role: response.user.role || 'student',
             admissionStatus: response.user.admission_status || 'not_started',
-            relatedProfileId: response.user.related_profile_id,
+            relatedProfileId: relatedProfileId,
           });
+          
+          // Store relatedProfileId in localStorage as backup
+          localStorage.setItem('relatedProfileId', relatedProfileId);
         }
       } catch (error) {
         localStorage.removeItem('userId');
+        localStorage.removeItem('relatedProfileId');
       }
       setLoading(false);
     };
@@ -143,6 +151,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem('userId', response.user.id);
       }
       
+      // Ensure relatedProfileId is properly set
+      const relatedProfileId = response.user.related_profile_id || response.user.student_profile_id || response.user.teacher_profile_id || response.user.id;
+      
       setUser({
         id: response.user.id,
         name: response.user.first_name && response.user.last_name 
@@ -152,8 +163,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         studentId: response.user.related_profile_id || response.user.id,
         role: response.user.role || 'student',
         admissionStatus: response.user.admission_status || 'not_started',
-        relatedProfileId: response.user.related_profile_id,
+        relatedProfileId: relatedProfileId,
       });
+      
+      // Store relatedProfileId in localStorage as backup
+      localStorage.setItem('relatedProfileId', relatedProfileId);
       
       if (response.redirect_to_admission) {
         console.log('User needs to complete admission');
@@ -202,7 +216,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         username: data.email,
         email: data.email,
         password: data.password,
-        password_confirm: data.password,
+        confirm_password: data.password,
         first_name: firstName,
         last_name: lastName,
         mobile_number: data.mobile,
@@ -228,6 +242,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (response.auto_logged_in && response.user) {
         localStorage.setItem('userId', response.user.id);
         
+        // Ensure relatedProfileId is properly set
+        const relatedProfileId = response.user.related_profile_id || response.user.student_profile_id || response.user.teacher_profile_id || response.user.id;
+        
         setUser({
           id: response.user.id,
           name: data.fullName,
@@ -235,8 +252,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           studentId: response.user.related_profile_id || response.user.id,
           role: data.role,
           admissionStatus: response.user.admission_status || 'not_started',
-          relatedProfileId: response.user.related_profile_id,
+          relatedProfileId: relatedProfileId,
         });
+        
+        // Store relatedProfileId in localStorage as backup
+        localStorage.setItem('relatedProfileId', relatedProfileId);
       }
     } catch (error) {
       console.error('Signup failed:', error);

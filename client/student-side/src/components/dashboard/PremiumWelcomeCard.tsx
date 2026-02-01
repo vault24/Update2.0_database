@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
+import { useState, useEffect } from 'react';
 import { 
   Sparkles, 
   ArrowRight, 
@@ -11,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
+import { motivationService, type MotivationMessage } from '@/services/motivationService';
 
 interface PremiumWelcomeCardProps {
   attendancePercentage?: number;
@@ -25,6 +27,7 @@ export function PremiumWelcomeCard({
 }: PremiumWelcomeCardProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [motivationalQuote, setMotivationalQuote] = useState<string>('');
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -34,7 +37,8 @@ export function PremiumWelcomeCard({
   };
 
   const getMotivationalQuote = () => {
-    const quotes = [
+    // Fallback quotes if service fails
+    const fallbackQuotes = [
       "Every expert was once a beginner.",
       "Success is the sum of small efforts.",
       "Dream big, work hard, stay focused.",
@@ -42,8 +46,37 @@ export function PremiumWelcomeCard({
       "Make today count!"
     ];
     const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
-    return quotes[dayOfYear % quotes.length];
+    return fallbackQuotes[dayOfYear % fallbackQuotes.length];
   };
+
+  // Fetch motivational quote from service
+  useEffect(() => {
+    const fetchMotivation = async () => {
+      try {
+        const response = await motivationService.getActiveMotivations();
+        const activeMotivations = response.results;
+        
+        if (activeMotivations.length > 0) {
+          // Get a random motivation message
+          const randomIndex = Math.floor(Math.random() * activeMotivations.length);
+          const selectedMotivation = activeMotivations[randomIndex];
+          setMotivationalQuote(selectedMotivation.message);
+          
+          // Record view for analytics
+          motivationService.recordView(selectedMotivation.id);
+        } else {
+          // Use fallback quote if no motivations available
+          setMotivationalQuote(getMotivationalQuote());
+        }
+      } catch (error) {
+        console.error('Failed to fetch motivation:', error);
+        // Use fallback quote on error
+        setMotivationalQuote(getMotivationalQuote());
+      }
+    };
+
+    fetchMotivation();
+  }, []);
 
   const currentDate = format(new Date(), 'EEEE, MMMM d, yyyy');
 
@@ -105,7 +138,7 @@ export function PremiumWelcomeCard({
               transition={{ delay: 0.4 }}
               className="text-white/80 text-sm md:text-base max-w-md italic"
             >
-              "{getMotivationalQuote()}"
+              "{motivationalQuote || getMotivationalQuote()}"
             </motion.p>
 
             {/* Quick Stats Row */}

@@ -20,7 +20,7 @@ DEBUG = config('DEBUG', default=True, cast=bool)
 
 ALLOWED_HOSTS = config(
     'ALLOWED_HOSTS',
-    default='localhost,127.0.0.1',
+    default='localhost,127.0.0.1,testserver',
     cast=Csv()
 )
 
@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     'apps.correction_requests',
     'apps.activity_logs',
     'apps.system_settings',
+    'apps.motivations',
 ]
 
 # --------------------------------------------------
@@ -165,6 +166,38 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# --------------------------------------------------
+# FILE STORAGE CONFIGURATION
+# --------------------------------------------------
+# File storage settings for document management
+FILE_STORAGE_ROOT = BASE_DIR / 'storage'
+FILE_STORAGE_URL = '/files/'
+
+# Maximum file sizes (in bytes)
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB default
+MAX_FILE_SIZES = {
+    'image': 5 * 1024 * 1024,      # 5MB for images
+    'document': 10 * 1024 * 1024,   # 10MB for documents
+    'video': 50 * 1024 * 1024,      # 50MB for videos
+}
+
+# Allowed file types
+ALLOWED_FILE_TYPES = {
+    'image': ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+    'document': ['pdf', 'doc', 'docx', 'txt', 'rtf'],
+    'archive': ['zip', 'rar', '7z'],
+    'spreadsheet': ['xls', 'xlsx', 'csv'],
+    'presentation': ['ppt', 'pptx'],
+}
+
+# File storage organization
+FILE_STORAGE_STRUCTURE = {
+    'documents': 'documents/{year}/{month}/',
+    'images': 'images/{year}/{month}/',
+    'temp': 'temp/',
+    'archives': 'archives/{year}/',
+}
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # --------------------------------------------------
@@ -189,21 +222,27 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",      # admin dev
     "http://localhost:5173",      # admin vite dev
     "http://localhost:8080",      # student dev
+    "http://localhost:8081", 
+    "http://localhost:8082",      # student dev (current)
     "http://127.0.0.1:3000",      # admin dev
     "http://127.0.0.1:5173",      # admin vite dev
     "http://127.0.0.1:8080",      # student dev
+    "http://127.0.0.1:8082",      # student dev (current)
 ]
 
 # --------------------------------------------------
 # ✅ CSRF
 # --------------------------------------------------
 CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "http://localhost:8080",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:8080",
+    "http://localhost:3000",      # admin dev
+    "http://localhost:5173",      # admin vite dev
+    "http://localhost:8080",      # student dev
+    "http://localhost:8081",
+    "http://localhost:8082",      # student dev (current)
+    "http://127.0.0.1:3000",      # admin dev
+    "http://127.0.0.1:5173",      # admin vite dev
+    "http://127.0.0.1:8080",      # student dev
+    "http://127.0.0.1:8082",      # student dev (current)
 ]
 
 CSRF_COOKIE_HTTPONLY = False
