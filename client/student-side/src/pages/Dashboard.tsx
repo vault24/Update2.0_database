@@ -16,8 +16,7 @@ import { TeacherQuickActions } from '@/components/dashboard/TeacherQuickActions'
 import { TeacherScheduleWidget } from '@/components/dashboard/TeacherScheduleWidget';
 import { TeacherStatsGrid } from '@/components/dashboard/TeacherStatsGrid';
 import { TeacherActivityFeed } from '@/components/dashboard/TeacherActivityFeed';
-import { motion } from 'framer-motion';
-import { BarChart3, Users, BookOpen, Award, Loader2, AlertCircle, GraduationCap, TrendingUp } from 'lucide-react';
+import { BarChart3, Users, BookOpen, Award, Loader2, AlertCircle } from 'lucide-react';
 import { dashboardService, type StudentDashboardData, type TeacherDashboardData } from '@/services/dashboardService';
 import { routineService, type ClassRoutine, type DayOfWeek } from '@/services/routineService';
 import { studentService } from '@/services/studentService';
@@ -48,7 +47,6 @@ export function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   
   // Class routine state
-  const [routine, setRoutine] = useState<ClassRoutine[]>([]);
   const [schedule, setSchedule] = useState<Record<DayOfWeek, (DisplayClassPeriod | null)[]>>({
     Sunday: [],
     Monday: [],
@@ -274,7 +272,6 @@ export function Dashboard() {
       };
 
       const data = await routineService.getMyRoutine(queryParams);
-      setRoutine(data.routines);
       const scheduleData = buildSchedule(data.routines);
       setSchedule(scheduleData);
     } catch (err) {
@@ -284,38 +281,15 @@ export function Dashboard() {
   };
 
   const fetchDashboardData = async () => {
-    // For teachers, we can proceed without relatedProfileId check
-    if (user?.role === 'teacher') {
-      if (!user?.relatedProfileId) {
-        // Try to get teacher profile ID from localStorage or use user ID
-        const fallbackProfileId = localStorage.getItem('relatedProfileId') || user.id;
-        if (fallbackProfileId) {
-          // Update user with fallback profile ID
-          setUser(prev => prev ? { ...prev, relatedProfileId: fallbackProfileId } : null);
-        } else {
-          setError('Teacher profile not found. Please contact administrator.');
-          setLoading(false);
-          return;
-        }
-      }
-    } else {
-      // For students, ensure we have relatedProfileId
-      if (!user?.relatedProfileId) {
-        const fallbackProfileId = localStorage.getItem('relatedProfileId');
-        if (fallbackProfileId) {
-          // Update user with fallback profile ID
-          setUser(prev => prev ? { ...prev, relatedProfileId: fallbackProfileId } : null);
-        } else {
-          setError('Student profile not found. Please complete your admission.');
-          setLoading(false);
-          return;
-        }
-      }
-    }
-
+    // Get profile ID from user or localStorage
     const profileId = user?.relatedProfileId || localStorage.getItem('relatedProfileId');
+    
     if (!profileId) {
-      setError('User profile not found');
+      if (user?.role === 'teacher') {
+        setError('Teacher profile not found. Please contact administrator.');
+      } else {
+        setError('Student profile not found. Please complete your admission.');
+      }
       setLoading(false);
       return;
     }
@@ -399,20 +373,24 @@ export function Dashboard() {
   }, [profileLoaded, user?.role, profileDepartment, profileSemester, profileShift]);
 
   useEffect(() => {
-    if (!authLoading && user?.relatedProfileId) {
-      fetchDashboardData();
+    if (!authLoading && user) {
+      // Check if user has relatedProfileId or can get it from localStorage
+      const profileId = user.relatedProfileId || localStorage.getItem('relatedProfileId');
+      if (profileId) {
+        fetchDashboardData();
+      } else {
+        if (user.role === 'teacher') {
+          setError('Teacher profile not found. Please contact administrator.');
+        } else {
+          setError('Student profile not found. Please complete your admission.');
+        }
+        setLoading(false);
+      }
     } else if (!authLoading && !user) {
       setError('User not authenticated');
       setLoading(false);
-    } else if (!authLoading && user && !user.relatedProfileId) {
-      if (user.role === 'teacher') {
-        setError('Teacher profile not found. Please contact administrator.');
-      } else {
-        setError('Student profile not found. Please complete your admission.');
-      }
-      setLoading(false);
     }
-  }, [authLoading, user?.relatedProfileId, user?.role]);
+  }, [authLoading, user?.relatedProfileId, user?.role, user?.id]);
 
   // Loading state
   if (loading) {
