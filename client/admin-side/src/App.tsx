@@ -33,6 +33,7 @@ import SignupRequests from "./pages/SignupRequests";
 import Notices from "./pages/Notices";
 import StipendEligible from "./pages/StipendEligible";
 import Auth from "./pages/Auth";
+import PasswordReset from "./pages/PasswordReset";
 import NotFound from "./pages/NotFound";
 import Complaints from "./pages/Complaints";
 import MotivationManagement from "./pages/MotivationManagement";
@@ -54,6 +55,7 @@ const App = () => (
           <AuthProvider>
             <Routes>
               <Route path="/auth" element={<Auth />} />
+              <Route path="/password-reset" element={<PasswordReset />} />
               <Route element={<ProtectedRoute />}>
                 <Route element={<AdminLayout />}>
                   <Route path="/" element={<Dashboard />} />

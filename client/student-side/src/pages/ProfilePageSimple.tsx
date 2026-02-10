@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, AlertCircle, User } from 'lucide-react';
+import { Loader2, AlertCircle, User, GraduationCap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useNavigate } from 'react-router-dom';
 
 export function ProfilePageSimple() {
   const { user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<any>(null);
@@ -51,6 +53,19 @@ export function ProfilePageSimple() {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto p-6">
+      {/* Navigation Button for Semester 8 Students */}
+      {user?.semester === 8 && (
+        <div className="flex justify-end">
+          <Button
+            onClick={() => navigate('/dashboard/alumni-profile')}
+            className="gap-2"
+          >
+            <GraduationCap className="w-4 h-4" />
+            View Alumni Profile
+          </Button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-card rounded-xl border border-border p-6 shadow-card">
         <div className="flex items-center gap-4">

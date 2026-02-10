@@ -10,7 +10,9 @@ type ClassPeriod = {
   startTime: string;
   endTime: string;
   subject: string;
-  code: string;
+  subjectCode: string;
+  classType: 'Theory' | 'Lab';
+  labName?: string;
   room: string;
   teacher: string;
 };
@@ -85,13 +87,18 @@ export function SwipeableDays({
   return (
     <div className="relative">
       {/* Day Pills Navigation */}
-      <div className="flex items-center gap-1 mb-3 overflow-x-auto pb-2 scrollbar-none">
+      <div className="flex items-center gap-1.5 mb-4 overflow-x-auto pb-2 scrollbar-none">
         {days.map((day, index) => (
           <button
             key={day}
-            onClick={() => scrollToIndex(index)}
+            onClick={() => {
+              setActiveIndex(index);
+              // Scroll to card in the vertical list
+              const el = document.getElementById(`day-card-${day}`);
+              el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }}
             className={cn(
-              "flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all",
+              "flex-shrink-0 px-3.5 py-2 rounded-full text-xs font-medium transition-all",
               index === activeIndex
                 ? "bg-primary text-primary-foreground shadow-md"
                 : day === currentDay
@@ -104,31 +111,11 @@ export function SwipeableDays({
         ))}
       </div>
 
-      {/* Swipeable Container */}
-      <div className="relative group">
-        {/* Left Arrow */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn(
-            "absolute -left-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-background/80 backdrop-blur shadow-lg border border-border transition-opacity",
-            "hidden md:flex",
-            !canScrollLeft && "opacity-0 pointer-events-none"
-          )}
-          onClick={() => scroll('left')}
-        >
-          <ChevronLeft className="w-5 h-5" />
-        </Button>
-
-        {/* Scrollable Cards */}
-        <div
-          ref={scrollRef}
-          className="flex gap-4 overflow-x-auto snap-x snap-mandatory scrollbar-none pb-2 -mx-2 px-2"
-          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-        >
-          {days.map((day, index) => (
+      {/* Vertical Cards Stack */}
+      <div className="space-y-4">
+        {days.map((day) => (
+          <div key={day} id={`day-card-${day}`}>
             <DayCard
-              key={day}
               day={day}
               classes={schedule[day] || []}
               timeSlots={timeSlots}
@@ -136,39 +123,7 @@ export function SwipeableDays({
               runningClassId={day === currentDay ? runningClassId : undefined}
               upcomingClassId={day === currentDay ? upcomingClassId : undefined}
             />
-          ))}
-        </div>
-
-        {/* Right Arrow */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn(
-            "absolute -right-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-background/80 backdrop-blur shadow-lg border border-border transition-opacity",
-            "hidden md:flex",
-            !canScrollRight && "opacity-0 pointer-events-none"
-          )}
-          onClick={() => scroll('right')}
-        >
-          <ChevronRight className="w-5 h-5" />
-        </Button>
-      </div>
-
-      {/* Dot Indicators (Mobile) */}
-      <div className="flex justify-center gap-1.5 mt-3 md:hidden">
-        {days.map((day, index) => (
-          <button
-            key={day}
-            onClick={() => scrollToIndex(index)}
-            className={cn(
-              "w-2 h-2 rounded-full transition-all",
-              index === activeIndex
-                ? "bg-primary w-4"
-                : day === currentDay
-                ? "bg-primary/50"
-                : "bg-muted-foreground/30"
-            )}
-          />
+          </div>
         ))}
       </div>
     </div>

@@ -208,10 +208,25 @@ export function DashboardLayout() {
                   </div>
                 </div>
                 
-                <DropdownMenuItem onClick={() => navigate('/dashboard/profile')} className="cursor-pointer">
+                <DropdownMenuItem onClick={() => {
+                  // Navigate to appropriate profile based on alumni status
+                  if (user?.isAlumni) {
+                    navigate('/dashboard/alumni-profile');
+                  } else {
+                    navigate('/dashboard/profile');
+                  }
+                }} className="cursor-pointer">
                   <User className="w-4 h-4 mr-2" />
-                  View Profile
+                  {user?.isAlumni ? 'Alumni Profile' : 'View Profile'}
                 </DropdownMenuItem>
+                
+                {/* Add button to view main profile for alumni */}
+                {user?.isAlumni && (
+                  <DropdownMenuItem onClick={() => navigate('/dashboard/profile')} className="cursor-pointer">
+                    <User className="w-4 h-4 mr-2" />
+                    View Main Profile
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={() => navigate('/dashboard/settings')} className="cursor-pointer">
                   <Settings className="w-4 h-4 mr-2" />
                   Settings

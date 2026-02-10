@@ -32,6 +32,8 @@ export const API_ENDPOINTS = {
     disconnectStudies: (id: string) => `/students/${id}/disconnect-studies/`,
     semesterResults: (id: string) => `/students/${id}/semester-results/`,
     semesterAttendance: (id: string) => `/students/${id}/semester-attendance/`,
+    updateSemesterResults: (id: string) => `/students/${id}/update-semester-results/`,
+    calculateSemesterResult: (id: string) => `/students/${id}/calculate-semester-result-from-marks/`,
     bulkUpdateStatus: '/students/bulk-update-status/',
     bulkDelete: '/students/bulk-delete/',
   },
@@ -166,6 +168,27 @@ export const API_ENDPOINTS = {
   settings: {
     get: '/settings/',
     update: '/settings/',
+  },
+  
+  // Stipends
+  stipends: {
+    criteria: {
+      list: '/stipends/criteria/',
+      create: '/stipends/criteria/',
+      detail: (id: string) => `/stipends/criteria/${id}/`,
+      update: (id: string) => `/stipends/criteria/${id}/`,
+      delete: (id: string) => `/stipends/criteria/${id}/`,
+      active: '/stipends/criteria/active/',
+    },
+    eligibility: {
+      list: '/stipends/eligibility/',
+      calculate: '/stipends/eligibility/calculate/',
+      save: '/stipends/eligibility/save_eligibility/',
+      detail: (id: string) => `/stipends/eligibility/${id}/`,
+      approve: (id: string) => `/stipends/eligibility/${id}/approve/`,
+      unapprove: (id: string) => `/stipends/eligibility/${id}/unapprove/`,
+      bulkApprove: '/stipends/eligibility/bulk_approve/',
+    },
   },
 } as const;
 

@@ -46,6 +46,7 @@ class Student(models.Model):
     gender = models.CharField(max_length=10, choices=GENDER_CHOICES)
     religion = models.CharField(max_length=50, blank=True)
     bloodGroup = models.CharField(max_length=5, blank=True)
+    nationality = models.CharField(max_length=100, default='Bangladeshi', blank=True)
     maritalStatus = models.CharField(max_length=20, blank=True)
     
     # Contact Information
@@ -121,5 +122,51 @@ class Student(models.Model):
                 # Or if it's any other valid result type
                 elif result.get('resultType') and result.get('resultType') != 'gpa':
                     return True
+        
+        return False
+    
+    def get_highest_completed_semester(self):
+        """Get the highest semester that has been completed with results"""
+        if not self.semesterResults:
+            return 0
+        
+        completed_semesters = []
+        for result in self.semesterResults:
+            semester = result.get('semester')
+            if semester:
+                # Check if it's a valid result (has GPA or is not failed)
+                if result.get('resultType') == 'gpa' and result.get('gpa') and result.get('gpa') > 0:
+                    completed_semesters.append(semester)
+                elif result.get('resultType') == 'referred' and result.get('referredSubjects'):
+                    # Even referred results count as completed semester (student can progress)
+                    completed_semesters.append(semester)
+                elif result.get('resultType') and result.get('resultType') not in ['gpa', 'referred']:
+                    # Other result types (pass/fail, etc.)
+                    completed_semesters.append(semester)
+        
+        return max(completed_semesters) if completed_semesters else 0
+    
+    def update_current_semester(self):
+        """Update current semester based on completed semester results"""
+        highest_completed = self.get_highest_completed_semester()
+        
+        # If student has completed results, current semester should be next semester
+        # unless they've already completed 8th semester
+        if highest_completed > 0:
+            if highest_completed >= 8:
+                # Student has completed all semesters, should be graduated
+                new_semester = 8
+                if self.status == 'active':
+                    self.status = 'graduated'
+            else:
+                # Student should be in the next semester
+                new_semester = highest_completed + 1
+                # Ensure we don't go beyond 8th semester
+                new_semester = min(new_semester, 8)
+            
+            # Only update if there's a change
+            if self.semester != new_semester:
+                self.semester = new_semester
+                return True
         
         return False

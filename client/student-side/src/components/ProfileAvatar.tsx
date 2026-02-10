@@ -31,14 +31,6 @@ export function ProfileAvatar({ size = 'md', className = '' }: ProfileAvatarProp
     xl: 'w-12 h-12',
   };
 
-  // Debug logging
-  console.log('ProfileAvatar debug:', {
-    profilePictureUrl,
-    loading,
-    userName: user?.name,
-    userRelatedProfileId: user?.relatedProfileId
-  });
-
   return (
     <Avatar className={`${sizeClasses[size]} ${className}`}>
       {profilePictureUrl && !loading && (
@@ -46,14 +38,6 @@ export function ProfileAvatar({ size = 'md', className = '' }: ProfileAvatarProp
           src={profilePictureUrl} 
           alt={`${user?.name || 'User'}'s profile picture`}
           className="object-cover"
-          onError={(e) => {
-            console.error('Profile picture failed to load:', profilePictureUrl);
-            // Hide the image on error so fallback shows
-            e.currentTarget.style.display = 'none';
-          }}
-          onLoad={() => {
-            console.log('Profile picture loaded successfully:', profilePictureUrl);
-          }}
         />
       )}
       <AvatarFallback className="bg-primary/10">

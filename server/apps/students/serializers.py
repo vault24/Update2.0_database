@@ -66,6 +66,7 @@ class StudentCreateSerializer(serializers.ModelSerializer):
             'gender',
             'religion',
             'bloodGroup',
+            'nationality',
             'maritalStatus',
             # Contact Information
             'mobileStudent',
@@ -158,6 +159,7 @@ class StudentUpdateSerializer(serializers.ModelSerializer):
             'gender',
             'religion',
             'bloodGroup',
+            'nationality',
             'maritalStatus',
             # Contact Information
             'mobileStudent',

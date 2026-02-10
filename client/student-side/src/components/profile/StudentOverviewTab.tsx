@@ -29,7 +29,7 @@ interface StudentOverviewTabProps {
     boardRegistration?: string;
   };
   performanceMetrics: {
-    cgpa: number | string;
+    gpa: number | string;
     attendancePercentage: number;
     subjectsCount: number;
     rank?: number | string;
@@ -146,8 +146,8 @@ export function StudentOverviewTab({
         </h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
           <PerformanceCard 
-            value={performanceMetrics.cgpa} 
-            label="Current CGPA"
+            value={performanceMetrics.gpa} 
+            label="Current GPA"
             color="from-emerald-500 to-teal-600"
             iconColor="text-emerald-500"
           />
@@ -255,7 +255,7 @@ function PerformanceCard({
         color
       )} />
       <p className="text-2xl md:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
-        {typeof value === 'number' && !isNaN(value) ? (label.includes('CGPA') ? value.toFixed(2) : value) : value}
+        {typeof value === 'number' && !isNaN(value) ? (label.includes('GPA') ? value.toFixed(2) : value) : value}
       </p>
       <p className="text-[10px] md:text-xs text-muted-foreground mt-1">{label}</p>
     </div>

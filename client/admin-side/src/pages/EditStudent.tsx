@@ -102,6 +102,7 @@ export default function EditStudent() {
         gender: student.gender,
         religion: student.religion,
         bloodGroup: student.bloodGroup,
+        nationality: student.nationality,
 
         // Contact Information
         mobileStudent: student.mobileStudent,

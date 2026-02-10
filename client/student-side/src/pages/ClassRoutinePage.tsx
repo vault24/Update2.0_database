@@ -18,6 +18,7 @@ import {
   Layers,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { routineService, type ClassRoutine, type DayOfWeek } from '@/services/routineService';
 import { studentService } from '@/services/studentService';
@@ -26,6 +27,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { SwipeableDays } from '@/components/routine/SwipeableDays';
 import { CurrentClassStatus } from '@/components/routine/CurrentClassStatus';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const days: DayOfWeek[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
 const dayAbbreviations: Record<DayOfWeek, string> = {
@@ -42,7 +44,9 @@ type DisplayClassPeriod = {
   startTime: string;
   endTime: string;
   subject: string;
-  code: string;
+  subjectCode: string;
+  classType: 'Theory' | 'Lab';
+  labName?: string;
   room: string;
   teacher: string;
 };
@@ -56,8 +60,8 @@ const subjectColors: Record<string, string> = {
   Break: 'from-muted to-muted border-border text-muted-foreground',
 };
 
-const getSubjectIcon = (subject: string) => {
-  if (subject.includes('Lab')) return FlaskConical;
+const getSubjectIcon = (subject: string, classType?: 'Theory' | 'Lab') => {
+  if (classType === 'Lab' || subject.includes('Lab')) return FlaskConical;
   if (subject === 'Break') return Coffee;
   if (subject === 'Computer') return Monitor;
   return BookOpen;
@@ -65,7 +69,13 @@ const getSubjectIcon = (subject: string) => {
 
 export default function ClassRoutinePage() {
   const { user, loading: authLoading } = useAuth();
+  const isMobile = useIsMobile();
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+
+  // Set default view based on screen size
+  useEffect(() => {
+    setViewMode(isMobile ? 'cards' : 'table');
+  }, [isMobile]);
   const [routine, setRoutine] = useState<ClassRoutine[]>([]);
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
   const [schedule, setSchedule] = useState<Record<DayOfWeek, (DisplayClassPeriod | null)[]>>({
@@ -85,6 +95,8 @@ export default function ClassRoutinePage() {
   const [profileShift, setProfileShift] = useState<string | undefined>(undefined);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [lastRefresh, setLastRefresh] = useState(Date.now());
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [selectedPeriod, setSelectedPeriod] = useState<DisplayClassPeriod | null>(null);
 
   const formatTime = (time: string) => time?.slice(0, 5) || '';
 
@@ -277,7 +289,9 @@ export default function ClassRoutinePage() {
         startTime: timeSlotUtils.formatTime(routineItem.start_time),
         endTime: timeSlotUtils.formatTime(routineItem.end_time),
         subject: routineItem.subject_name || 'Unknown Subject',
-        code: routineItem.subject_code || '',
+        subjectCode: routineItem.subject_code || '',
+        classType: routineItem.class_type || 'Theory',
+        labName: routineItem.lab_name || '',
         room: routineItem.room_number || 'TBA',
         teacher: routineItem.teacher?.fullNameEnglish || 'TBA',
       }));
@@ -421,9 +435,11 @@ export default function ClassRoutinePage() {
   const now = currentTime;
   const dayIndex = now.getDay();
   const currentDay = (dayIndex >= 0 && dayIndex < days.length) ? days[dayIndex] : days[0];
-  const todayClasses = weeklySchedule[currentDay]?.filter((c) => c) || [];
-  const totalClasses = todayClasses.length;
-  const labSessions = todayClasses.filter((c) => c?.subject?.toLowerCase().includes('lab')).length;
+  const todayRoutineItems = routine.filter((r) => r.day_of_week === currentDay);
+  const statsSource = todayRoutineItems.length > 0 ? todayRoutineItems : routine;
+  const statsLabel = todayRoutineItems.length > 0 ? 'Today' : 'This Week';
+  const totalClasses = statsSource.length;
+  const labSessions = statsSource.filter((r) => r.class_type === 'Lab').length;
   const theorySessions = totalClasses - labSessions;
   
   const runningClass = getCurrentRunningClass();
@@ -536,7 +552,7 @@ export default function ClassRoutinePage() {
         className="grid grid-cols-3 gap-2"
       >
         {[
-          { label: 'Today', value: totalClasses, icon: BookOpen, color: 'text-primary bg-primary/10' },
+          { label: statsLabel, value: totalClasses, icon: BookOpen, color: 'text-primary bg-primary/10' },
           { label: 'Labs', value: labSessions, icon: FlaskConical, color: 'text-warning bg-warning/10' },
           { label: 'Theory', value: theorySessions, icon: Users, color: 'text-success bg-success/10' },
         ].map((stat) => (
@@ -603,65 +619,82 @@ export default function ClassRoutinePage() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-card rounded-xl sm:rounded-2xl border border-border overflow-hidden"
+          className="bg-card rounded-xl md:rounded-2xl border border-border overflow-hidden"
         >
-          <div className="overflow-x-auto -mx-1 px-1">
-            <table className="w-full min-w-[320px] sm:min-w-[500px]">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[600px] lg:min-w-[800px]">
               <thead>
                 <tr className="border-b border-border bg-muted/30">
-                  <th className="py-2 sm:py-3 px-1.5 sm:px-3 text-left text-[10px] sm:text-xs font-medium text-muted-foreground">
-                    <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5 inline mr-1" />
-                    <span className="hidden sm:inline">Time</span>
+                  <th className="py-3 px-3 md:px-4 text-left text-sm md:text-base font-semibold text-muted-foreground whitespace-nowrap">
+                    <Clock className="w-3.5 h-3.5 md:w-4 md:h-4 inline mr-1.5" />
+                    Time
                   </th>
                   {days.map((day) => (
                     <th key={day} className={cn(
-                      "py-2 sm:py-3 px-0.5 sm:px-2 text-center text-[9px] sm:text-xs font-medium",
-                      day === currentDay ? "text-primary" : "text-muted-foreground"
+                      "py-3 px-2 md:px-3 text-center text-sm md:text-base font-semibold",
+                      day === currentDay ? "text-primary bg-primary/5" : "text-muted-foreground"
                     )}>
-                      {day.slice(0, 2)}
-                      <span className="hidden sm:inline">{day.slice(2, 3)}</span>
+                      <span className="md:hidden">{day.slice(0, 3)}</span>
+                      <span className="hidden md:inline">{day}</span>
+                      {day === currentDay && (
+                        <span className="block text-[10px] md:text-xs font-normal text-primary/70">Today</span>
+                      )}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {timeSlots.map((time, timeIndex) => (
-                  <tr key={time} className="border-b border-border/50">
-                    <td className="py-1.5 sm:py-2 px-1 sm:px-3 text-[9px] sm:text-[11px] text-muted-foreground font-medium whitespace-nowrap">
-                      {time.split(' - ')[0]}
+                  <tr key={time} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
+                    <td className="py-2.5 md:py-3 px-3 md:px-4 text-sm md:text-base text-muted-foreground font-medium whitespace-nowrap">
+                      {time}
                     </td>
                     {days.map((day) => {
                       const period = weeklySchedule[day]?.[timeIndex];
                       if (!period) {
                         return (
-                          <td key={day} className="py-1 sm:py-2 px-0.5 sm:px-1">
-                            <div className="h-8 sm:h-12 rounded sm:rounded-lg bg-muted/30 border border-dashed border-border/50" />
+                          <td key={day} className="py-2 md:py-2.5 px-1.5 md:px-2">
+                            <div className="h-14 md:h-16 rounded-lg bg-muted/20 border border-dashed border-border/40" />
                           </td>
                         );
                       }
-                      const Icon = getSubjectIcon(period.subject);
+                      const Icon = getSubjectIcon(period.subject, period.classType);
                       const colorClass = subjectColors[period.subject.split(' ')[0]] || subjectColors.Computer;
                       const isRunning = runningClass?.id === period.id;
                       
                       return (
-                        <td key={day} className="py-1 sm:py-2 px-0.5 sm:px-1">
+                        <td key={day} className="py-2 md:py-2.5 px-1.5 md:px-2">
                           <div
                             className={cn(
-                              "h-8 sm:h-12 rounded sm:rounded-lg border p-1 sm:p-1.5 bg-gradient-to-br relative",
+                              "h-[88px] md:h-[96px] rounded-lg border p-2 md:p-2.5 bg-gradient-to-br relative cursor-pointer transition-shadow hover:shadow-md",
                               colorClass,
-                              isRunning && "ring-1 sm:ring-2 ring-primary ring-offset-1"
+                              isRunning && "ring-2 ring-primary ring-offset-1 ring-offset-card"
                             )}
+                            onClick={() => {
+                              setSelectedPeriod(period);
+                              setDetailOpen(true);
+                            }}
                           >
                             {isRunning && (
-                              <div className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-2 h-2 sm:w-3 sm:h-3 bg-primary rounded-full animate-pulse flex items-center justify-center">
-                                <PlayCircle className="w-1.5 h-1.5 sm:w-2 sm:h-2 text-primary-foreground" />
+                              <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-primary rounded-full animate-pulse flex items-center justify-center">
+                                <PlayCircle className="w-2 h-2 text-primary-foreground" />
                               </div>
                             )}
-                            <div className="flex items-start gap-0.5 sm:gap-1 h-full">
-                              <Icon className="w-2.5 h-2.5 sm:w-3 sm:h-3 mt-0.5 flex-shrink-0 opacity-70 hidden sm:block" />
+                            {period.classType === 'Lab' && (
+                              <div className="absolute top-1 right-1 px-1.5 py-0.5 text-[8px] font-semibold bg-warning/20 text-warning-foreground rounded">
+                                LAB
+                              </div>
+                            )}
+                            <div className="flex items-start gap-1.5 h-full">
+                              <Icon className="w-3.5 h-3.5 md:w-4 md:h-4 mt-0.5 flex-shrink-0 opacity-80" />
                               <div className="min-w-0 flex-1">
-                                <p className="text-[7px] sm:text-[9px] font-semibold truncate leading-tight">{period.subject}</p>
-                                <p className="text-[6px] sm:text-[8px] opacity-70 truncate hidden sm:block">{period.room}</p>
+                                <p className="text-xs md:text-sm font-semibold truncate leading-tight">{period.subject}</p>
+                                <p className="text-[10px] md:text-xs opacity-70 truncate">{period.subjectCode}</p>
+                                {period.classType === 'Lab' && period.labName && (
+                                  <p className="text-[10px] md:text-xs opacity-70 truncate">Lab: {period.labName}</p>
+                                )}
+                                <p className="text-[10px] md:text-xs opacity-70 truncate">{period.room}</p>
+                                <p className="text-[10px] md:text-xs opacity-70 truncate">{period.teacher}</p>
                               </div>
                             </div>
                           </div>
@@ -681,18 +714,60 @@ export default function ClassRoutinePage() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.25 }}
-        className="bg-card rounded-lg sm:rounded-xl border border-border p-2 sm:p-3"
+        className="bg-card rounded-lg md:rounded-xl border border-border p-3 md:p-4"
       >
-        <h4 className="text-[10px] sm:text-xs font-semibold mb-1.5 sm:mb-2">Legend</h4>
-        <div className="flex flex-wrap gap-1.5 sm:gap-2">
+        <h4 className="text-xs md:text-sm font-semibold mb-2 md:mb-3">Legend</h4>
+        <div className="flex flex-wrap gap-2 md:gap-3">
           {Object.entries(subjectColors).filter(([k]) => k !== 'Break').map(([subject, colorClass]) => (
-            <div key={subject} className={cn("flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded sm:rounded-lg border bg-gradient-to-r text-[8px] sm:text-[10px] font-medium", colorClass)}>
-              <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-current" />
+            <div key={subject} className={cn("flex items-center gap-1.5 px-2.5 py-1 md:py-1.5 rounded-lg border bg-gradient-to-r text-[10px] md:text-xs font-medium", colorClass)}>
+              <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-current" />
               {subject}
             </div>
           ))}
         </div>
       </motion.div>
+
+      {/* Details Dialog */}
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Class Details</DialogTitle>
+            <DialogDescription>
+              {selectedPeriod ? `${selectedPeriod.day}, ${selectedPeriod.startTime} - ${selectedPeriod.endTime}` : ''}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedPeriod && (
+            <div className="space-y-3 text-sm">
+              <div>
+                <p className="text-muted-foreground">Subject</p>
+                <p className="font-medium">{selectedPeriod.subject}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Subject Code</p>
+                <p className="font-medium">{selectedPeriod.subjectCode || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Class Type</p>
+                <p className="font-medium">{selectedPeriod.classType}</p>
+              </div>
+              {selectedPeriod.classType === 'Lab' && (
+                <div>
+                  <p className="text-muted-foreground">Lab Name</p>
+                  <p className="font-medium">{selectedPeriod.labName || 'N/A'}</p>
+                </div>
+              )}
+              <div>
+                <p className="text-muted-foreground">Room</p>
+                <p className="font-medium">{selectedPeriod.room}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Teacher</p>
+                <p className="font-medium">{selectedPeriod.teacher}</p>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

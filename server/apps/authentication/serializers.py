@@ -257,14 +257,55 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
 
 class UserSerializer(serializers.ModelSerializer):
     """Basic user serializer for responses"""
+    semester = serializers.SerializerMethodField()
+    student_status = serializers.SerializerMethodField()
+    is_alumni = serializers.SerializerMethodField()
+    
     class Meta:
         model = User
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name', 'role',
             'related_profile_id', 'admission_status', 'account_status',
-            'mobile_number'
+            'mobile_number', 'semester', 'student_status', 'is_alumni'
         ]
         read_only_fields = ['id', 'username', 'role']
+    
+    def get_semester(self, obj):
+        """Get student's current semester"""
+        if obj.role in ['student', 'captain'] and obj.related_profile_id:
+            try:
+                from apps.students.models import Student
+                student = Student.objects.get(id=obj.related_profile_id)
+                return student.semester
+            except Student.DoesNotExist:
+                pass
+        return None
+    
+    def get_student_status(self, obj):
+        """Get student's status (active, graduated, etc.)"""
+        if obj.role in ['student', 'captain'] and obj.related_profile_id:
+            try:
+                from apps.students.models import Student
+                student = Student.objects.get(id=obj.related_profile_id)
+                return student.status
+            except Student.DoesNotExist:
+                pass
+        return None
+    
+    def get_is_alumni(self, obj):
+        """Check if user has alumni status"""
+        if obj.role in ['student', 'captain'] and obj.related_profile_id:
+            try:
+                from apps.students.models import Student
+                from apps.alumni.models import Alumni
+                student = Student.objects.get(id=obj.related_profile_id)
+                # Check if student is graduated or has alumni record
+                return student.status == 'graduated' or Alumni.objects.filter(student=student).exists()
+            except (Student.DoesNotExist, Alumni.DoesNotExist):
+                pass
+        elif obj.role == 'alumni':
+            return True
+        return False
     
     def to_representation(self, instance):
         """Customize the representation to handle null related_profile_id"""

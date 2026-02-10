@@ -62,6 +62,7 @@ INSTALLED_APPS = [
     'apps.activity_logs',
     'apps.system_settings',
     'apps.motivations',
+    'apps.stipends',
 ]
 
 # --------------------------------------------------

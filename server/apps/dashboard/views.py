@@ -226,6 +226,43 @@ class StudentDashboardView(APIView):
                 total_classes = attendance_records.count()
                 present_classes = attendance_records.filter(is_present=True).count()
                 attendance_percentage = (present_classes / total_classes * 100) if total_classes > 0 else 0
+
+                # Fallback to semesterAttendance when there are no attendance records
+                if total_classes == 0:
+                    semester_attendance = student.semesterAttendance or []
+                    current_semester_record = None
+
+                    for record in semester_attendance:
+                        if isinstance(record, dict) and record.get('semester') == student.semester:
+                            current_semester_record = record
+                            break
+
+                    if not current_semester_record and semester_attendance:
+                        current_semester_record = max(
+                            [r for r in semester_attendance if isinstance(r, dict)],
+                            key=lambda r: r.get('semester', 0),
+                            default=None
+                        )
+
+                    if current_semester_record:
+                        subjects = current_semester_record.get('subjects', [])
+                        total_present = 0
+                        total_subject_classes = 0
+
+                        for subject in subjects:
+                            if not isinstance(subject, dict):
+                                continue
+                            total_present += subject.get('present', 0)
+                            total_subject_classes += subject.get('total', 0)
+
+                        if total_subject_classes > 0:
+                            total_classes = total_subject_classes
+                            present_classes = total_present
+                            attendance_percentage = (total_present / total_subject_classes * 100)
+                        else:
+                            average_percentage = current_semester_record.get('averagePercentage')
+                            if average_percentage is not None:
+                                attendance_percentage = float(average_percentage)
             except Exception as e:
                 print(f"Error fetching attendance: {e}")
                 total_classes = 0

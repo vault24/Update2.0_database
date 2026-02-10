@@ -26,11 +26,22 @@ export interface Document {
   filePath: string;
   fileSize: number;
   uploadDate: string;
+  source_type?: 'admission' | 'manual' | 'system';
+  source_id?: string;
 }
 
 export interface MyDocumentsResponse {
   count: number;
   documents: Document[];
+}
+
+export interface DocumentFilters {
+  page?: number;
+  page_size?: number;
+  student?: string;
+  category?: DocumentCategory;
+  source_type?: 'admission' | 'manual' | 'system';
+  source_id?: string;
 }
 
 // Demo documents for testing
@@ -87,6 +98,12 @@ const demoDocuments: Document[] = [
 
 // Service
 export const documentService = {
+  /**
+   * Get documents with filters
+   */
+  getDocuments: async (filters?: DocumentFilters): Promise<PaginatedResponse<Document>> => {
+    return await apiClient.get<PaginatedResponse<Document>>('documents/', filters);
+  },
   /**
    * Get documents for a specific student (public access)
    */
@@ -295,31 +312,31 @@ export const documentService = {
   /**
    * Set document as profile picture (for Photo category documents)
    */
-  setAsProfilePicture: async (documentId: string): Promise<void> => {
+  setAsProfilePicture: async (documentId: string, studentId?: string): Promise<void> => {
     // Check if we're in demo mode
     const demoRole = localStorage.getItem('demoRole');
     if (demoRole && documentId.startsWith('demo-')) {
-      // For demo mode, just store in localStorage
-      localStorage.setItem('demoProfilePicture', documentId);
+      // Demo mode: no server sync required
       return;
     }
     
-    // Real API call - this would need to be implemented in the backend
-    // For now, we'll store it in localStorage as a temporary solution
-    localStorage.setItem('profilePictureDocumentId', documentId);
+    // Persist to server so it works across devices
+    const payload: Record<string, string> = {};
+    if (studentId) {
+      payload.student_id = studentId;
+    }
+    await apiClient.post(`documents/${documentId}/set-profile-photo/`, payload);
   },
 
   /**
    * Get profile picture URL
    */
-  getProfilePictureUrl: (documentId?: string): string | null => {
+  getProfilePictureUrl: (documentId?: string, studentId?: string): string | null => {
     if (!documentId) {
       // Check for stored profile picture
       const demoRole = localStorage.getItem('demoRole');
       if (demoRole) {
-        documentId = localStorage.getItem('demoProfilePicture') || undefined;
-      } else {
-        documentId = localStorage.getItem('profilePictureDocumentId') || undefined;
+        documentId = undefined;
       }
     }
     

@@ -496,16 +496,46 @@ export default function AttendanceMarks() {
       
       await Promise.all(savePromises);
       
-      // Refresh the data to show updated marks
+      // After saving marks, calculate semester result and update current semester
+      try {
+        const currentYear = new Date().getFullYear();
+        const semesterResultResponse = await studentService.calculateSemesterResultFromMarks(
+          selectedStudent.id,
+          {
+            semester: parseInt(semester),
+            year: currentYear,
+          }
+        );
+        
+        console.log('Semester result calculated:', semesterResultResponse);
+        
+        // Show success message with semester progression info
+        if (semesterResultResponse.currentSemester !== parseInt(semester)) {
+          toast({
+            title: "Success",
+            description: `Student marks saved and semester updated to ${semesterResultResponse.currentSemester}. Status: ${semesterResultResponse.status}`,
+          });
+        } else {
+          toast({
+            title: "Success",
+            description: "Student marks have been saved successfully.",
+          });
+        }
+      } catch (semesterErr: any) {
+        console.warn('Failed to calculate semester result:', semesterErr);
+        // Still show success for marks saving, but warn about semester calculation
+        toast({
+          title: "Marks Saved",
+          description: "Marks saved successfully, but semester progression could not be calculated automatically.",
+          variant: "default",
+        });
+      }
+      
+      // Refresh the data to show updated marks and current semester
       await loadFilteredData();
       
       // Clear search query to encourage fresh search
       setSearchQuery('');
-      
-      toast({
-        title: "Success",
-        description: "Student marks have been saved successfully.",
-      });
       
       setIsDetailsOpen(false);
     } catch (err: any) {

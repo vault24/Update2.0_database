@@ -356,14 +356,18 @@ export function ProfilePage() {
 
   // Calculate academic performance metrics
   const calculatePerformanceMetrics = () => {
-    let currentCGPA = 0;
+    let currentGPA = 0;
     let attendancePercentage = 0;
     let subjectsCount = 0;
+    const semesterAttendance = studentData?.semesterAttendance || [];
+    const currentSemesterRecord = semesterAttendance.find(
+      (record) => record.semester === studentData?.semester
+    ) || [...semesterAttendance].sort((a, b) => (b.semester || 0) - (a.semester || 0))[0];
     
     // Calculate CGPA from semester results
     if (studentData?.semesterResults && studentData.semesterResults.length > 0) {
       const latestResult = studentData.semesterResults[studentData.semesterResults.length - 1];
-      currentCGPA = latestResult.cgpa || latestResult.gpa || 0;
+      currentGPA = Number(latestResult.gpa ?? latestResult.cgpa ?? 0);
     }
     
     // Calculate attendance percentage
@@ -371,9 +375,40 @@ export function ProfilePage() {
       const totalPercentage = attendanceSummary.summary.reduce((sum, item) => sum + item.percentage, 0);
       attendancePercentage = Math.round(totalPercentage / attendanceSummary.summary.length);
     }
+
+    // Fallback to semesterAttendance if summary isn't available
+    if (!attendancePercentage && currentSemesterRecord) {
+      const subjects = currentSemesterRecord.subjects || [];
+      const totalPresent = subjects.reduce((sum, subj) => sum + (subj.present || 0), 0);
+      const totalClasses = subjects.reduce((sum, subj) => sum + (subj.total || 0), 0);
+
+      if (totalClasses > 0) {
+        attendancePercentage = Math.round((totalPresent / totalClasses) * 100);
+      } else if (currentSemesterRecord.averagePercentage !== undefined) {
+        attendancePercentage = Math.round(Number(currentSemesterRecord.averagePercentage) || 0);
+      }
+    }
     
     // Count subjects from marks or routine
     const uniqueSubjects = new Set<string>();
+    if (currentSemesterRecord?.subjects?.length) {
+      currentSemesterRecord.subjects.forEach((subject) => {
+        const subjectId = subject.code || subject.name || '';
+        if (subjectId) {
+          uniqueSubjects.add(subjectId);
+        }
+      });
+    }
+
+    if (uniqueSubjects.size === 0 && attendanceSummary?.summary?.length) {
+      attendanceSummary.summary.forEach((item) => {
+        const subjectId = item.subject_code || item.subject_name || '';
+        if (subjectId) {
+          uniqueSubjects.add(subjectId);
+        }
+      });
+    }
+
     marks.forEach(m => uniqueSubjects.add(m.subjectCode || m.subjectName || ''));
     if (uniqueSubjects.size === 0 && routine.length > 0) {
       routine.forEach(r => uniqueSubjects.add(r.subject_code || r.subject_name || ''));
@@ -381,7 +416,7 @@ export function ProfilePage() {
     subjectsCount = uniqueSubjects.size;
     
     return {
-      currentCGPA: currentCGPA.toFixed(2),
+      currentGPA: currentGPA.toFixed(2),
       attendancePercentage,
       subjectsCount,
     };
@@ -424,7 +459,7 @@ export function ProfilePage() {
 
       {/* Stats Cards */}
       <StudentStatsCard
-        cgpa={Number(performanceMetrics.currentCGPA) || 0}
+        gpa={Number(performanceMetrics.currentGPA) || 0}
         attendancePercentage={performanceMetrics.attendancePercentage}
         subjectsCount={performanceMetrics.subjectsCount}
       />
@@ -483,7 +518,7 @@ export function ProfilePage() {
                 status: studentData?.status,
               }}
               performanceMetrics={{
-                cgpa: Number(performanceMetrics.currentCGPA) || 0,
+                gpa: Number(performanceMetrics.currentGPA) || 0,
                 attendancePercentage: performanceMetrics.attendancePercentage,
                 subjectsCount: performanceMetrics.subjectsCount,
               }}

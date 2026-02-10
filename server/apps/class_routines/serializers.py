@@ -53,6 +53,8 @@ class ClassRoutineSerializer(serializers.ModelSerializer):
             'end_time',
             'subject_name',
             'subject_code',
+            'class_type',
+            'lab_name',
             'teacher',
             'room_number',
             'is_active',
@@ -78,6 +80,8 @@ class ClassRoutineCreateSerializer(serializers.ModelSerializer):
             'end_time',
             'subject_name',
             'subject_code',
+            'class_type',
+            'lab_name',
             'teacher',
             'room_number',
             'is_active',
@@ -464,13 +468,31 @@ class ClassRoutineCreateSerializer(serializers.ModelSerializer):
                             'field': 'end_time',
                             'duration_minutes': int(duration.total_seconds() / 60),
                             'minimum_duration_minutes': 15
-                        }
+                    }
                 except (TypeError, ValueError) as e:
                     errors['time_validation'] = {
                         'message': 'Invalid time format provided',
                         'code': ValidationErrorCodes.INVALID_TIME_RANGE,
                         'error_details': str(e)
                     }
+
+        # Validate class type and lab name
+        class_type = data.get('class_type', 'Theory')
+        lab_name = data.get('lab_name')
+        valid_types = ['Theory', 'Lab']
+        if class_type not in valid_types:
+            errors['class_type'] = {
+                'message': f'Class type must be one of: {", ".join(valid_types)}',
+                'code': ValidationErrorCodes.REQUIRED_FIELD,
+                'field': 'class_type',
+                'provided_value': class_type
+            }
+        if class_type == 'Lab' and not (lab_name and str(lab_name).strip()):
+            errors['lab_name'] = {
+                'message': 'Lab name is required for Lab classes',
+                'code': ValidationErrorCodes.REQUIRED_FIELD,
+                'field': 'lab_name'
+            }
         
         # Validate required relationships
         department = data.get('department')
@@ -525,6 +547,8 @@ class ClassRoutineUpdateSerializer(serializers.ModelSerializer):
             'end_time',
             'subject_name',
             'subject_code',
+            'class_type',
+            'lab_name',
             'teacher',
             'room_number',
             'is_active',
@@ -877,7 +901,7 @@ class ClassRoutineUpdateSerializer(serializers.ModelSerializer):
                             'duration_minutes': int(duration.total_seconds() / 60),
                             'minimum_duration_minutes': 15,
                             'operation': 'update'
-                        }
+                    }
                 except (TypeError, ValueError) as e:
                     errors['time_validation'] = {
                         'message': 'Invalid time format provided',
@@ -885,6 +909,26 @@ class ClassRoutineUpdateSerializer(serializers.ModelSerializer):
                         'error_details': str(e),
                         'operation': 'update'
                     }
+
+        # Validate class type and lab name
+        class_type = data.get('class_type', self.instance.class_type if self.instance else 'Theory')
+        lab_name = data.get('lab_name', self.instance.lab_name if self.instance else None)
+        valid_types = ['Theory', 'Lab']
+        if class_type not in valid_types:
+            errors['class_type'] = {
+                'message': f'Class type must be one of: {", ".join(valid_types)}',
+                'code': ValidationErrorCodes.REQUIRED_FIELD,
+                'field': 'class_type',
+                'provided_value': class_type,
+                'operation': 'update'
+            }
+        if class_type == 'Lab' and not (lab_name and str(lab_name).strip()):
+            errors['lab_name'] = {
+                'message': 'Lab name is required for Lab classes',
+                'code': ValidationErrorCodes.REQUIRED_FIELD,
+                'field': 'lab_name',
+                'operation': 'update'
+            }
         
         # Check for schedule conflicts only if basic validation passes
         if not errors and self.instance:

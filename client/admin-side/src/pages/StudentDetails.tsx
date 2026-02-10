@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { 
   ArrowLeft, Edit, Download, Unplug, Trash2, ChevronDown, ChevronUp,
   User, Phone, MapPin, GraduationCap, BookOpen, 
-  AlertTriangle, CheckCircle, Home, TrendingUp, Award
+  AlertTriangle, CheckCircle, Home, TrendingUp, Award, FileText, Eye, Upload
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { studentService, Student, SemesterAttendance, SemesterResult, SubjectAttendance } from '@/services/studentService';
+import { admissionService, Admission } from '@/services/admissionService';
+import { documentService, Document } from '@/services/documentService';
 import { getErrorMessage } from '@/lib/api';
 import { LoadingState } from '@/components/LoadingState';
 import { ErrorState } from '@/components/ErrorState';
@@ -91,6 +93,10 @@ export default function StudentDetails() {
   const [attendanceData, setAttendanceData] = useState<SemesterAttendance[]>([]);
   const [resultsData, setResultsData] = useState<SemesterResult[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [documentsLoading, setDocumentsLoading] = useState(false);
+  const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
+  const [isViewOpen, setIsViewOpen] = useState(false);
 
   useEffect(() => {
     const fetchStudent = async () => {
@@ -119,6 +125,119 @@ export default function StudentDetails() {
 
     fetchStudent();
   }, [id, toast]);
+
+  useEffect(() => {
+    const fetchDocuments = async () => {
+      if (!id || !student) return;
+      
+      try {
+        setDocumentsLoading(true);
+        
+        console.log('=== FETCHING DOCUMENTS FOR STUDENT ===');
+        console.log('Student ID:', id);
+        console.log('Student Name:', student.fullNameEnglish);
+        console.log('Student Email:', student.email);
+        
+        // Fetch ALL documents
+        const allDocsResponse = await documentService.getDocuments({
+          page_size: 1000
+        });
+        
+        console.log(`Total documents in system: ${allDocsResponse.count}`);
+        
+        // Log a sample document to see structure
+        if (allDocsResponse.results && allDocsResponse.results.length > 0) {
+          const sampleDoc = allDocsResponse.results[0];
+          console.log('Sample document structure:', {
+            id: sampleDoc.id,
+            fileName: sampleDoc.fileName,
+            student: sampleDoc.student,
+            studentName: sampleDoc.studentName,
+            studentRoll: sampleDoc.studentRoll,
+            source_type: sampleDoc.source_type,
+            source_id: sampleDoc.source_id,
+            category: sampleDoc.category
+          });
+        }
+        
+        // Try to find related admissions using student email
+        let matchedAdmissions: Admission[] = [];
+        let admissionIds: string[] = [];
+        
+        if (student.email) {
+          try {
+            const admissionsResponse = await admissionService.getAdmissions({
+              search: student.email,
+              page_size: 50
+            });
+            
+            matchedAdmissions = (admissionsResponse.results || []).filter(admission => 
+              admission.email?.toLowerCase().trim() === student.email.toLowerCase().trim()
+            );
+            
+            admissionIds = matchedAdmissions.map(admission => admission.id);
+            
+            console.log(`Matched admissions by email: ${matchedAdmissions.length}`, admissionIds);
+          } catch (admissionErr) {
+            console.warn('⚠️ Error fetching admissions by email:', admissionErr);
+          }
+        }
+        
+        // Find documents that match this student
+        const studentDocuments = (allDocsResponse.results || []).filter(doc => {
+          const docStudentId = doc.student ? String(doc.student) : null;
+          const currentStudentId = String(id);
+          
+          // Strategy 1: Direct student ID match
+          const matchesStudentId = docStudentId === currentStudentId;
+          
+          // Strategy 2: Name match (exact, case-insensitive)
+          const matchesName = doc.studentName && student.fullNameEnglish && 
+                             doc.studentName.toLowerCase().trim() === student.fullNameEnglish.toLowerCase().trim();
+          
+          // Strategy 3: Roll number match
+          const matchesRoll = doc.studentRoll && student.currentRollNumber &&
+                             doc.studentRoll === student.currentRollNumber;
+          
+          // Strategy 4: Admission documents linked to related admission records
+          const isAdmissionDoc = doc.source_type === 'admission';
+          const matchesAdmissionId = isAdmissionDoc && !!doc.source_id && admissionIds.includes(String(doc.source_id));
+          
+          const isMatch = matchesStudentId || matchesName || matchesRoll || matchesAdmissionId;
+          
+          if (isMatch) {
+            console.log(`✅ MATCH: ${doc.fileName}`, {
+              fileName: doc.fileName,
+              docStudentId: docStudentId,
+              docStudentName: doc.studentName,
+              sourceType: doc.source_type,
+              sourceId: doc.source_id,
+              matchReason: matchesStudentId ? 'Student ID' : matchesName ? 'Name' : matchesRoll ? 'Roll' : 'Admission ID'
+            });
+          }
+          
+          return isMatch;
+        });
+        
+        setDocuments(studentDocuments);
+        
+        console.log(`✅ Found ${studentDocuments.length} documents for this student`);
+        
+        if (studentDocuments.length === 0) {
+          console.warn('⚠️ NO DOCUMENTS FOUND');
+          console.log('This student might have documents from their admission that are not linked.');
+          console.log('Check the Admission Details page for this student to see their admission documents.');
+        }
+      } catch (err) {
+        console.error('❌ Error fetching documents:', err);
+        setDocuments([]);
+      } finally {
+        setDocumentsLoading(false);
+      }
+    };
+
+    fetchDocuments();
+  }, [id, student]);
 
   const generateMathProblem = () => {
     const num1 = Math.floor(Math.random() * 20) + 1;
@@ -212,8 +331,53 @@ export default function StudentDetails() {
     
     try {
       setIsSaving(true);
+      // Normalize and validate attendance payload before sending
+      const normalizedAttendance = attendanceData.map((semester) => ({
+        semester: semester.semester,
+        year: semester.year,
+        subjects: (semester.subjects || []).map((subject) => ({
+          code: (subject.code || '').trim(),
+          name: (subject.name || '').trim(),
+          present: Number.isFinite(subject.present) ? subject.present : Number(subject.present) || 0,
+          total: Number.isFinite(subject.total) ? subject.total : Number(subject.total) || 0,
+        })),
+      }));
+
+      // Basic validation to prevent backend 400s
+      for (const semester of normalizedAttendance) {
+        if (semester.semester < 1 || semester.semester > 8) {
+          toast({
+            title: "Invalid Semester",
+            description: "Semester must be between 1 and 8.",
+            variant: "destructive"
+          });
+          setIsSaving(false);
+          return;
+        }
+        for (const subject of semester.subjects) {
+          if (subject.present < 0 || subject.total < 0) {
+            toast({
+              title: "Invalid Attendance",
+              description: "Present and total must be non-negative numbers.",
+              variant: "destructive"
+            });
+            setIsSaving(false);
+            return;
+          }
+          if (subject.present > subject.total) {
+            toast({
+              title: "Invalid Attendance",
+              description: "Present count cannot exceed total count.",
+              variant: "destructive"
+            });
+            setIsSaving(false);
+            return;
+          }
+        }
+      }
+
       await studentService.patchStudent(id, {
-        semesterAttendance: attendanceData
+        semesterAttendance: normalizedAttendance
       });
       
       // Refresh student data
@@ -399,6 +563,22 @@ export default function StudentDetails() {
     return 'text-destructive';
   };
 
+  const getSubjectPercentage = (subject: SubjectAttendance): number => {
+    if (Number.isFinite(subject.percentage)) return subject.percentage;
+    if (subject.total && subject.total > 0) {
+      return Math.round((subject.present / subject.total) * 100);
+    }
+    return 0;
+  };
+
+  const getSemesterAverage = (semester: SemesterAttendance): number => {
+    if (Number.isFinite(semester.averagePercentage)) return semester.averagePercentage;
+    const subjects = semester.subjects || [];
+    if (subjects.length === 0) return 0;
+    const total = subjects.reduce((sum, subject) => sum + getSubjectPercentage(subject), 0);
+    return Math.round((total / subjects.length) * 100) / 100;
+  };
+
   // Check if student is eligible for alumni transition
   const isEligibleForAlumni = () => {
     if (!student) return false;
@@ -450,6 +630,52 @@ export default function StudentDetails() {
     }
   };
 
+  const handleViewDocument = (doc: Document) => {
+    setSelectedDoc(doc);
+    setIsViewOpen(true);
+  };
+
+  const handleDownloadDocument = async (doc: Document) => {
+    try {
+      const blob = await documentService.downloadDocument(doc.id);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = doc.fileName;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast({
+        title: "Download Started",
+        description: "Your document is being downloaded.",
+      });
+    } catch (err: any) {
+      console.error('Error downloading document:', err);
+      toast({
+        title: 'Error',
+        description: 'Failed to download document. Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const getFileIcon = (format: string) => {
+    switch (format) {
+      case 'pdf':
+        return <FileText className="w-8 h-8 text-red-500" />;
+      case 'jpg':
+      case 'png':
+        return <FileText className="w-8 h-8 text-blue-500" />;
+      case 'xlsx':
+      case 'xls':
+        return <FileText className="w-8 h-8 text-green-500" />;
+      default:
+        return <FileText className="w-8 h-8 text-muted-foreground" />;
+    }
+  };
+
   if (loading) {
     return <LoadingState message="Loading student details..." />;
   }
@@ -460,7 +686,7 @@ export default function StudentDetails() {
 
   const averageAttendance = student.semesterAttendance && student.semesterAttendance.length > 0
     ? Math.round(
-        student.semesterAttendance.reduce((acc, s) => acc + s.averagePercentage, 0) / student.semesterAttendance.length
+        student.semesterAttendance.reduce((acc, s) => acc + getSemesterAverage(s), 0) / student.semesterAttendance.length
       )
     : 0;
 
@@ -790,29 +1016,29 @@ export default function StudentDetails() {
                             : 'bg-destructive/10 text-destructive border-destructive/30'
                         }`}
                       >
-                        Average: {semester.averagePercentage.toFixed(2)}%
+                        Average: {getSemesterAverage(semester).toFixed(2)}%
                       </Badge>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                       {semester.subjects.map((subject, subIndex) => (
                         <div key={subIndex} className="bg-muted/50 rounded-lg p-3">
                           <div className="text-xs text-muted-foreground mb-2 font-medium truncate">
-                            {subject.name}
+                            {subject.code ? `${subject.code} - ${subject.name}` : subject.name}
                           </div>
                           <div className="flex items-center justify-between">
                             <span 
                               className={`text-lg font-bold ${
-                                subject.percentage >= 80 
+                                getSubjectPercentage(subject) >= 80 
                                   ? 'text-success' 
-                                  : subject.percentage >= 60 
+                                  : getSubjectPercentage(subject) >= 60 
                                   ? 'text-warning' 
                                   : 'text-destructive'
                               }`}
                             >
-                              {subject.percentage}%
+                              {getSubjectPercentage(subject)}%
                             </span>
                             <span className="text-xs text-muted-foreground">
-                              {subject.present}/{subject.total}
+                              {subject.present ?? 0}/{subject.total ?? 0}
                             </span>
                           </div>
                         </div>
@@ -836,6 +1062,131 @@ export default function StudentDetails() {
                   <Edit className="w-4 h-4 mr-2" />
                   Add Attendance
                 </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Documents Section */}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+        <Card className="glass-card">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                Documents
+                {documents.length > 0 && (
+                  <Badge variant="outline" className="ml-2">
+                    {documents.length}
+                  </Badge>
+                )}
+              </CardTitle>
+              <Button 
+                size="sm" 
+                className="gradient-primary text-primary-foreground"
+                onClick={() => navigate(`/documents?student=${id}`)}
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                Manage Documents
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {documentsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="w-8 h-8 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+                <span className="ml-3 text-muted-foreground">Loading documents...</span>
+              </div>
+            ) : documents.length > 0 ? (
+              <>
+                <div className="mb-4 p-3 bg-muted/30 rounded-lg">
+                  <p className="text-sm text-muted-foreground">
+                    Showing {documents.length} document{documents.length !== 1 ? 's' : ''} for this student
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Student ID: {id} | Name: {student?.fullNameEnglish} | Roll: {student?.currentRollNumber}
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {documents.map((doc) => (
+                    <Card key={doc.id} className="bg-muted/50 hover:bg-muted/70 transition-colors">
+                      <CardContent className="p-4">
+                        <div className="flex items-start gap-3">
+                          {getFileIcon(doc.fileType)}
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate">{doc.fileName}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {doc.original_field_name || doc.category}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {(doc.fileSize / 1024).toFixed(0)} KB • {doc.fileType.toUpperCase()}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(doc.uploadDate).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 mt-3">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => handleViewDocument(doc)}
+                            className="flex-1"
+                          >
+                            <Eye className="w-4 h-4 mr-1" />
+                            View
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => handleDownloadDocument(doc)}
+                            className="flex-1"
+                          >
+                            <Download className="w-4 h-4 mr-1" />
+                            Download
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
+                <FileText className="w-12 h-12 mx-auto text-muted-foreground mb-3 opacity-50" />
+                <p className="text-foreground font-medium mb-2">No Documents Linked</p>
+                <p className="text-sm text-muted-foreground mb-3">
+                  No documents are currently linked to this student record.
+                </p>
+                <div className="text-xs text-muted-foreground space-y-2 mb-4 bg-muted/30 rounded p-4 max-w-md mx-auto text-left">
+                  <p className="font-medium text-foreground text-center mb-2">📋 Student Information</p>
+                  <p><span className="font-medium">ID:</span> {id}</p>
+                  <p><span className="font-medium">Name:</span> {student?.fullNameEnglish}</p>
+                  <p><span className="font-medium">Roll:</span> {student?.currentRollNumber || 'Not assigned'}</p>
+                  
+                  <div className="mt-3 pt-3 border-t border-border">
+                    <p className="text-warning font-medium mb-1">💡 Note:</p>
+                    <p className="text-xs">If this student was created from an admission application, their documents may still be linked to the admission record. Check the <span className="font-medium">Admissions</span> page to view those documents.</p>
+                  </div>
+                </div>
+                <div className="flex gap-2 justify-center">
+                  <Button 
+                    size="sm"
+                    variant="outline"
+                    onClick={() => navigate('/admissions')}
+                  >
+                    View Admissions
+                  </Button>
+                  <Button 
+                    size="sm"
+                    className="gradient-primary text-primary-foreground"
+                    onClick={() => navigate(`/documents?student=${id}`)}
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Upload New Documents
+                  </Button>
+                </div>
               </div>
             )}
           </CardContent>
@@ -1070,7 +1421,7 @@ export default function StudentDetails() {
                   {semester.subjects.length > 0 && (
                     <div className="mt-3 pt-3 border-t border-border">
                       <p className="text-sm text-muted-foreground">
-                        Average: <span className="font-semibold text-foreground">{semester.averagePercentage.toFixed(2)}%</span>
+                        Average: <span className="font-semibold text-foreground">{getSemesterAverage(semester).toFixed(2)}%</span>
                       </p>
                     </div>
                   )}
@@ -1273,6 +1624,172 @@ export default function StudentDetails() {
               )}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Document Preview Dialog */}
+      <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
+          {selectedDoc && (
+            <>
+              <DialogHeader className="px-6 pt-6 pb-4 border-b">
+                <DialogTitle className="flex items-center gap-3">
+                  {getFileIcon(selectedDoc.fileType)}
+                  {selectedDoc.fileName}
+                </DialogTitle>
+              </DialogHeader>
+              
+              <div 
+                className="flex-1 overflow-auto px-6 pb-6"
+                style={{
+                  maxHeight: 'calc(90vh - 140px)',
+                  overflowY: 'scroll'
+                }}
+              >
+                <div className="space-y-6">
+                  {/* Document Metadata */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Category</p>
+                      <p className="font-medium">{selectedDoc.category}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Format</p>
+                      <p className="font-medium uppercase">{selectedDoc.fileType}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Original Field</p>
+                      <p className="font-medium">{selectedDoc.original_field_name || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Upload Date</p>
+                      <p className="font-medium">{new Date(selectedDoc.uploadDate).toLocaleDateString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">File Size</p>
+                      <p className="font-medium">{(selectedDoc.fileSize / 1024).toFixed(0)} KB</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Source</p>
+                      <p className="font-medium">{selectedDoc.source_type_display || 'Student Document'}</p>
+                    </div>
+                  </div>
+
+                  {/* Document Preview */}
+                  <div className="bg-muted/50 rounded-lg overflow-hidden">
+                    <div className="p-4 bg-muted/30 border-b">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="font-medium text-foreground">Document Preview</h3>
+                          <p className="text-sm text-muted-foreground">
+                            {selectedDoc.is_pdf ? 'PDF Document' : selectedDoc.is_image ? 'Image File' : 'Document File'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Document Content */}
+                    <div className="bg-white dark:bg-gray-900 p-4">
+                      {selectedDoc.is_pdf ? (
+                        <div className="w-full">
+                          <iframe
+                            src={documentService.getDocumentPreviewUrl(selectedDoc.id)}
+                            className="w-full border-0 rounded"
+                            title={`Preview of ${selectedDoc.fileName}`}
+                            style={{ 
+                              height: '600px',
+                              minHeight: '600px',
+                              width: '100%'
+                            }}
+                          />
+                        </div>
+                      ) : selectedDoc.is_image ? (
+                        <div className="text-center">
+                          <div className="relative inline-block">
+                            <img
+                              src={documentService.getDocumentPreviewUrl(selectedDoc.id)}
+                              alt={selectedDoc.fileName}
+                              className="max-w-full h-auto object-contain rounded shadow-lg cursor-zoom-in"
+                              style={{ 
+                                maxHeight: '500px',
+                                minHeight: '200px'
+                              }}
+                              onClick={(e) => {
+                                const img = e.target as HTMLImageElement;
+                                if (img.style.transform === 'scale(1.5)') {
+                                  img.style.transform = 'scale(1)';
+                                  img.style.cursor = 'zoom-in';
+                                } else {
+                                  img.style.transform = 'scale(1.5)';
+                                  img.style.cursor = 'zoom-out';
+                                  img.style.transformOrigin = 'center';
+                                  img.style.transition = 'transform 0.3s ease';
+                                }
+                              }}
+                            />
+                          </div>
+                          
+                          {/* Image Controls */}
+                          <div className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground bg-background/80 backdrop-blur-sm rounded-md px-3 py-2 inline-flex">
+                            <span>Click to zoom</span>
+                            <span>•</span>
+                            <span>Right-click to save</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center text-center py-12">
+                          <FileText className="w-16 h-16 text-muted-foreground mb-4" />
+                          <p className="text-muted-foreground mb-2">Preview not available for this file type</p>
+                          <p className="text-sm text-muted-foreground mb-4">
+                            File type: {selectedDoc.fileType.toUpperCase()}
+                          </p>
+                          <Button 
+                            variant="outline" 
+                            onClick={() => handleDownloadDocument(selectedDoc)}
+                          >
+                            <Download className="w-4 h-4 mr-2" />
+                            Download to View
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Document Information */}
+                  <div className="bg-muted/30 rounded-lg p-4">
+                    <h4 className="font-medium mb-2">Document Information</h4>
+                    <div className="text-sm text-muted-foreground space-y-1">
+                      <p>• Status: {selectedDoc.status === 'active' ? 'Active' : selectedDoc.status}</p>
+                      <p>• File integrity: Verified</p>
+                      {selectedDoc.description && <p>• Description: {selectedDoc.description}</p>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <DialogFooter className="px-6 py-4 border-t bg-background">
+                <Button variant="outline" onClick={() => setIsViewOpen(false)}>
+                  Close
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    window.open(documentService.getDocumentPreviewUrl(selectedDoc.id), '_blank');
+                  }}
+                >
+                  <Eye className="w-4 h-4 mr-2" />
+                  Open in New Tab
+                </Button>
+                <Button 
+                  className="gradient-primary text-primary-foreground" 
+                  onClick={() => handleDownloadDocument(selectedDoc)}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

@@ -4,12 +4,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { 
   User, FileText, Calendar, ClipboardCheck, BarChart3, 
   FolderOpen, Download, Loader2, AlertCircle,
-  BookOpen, Settings
+  BookOpen, Settings, GraduationCap
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { getErrorMessage } from '@/lib/api';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 // Import services directly
 import { studentService } from '@/services/studentService';
@@ -39,6 +40,7 @@ const teacherTabs = [
 export function ProfilePageFixed() {
   const [activeTab, setActiveTab] = useState('overview');
   const { user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
   const [studentData, setStudentData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -170,6 +172,49 @@ export function ProfilePageFixed() {
     ? (user?.name || 'Teacher')
     : (studentData?.fullNameEnglish || user?.name || 'Student');
 
+  const calculatePerformanceMetrics = () => {
+    let currentGPA = 0;
+    let attendancePercentage = 0;
+    let subjectsCount = 0;
+
+    const semesterResults = studentData?.semesterResults || [];
+    const latestResult = semesterResults.length ? semesterResults[semesterResults.length - 1] : null;
+    if (latestResult) {
+      currentGPA = Number(latestResult.gpa ?? latestResult.cgpa ?? 0);
+    }
+
+    const semesterAttendance = studentData?.semesterAttendance || [];
+    const currentSemesterRecord = semesterAttendance.find(
+      (record: any) => record.semester === (studentData?.semester || user?.semester)
+    ) || [...semesterAttendance].sort((a: any, b: any) => (b.semester || 0) - (a.semester || 0))[0];
+
+    if (currentSemesterRecord) {
+      const subjects = currentSemesterRecord.subjects || [];
+      const totalPresent = subjects.reduce((sum: number, subj: any) => sum + (subj.present || 0), 0);
+      const totalClasses = subjects.reduce((sum: number, subj: any) => sum + (subj.total || 0), 0);
+
+      if (totalClasses > 0) {
+        attendancePercentage = Math.round((totalPresent / totalClasses) * 100);
+      } else if (currentSemesterRecord.averagePercentage !== undefined) {
+        attendancePercentage = Math.round(Number(currentSemesterRecord.averagePercentage) || 0);
+      }
+
+      subjectsCount = subjects.length;
+    }
+
+    if (!subjectsCount && latestResult?.subjects?.length) {
+      subjectsCount = latestResult.subjects.length;
+    }
+
+    return {
+      currentGPA: currentGPA.toFixed(2),
+      attendancePercentage,
+      subjectsCount
+    };
+  };
+
+  const performanceMetrics = calculatePerformanceMetrics();
+
   // Teacher Profile Rendering - simplified for now
   if (isTeacher) {
     return (
@@ -198,6 +243,19 @@ export function ProfilePageFixed() {
 
   return (
     <div className="space-y-4 md:space-y-6 max-w-full overflow-x-hidden">
+      {/* Navigation Button for Semester 8 Students */}
+      {user?.semester === 8 && (
+        <div className="flex justify-end">
+          <Button
+            onClick={() => navigate('/dashboard/alumni-profile')}
+            className="gap-2"
+          >
+            <GraduationCap className="w-4 h-4" />
+            View Alumni Profile
+          </Button>
+        </div>
+      )}
+
       {/* Profile Header */}
       <StudentProfileHeader
         name={displayName}
@@ -217,9 +275,9 @@ export function ProfilePageFixed() {
 
       {/* Stats Cards */}
       <StudentStatsCard
-        cgpa={0}
-        attendancePercentage={0}
-        subjectsCount={0}
+        gpa={Number(performanceMetrics.currentGPA) || 0}
+        attendancePercentage={performanceMetrics.attendancePercentage}
+        subjectsCount={performanceMetrics.subjectsCount}
       />
 
       {/* Tabs */}
@@ -278,9 +336,9 @@ export function ProfilePageFixed() {
                   status: studentData?.status,
                 }}
                 performanceMetrics={{
-                  cgpa: 0,
-                  attendancePercentage: 0,
-                  subjectsCount: 0,
+                  gpa: Number(performanceMetrics.currentGPA) || 0,
+                  attendancePercentage: performanceMetrics.attendancePercentage,
+                  subjectsCount: performanceMetrics.subjectsCount,
                 }}
                 parentInfo={{
                   fatherName: studentData?.fatherName,

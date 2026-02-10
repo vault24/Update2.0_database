@@ -168,6 +168,7 @@ export interface StudentUpdateData extends Partial<StudentCreateData> {
   birthCertificateNo?: string;
   nidNumber?: string;
   maritalStatus?: string;
+  nationality?: string;
   
   // Academic Records
   enrollmentDate?: string;
@@ -332,5 +333,45 @@ export const studentService = {
     deleted_count: number;
   }> {
     return apiClient.post(API_ENDPOINTS.students.bulkDelete, data);
+  },
+
+  /**
+   * Update semester results for a student
+   */
+  async updateSemesterResults(id: string, data: {
+    semester: number;
+    year: number;
+    resultType: 'gpa' | 'referred' | 'pass' | 'fail';
+    gpa?: number;
+    cgpa?: number;
+    subjects?: Array<{
+      code: string;
+      name: string;
+      credit: number;
+      grade: string;
+      gradePoint: number;
+    }>;
+    referredSubjects?: string[];
+  }): Promise<{
+    message: string;
+    student: Student;
+    updatedResult: any;
+  }> {
+    return apiClient.post(API_ENDPOINTS.students.updateSemesterResults(id), data);
+  },
+
+  /**
+   * Calculate semester result from marks records
+   */
+  async calculateSemesterResultFromMarks(id: string, data: {
+    semester: number;
+    year: number;
+  }): Promise<{
+    message: string;
+    semesterResult: any;
+    currentSemester: number;
+    status: string;
+  }> {
+    return apiClient.post(API_ENDPOINTS.students.calculateSemesterResult(id), data);
   },
 };

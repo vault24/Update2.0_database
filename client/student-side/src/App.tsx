@@ -32,6 +32,7 @@ import TeacherAttendancePage from "./pages/TeacherAttendancePage";
 import ManageMarksPage from "./pages/ManageMarksPage";
 import TeacherAllegationsPage from "./pages/TeacherAllegationsPage";
 import PublicStudentProfilePage from "./pages/PublicStudentProfilePage";
+import AlumniProfilePage from "./pages/AlumniProfilePage";
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
@@ -137,6 +138,9 @@ const App = () => (
         <Route path="allegations" element={<TeacherAllegationsPage />} />
         <Route path="assignment/:id" element={<TeacherAssignmentDetailPage />} />
         <Route path="subject-activities/:id" element={<TeacherSubjectActivitiesPage />} />
+        
+        {/* Alumni-specific routes */}
+        <Route path="alumni-profile" element={<AlumniProfilePage />} />
       </Route>
       
       <Route path="*" element={<div>Page not found</div>} />

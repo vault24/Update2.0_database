@@ -61,6 +61,17 @@ interface CareerHighlight {
   type: 'achievement' | 'milestone' | 'award' | 'project';
 }
 
+interface Course {
+  id: string;
+  name: string;
+  provider: string;
+  status: 'completed' | 'in_progress' | 'planned';
+  completionDate?: string;
+  certificateId?: string;
+  certificateUrl?: string;
+  description?: string;
+}
+
 interface AlumniData {
   id: number;
   name: string;
@@ -81,6 +92,7 @@ interface AlumniData {
   careers: CareerEntry[];
   skills: Skill[];
   highlights: CareerHighlight[];
+  courses: Course[];
   bio?: string;
   linkedin?: string;
   portfolio?: string;
@@ -126,6 +138,16 @@ const transformAlumniData = (apiData: AlumniType): AlumniData => {
       description: highlight.description,
       date: highlight.date,
       type: highlight.type
+    })),
+    courses: (apiData.courses || []).map((course, index) => ({
+      id: course.id || index.toString(),
+      name: course.name,
+      provider: course.provider,
+      status: course.status,
+      completionDate: course.completionDate,
+      certificateId: course.certificateId,
+      certificateUrl: course.certificateUrl,
+      description: course.description
     })),
   };
 };
@@ -241,6 +263,9 @@ export default function AlumniDetails() {
   const [isEditHighlightOpen, setIsEditHighlightOpen] = useState(false);
   const [isViewCareerOpen, setIsViewCareerOpen] = useState(false);
   const [viewingCareerId, setViewingCareerId] = useState<string | null>(null);
+  const [isAddCourseOpen, setIsAddCourseOpen] = useState(false);
+  const [isEditCourseOpen, setIsEditCourseOpen] = useState(false);
+  const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
   
   const [careerTypeSelection, setCareerTypeSelection] = useState<'job' | 'higherStudies' | 'business' | 'other' | null>(null);
   const [editingCareerId, setEditingCareerId] = useState<string | null>(null);
@@ -277,6 +302,16 @@ export default function AlumniDetails() {
     description: '',
     date: '',
     type: 'achievement' as 'achievement' | 'milestone' | 'award' | 'project'
+  });
+
+  const [newCourse, setNewCourse] = useState({
+    name: '',
+    provider: '',
+    status: 'completed' as 'completed' | 'in_progress' | 'planned',
+    completionDate: '',
+    certificateId: '',
+    certificateUrl: '',
+    description: ''
   });
 
   const [editProfile, setEditProfile] = useState({
@@ -946,6 +981,125 @@ export default function AlumniDetails() {
     }
   };
 
+  const handleAddCourse = async () => {
+    if (!newCourse.name || !newCourse.provider) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please fill in course name and provider',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (!id) return;
+
+    try {
+      await alumniService.addCourse(id, newCourse);
+      await fetchAlumniData();
+      
+      toast({
+        title: 'Success',
+        description: 'Course added successfully!'
+      });
+      
+      setIsAddCourseOpen(false);
+      setNewCourse({
+        name: '',
+        provider: '',
+        status: 'completed',
+        completionDate: '',
+        certificateId: '',
+        certificateUrl: '',
+        description: ''
+      });
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: getErrorMessage(err),
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleEditCourse = (courseId: string) => {
+    if (!alumni) return;
+    const course = alumni.courses.find(c => c.id === courseId);
+    if (course) {
+      setEditingCourseId(courseId);
+      setNewCourse({
+        name: course.name,
+        provider: course.provider,
+        status: course.status,
+        completionDate: course.completionDate || '',
+        certificateId: course.certificateId || '',
+        certificateUrl: course.certificateUrl || '',
+        description: course.description || ''
+      });
+      setIsEditCourseOpen(true);
+    }
+  };
+
+  const handleUpdateCourse = async () => {
+    if (!newCourse.name || !newCourse.provider) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please fill in course name and provider',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (!id || !editingCourseId) return;
+
+    try {
+      await alumniService.updateCourse(id, editingCourseId, newCourse);
+      await fetchAlumniData();
+      
+      toast({
+        title: 'Success',
+        description: 'Course updated successfully!'
+      });
+      
+      setIsEditCourseOpen(false);
+      setEditingCourseId(null);
+      setNewCourse({
+        name: '',
+        provider: '',
+        status: 'completed',
+        completionDate: '',
+        certificateId: '',
+        certificateUrl: '',
+        description: ''
+      });
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: getErrorMessage(err),
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleDeleteCourse = async (courseId: string) => {
+    if (!id) return;
+
+    try {
+      await alumniService.deleteCourse(id, courseId);
+      await fetchAlumniData();
+      
+      toast({
+        title: 'Success',
+        description: 'Course deleted successfully!'
+      });
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: getErrorMessage(err),
+        variant: 'destructive'
+      });
+    }
+  };
+
   // Loading state
   if (loading) {
     return (
@@ -1382,6 +1536,98 @@ export default function AlumniDetails() {
                 <Button size="sm" onClick={() => setIsAddSkillOpen(true)} className="gradient-primary text-primary-foreground">
                   <Plus className="w-4 h-4 mr-2" />
                   Add Skill
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Courses & Certifications */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.25 }}
+      >
+        <Card className="glass-card">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <BookOpen className="w-4 h-4" />
+                Courses & Certifications
+              </CardTitle>
+              <Button size="sm" onClick={() => setIsAddCourseOpen(true)} className="gradient-primary text-primary-foreground">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Course
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {alumni.courses && alumni.courses.map((course) => (
+                <Card key={course.id} className="bg-muted/30 border-2 border-border/50">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between mb-2">
+                      <Badge variant="outline" className={
+                        course.status === 'completed' ? 'bg-green-500/20 text-green-700 dark:text-green-300 border-green-500/30' :
+                        course.status === 'in_progress' ? 'bg-blue-500/20 text-blue-700 dark:text-blue-300 border-blue-500/30' :
+                        'bg-orange-500/20 text-orange-700 dark:text-orange-300 border-orange-500/30'
+                      }>
+                        {course.status === 'completed' ? 'Completed' :
+                         course.status === 'in_progress' ? 'In Progress' : 'Planned'}
+                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditCourse(course.id)}
+                          className="h-6 w-6 p-0"
+                        >
+                          <Edit className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteCourse(course.id)}
+                          className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                        >
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </div>
+                    <h3 className="font-bold text-foreground mb-1">{course.name}</h3>
+                    <p className="text-sm text-primary font-medium mb-2">{course.provider}</p>
+                    {course.description && (
+                      <p className="text-sm text-foreground/80 mb-2">{course.description}</p>
+                    )}
+                    {course.completionDate && (
+                      <p className="text-xs text-muted-foreground mb-2">
+                        Completed: {new Date(course.completionDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                      </p>
+                    )}
+                    {course.certificateUrl && (
+                      <a 
+                        href={course.certificateUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-xs text-primary hover:underline flex items-center gap-1"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        View Certificate
+                      </a>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+            {(!alumni.courses || alumni.courses.length === 0) && (
+              <div className="text-center py-8 border-2 border-dashed border-border rounded-lg mt-4">
+                <BookOpen className="w-12 h-12 mx-auto text-muted-foreground mb-3 opacity-50" />
+                <p className="text-foreground font-medium mb-2">No Courses Added</p>
+                <p className="text-sm text-muted-foreground mb-4">Add courses and certifications to showcase continuous learning</p>
+                <Button size="sm" onClick={() => setIsAddCourseOpen(true)} className="gradient-primary text-primary-foreground">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Course
                 </Button>
               </div>
             )}
@@ -1954,6 +2200,114 @@ export default function AlumniDetails() {
             }}>Cancel</Button>
             <Button onClick={isEditHighlightOpen ? handleUpdateHighlight : handleAddHighlight} className="gradient-primary text-primary-foreground">
               {isEditHighlightOpen ? 'Update Highlight' : 'Add Highlight'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add/Edit Course Dialog */}
+      <Dialog open={isAddCourseOpen || isEditCourseOpen} onOpenChange={(open) => {
+        if (!open) {
+          setIsAddCourseOpen(false);
+          setIsEditCourseOpen(false);
+          setEditingCourseId(null);
+        }
+      }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {isEditCourseOpen ? <Edit className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+              {isEditCourseOpen ? 'Edit Course' : 'Add Course'}
+            </DialogTitle>
+            <DialogDescription>
+              {isEditCourseOpen ? 'Update course information' : 'Add a new course or certification'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="courseName">Course Name *</Label>
+                <Input
+                  id="courseName"
+                  placeholder="e.g., AWS Solutions Architect"
+                  value={newCourse.name}
+                  onChange={(e) => setNewCourse({ ...newCourse, name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="courseProvider">Provider *</Label>
+                <Input
+                  id="courseProvider"
+                  placeholder="e.g., Amazon Web Services"
+                  value={newCourse.provider}
+                  onChange={(e) => setNewCourse({ ...newCourse, provider: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="courseStatus">Status</Label>
+                <Select value={newCourse.status} onValueChange={(v: any) => setNewCourse({ ...newCourse, status: v })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="in_progress">In Progress</SelectItem>
+                    <SelectItem value="planned">Planned</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="courseCompletionDate">Completion Date</Label>
+                <Input
+                  id="courseCompletionDate"
+                  type="date"
+                  value={newCourse.completionDate}
+                  onChange={(e) => setNewCourse({ ...newCourse, completionDate: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="courseCertificateId">Certificate ID</Label>
+                <Input
+                  id="courseCertificateId"
+                  placeholder="e.g., AWS-SAA-123456"
+                  value={newCourse.certificateId}
+                  onChange={(e) => setNewCourse({ ...newCourse, certificateId: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="courseCertificateUrl">Certificate URL</Label>
+                <Input
+                  id="courseCertificateUrl"
+                  type="url"
+                  placeholder="https://..."
+                  value={newCourse.certificateUrl}
+                  onChange={(e) => setNewCourse({ ...newCourse, certificateUrl: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="courseDescription">Description</Label>
+              <Textarea
+                id="courseDescription"
+                placeholder="Describe the course content and what you learned..."
+                value={newCourse.description}
+                onChange={(e) => setNewCourse({ ...newCourse, description: e.target.value })}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setIsAddCourseOpen(false);
+              setIsEditCourseOpen(false);
+              setEditingCourseId(null);
+            }}>Cancel</Button>
+            <Button onClick={isEditCourseOpen ? handleUpdateCourse : handleAddCourse} className="gradient-primary text-primary-foreground">
+              {isEditCourseOpen ? 'Update Course' : 'Add Course'}
             </Button>
           </DialogFooter>
         </DialogContent>

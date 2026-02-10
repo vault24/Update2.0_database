@@ -49,6 +49,18 @@ class ClassRoutine(models.Model):
     # Subject Information
     subject_name = models.CharField(max_length=255)
     subject_code = models.CharField(max_length=50)
+
+    # Class Type Information
+    CLASS_TYPE_CHOICES = [
+        ('Theory', 'Theory'),
+        ('Lab', 'Lab'),
+    ]
+    class_type = models.CharField(
+        max_length=10,
+        choices=CLASS_TYPE_CHOICES,
+        default='Theory'
+    )
+    lab_name = models.CharField(max_length=255, null=True, blank=True)
     
     # Teacher Assignment
     teacher = models.ForeignKey(

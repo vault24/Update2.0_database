@@ -77,6 +77,7 @@ export interface Alumni {
   portfolioUrl?: string;
   skills?: SkillData[];
   highlights?: HighlightData[];
+  courses?: CourseData[];
 }
 
 export interface AlumniFilters {
@@ -133,6 +134,17 @@ export interface HighlightData {
   description: string;
   date: string;
   type: 'achievement' | 'milestone' | 'award' | 'project';
+}
+
+export interface CourseData {
+  id?: string;
+  name: string;
+  provider: string;
+  status: 'completed' | 'in_progress' | 'planned';
+  completionDate?: string;
+  certificateId?: string;
+  certificateUrl?: string;
+  description?: string;
 }
 
 export interface ProfileData {
@@ -271,5 +283,26 @@ export const alumniService = {
    */
   updateProfile: async (studentId: string, data: ProfileData): Promise<Alumni> => {
     return await apiClient.patch<Alumni>(`/alumni/${studentId}/profile/`, data);
+  },
+
+  /**
+   * Add course
+   */
+  addCourse: async (studentId: string, data: CourseData): Promise<Alumni> => {
+    return await apiClient.post<Alumni>(`/alumni/${studentId}/courses/`, data);
+  },
+
+  /**
+   * Update course
+   */
+  updateCourse: async (studentId: string, courseId: string, data: CourseData): Promise<Alumni> => {
+    return await apiClient.put<Alumni>(`/alumni/${studentId}/courses/${courseId}/`, data);
+  },
+
+  /**
+   * Delete course
+   */
+  deleteCourse: async (studentId: string, courseId: string): Promise<Alumni> => {
+    return await apiClient.delete<Alumni>(`/alumni/${studentId}/courses/${courseId}/`);
   },
 };

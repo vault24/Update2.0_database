@@ -5,6 +5,8 @@
 
 import { useState, useEffect } from 'react';
 import { documentService } from '@/services/documentService';
+import { studentService } from '@/services/studentService';
+import { API_BASE_URL } from '@/config/api';
 import { useAuth } from '@/contexts/AuthContext';
 
 export function useProfilePicture() {
@@ -22,39 +24,42 @@ export function useProfilePicture() {
     try {
       setLoading(true);
       
-      // First try to get stored profile picture document ID
       const demoRole = localStorage.getItem('demoRole');
-      let documentId: string | null = null;
       
-      if (demoRole) {
-        documentId = localStorage.getItem('demoProfilePicture');
-      } else {
-        documentId = localStorage.getItem('profilePictureDocumentId');
-      }
-      
-      // If no stored profile picture, try to find a Photo category document
-      if (!documentId && user?.relatedProfileId) {
+      // Always load from server to stay in sync across devices
+      if (user?.relatedProfileId) {
+        try {
+          const student = await studentService.getMe(user.relatedProfileId);
+          if (student.profilePhoto) {
+            const normalizedUrl = student.profilePhoto.startsWith('/files/')
+              ? `${API_BASE_URL.replace(/\/api$/, '')}${student.profilePhoto}`
+              : student.profilePhoto;
+            setProfilePictureUrl(normalizedUrl);
+            return;
+          }
+        } catch (error) {
+          console.warn('Could not load profile photo from student record:', error);
+        }
+
         try {
           const response = await documentService.getMyDocuments(user.relatedProfileId, 'Photo');
           if (response.documents && response.documents.length > 0) {
             const photoDoc = response.documents[0]; // Use the first photo document
-            await documentService.setAsProfilePicture(photoDoc.id);
-            documentId = photoDoc.id;
+            await documentService.setAsProfilePicture(photoDoc.id, user.relatedProfileId);
+            const updatedStudent = await studentService.getMe(user.relatedProfileId);
+            if (updatedStudent.profilePhoto) {
+              const normalizedUrl = updatedStudent.profilePhoto.startsWith('/files/')
+                ? `${API_BASE_URL.replace(/\/api$/, '')}${updatedStudent.profilePhoto}`
+                : updatedStudent.profilePhoto;
+              setProfilePictureUrl(normalizedUrl);
+              return;
+            }
           }
         } catch (error) {
           console.warn('Could not auto-set profile picture:', error);
         }
       }
-      
-      // If we have a document ID, create the preview URL
-      if (documentId) {
-        const url = documentService.getDocumentPreviewUrl(documentId);
-        setProfilePictureUrl(url);
-        console.log('Profile picture URL set:', url);
-      } else {
-        setProfilePictureUrl(null);
-        console.log('No profile picture document found');
-      }
+      setProfilePictureUrl(null);
     } catch (error) {
       console.error('Error loading profile picture:', error);
       setProfilePictureUrl(null);
@@ -65,9 +70,16 @@ export function useProfilePicture() {
 
   const updateProfilePicture = async (documentId: string) => {
     try {
-      await documentService.setAsProfilePicture(documentId);
-      const newUrl = documentService.getDocumentPreviewUrl(documentId);
-      setProfilePictureUrl(newUrl);
+      await documentService.setAsProfilePicture(documentId, user?.relatedProfileId);
+      if (user?.relatedProfileId) {
+        const updatedStudent = await studentService.getMe(user.relatedProfileId);
+        const normalizedUrl = updatedStudent.profilePhoto?.startsWith('/files/')
+          ? `${API_BASE_URL.replace(/\/api$/, '')}${updatedStudent.profilePhoto}`
+          : updatedStudent.profilePhoto || null;
+        setProfilePictureUrl(normalizedUrl);
+      } else {
+        setProfilePictureUrl(null);
+      }
       return true;
     } catch (error) {
       console.error('Error updating profile picture:', error);
@@ -76,12 +88,6 @@ export function useProfilePicture() {
   };
 
   const clearProfilePicture = () => {
-    const demoRole = localStorage.getItem('demoRole');
-    if (demoRole) {
-      localStorage.removeItem('demoProfilePicture');
-    } else {
-      localStorage.removeItem('profilePictureDocumentId');
-    }
     setProfilePictureUrl(null);
   };
 

@@ -7,7 +7,9 @@ type ClassPeriod = {
   startTime: string;
   endTime: string;
   subject: string;
-  code: string;
+  subjectCode: string;
+  classType: 'Theory' | 'Lab';
+  labName?: string;
   room: string;
   teacher: string;
 };
@@ -30,8 +32,8 @@ const subjectColors: Record<string, { bg: string; border: string; text: string; 
   default: { bg: 'bg-primary/15', border: 'border-primary/30', text: 'text-primary', icon: 'text-primary' },
 };
 
-const getSubjectIcon = (subject: string) => {
-  if (subject.includes('Lab')) return FlaskConical;
+const getSubjectIcon = (subject: string, classType?: 'Theory' | 'Lab') => {
+  if (classType === 'Lab' || subject.includes('Lab')) return FlaskConical;
   if (subject === 'Break') return Coffee;
   if (subject === 'Computer') return Monitor;
   return BookOpen;
@@ -45,14 +47,14 @@ const getSubjectColor = (subject: string) => {
 export function DayCard({ day, classes, timeSlots, isToday, runningClassId, upcomingClassId }: DayCardProps) {
   const validClasses = classes.filter((c) => c !== null);
   const classCount = validClasses.length;
-  const labCount = validClasses.filter((c) => c?.subject.toLowerCase().includes('lab')).length;
+  const labCount = validClasses.filter((c) => c?.classType === 'Lab' || c?.subject.toLowerCase().includes('lab')).length;
 
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       className={cn(
-        "w-full min-w-[280px] max-w-[340px] bg-card rounded-2xl border shadow-card overflow-hidden flex-shrink-0 snap-center",
+        "w-full bg-card rounded-2xl border shadow-card overflow-hidden",
         isToday ? "border-primary/50 ring-2 ring-primary/20" : "border-border"
       )}
     >
@@ -100,11 +102,11 @@ export function DayCard({ day, classes, timeSlots, isToday, runningClassId, upco
         ) : (
           classes.map((period, index) => {
             if (!period) return null;
-            const Icon = getSubjectIcon(period.subject);
+            const Icon = getSubjectIcon(period.subject, period.classType);
             const colors = getSubjectColor(period.subject);
             const isRunning = runningClassId === period.id;
             const isUpcoming = upcomingClassId === period.id;
-            const isLab = period.subject.toLowerCase().includes('lab');
+            const isLab = period.classType === 'Lab' || period.subject.toLowerCase().includes('lab');
 
             return (
               <motion.div
@@ -154,7 +156,10 @@ export function DayCard({ day, classes, timeSlots, isToday, runningClassId, upco
                     <p className={cn("text-sm font-semibold truncate", colors.text)}>
                       {period.subject}
                     </p>
-                    <p className="text-[11px] text-muted-foreground truncate">{period.code}</p>
+                    <p className="text-[11px] text-muted-foreground truncate">{period.subjectCode}</p>
+                    {period.classType === 'Lab' && period.labName && (
+                      <p className="text-[10px] text-muted-foreground truncate">Lab: {period.labName}</p>
+                    )}
                   </div>
                 </div>
 

@@ -51,6 +51,7 @@ export interface DocumentFilters {
   student?: string;
   category?: DocumentCategory;
   source_type?: 'admission' | 'manual' | 'system';
+  source_id?: string;
   status?: 'active' | 'deleted' | 'corrupted';
   is_public?: boolean;
   ordering?: string;

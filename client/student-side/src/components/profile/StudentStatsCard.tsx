@@ -5,7 +5,7 @@ import {
 import { cn } from '@/lib/utils';
 
 interface StudentStatsCardProps {
-  cgpa: number | string;
+  gpa: number | string;
   attendancePercentage: number;
   subjectsCount: number;
   creditsCompleted?: number;
@@ -14,7 +14,7 @@ interface StudentStatsCardProps {
 }
 
 export function StudentStatsCard({
-  cgpa,
+  gpa,
   attendancePercentage,
   subjectsCount,
   creditsCompleted = 0,
@@ -24,8 +24,8 @@ export function StudentStatsCard({
   const stats = [
     {
       icon: BarChart3,
-      label: 'Current CGPA',
-      value: typeof cgpa === 'number' ? cgpa.toFixed(2) : cgpa,
+      label: 'Current GPA',
+      value: typeof gpa === 'number' ? gpa.toFixed(2) : gpa,
       subLabel: 'out of 4.00',
       color: 'from-emerald-500 to-teal-600',
       iconColor: 'text-emerald-500',

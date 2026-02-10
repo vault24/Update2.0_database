@@ -105,6 +105,8 @@ cd server
 # Create virtual environment
 python3 -m venv venv
 source venv/bin/activate
+or
+.\venv\Scripts\Activate.ps1
 
 # Install Python dependencies
 pip install -r requirements.txt

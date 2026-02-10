@@ -208,6 +208,8 @@ export interface ClassRoutine {
   end_time: string;
   subject_name: string;
   subject_code: string;
+  class_type?: 'Theory' | 'Lab';
+  lab_name?: string | null;
   teacher?: {
     id: string;
     fullNameEnglish: string;
@@ -250,6 +252,8 @@ export interface RoutineCreateData {
   end_time: string;
   subject_name: string;
   subject_code: string;
+  class_type?: 'Theory' | 'Lab';
+  lab_name?: string | null;
   teacher?: string;
   room_number: string;
   is_active?: boolean;
@@ -270,8 +274,12 @@ export interface MyRoutineResponse {
 export interface ClassSlot {
   id?: string;
   subject: string;
+  subjectCode?: string;
   teacher: string;
+  teacherId?: string;
   room: string;
+  classType?: 'Theory' | 'Lab';
+  labName?: string;
 }
 
 export type RoutineGridData = Record<string, Record<string, ClassSlot | null>>;
@@ -552,8 +560,12 @@ export const routineTransformers = {
         gridData[routine.day_of_week][timeSlot] = {
           id: routine.id,
           subject: routine.subject_name,
+          subjectCode: routine.subject_code,
           teacher: routine.teacher?.fullNameEnglish || 'TBA',
+          teacherId: routine.teacher?.id,
           room: routine.room_number,
+          classType: routine.class_type || 'Theory',
+          labName: routine.lab_name || ''
         };
       }
     });
@@ -620,25 +632,27 @@ export const routineTransformers = {
             start_time,
             end_time,
             subject_name: classSlot.subject,
-            subject_code: classSlot.subject.toUpperCase().replace(/\s+/g, ''),
+            subject_code: (classSlot.subjectCode && classSlot.subjectCode.trim().length > 0)
+              ? classSlot.subjectCode.trim()
+              : classSlot.subject.toUpperCase().replace(/\s+/g, ''),
+            class_type: classSlot.classType || 'Theory',
+            lab_name: classSlot.classType === 'Lab' ? (classSlot.labName || '') : '',
             room_number: classSlot.room,
             is_active: true,
-            // Include teacher if provided in filters
-            ...(filters.teacher && { teacher: filters.teacher })
+            // Include teacher if available on the slot or fallback to filters
+            ...(classSlot.teacherId ? { teacher: classSlot.teacherId } : {}),
+            ...(filters.teacher && !classSlot.teacherId ? { teacher: filters.teacher } : {})
           };
-
-          // Add teacher if provided and not 'TBA'
-          if (classSlot.teacher && classSlot.teacher !== 'TBA') {
-            // Note: This would need teacher ID lookup in a real implementation
-            // For now, we'll leave teacher as undefined
-          }
 
           if (existingRoutine) {
             // Update existing routine
             const hasChanges = 
               existingRoutine.subject_name !== classSlot.subject ||
               existingRoutine.room_number !== classSlot.room ||
-              (existingRoutine.teacher?.fullNameEnglish || 'TBA') !== classSlot.teacher;
+              existingRoutine.subject_code !== (classSlot.subjectCode || existingRoutine.subject_code) ||
+              (existingRoutine.class_type || 'Theory') !== (classSlot.classType || 'Theory') ||
+              (existingRoutine.lab_name || '') !== (classSlot.labName || '') ||
+              (existingRoutine.teacher?.id || '') !== (classSlot.teacherId || '');
             
             if (hasChanges) {
               console.log(`Adding update operation for ${key}`);

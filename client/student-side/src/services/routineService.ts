@@ -205,6 +205,8 @@ export interface ClassRoutine {
   end_time: string;
   subject_name: string;
   subject_code: string;
+  class_type?: 'Theory' | 'Lab';
+  lab_name?: string | null;
   teacher?: {
     id: string;
     fullNameEnglish: string;

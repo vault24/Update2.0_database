@@ -474,7 +474,11 @@ export default function Auth() {
                     Remember me for 1 week
                   </Label>
                 </div>
-                <button type="button" className="text-sm text-primary hover:underline">
+                <button 
+                  type="button" 
+                  onClick={() => navigate('/password-reset')}
+                  className="text-sm text-primary hover:underline"
+                >
                   Forgot password?
                 </button>
               </div>

@@ -69,6 +69,7 @@ class Admission(models.Model):
     gender = models.CharField(max_length=10, choices=GENDER_CHOICES, blank=True)
     religion = models.CharField(max_length=50, blank=True)
     blood_group = models.CharField(max_length=5, blank=True)
+    nationality = models.CharField(max_length=100, default='Bangladeshi', blank=True)
     
     # Contact Information
     mobile_student = models.CharField(max_length=11, blank=True)

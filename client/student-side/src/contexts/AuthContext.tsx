@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '@/lib/api';
 
-export type UserRole = 'student' | 'captain' | 'teacher';
+export type UserRole = 'student' | 'captain' | 'teacher' | 'alumni';
 export type AdmissionStatus = 'not_started' | 'pending' | 'approved' | 'rejected';
 
 interface User {
@@ -15,6 +15,8 @@ interface User {
   semester?: number;
   role: UserRole;
   relatedProfileId?: string;
+  studentStatus?: string;
+  isAlumni?: boolean;
 }
 
 interface AuthContextType {
@@ -50,9 +52,11 @@ const demoUsers: Record<UserRole, User> = {
     studentId: 'SPI-2024-0001',
     admissionStatus: 'approved',
     department: 'Computer Technology',
-    semester: 4,
+    semester: 8, // Changed to 8 to test alumni profile functionality
     role: 'student',
     relatedProfileId: 'demo-student-001',
+    studentStatus: 'graduated',
+    isAlumni: true,
   },
   captain: {
     id: 'demo-captain-001',
@@ -61,9 +65,11 @@ const demoUsers: Record<UserRole, User> = {
     studentId: 'SPI-2024-0002',
     admissionStatus: 'approved',
     department: 'Computer Technology',
-    semester: 4,
+    semester: 6, // Regular semester for captain
     role: 'captain',
     relatedProfileId: 'demo-captain-001',
+    studentStatus: 'active',
+    isAlumni: false,
   },
   teacher: {
     id: 'demo-teacher-001',
@@ -74,6 +80,18 @@ const demoUsers: Record<UserRole, User> = {
     department: 'Computer Technology',
     role: 'teacher',
     relatedProfileId: 'demo-teacher-001',
+    isAlumni: false,
+  },
+  alumni: {
+    id: 'demo-alumni-001',
+    name: 'Mohammad Rahim',
+    email: 'alumni@demo.com',
+    studentId: 'SPI-2020-0045',
+    admissionStatus: 'approved',
+    department: 'Computer Technology',
+    role: 'alumni',
+    relatedProfileId: 'demo-alumni-001',
+    isAlumni: true,
   },
 };
 
@@ -118,6 +136,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             role: response.user.role || 'student',
             admissionStatus: response.user.admission_status || 'not_started',
             relatedProfileId: relatedProfileId,
+            semester: response.user.semester,
+            studentStatus: response.user.student_status,
+            isAlumni: response.user.is_alumni,
           });
           
           // Store relatedProfileId in localStorage as backup
@@ -164,6 +185,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role: response.user.role || 'student',
         admissionStatus: response.user.admission_status || 'not_started',
         relatedProfileId: relatedProfileId,
+        semester: response.user.semester,
+        studentStatus: response.user.student_status,
+        isAlumni: response.user.is_alumni,
       });
       
       // Store relatedProfileId in localStorage as backup
@@ -253,6 +277,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           role: data.role,
           admissionStatus: response.user.admission_status || 'not_started',
           relatedProfileId: relatedProfileId,
+          semester: response.user.semester,
+          studentStatus: response.user.student_status,
+          isAlumni: response.user.is_alumni,
         });
         
         // Store relatedProfileId in localStorage as backup

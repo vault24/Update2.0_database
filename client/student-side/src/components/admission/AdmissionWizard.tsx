@@ -429,6 +429,7 @@ export function AdmissionWizard() {
         gender: capitalizeGender(formData.gender),
         religion: formData.religion,
         blood_group: formData.bloodGroup,
+        nationality: formData.nationality || 'Bangladeshi',
         
         // Contact Information
         mobile_student: formData.mobile,

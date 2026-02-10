@@ -3,8 +3,9 @@ import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
   FileText, Download, Loader2, AlertCircle, FolderOpen, 
-  GraduationCap, Upload, Filter, Badge, Eye, User, X
+  GraduationCap, Upload, Filter, Eye, User, X
 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { 
   Dialog,
@@ -15,6 +16,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { documentService, type Document, type DocumentCategory } from '@/services/documentService';
+import { admissionService } from '@/services/admissionService';
 import { getErrorMessage } from '@/lib/api';
 import { toast } from 'sonner';
 import { debugAuthState, ensureAuthentication } from '@/utils/authHelper';
@@ -26,6 +28,50 @@ export function DocumentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
   const [isViewOpen, setIsViewOpen] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    
+    const loadPreview = async () => {
+      if (!selectedDoc || !isViewOpen) return;
+      
+      const isPreviewable =
+        selectedDoc.fileType === 'pdf' ||
+        ['jpg', 'jpeg', 'png', 'gif'].includes(selectedDoc.fileType.toLowerCase());
+      
+      if (!isPreviewable) {
+        setPreviewUrl(null);
+        setPreviewError(null);
+        return;
+      }
+      
+      try {
+        setPreviewLoading(true);
+        setPreviewError(null);
+        
+        const blob = await documentService.previewDocument(selectedDoc.id);
+        objectUrl = window.URL.createObjectURL(blob);
+        setPreviewUrl(objectUrl);
+      } catch (err: any) {
+        console.error('Preview load error:', err);
+        setPreviewError(getErrorMessage(err));
+        setPreviewUrl(null);
+      } finally {
+        setPreviewLoading(false);
+      }
+    };
+    
+    loadPreview();
+    
+    return () => {
+      if (objectUrl) {
+        window.URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [selectedDoc, isViewOpen]);
 
   useEffect(() => {
     if (user?.relatedProfileId) {
@@ -57,7 +103,34 @@ export function DocumentsPage() {
       const response = await documentService.getMyDocuments(user.relatedProfileId);
       console.log('Documents response:', response);
       
-      setDocuments(response.documents || []);
+      let mergedDocuments = response.documents || [];
+      
+      // Also include admission documents (not directly linked to student)
+      try {
+        const admission = await admissionService.getMyAdmission();
+        if (admission?.id) {
+          const admissionDocsResponse = await documentService.getDocuments({
+            source_type: 'admission',
+            source_id: admission.id,
+            page_size: 100
+          });
+          
+          const admissionDocs = (admissionDocsResponse.results || []).filter(
+            (doc) => doc.source_type === 'admission' && String(doc.source_id) === String(admission.id)
+          );
+          if (admissionDocs.length > 0) {
+            const existingIds = new Set(mergedDocuments.map(d => d.id));
+            const uniqueAdmissionDocs = admissionDocs.filter(d => !existingIds.has(d.id));
+            mergedDocuments = [...mergedDocuments, ...uniqueAdmissionDocs];
+            
+            console.log('Admission documents merged:', uniqueAdmissionDocs.length);
+          }
+        }
+      } catch (admissionErr) {
+        console.warn('Could not fetch admission documents:', admissionErr);
+      }
+      
+      setDocuments(mergedDocuments);
     } catch (err: any) {
       const errorMsg = getErrorMessage(err);
       console.error('Documents fetch error:', err);
@@ -106,7 +179,7 @@ export function DocumentsPage() {
     }
 
     try {
-      await documentService.setAsProfilePicture(doc.id);
+      await documentService.setAsProfilePicture(doc.id, user?.relatedProfileId);
       toast.success('Profile picture updated successfully', {
         description: `${doc.fileName} is now your profile picture`
       });
@@ -476,41 +549,65 @@ export function DocumentsPage() {
                     <div className="bg-white dark:bg-gray-900 p-4">
                       {selectedDoc.fileType === 'pdf' ? (
                         <div className="w-full">
-                          <iframe
-                            src={documentService.getDocumentPreviewUrl(selectedDoc.id)}
-                            className="w-full border-0 rounded"
-                            title={`Preview of ${selectedDoc.fileName}`}
-                            style={{ 
-                              height: '600px',
-                              minHeight: '600px',
-                              width: '100%'
-                            }}
-                          />
+                          {previewLoading ? (
+                            <div className="flex items-center justify-center h-[600px]">
+                              <Loader2 className="w-6 h-6 animate-spin mr-2" />
+                              <span className="text-muted-foreground">Loading preview...</span>
+                            </div>
+                          ) : previewError ? (
+                            <div className="flex flex-col items-center justify-center h-[600px] text-center">
+                              <AlertCircle className="w-10 h-10 text-destructive mb-2" />
+                              <p className="text-sm text-muted-foreground">{previewError}</p>
+                            </div>
+                          ) : (
+                            <iframe
+                              src={previewUrl || ''}
+                              className="w-full border-0 rounded"
+                              title={`Preview of ${selectedDoc.fileName}`}
+                              style={{ 
+                                height: '600px',
+                                minHeight: '600px',
+                                width: '100%'
+                              }}
+                            />
+                          )}
                         </div>
                       ) : ['jpg', 'jpeg', 'png', 'gif'].includes(selectedDoc.fileType.toLowerCase()) ? (
                         <div className="text-center">
                           <div className="relative inline-block">
-                            <img
-                              src={documentService.getDocumentPreviewUrl(selectedDoc.id)}
-                              alt={selectedDoc.fileName}
-                              className="max-w-full h-auto object-contain rounded shadow-lg cursor-zoom-in"
-                              style={{ 
-                                maxHeight: '500px',
-                                minHeight: '200px'
-                              }}
-                              onClick={(e) => {
-                                const img = e.target as HTMLImageElement;
-                                if (img.style.transform === 'scale(1.5)') {
-                                  img.style.transform = 'scale(1)';
-                                  img.style.cursor = 'zoom-in';
-                                } else {
-                                  img.style.transform = 'scale(1.5)';
-                                  img.style.cursor = 'zoom-out';
-                                  img.style.transformOrigin = 'center';
-                                  img.style.transition = 'transform 0.3s ease';
-                                }
-                              }}
-                            />
+                            {previewLoading ? (
+                              <div className="flex items-center justify-center h-[300px] w-[300px]">
+                                <Loader2 className="w-6 h-6 animate-spin mr-2" />
+                                <span className="text-muted-foreground">Loading preview...</span>
+                              </div>
+                            ) : previewError ? (
+                              <div className="flex flex-col items-center justify-center h-[300px] w-[300px] text-center">
+                                <AlertCircle className="w-10 h-10 text-destructive mb-2" />
+                                <p className="text-sm text-muted-foreground">{previewError}</p>
+                              </div>
+                            ) : (
+                              <img
+                                src={previewUrl || ''}
+                                alt={selectedDoc.fileName}
+                                className="max-w-full h-auto object-contain rounded shadow-lg cursor-zoom-in"
+                                style={{ 
+                                  maxHeight: '500px',
+                                  minHeight: '200px'
+                                }}
+                                onClick={(e) => {
+                                  const img = e.target as HTMLImageElement;
+                                  if (img.style.transform === 'scale(1.5)') {
+                                    img.style.transform = 'scale(1)';
+                                    img.style.cursor = 'zoom-in';
+                                  } else {
+                                    img.style.transform = 'scale(1.5)';
+                                    img.style.cursor = 'zoom-out';
+                                    img.style.transformOrigin = 'center';
+                                    img.style.transition = 'transform 0.3s ease';
+                                  }
+                                }}
+                              />
+                            )}
                           </div>
                           
                           {/* Image Controls */}

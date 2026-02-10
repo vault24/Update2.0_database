@@ -37,7 +37,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
     permission_classes = [AllowAny]
     serializer_class = DocumentSerializer
     filter_backends = [DjangoFilterBackend, OrderingFilter, SearchFilter]
-    filterset_fields = ['student', 'category', 'source_type', 'status', 'is_public']
+    filterset_fields = ['student', 'category', 'source_type', 'source_id', 'status', 'is_public']
     ordering_fields = ['uploadDate', 'fileName', 'fileSize', 'lastModified']
     ordering = ['-uploadDate']
     search_fields = ['fileName', 'description', 'tags']
@@ -373,6 +373,81 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 {'error': 'Preview failed', 'details': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+    @action(detail=True, methods=['post'], url_path='set-profile-photo')
+    def set_profile_photo(self, request, pk=None):
+        """
+        Set a document as the student's profile photo
+
+        POST /api/documents/{id}/set-profile-photo/
+        """
+        document = self.get_object()
+
+        # Permission check: must be able to access the document
+        if not self._check_download_permission(request.user, document):
+            return Response(
+                {'error': 'Permission denied', 'details': 'You do not have permission to use this document'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        from apps.students.models import Student
+        from apps.admissions.models import Admission
+
+        student_id = request.data.get('student_id')
+
+        # If student is setting their own photo, infer from related_profile_id
+        if getattr(request.user, 'role', None) == 'student':
+            if hasattr(request.user, 'related_profile_id') and request.user.related_profile_id:
+                student_id = str(request.user.related_profile_id)
+            else:
+                return Response(
+                    {'error': 'Student profile not linked', 'details': 'No related student profile found'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        if not student_id:
+            return Response(
+                {'error': 'Student ID required', 'details': 'student_id is required for this action'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Ensure the document belongs to the student or their admission
+        if document.student_id and str(document.student_id) != str(student_id):
+            return Response(
+                {'error': 'Permission denied', 'details': 'Document does not belong to this student'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        if not document.student_id and document.source_type == 'admission' and document.source_id:
+            try:
+                admission = Admission.objects.get(id=document.source_id)
+                if getattr(request.user, 'role', None) == 'student' and admission.user != request.user:
+                    return Response(
+                        {'error': 'Permission denied', 'details': 'Admission document does not belong to you'},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+            except Admission.DoesNotExist:
+                return Response(
+                    {'error': 'Admission not found', 'details': 'Admission document is not linked correctly'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        try:
+            student = Student.objects.get(id=student_id)
+        except Student.DoesNotExist:
+            return Response(
+                {'error': 'Student not found', 'details': 'Invalid student_id'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Store full URL for cross-device access
+        student.profilePhoto = request.build_absolute_uri(document.file_url)
+        student.save(update_fields=['profilePhoto'])
+
+        return Response({
+            'message': 'Profile photo updated',
+            'profilePhoto': student.profilePhoto
+        })
     
     @action(detail=True, methods=['get'])
     def integrity_check(self, request, pk=None):
@@ -691,7 +766,8 @@ class DocumentViewSet(viewsets.ModelViewSet):
         # Students can access their own documents
         if user and user.is_authenticated and getattr(user, 'role', None) == 'student':
             if hasattr(user, 'related_profile_id') and user.related_profile_id:
-                return str(document.student_id) == str(user.related_profile_id)
+                if str(document.student_id) == str(user.related_profile_id):
+                    return True
             
             # Check admission documents
             if document.source_type == 'admission' and document.source_id:

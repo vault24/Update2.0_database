@@ -20,11 +20,11 @@ export async function checkAuthStatus(): Promise<AuthStatus> {
     await apiClient.get('auth/csrf/');
     
     // Then check authentication
-    const response = await apiClient.get('auth/me/');
+    const response = await apiClient.get<{ user?: any }>('auth/me/');
     
     return {
       isAuthenticated: true,
-      user: response.user
+      user: response?.user
     };
   } catch (error: any) {
     console.error('Auth check failed:', error);

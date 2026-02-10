@@ -20,8 +20,9 @@ import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { studentService } from '@/services/studentService';
-import { getErrorMessage } from '@/lib/api';
+import { stipendService, EligibleStudent } from '@/services/stipendService';
+import { getErrorMessage, apiClient } from '@/lib/api';
+import { useToast } from '@/hooks/use-toast';
 
 // Attendance threshold options
 const ATTENDANCE_OPTIONS = [
@@ -33,16 +34,6 @@ const ATTENDANCE_OPTIONS = [
   { value: 80, label: '80%' },
   { value: 85, label: '85%' },
   { value: 90, label: '90%' },
-];
-
-// GPA threshold options
-const GPA_OPTIONS = [
-  { value: 2.0, label: '2.00' },
-  { value: 2.5, label: '2.50' },
-  { value: 3.0, label: '3.00' },
-  { value: 3.25, label: '3.25' },
-  { value: 3.5, label: '3.50' },
-  { value: 3.75, label: '3.75' },
 ];
 
 // Pass requirement options
@@ -77,10 +68,20 @@ type SortOrder = 'asc' | 'desc';
 
 export default function StipendEligible() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [students, setStudents] = useState<EligibleStudent[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<EligibleStudent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Statistics
+  const [statistics, setStatistics] = useState({
+    totalEligible: 0,
+    avgAttendance: 0,
+    avgGpa: 0,
+    allPassCount: 0,
+    referredCount: 0,
+  });
   
   // Search and filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -91,7 +92,6 @@ export default function StipendEligible() {
   
   // Eligibility criteria (customizable)
   const [minAttendance, setMinAttendance] = useState(75);
-  const [minGpa, setMinGpa] = useState(2.5);
   const [passRequirement, setPassRequirement] = useState('all_pass');
   const [showCriteriaDialog, setShowCriteriaDialog] = useState(false);
   
@@ -101,83 +101,77 @@ export default function StipendEligible() {
   
   // View mode
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
-
-  const departments = ['Computer Technology', 'Electrical Technology', 'Civil Technology', 'Mechanical Technology', 'Electronics Technology'];
-  const shifts = ['Morning', 'Day', 'Evening'];
-  const sessions = ['2023-2024', '2022-2023', '2021-2022', '2020-2021'];
+  
+  // Dynamic filter options
+  const [departments, setDepartments] = useState<Array<{ id: string; name: string }>>([]);
+  const [sessions, setSessions] = useState<string[]>([]);
+  const shifts = ['Morning', 'Day', 'Evening']; // Static as these are standard shifts
 
   useEffect(() => {
     fetchEligibleStudents();
+    loadFilterOptions();
   }, []);
 
   useEffect(() => {
     filterAndSortStudents();
-  }, [students, searchQuery, departmentFilter, semesterFilter, shiftFilter, sessionFilter, minAttendance, minGpa, passRequirement, sortField, sortOrder]);
+  }, [students, searchQuery, departmentFilter, semesterFilter, shiftFilter, sessionFilter, sortField, sortOrder]);
+
+  const loadFilterOptions = async () => {
+    try {
+      // Fetch all departments from API
+      const response = await apiClient.get<any>('/departments/');
+      
+      // Handle both paginated and non-paginated responses
+      const depts = Array.isArray(response) ? response : (response.results || []);
+      setDepartments(depts);
+    } catch (error) {
+      console.error('Failed to load departments:', error);
+      // Set empty array on error to prevent map error
+      setDepartments([]);
+    }
+    
+    // Generate sessions dynamically (current year and 3 previous years)
+    const currentYear = new Date().getFullYear();
+    const generatedSessions = [];
+    for (let i = 0; i < 4; i++) {
+      const year = currentYear - i;
+      generatedSessions.push(`${year}-${year + 1}`);
+    }
+    setSessions(generatedSessions);
+  };
 
   const fetchEligibleStudents = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      const response = await studentService.getStudents({ status: 'Active' });
-      const allStudents = response.results || [];
-      
-      // Map students with attendance, GPA, and referred subjects data
-      const mappedStudents: EligibleStudent[] = allStudents.map((student: any, index: number) => {
-        const attendance = student.attendance?.average || Math.floor(Math.random() * 40) + 60;
-        const gpa = student.results?.latestGpa || parseFloat((Math.random() * 2 + 2).toFixed(2));
-        const cgpa = student.results?.cgpa || parseFloat((gpa - Math.random() * 0.3).toFixed(2));
-        const totalSubjects = 6;
-        const referredSubjects = Math.floor(Math.random() * 3);
-        const passedSubjects = totalSubjects - referredSubjects;
-        const shiftOptions = ['Morning', 'Day', 'Evening'];
-        
-        return {
-          id: student.id || student._id || `student-${index}`,
-          name: student.name || student.fullNameEnglish || 'Unknown Student',
-          nameBangla: student.nameBangla || student.fullNameBangla,
-          roll: student.roll || student.currentRollNumber || `ROLL-${index + 1}`,
-          department: typeof student.department === 'object' ? student.department.name : (student.department || 'Unknown'),
-          semester: student.semester || Math.floor(Math.random() * 8) + 1,
-          session: student.session || '2022-2023',
-          shift: student.shift || shiftOptions[Math.floor(Math.random() * 3)],
-          photo: student.photo || student.profilePhoto,
-          attendance: parseFloat(attendance.toString()),
-          gpa: parseFloat(gpa.toString()),
-          cgpa: parseFloat(cgpa.toString()),
-          referredSubjects,
-          totalSubjects,
-          passedSubjects,
-        };
+      const response = await stipendService.calculateEligibility({
+        minAttendance,
+        passRequirement,
       });
       
-      setStudents(mappedStudents);
+      setStudents(response.students);
+      setStatistics(response.statistics);
+      
+      toast({
+        title: 'Success',
+        description: `Found ${response.students.length} eligible students`,
+      });
     } catch (err) {
       const errorMsg = getErrorMessage(err);
       setError(errorMsg);
-      
-      // Use mock data if API fails
-      const mockStudents: EligibleStudent[] = [
-        { id: '1', name: 'Mohammad Rahman', nameBangla: 'মোহাম্মদ রহমান', roll: '2024001', department: 'Computer Technology', semester: 4, session: '2022-2023', shift: 'Morning', attendance: 92, gpa: 3.75, cgpa: 3.70, referredSubjects: 0, totalSubjects: 6, passedSubjects: 6 },
-        { id: '2', name: 'Fatima Akter', nameBangla: 'ফাতিমা আক্তার', roll: '2024002', department: 'Electrical Technology', semester: 3, session: '2022-2023', shift: 'Day', attendance: 88, gpa: 3.50, cgpa: 3.45, referredSubjects: 0, totalSubjects: 6, passedSubjects: 6 },
-        { id: '3', name: 'Abdul Karim', nameBangla: 'আব্দুল করিম', roll: '2024003', department: 'Civil Technology', semester: 5, session: '2021-2022', shift: 'Morning', attendance: 85, gpa: 3.25, cgpa: 3.20, referredSubjects: 1, totalSubjects: 6, passedSubjects: 5 },
-        { id: '4', name: 'Nusrat Jahan', nameBangla: 'নুসরাত জাহান', roll: '2024004', department: 'Computer Technology', semester: 6, session: '2021-2022', shift: 'Evening', attendance: 90, gpa: 3.80, cgpa: 3.75, referredSubjects: 0, totalSubjects: 6, passedSubjects: 6 },
-        { id: '5', name: 'Rafiqul Islam', nameBangla: 'রফিকুল ইসলাম', roll: '2024005', department: 'Mechanical Technology', semester: 4, session: '2022-2023', shift: 'Morning', attendance: 78, gpa: 3.10, cgpa: 3.05, referredSubjects: 1, totalSubjects: 6, passedSubjects: 5 },
-        { id: '6', name: 'Sultana Begum', nameBangla: 'সুলতানা বেগম', roll: '2024006', department: 'Electronics Technology', semester: 2, session: '2023-2024', shift: 'Day', attendance: 95, gpa: 3.90, cgpa: 3.85, referredSubjects: 0, totalSubjects: 6, passedSubjects: 6 },
-        { id: '7', name: 'Hasan Ali', nameBangla: 'হাসান আলী', roll: '2024007', department: 'Computer Technology', semester: 7, session: '2020-2021', shift: 'Morning', attendance: 82, gpa: 2.85, cgpa: 2.80, referredSubjects: 2, totalSubjects: 6, passedSubjects: 4 },
-        { id: '8', name: 'Marium Khatun', nameBangla: 'মরিয়ম খাতুন', roll: '2024008', department: 'Electrical Technology', semester: 5, session: '2021-2022', shift: 'Evening', attendance: 89, gpa: 3.45, cgpa: 3.40, referredSubjects: 0, totalSubjects: 6, passedSubjects: 6 },
-        { id: '9', name: 'Kamal Hossain', nameBangla: 'কামাল হোসাইন', roll: '2024009', department: 'Civil Technology', semester: 3, session: '2022-2023', shift: 'Day', attendance: 72, gpa: 2.60, cgpa: 2.55, referredSubjects: 2, totalSubjects: 6, passedSubjects: 4 },
-        { id: '10', name: 'Rima Akter', nameBangla: 'রিমা আক্তার', roll: '2024010', department: 'Computer Technology', semester: 4, session: '2022-2023', shift: 'Morning', attendance: 94, gpa: 3.95, cgpa: 3.90, referredSubjects: 0, totalSubjects: 6, passedSubjects: 6 },
-        { id: '11', name: 'Jahangir Alam', nameBangla: 'জাহাঙ্গীর আলম', roll: '2024011', department: 'Mechanical Technology', semester: 6, session: '2021-2022', shift: 'Evening', attendance: 68, gpa: 2.45, cgpa: 2.40, referredSubjects: 3, totalSubjects: 6, passedSubjects: 3 },
-        { id: '12', name: 'Sabina Yasmin', nameBangla: 'সাবিনা ইয়াসমিন', roll: '2024012', department: 'Electronics Technology', semester: 5, session: '2021-2022', shift: 'Morning', attendance: 87, gpa: 3.35, cgpa: 3.30, referredSubjects: 0, totalSubjects: 6, passedSubjects: 6 },
-      ];
-      setStudents(mockStudents);
+      toast({
+        title: 'Error',
+        description: errorMsg,
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
     }
   };
 
   const checkPassRequirement = (student: EligibleStudent): boolean => {
+    // This is now handled by the backend, but kept for client-side filtering
     switch (passRequirement) {
       case 'all_pass':
         return student.referredSubjects === 0;
@@ -194,11 +188,6 @@ export default function StipendEligible() {
 
   const filterAndSortStudents = () => {
     let filtered = students.filter((student) => {
-      // Apply eligibility criteria
-      if (student.attendance < minAttendance) return false;
-      if (student.gpa < minGpa) return false;
-      if (!checkPassRequirement(student)) return false;
-      
       // Apply search filter
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
@@ -280,8 +269,12 @@ export default function StipendEligible() {
 
   const resetCriteria = () => {
     setMinAttendance(75);
-    setMinGpa(2.5);
     setPassRequirement('all_pass');
+  };
+  
+  const applyCriteria = () => {
+    setShowCriteriaDialog(false);
+    fetchEligibleStudents();
   };
 
   const getInitials = (name: string) => {
@@ -326,10 +319,10 @@ export default function StipendEligible() {
   const totalEligible = filteredStudents.length;
   const avgAttendance = filteredStudents.length > 0 
     ? (filteredStudents.reduce((sum, s) => sum + s.attendance, 0) / filteredStudents.length).toFixed(1)
-    : '0';
+    : statistics.avgAttendance.toFixed(1);
   const avgGpa = filteredStudents.length > 0
     ? (filteredStudents.reduce((sum, s) => sum + s.gpa, 0) / filteredStudents.length).toFixed(2)
-    : '0';
+    : statistics.avgGpa.toFixed(2);
   const allPassCount = filteredStudents.filter(s => s.referredSubjects === 0).length;
   const referredCount = filteredStudents.filter(s => s.referredSubjects > 0).length;
 
@@ -355,7 +348,7 @@ export default function StipendEligible() {
               Stipend Eligible Students
             </h1>
             <p className="text-muted-foreground mt-1">
-              Current criteria: Attendance ≥ {minAttendance}%, GPA ≥ {minGpa}, {PASS_REQUIREMENT_OPTIONS.find(o => o.value === passRequirement)?.label}
+              Current criteria: Attendance ≥ {minAttendance}%, {PASS_REQUIREMENT_OPTIONS.find(o => o.value === passRequirement)?.label}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -401,26 +394,6 @@ export default function StipendEligible() {
                     </div>
                   </div>
                   
-                  {/* GPA Threshold */}
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-base font-medium">Minimum GPA</Label>
-                      <Badge variant="secondary">{minGpa.toFixed(2)}</Badge>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {GPA_OPTIONS.map((option) => (
-                        <Button
-                          key={option.value}
-                          variant={minGpa === option.value ? 'default' : 'outline'}
-                          size="sm"
-                          onClick={() => setMinGpa(option.value)}
-                        >
-                          {option.label}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                  
                   {/* Pass Requirement */}
                   <div className="space-y-3">
                     <Label className="text-base font-medium">Pass Requirement</Label>
@@ -445,7 +418,7 @@ export default function StipendEligible() {
                     <Button variant="outline" onClick={resetCriteria}>
                       Reset to Default
                     </Button>
-                    <Button onClick={() => setShowCriteriaDialog(false)}>
+                    <Button onClick={applyCriteria}>
                       Apply Criteria
                     </Button>
                   </div>
@@ -559,8 +532,8 @@ export default function StipendEligible() {
                   <SelectContent>
                     <SelectItem value="all">All Departments</SelectItem>
                     {departments.map((dept) => (
-                      <SelectItem key={dept} value={dept}>
-                        {dept}
+                      <SelectItem key={dept.id} value={dept.name}>
+                        {dept.name}
                       </SelectItem>
                     ))}
                   </SelectContent>

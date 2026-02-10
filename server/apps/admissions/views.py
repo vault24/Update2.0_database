@@ -236,6 +236,7 @@ class AdmissionViewSet(viewsets.ModelViewSet):
             'gender': admission.gender,
             'religion': admission.religion,
             'bloodGroup': admission.blood_group,
+            'nationality': admission.nationality or 'Bangladeshi',
             # Contact Information
             'mobileStudent': admission.mobile_student,
             'guardianMobile': admission.guardian_mobile,

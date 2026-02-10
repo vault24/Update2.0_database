@@ -7,7 +7,9 @@ type ClassPeriod = {
   startTime: string;
   endTime: string;
   subject: string;
-  code: string;
+  subjectCode: string;
+  classType: 'Theory' | 'Lab';
+  labName?: string;
   room: string;
   teacher: string;
 };
@@ -139,7 +141,10 @@ export function CurrentClassStatus({
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="text-lg font-bold truncate">{displayClass.subject}</h3>
-                <p className="text-sm text-white/80">{displayClass.code}</p>
+                <p className="text-sm text-white/80">{displayClass.subjectCode}</p>
+                {displayClass.classType === 'Lab' && displayClass.labName && (
+                  <p className="text-xs text-white/70">Lab: {displayClass.labName}</p>
+                )}
               </div>
             </div>
 

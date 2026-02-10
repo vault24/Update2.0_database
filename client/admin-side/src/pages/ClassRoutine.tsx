@@ -96,7 +96,17 @@ export default function ClassRoutine() {
   const [isTeacherEditMode, setIsTeacherEditMode] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ day: DayOfWeek; time: string } | null>(null);
-  const [slotForm, setSlotForm] = useState({ subject: '', teacher: '', room: '', department: '', semester: 4 });
+  const [slotForm, setSlotForm] = useState({ 
+    subject: '', 
+    subjectCode: '',
+    classType: 'Theory',
+    labName: '',
+    teacher: '', 
+    teacherId: '', 
+    room: '', 
+    department: '', 
+    semester: 4 
+  });
   const [slotFormErrors, setSlotFormErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
   const timeSlots = timeSlotsByShift[shift] || [];
@@ -318,7 +328,11 @@ export default function ClassRoutine() {
     if (existing) {
       setSlotForm({ 
         subject: existing.subject, 
+        subjectCode: existing.subjectCode || '',
+        classType: existing.classType || 'Theory',
+        labName: existing.labName || '',
         teacher: existing.teacher, 
+        teacherId: existing.teacherId || '',
         room: existing.room,
         department: department,
         semester: semester
@@ -328,7 +342,11 @@ export default function ClassRoutine() {
       const selectedTeacherData = teachers.find(t => t.id === selectedTeacher);
       setSlotForm({ 
         subject: '', 
+        subjectCode: '',
+        classType: 'Theory',
+        labName: '',
         teacher: viewMode === 'teacher' && selectedTeacherData ? selectedTeacherData.fullNameEnglish : '', 
+        teacherId: viewMode === 'teacher' ? selectedTeacher : '',
         room: '',
         department: department || (departments.length > 0 ? departments[0].id : ''),
         semester: semester || 4
@@ -339,7 +357,36 @@ export default function ClassRoutine() {
   };
 
   const handleSlotFormChange = (field: string, value: string) => {
-    setSlotForm(prev => ({ ...prev, [field]: value }));
+    if (field === 'teacherId') {
+      const normalizedValue = value === 'tba' ? '' : value;
+      const selected = teachers.find(t => t.id === normalizedValue);
+      setSlotForm(prev => ({
+        ...prev,
+        teacherId: normalizedValue,
+        teacher: selected ? selected.fullNameEnglish : ''
+      }));
+      if (slotFormErrors[field]) {
+        setSlotFormErrors(prev => {
+          const newErrors = { ...prev };
+          delete newErrors[field];
+          return newErrors;
+        });
+      }
+      return;
+    }
+
+    if (field === 'classType') {
+      setSlotForm(prev => ({
+        ...prev,
+        classType: value,
+        labName: value === 'Lab' ? prev.labName : ''
+      }));
+    } else if (field === 'semester') {
+      const parsed = parseInt(value);
+      setSlotForm(prev => ({ ...prev, semester: Number.isNaN(parsed) ? prev.semester : parsed }));
+    } else {
+      setSlotForm(prev => ({ ...prev, [field]: value }));
+    }
     
     // Clear error for this field when user starts typing
     if (slotFormErrors[field]) {
@@ -364,6 +411,14 @@ export default function ClassRoutine() {
     
     if (slotForm.teacher && slotForm.teacher.trim().length > 100) {
       errors.teacher = 'Teacher name must be less than 100 characters';
+    }
+
+    if (slotForm.subject && !slotForm.subjectCode.trim()) {
+      errors.subjectCode = 'Subject code is required';
+    }
+
+    if (slotForm.classType === 'Lab' && !slotForm.labName.trim()) {
+      errors.labName = 'Lab name is required for Lab classes';
     }
     
     if (slotForm.room && slotForm.room.trim().length < 1) {
@@ -420,7 +475,15 @@ export default function ClassRoutine() {
         ...prev,
         [day]: {
           ...prev[day],
-          [time]: { subject: slotForm.subject.trim(), teacher: slotForm.teacher.trim(), room: slotForm.room.trim() }
+          [time]: { 
+            subject: slotForm.subject.trim(), 
+            subjectCode: slotForm.subjectCode.trim(),
+            classType: slotForm.classType as 'Theory' | 'Lab',
+            labName: slotForm.classType === 'Lab' ? slotForm.labName.trim() : '',
+            teacher: slotForm.teacher.trim() || 'TBA',
+            teacherId: slotForm.teacherId || undefined,
+            room: slotForm.room.trim() 
+          }
         }
       }));
     }
@@ -1078,16 +1141,72 @@ export default function ClassRoutine() {
               )}
             </div>
             <div className="space-y-2">
-              <Label>Teacher Name</Label>
+              <Label>Subject Code</Label>
               <Input 
-                placeholder="e.g., Mr. Rahman"
-                value={slotForm.teacher}
-                onChange={(e) => handleSlotFormChange('teacher', e.target.value)}
-                className={slotFormErrors.teacher ? 'border-destructive' : ''}
-                disabled={viewMode === 'teacher'} // Teacher name is fixed in teacher mode
+                placeholder="e.g., MATH-101"
+                value={slotForm.subjectCode}
+                onChange={(e) => handleSlotFormChange('subjectCode', e.target.value)}
+                className={slotFormErrors.subjectCode ? 'border-destructive' : ''}
               />
-              {slotFormErrors.teacher && (
-                <p className="text-sm text-destructive">{slotFormErrors.teacher}</p>
+              {slotFormErrors.subjectCode && (
+                <p className="text-sm text-destructive">{slotFormErrors.subjectCode}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>Class Type</Label>
+              <Select 
+                value={slotForm.classType} 
+                onValueChange={(val) => handleSlotFormChange('classType', val)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Theory">Theory</SelectItem>
+                  <SelectItem value="Lab">Lab</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {slotForm.classType === 'Lab' && (
+              <div className="space-y-2">
+                <Label>Lab Name</Label>
+                <Input 
+                  placeholder="e.g., Computer Lab 1"
+                  value={slotForm.labName}
+                  onChange={(e) => handleSlotFormChange('labName', e.target.value)}
+                  className={slotFormErrors.labName ? 'border-destructive' : ''}
+                />
+                {slotFormErrors.labName && (
+                  <p className="text-sm text-destructive">{slotFormErrors.labName}</p>
+                )}
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Teacher</Label>
+              {viewMode === 'teacher' ? (
+                <Input 
+                  value={teachers.find(t => t.id === selectedTeacher)?.fullNameEnglish || 'Select teacher'}
+                  disabled
+                />
+              ) : (
+                <>
+                  <Select value={slotForm.teacherId || 'tba'} onValueChange={(val) => handleSlotFormChange('teacherId', val)}>
+                    <SelectTrigger className={slotFormErrors.teacher ? 'border-destructive' : ''}>
+                      <SelectValue placeholder="Select a teacher (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="tba">TBA</SelectItem>
+                      {teachers.map(teacher => (
+                        <SelectItem key={teacher.id} value={teacher.id}>
+                          {teacher.fullNameEnglish} - {teacher.departmentName || 'Unknown Dept'}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {slotFormErrors.teacher && (
+                    <p className="text-sm text-destructive">{slotFormErrors.teacher}</p>
+                  )}
+                </>
               )}
             </div>
             

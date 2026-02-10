@@ -512,3 +512,280 @@ class StudentViewSet(viewsets.ModelViewSet):
             'semesterAttendance': student.semesterAttendance,
             'averageAttendance': average_attendance
         })
+    
+    @action(detail=True, methods=['post'])
+    def update_semester_results(self, request, pk=None):
+        """
+        Update semester results and automatically update current semester
+        POST /api/students/{id}/update-semester-results/
+        
+        Request body:
+        {
+            "semester": 1,
+            "year": 2024,
+            "resultType": "gpa",
+            "gpa": 3.75,
+            "cgpa": 3.50,
+            "subjects": [
+                {
+                    "code": "MATH-101",
+                    "name": "Mathematics-I",
+                    "credit": 3,
+                    "grade": "A",
+                    "gradePoint": 4.0
+                }
+            ]
+        }
+        """
+        student = self.get_object()
+        
+        # Validate required fields
+        semester = request.data.get('semester')
+        year = request.data.get('year')
+        result_type = request.data.get('resultType')
+        
+        if not semester or not year or not result_type:
+            return Response({
+                'error': 'Missing required fields',
+                'details': 'semester, year, and resultType are required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate semester range
+        if not (1 <= semester <= 8):
+            return Response({
+                'error': 'Invalid semester',
+                'details': 'Semester must be between 1 and 8'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate result type
+        if result_type not in ['gpa', 'referred', 'pass', 'fail']:
+            return Response({
+                'error': 'Invalid result type',
+                'details': 'resultType must be one of: gpa, referred, pass, fail'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Create new semester result
+        new_result = {
+            'semester': semester,
+            'year': year,
+            'resultType': result_type
+        }
+        
+        # Add type-specific fields
+        if result_type == 'gpa':
+            gpa = request.data.get('gpa')
+            cgpa = request.data.get('cgpa')
+            subjects = request.data.get('subjects', [])
+            
+            if gpa is None:
+                return Response({
+                    'error': 'Missing GPA',
+                    'details': 'GPA is required for gpa result type'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            new_result.update({
+                'gpa': float(gpa),
+                'cgpa': float(cgpa) if cgpa is not None else None,
+                'subjects': subjects
+            })
+            
+        elif result_type == 'referred':
+            referred_subjects = request.data.get('referredSubjects', [])
+            new_result['referredSubjects'] = referred_subjects
+        
+        # Initialize semesterResults if it doesn't exist
+        if not student.semesterResults:
+            student.semesterResults = []
+        
+        # Check if result for this semester already exists
+        existing_index = None
+        for i, result in enumerate(student.semesterResults):
+            if result.get('semester') == semester and result.get('year') == year:
+                existing_index = i
+                break
+        
+        # Update or add the result
+        if existing_index is not None:
+            student.semesterResults[existing_index] = new_result
+        else:
+            student.semesterResults.append(new_result)
+        
+        # Save the student (this will trigger the signal to update current semester)
+        student.save()
+        
+        # Return updated student data
+        serializer = StudentDetailSerializer(student)
+        return Response({
+            'message': 'Semester results updated successfully',
+            'student': serializer.data,
+            'updatedResult': new_result
+        })
+    
+    @action(detail=True, methods=['post'])
+    def calculate_semester_result_from_marks(self, request, pk=None):
+        """
+        Calculate and update semester result based on marks records
+        POST /api/students/{id}/calculate-semester-result-from-marks/
+        
+        Request body:
+        {
+            "semester": 1,
+            "year": 2024
+        }
+        """
+        from apps.marks.models import MarksRecord
+        from decimal import Decimal
+        
+        student = self.get_object()
+        
+        semester = request.data.get('semester')
+        year = request.data.get('year')
+        
+        if not semester or not year:
+            return Response({
+                'error': 'Missing required fields',
+                'details': 'semester and year are required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get all marks for this student and semester
+        marks_records = MarksRecord.objects.filter(
+            student=student,
+            semester=semester
+        )
+        
+        if not marks_records.exists():
+            return Response({
+                'error': 'No marks found',
+                'details': f'No marks records found for semester {semester}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Group marks by subject
+        subjects_data = {}
+        for mark in marks_records:
+            subject_code = mark.subject_code
+            if subject_code not in subjects_data:
+                subjects_data[subject_code] = {
+                    'code': subject_code,
+                    'name': mark.subject_name,
+                    'marks': {},
+                    'total_marks': 0,
+                    'total_possible': 0
+                }
+            
+            # Add marks based on exam type
+            subjects_data[subject_code]['marks'][mark.exam_type] = {
+                'obtained': mark.marks_obtained,
+                'total': mark.total_marks
+            }
+            subjects_data[subject_code]['total_marks'] += mark.marks_obtained
+            subjects_data[subject_code]['total_possible'] += mark.total_marks
+        
+        # Calculate grades and GPA for each subject
+        subjects = []
+        total_grade_points = 0
+        total_credits = 0
+        
+        for subject_code, subject_data in subjects_data.items():
+            # Calculate percentage
+            percentage = (subject_data['total_marks'] / subject_data['total_possible']) * 100 if subject_data['total_possible'] > 0 else 0
+            
+            # Calculate grade and grade point (standard 4.0 scale)
+            if percentage >= 80:
+                grade = 'A+'
+                grade_point = 4.0
+            elif percentage >= 75:
+                grade = 'A'
+                grade_point = 3.75
+            elif percentage >= 70:
+                grade = 'A-'
+                grade_point = 3.5
+            elif percentage >= 65:
+                grade = 'B+'
+                grade_point = 3.25
+            elif percentage >= 60:
+                grade = 'B'
+                grade_point = 3.0
+            elif percentage >= 55:
+                grade = 'B-'
+                grade_point = 2.75
+            elif percentage >= 50:
+                grade = 'C+'
+                grade_point = 2.5
+            elif percentage >= 45:
+                grade = 'C'
+                grade_point = 2.25
+            elif percentage >= 40:
+                grade = 'D'
+                grade_point = 2.0
+            else:
+                grade = 'F'
+                grade_point = 0.0
+            
+            # Assume 3 credits per subject (this can be made configurable)
+            credit = 3
+            
+            subjects.append({
+                'code': subject_code,
+                'name': subject_data['name'],
+                'credit': credit,
+                'grade': grade,
+                'gradePoint': grade_point,
+                'percentage': round(percentage, 2),
+                'totalMarks': subject_data['total_marks'],
+                'totalPossible': subject_data['total_possible']
+            })
+            
+            total_grade_points += grade_point * credit
+            total_credits += credit
+        
+        # Calculate semester GPA
+        semester_gpa = total_grade_points / total_credits if total_credits > 0 else 0.0
+        
+        # Calculate CGPA (simplified - average of all semester GPAs)
+        existing_results = student.semesterResults or []
+        total_gpa_sum = semester_gpa
+        semester_count = 1
+        
+        for result in existing_results:
+            if result.get('resultType') == 'gpa' and result.get('gpa') and result.get('semester') != semester:
+                total_gpa_sum += result.get('gpa', 0)
+                semester_count += 1
+        
+        cgpa = total_gpa_sum / semester_count if semester_count > 0 else semester_gpa
+        
+        # Create semester result
+        semester_result = {
+            'semester': semester,
+            'year': year,
+            'resultType': 'gpa',
+            'gpa': round(semester_gpa, 2),
+            'cgpa': round(cgpa, 2),
+            'subjects': subjects
+        }
+        
+        # Update student's semester results
+        if not student.semesterResults:
+            student.semesterResults = []
+        
+        # Check if result for this semester already exists
+        existing_index = None
+        for i, result in enumerate(student.semesterResults):
+            if result.get('semester') == semester:
+                existing_index = i
+                break
+        
+        # Update or add the result
+        if existing_index is not None:
+            student.semesterResults[existing_index] = semester_result
+        else:
+            student.semesterResults.append(semester_result)
+        
+        # Save the student (this will trigger the signal to update current semester)
+        student.save()
+        
+        return Response({
+            'message': 'Semester result calculated and updated successfully',
+            'semesterResult': semester_result,
+            'currentSemester': student.semester,
+            'status': student.status
+        })

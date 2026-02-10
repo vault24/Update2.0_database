@@ -40,9 +40,10 @@ interface MenuItem {
 
 // Menu items with role-based access
 const menuItems: MenuItem[] = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', roles: ['student', 'captain', 'teacher'] },
-  { icon: Bell, label: 'Notices & Updates', path: '/dashboard/notices', roles: ['student', 'captain', 'teacher'] },
+  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', roles: ['student', 'captain', 'teacher', 'alumni'] },
+  { icon: Bell, label: 'Notices & Updates', path: '/dashboard/notices', roles: ['student', 'captain', 'teacher', 'alumni'] },
   { icon: User, label: 'Profile', path: '/dashboard/profile', roles: ['student', 'captain'] },
+  { icon: GraduationCap, label: 'Alumni Profile', path: '/dashboard/alumni-profile', roles: ['student', 'captain'] }, // For semester 8 students
   { icon: FileText, label: 'Admission', path: '/dashboard/admission', roles: ['student', 'captain'] },
   { icon: Calendar, label: 'Class Routine', path: '/dashboard/routine', roles: ['student', 'captain', 'teacher'] },
   { icon: BookOpen, label: 'Learning Hub', path: '/dashboard/learning-hub', roles: ['student', 'captain', 'teacher'] },
@@ -50,7 +51,7 @@ const menuItems: MenuItem[] = [
   { icon: ClipboardCheck, label: 'Attendance', path: '/dashboard/attendance', roles: ['student', 'captain'] },
   { icon: BarChart3, label: 'Marks', path: '/dashboard/marks', roles: ['student', 'captain'] },
   { icon: FolderOpen, label: 'Documents', path: '/dashboard/documents', roles: ['student', 'captain'] },
-  { icon: MessageCircle, label: 'Messages', path: '/dashboard/messages', roles: ['student', 'captain', 'teacher'] },
+  { icon: MessageCircle, label: 'Messages', path: '/dashboard/messages', roles: ['student', 'captain', 'teacher', 'alumni'] },
   { icon: AlertTriangle, label: 'Complaints', path: '/dashboard/complaints', roles: ['student', 'captain', 'teacher'] },
   { icon: Shield, label: 'My Allegations', path: '/dashboard/my-allegations', roles: ['student', 'captain'] },
   { icon: Send, label: 'Applications', path: '/dashboard/applications', roles: ['student', 'captain'] },
@@ -62,6 +63,8 @@ const menuItems: MenuItem[] = [
   { icon: ClipboardCheck, label: 'Take Attendance', path: '/dashboard/teacher-attendance', roles: ['teacher'] },
   { icon: BookOpen, label: 'Manage Marks', path: '/dashboard/manage-marks', roles: ['teacher'] },
   { icon: Shield, label: 'Allegations', path: '/dashboard/allegations', roles: ['teacher'] },
+  // Alumni-specific items
+  { icon: GraduationCap, label: 'Alumni Profile', path: '/dashboard/alumni-profile', roles: ['alumni'] },
 ];
 
 const bottomMenuItems: MenuItem[] = [];
@@ -80,8 +83,24 @@ export function Sidebar() {
 
   const userRole = user?.role || 'student';
 
-  // Filter menu items based on user role
-  const filteredMenuItems = menuItems.filter(item => item.roles.includes(userRole));
+  // Check if user is graduated or alumni
+  const isGraduatedOrAlumni = userRole === 'alumni' || user?.isAlumni === true;
+
+  // Filter menu items based on user role and graduation status
+  const filteredMenuItems = menuItems.filter(item => {
+    // Check role access first
+    if (!item.roles.includes(userRole)) return false;
+    
+    // Special handling for profile navigation based on graduation status
+    if (item.path === '/dashboard/profile' && isGraduatedOrAlumni) {
+      return false; // Hide regular profile for graduated students/alumni
+    }
+    if (item.path === '/dashboard/alumni-profile' && !isGraduatedOrAlumni) {
+      return false; // Hide alumni profile for non-graduated students
+    }
+    
+    return true;
+  });
   const filteredBottomItems = bottomMenuItems.filter(item => item.roles.includes(userRole));
 
   const getRoleBadge = () => {
@@ -90,6 +109,8 @@ export function Sidebar() {
         return { label: 'Captain', color: 'bg-warning text-warning-foreground' };
       case 'teacher':
         return { label: 'Teacher', color: 'bg-success text-white' };
+      case 'alumni':
+        return { label: 'Alumni', color: 'bg-emerald-600 text-white' };
       default:
         return { label: 'Student', color: 'bg-primary text-primary-foreground' };
     }

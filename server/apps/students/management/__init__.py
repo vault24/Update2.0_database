@@ -1,3 +1,1 @@
-"""
-Management commands for students app
-"""
+# Management package for students app

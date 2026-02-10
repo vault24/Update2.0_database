@@ -178,9 +178,7 @@ export const motivationService = {
    */
   recordView: async (motivationId: string, language: string = 'en'): Promise<void> => {
     try {
-      await apiClient.post(`motivations/messages/${motivationId}/view/`, {}, {
-        language
-      });
+      await apiClient.post(`motivations/messages/${motivationId}/view/`, { language });
     } catch (error) {
       // Silently fail for view tracking
       console.debug('Failed to record motivation view:', error);
@@ -192,8 +190,8 @@ export const motivationService = {
    */
   likeMotivation: async (motivationId: string): Promise<{ liked: boolean; message: string }> => {
     try {
-      const response = await apiClient.post(`motivations/messages/${motivationId}/like/`);
-      return response;
+      const response = await apiClient.post<{ liked: boolean; message: string }>(`motivations/messages/${motivationId}/like/`);
+      return response ?? { liked: true, message: 'Liked' };
     } catch (error) {
       console.error('Failed to like motivation:', error);
       throw error;
@@ -205,8 +203,8 @@ export const motivationService = {
    */
   unlikeMotivation: async (motivationId: string): Promise<{ liked: boolean; message: string }> => {
     try {
-      const response = await apiClient.delete(`motivations/messages/${motivationId}/like/`);
-      return response;
+      const response = await apiClient.delete<{ liked: boolean; message: string }>(`motivations/messages/${motivationId}/like/`);
+      return response ?? { liked: false, message: 'Unliked' };
     } catch (error) {
       console.error('Failed to unlike motivation:', error);
       throw error;

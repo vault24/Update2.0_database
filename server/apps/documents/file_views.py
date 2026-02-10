@@ -98,7 +98,17 @@ class SecureFileView(View):
         # Student access to own documents
         if getattr(user, 'role', None) == 'student':
             if hasattr(user, 'related_profile_id') and user.related_profile_id:
-                return str(document.student_id) == str(user.related_profile_id)
+                if str(document.student_id) == str(user.related_profile_id):
+                    return True
+            
+            # Admission documents linked to the student's admission
+            if document.source_type == 'admission' and document.source_id:
+                from apps.admissions.models import Admission
+                try:
+                    admission = Admission.objects.get(id=document.source_id)
+                    return admission.user == user
+                except Admission.DoesNotExist:
+                    return False
         
         return False
     
@@ -170,6 +180,15 @@ class DocumentThumbnailView(View):
         
         if getattr(user, 'role', None) == 'student':
             if hasattr(user, 'related_profile_id') and user.related_profile_id:
-                return str(document.student_id) == str(user.related_profile_id)
+                if str(document.student_id) == str(user.related_profile_id):
+                    return True
+            
+            if document.source_type == 'admission' and document.source_id:
+                from apps.admissions.models import Admission
+                try:
+                    admission = Admission.objects.get(id=document.source_id)
+                    return admission.user == user
+                except Admission.DoesNotExist:
+                    return False
         
         return False
