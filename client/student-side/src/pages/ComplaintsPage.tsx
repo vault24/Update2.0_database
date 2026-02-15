@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  AlertTriangle, Plus, Clock, Eye, Loader2, CheckCircle, GraduationCap, Monitor, Building, 
-  Send, MessageSquare, Calendar, ChevronDown, ChevronUp, Filter, Search, 
-  TrendingUp, FileText, Shield
+import {
+  Clock, Eye, Loader2, CheckCircle, GraduationCap, Monitor, Building,
+  Send, MessageSquare, Calendar, ChevronDown, ChevronUp, Search,
+  TrendingUp, FileText, Shield, Plus
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -14,65 +14,211 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { mockComplaints, complaintCategories, Complaint } from '@/data/mockComplaints';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { apiClient, getErrorMessage, PaginatedResponse } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 
-const statusConfig = {
+type UiCategory = 'academic' | 'website' | 'facility';
+type UiStatus = 'pending' | 'seen' | 'in_progress' | 'resolved';
+
+interface UiComplaint {
+  id: string;
+  rawId: string;
+  category: UiCategory;
+  subcategory: string;
+  title: string;
+  description: string;
+  status: UiStatus;
+  isAnonymous: boolean;
+  createdAt: string;
+  updatedAt: string;
+  response?: string;
+  respondedBy?: string;
+}
+
+interface ComplaintApi {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  category_name: string;
+  subcategory: string;
+  subcategory_name: string;
+  status: string;
+  is_anonymous: boolean;
+  response?: string;
+  responded_by_name?: string;
+  reference_number?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface CategoryApi {
+  id: string;
+  name: string;
+  label: string;
+}
+
+interface SubcategoryApi {
+  id: string;
+  category: string;
+  name: string;
+}
+
+const statusConfig: Record<UiStatus, { label: string; icon: any; color: string; dotColor: string }> = {
   pending: { label: 'Pending', icon: Clock, color: 'bg-amber-500/10 text-amber-600 border-amber-500/30', dotColor: 'bg-amber-500' },
   seen: { label: 'Seen', icon: Eye, color: 'bg-blue-500/10 text-blue-600 border-blue-500/30', dotColor: 'bg-blue-500' },
   in_progress: { label: 'In Progress', icon: Loader2, color: 'bg-purple-500/10 text-purple-600 border-purple-500/30', dotColor: 'bg-purple-500' },
   resolved: { label: 'Resolved', icon: CheckCircle, color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30', dotColor: 'bg-emerald-500' },
 };
 
-const categoryConfig = {
+const categoryConfig: Record<UiCategory, { icon: any; color: string; bgColor: string }> = {
   academic: { icon: GraduationCap, color: 'from-blue-500 to-indigo-600', bgColor: 'bg-blue-500/10' },
   website: { icon: Monitor, color: 'from-purple-500 to-pink-600', bgColor: 'bg-purple-500/10' },
   facility: { icon: Building, color: 'from-orange-500 to-red-600', bgColor: 'bg-orange-500/10' },
 };
 
+const toList = <T,>(payload: PaginatedResponse<T> | T[]): T[] =>
+  Array.isArray(payload) ? payload : payload.results;
+
+const fetchAll = async <T,>(endpoint: string): Promise<T[]> => {
+  const all: T[] = [];
+  let page = 1;
+
+  while (true) {
+    const response = await apiClient.get<PaginatedResponse<T> | T[]>(endpoint, { page });
+    const current = toList(response);
+    all.push(...current);
+
+    if (Array.isArray(response) || !response.next) break;
+    page += 1;
+  }
+
+  return all;
+};
+
+const normalizeStatus = (status: string): UiStatus => {
+  if (status === 'closed') return 'resolved';
+  if (status === 'pending' || status === 'seen' || status === 'in_progress' || status === 'resolved') return status;
+  return 'pending';
+};
+
+const categoryKeyFromText = (value: string): UiCategory => {
+  const text = value.toLowerCase();
+  if (text.includes('academic')) return 'academic';
+  if (text.includes('system') || text.includes('website') || text.includes('technical') || text.includes('portal')) return 'website';
+  return 'facility';
+};
+
+const mapComplaint = (item: ComplaintApi): UiComplaint => ({
+  id: item.reference_number || item.id,
+  rawId: item.id,
+  category: categoryKeyFromText(item.category_name || ''),
+  subcategory: item.subcategory_name || 'General',
+  title: item.title,
+  description: item.description,
+  status: normalizeStatus(item.status),
+  isAnonymous: item.is_anonymous,
+  createdAt: item.created_at,
+  updatedAt: item.updated_at,
+  response: item.response || undefined,
+  respondedBy: item.responded_by_name || undefined,
+});
+
 export default function ComplaintsPage() {
-  const [complaints, setComplaints] = useState(mockComplaints);
+  const { user } = useAuth();
+  const [complaints, setComplaints] = useState<UiComplaint[]>([]);
+  const [categories, setCategories] = useState<CategoryApi[]>([]);
+  const [subcategories, setSubcategories] = useState<SubcategoryApi[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [category, setCategory] = useState<keyof typeof complaintCategories | ''>('');
-  const [subcategory, setSubcategory] = useState('');
+  const [categoryId, setCategoryId] = useState('');
+  const [subcategoryId, setSubcategoryId] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = () => {
-    if (!category || !subcategory || !title || !description) {
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      const [complaintsRes, categoriesRes, subcategoriesRes] = await Promise.all([
+        fetchAll<ComplaintApi>('complaints/complaints/'),
+        fetchAll<CategoryApi>('complaints/categories/'),
+        fetchAll<SubcategoryApi>('complaints/subcategories/'),
+      ]);
+
+      setComplaints(complaintsRes.map(mapComplaint));
+      setCategories(categoriesRes);
+      setSubcategories(subcategoriesRes);
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const selectedCategory = useMemo(
+    () => categories.find((c) => c.id === categoryId) || null,
+    [categories, categoryId]
+  );
+
+  const subcategoriesForCategory = useMemo(
+    () => subcategories.filter((s) => s.category === categoryId),
+    [subcategories, categoryId]
+  );
+
+  const handleSubmit = async () => {
+    if (!user) {
+      toast.error('Please login first');
+      return;
+    }
+    if (!['student', 'captain'].includes(user.role)) {
+      toast.error('Only student/captain accounts can submit complaints');
+      return;
+    }
+
+    if (!categoryId || !subcategoryId || !title.trim() || !description.trim()) {
       toast.error('Please fill all required fields');
       return;
     }
-    const newComplaint: Complaint = {
-      id: Date.now().toString(),
-      category,
-      subcategory,
-      title,
-      description,
-      status: 'pending',
-      isAnonymous,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    setComplaints([newComplaint, ...complaints]);
-    setIsDialogOpen(false);
-    setCategory('');
-    setSubcategory('');
-    setTitle('');
-    setDescription('');
-    setIsAnonymous(false);
-    toast.success('Report submitted successfully!');
+
+    setIsSubmitting(true);
+    try {
+      const created = await apiClient.post<ComplaintApi>('complaints/complaints/', {
+        category: categoryId,
+        subcategory: subcategoryId,
+        title: title.trim(),
+        description: description.trim(),
+        is_anonymous: isAnonymous,
+      });
+
+      setComplaints((prev) => [mapComplaint(created), ...prev]);
+      setIsDialogOpen(false);
+      setCategoryId('');
+      setSubcategoryId('');
+      setTitle('');
+      setDescription('');
+      setIsAnonymous(false);
+      toast.success('Report submitted successfully');
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  // Stats
   const stats = {
     total: complaints.length,
     pending: complaints.filter(c => c.status === 'pending').length,
@@ -84,40 +230,42 @@ export default function ComplaintsPage() {
 
   const filteredComplaints = (status: string) => {
     return complaints
-      .filter(c => status === 'all' || c.status === status)
+      .filter(c => {
+        if (status === 'all') return true;
+        if (status === 'in_progress') return c.status === 'in_progress' || c.status === 'seen';
+        return c.status === status;
+      })
       .filter(c => {
         if (!searchQuery) return true;
         const query = searchQuery.toLowerCase();
-        return c.title.toLowerCase().includes(query) || 
-               c.description.toLowerCase().includes(query) ||
-               c.subcategory.toLowerCase().includes(query);
+        return c.title.toLowerCase().includes(query) ||
+          c.description.toLowerCase().includes(query) ||
+          c.subcategory.toLowerCase().includes(query) ||
+          c.id.toLowerCase().includes(query);
       });
   };
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }} 
-      animate={{ opacity: 1, y: 0 }} 
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
       className="space-y-6 max-w-full overflow-x-hidden"
     >
-      {/* Header with gradient */}
       <div className="relative overflow-hidden bg-gradient-to-br from-destructive/10 via-orange-500/5 to-amber-500/10 rounded-2xl border border-destructive/20 p-6">
         <div className="absolute -top-12 -right-12 w-48 h-48 bg-destructive/10 rounded-full blur-3xl" />
         <div className="absolute -bottom-8 -left-8 w-32 h-32 bg-orange-500/10 rounded-full blur-2xl" />
-        
+
         <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-destructive to-orange-600 flex items-center justify-center shadow-lg shadow-destructive/30">
               <Shield className="w-7 h-7 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-foreground">
-                Report Center
-              </h1>
-              <p className="text-muted-foreground">Submit and track your complaints & feedback</p>
+              <h1 className="text-2xl md:text-3xl font-bold text-foreground">Report Center</h1>
+              <p className="text-muted-foreground">Submit and track your complaints and feedback</p>
             </div>
           </div>
-          
+
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button size="lg" className="gap-2 shadow-lg">
@@ -131,51 +279,52 @@ export default function ComplaintsPage() {
                   <FileText className="w-5 h-5 text-primary" />
                   Submit a Report
                 </DialogTitle>
+                <DialogDescription>
+                  Fill in the issue details and submit your complaint for review.
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 pt-4">
-                {/* Category Selection with Cards */}
                 <div className="space-y-3">
                   <Label>Select Category *</Label>
                   <div className="grid grid-cols-3 gap-2">
-                    {Object.entries(complaintCategories).map(([key, val]) => {
-                      const config = categoryConfig[key as keyof typeof categoryConfig];
+                    {categories.map((cat) => {
+                      const key = categoryKeyFromText(`${cat.name} ${cat.label}`);
+                      const config = categoryConfig[key];
                       const Icon = config.icon;
-                      const isSelected = category === key;
-                      
+                      const isSelected = categoryId === cat.id;
+
                       return (
                         <button
-                          key={key}
+                          key={cat.id}
                           type="button"
-                          onClick={() => { setCategory(key as keyof typeof complaintCategories); setSubcategory(''); }}
+                          onClick={() => { setCategoryId(cat.id); setSubcategoryId(''); }}
                           className={cn(
-                            "p-3 rounded-xl border-2 transition-all text-center",
-                            isSelected 
-                              ? "border-primary bg-primary/5 shadow-md" 
-                              : "border-border hover:border-primary/50"
+                            'p-3 rounded-xl border-2 transition-all text-center',
+                            isSelected ? 'border-primary bg-primary/5 shadow-md' : 'border-border hover:border-primary/50'
                           )}
                         >
-                          <div className={cn("w-10 h-10 rounded-lg mx-auto mb-2 flex items-center justify-center", config.bgColor)}>
+                          <div className={cn('w-10 h-10 rounded-lg mx-auto mb-2 flex items-center justify-center', config.bgColor)}>
                             <Icon className="w-5 h-5" />
                           </div>
-                          <span className="text-xs font-medium">{val.label.split(' ')[0]}</span>
+                          <span className="text-xs font-medium">{cat.label.split(' ')[0]}</span>
                         </button>
                       );
                     })}
                   </div>
                 </div>
 
-                {category && (
-                  <motion.div 
+                {selectedCategory && (
+                  <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     className="space-y-2"
                   >
                     <Label>Issue Type *</Label>
-                    <Select value={subcategory} onValueChange={setSubcategory}>
+                    <Select value={subcategoryId} onValueChange={setSubcategoryId}>
                       <SelectTrigger><SelectValue placeholder="Select issue type" /></SelectTrigger>
                       <SelectContent>
-                        {complaintCategories[category].subcategories.map((sub) => (
-                          <SelectItem key={sub} value={sub}>{sub}</SelectItem>
+                        {subcategoriesForCategory.map((sub) => (
+                          <SelectItem key={sub.id} value={sub.id}>{sub.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -184,18 +333,18 @@ export default function ComplaintsPage() {
 
                 <div className="space-y-2">
                   <Label>Title *</Label>
-                  <Input 
-                    value={title} 
-                    onChange={(e) => setTitle(e.target.value)} 
-                    placeholder="Brief title for your report" 
+                  <Input
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="Brief title for your report"
                   />
                 </div>
 
                 <div className="space-y-2">
                   <Label>Description *</Label>
-                  <Textarea 
-                    value={description} 
-                    onChange={(e) => setDescription(e.target.value)} 
+                  <Textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
                     placeholder="Describe your issue in detail..."
                     rows={4}
                     className="resize-none"
@@ -210,8 +359,8 @@ export default function ComplaintsPage() {
                   </div>
                 </div>
 
-                <Button onClick={handleSubmit} className="w-full gap-2" size="lg">
-                  <Send className="w-4 h-4" />
+                <Button onClick={handleSubmit} className="w-full gap-2" size="lg" disabled={isSubmitting}>
+                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                   Submit Report
                 </Button>
               </div>
@@ -220,7 +369,6 @@ export default function ComplaintsPage() {
         </div>
       </div>
 
-      {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="border-border/50">
           <CardContent className="p-4">
@@ -279,7 +427,6 @@ export default function ComplaintsPage() {
         </Card>
       </div>
 
-      {/* Resolution Progress */}
       <Card className="border-border/50">
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-2">
@@ -293,7 +440,6 @@ export default function ComplaintsPage() {
         </CardContent>
       </Card>
 
-      {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
@@ -304,125 +450,128 @@ export default function ComplaintsPage() {
         />
       </div>
 
-      {/* Tabs and Complaints List */}
-      <Tabs defaultValue="all" className="space-y-4">
-        <TabsList className="w-full grid grid-cols-4 gap-1 bg-muted/50 p-1 rounded-xl">
-          <TabsTrigger value="all" className="rounded-lg text-xs sm:text-sm">All</TabsTrigger>
-          <TabsTrigger value="pending" className="rounded-lg text-xs sm:text-sm">Pending</TabsTrigger>
-          <TabsTrigger value="in_progress" className="rounded-lg text-xs sm:text-sm">Progress</TabsTrigger>
-          <TabsTrigger value="resolved" className="rounded-lg text-xs sm:text-sm">Resolved</TabsTrigger>
-        </TabsList>
+      {isLoading ? (
+        <div className="py-16 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : (
+        <Tabs defaultValue="all" className="space-y-4">
+          <TabsList className="w-full grid grid-cols-4 gap-1 bg-muted/50 p-1 rounded-xl">
+            <TabsTrigger value="all" className="rounded-lg text-xs sm:text-sm">All</TabsTrigger>
+            <TabsTrigger value="pending" className="rounded-lg text-xs sm:text-sm">Pending</TabsTrigger>
+            <TabsTrigger value="in_progress" className="rounded-lg text-xs sm:text-sm">Progress</TabsTrigger>
+            <TabsTrigger value="resolved" className="rounded-lg text-xs sm:text-sm">Resolved</TabsTrigger>
+          </TabsList>
 
-        {['all', 'pending', 'in_progress', 'resolved'].map((tab) => (
-          <TabsContent key={tab} value={tab} className="space-y-3 mt-4">
-            <AnimatePresence mode="popLayout">
-              {filteredComplaints(tab).length === 0 ? (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="text-center py-12"
-                >
-                  <FileText className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
-                  <p className="text-muted-foreground">No reports found</p>
-                </motion.div>
-              ) : (
-                filteredComplaints(tab).map((complaint, idx) => {
-                  const status = statusConfig[complaint.status];
-                  const StatusIcon = status.icon;
-                  const catConfig = categoryConfig[complaint.category];
-                  const CatIcon = catConfig.icon;
-                  const isExpanded = expandedId === complaint.id;
+          {['all', 'pending', 'in_progress', 'resolved'].map((tab) => (
+            <TabsContent key={tab} value={tab} className="space-y-3 mt-4">
+              <AnimatePresence mode="popLayout">
+                {filteredComplaints(tab).length === 0 ? (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-center py-12"
+                  >
+                    <FileText className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
+                    <p className="text-muted-foreground">No reports found</p>
+                  </motion.div>
+                ) : (
+                  filteredComplaints(tab).map((complaint, idx) => {
+                    const status = statusConfig[complaint.status];
+                    const StatusIcon = status.icon;
+                    const catConfig = categoryConfig[complaint.category];
+                    const CatIcon = catConfig.icon;
+                    const isExpanded = expandedId === complaint.rawId;
 
-                  return (
-                    <motion.div 
-                      key={complaint.id} 
-                      initial={{ opacity: 0, y: 10 }} 
-                      animate={{ opacity: 1, y: 0 }} 
-                      exit={{ opacity: 0, y: -10 }}
-                      transition={{ delay: idx * 0.03 }}
-                      layout
-                    >
-                      <Card className="overflow-hidden border-border/50 hover:shadow-md transition-shadow">
-                        <Collapsible open={isExpanded} onOpenChange={() => setExpandedId(isExpanded ? null : complaint.id)}>
-                          <CardContent className="p-0">
-                            <CollapsibleTrigger asChild>
-                              <button className="w-full p-4 text-left">
-                                <div className="flex gap-3">
-                                  {/* Category Icon */}
-                                  <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 bg-gradient-to-br", catConfig.color)}>
-                                    <CatIcon className="w-6 h-6 text-white" />
-                                  </div>
-
-                                  {/* Content */}
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-start justify-between gap-2 mb-1">
-                                      <h3 className="font-semibold text-sm line-clamp-1">{complaint.title}</h3>
-                                      <Badge variant="outline" className={cn("text-xs flex-shrink-0", status.color)}>
-                                        <StatusIcon className={cn("w-3 h-3 mr-1", complaint.status === 'in_progress' && 'animate-spin')} />
-                                        {status.label}
-                                      </Badge>
+                    return (
+                      <motion.div
+                        key={complaint.rawId}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ delay: idx * 0.03 }}
+                        layout
+                      >
+                        <Card className="overflow-hidden border-border/50 hover:shadow-md transition-shadow">
+                          <Collapsible open={isExpanded} onOpenChange={() => setExpandedId(isExpanded ? null : complaint.rawId)}>
+                            <CardContent className="p-0">
+                              <CollapsibleTrigger asChild>
+                                <button className="w-full p-4 text-left">
+                                  <div className="flex gap-3">
+                                    <div className={cn('w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 bg-gradient-to-br', catConfig.color)}>
+                                      <CatIcon className="w-6 h-6 text-white" />
                                     </div>
-                                    
-                                    <p className="text-xs text-muted-foreground line-clamp-1 mb-2">{complaint.description}</p>
-                                    
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <Badge variant="secondary" className="text-xs">{complaint.subcategory}</Badge>
-                                      <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                        <Calendar className="w-3 h-3" />
-                                        {format(new Date(complaint.createdAt), 'MMM d, yyyy')}
-                                      </span>
-                                      {complaint.isAnonymous && (
-                                        <Badge variant="outline" className="text-xs">Anonymous</Badge>
-                                      )}
-                                      <span className="ml-auto">
-                                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-                              </button>
-                            </CollapsibleTrigger>
 
-                            <CollapsibleContent>
-                              <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                className="px-4 pb-4 pt-0 border-t border-border/50 mt-0"
-                              >
-                                <div className="pt-4 space-y-4">
-                                  <div>
-                                    <h4 className="text-xs font-medium text-muted-foreground mb-1">Full Description</h4>
-                                    <p className="text-sm">{complaint.description}</p>
-                                  </div>
-
-                                  {complaint.response && (
-                                    <div className="p-3 bg-primary/5 rounded-xl border border-primary/20">
-                                      <div className="flex items-center gap-2 mb-2">
-                                        <MessageSquare className="w-4 h-4 text-primary" />
-                                        <span className="text-xs font-medium text-primary">Response from {complaint.respondedBy}</span>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-start justify-between gap-2 mb-1">
+                                        <h3 className="font-semibold text-sm line-clamp-1">{complaint.title}</h3>
+                                        <Badge variant="outline" className={cn('text-xs flex-shrink-0', status.color)}>
+                                          <StatusIcon className={cn('w-3 h-3 mr-1', complaint.status === 'in_progress' && 'animate-spin')} />
+                                          {status.label}
+                                        </Badge>
                                       </div>
-                                      <p className="text-sm text-foreground">{complaint.response}</p>
-                                    </div>
-                                  )}
 
-                                  <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-border/50">
-                                    <span>Submitted: {format(new Date(complaint.createdAt), 'PPpp')}</span>
-                                    <span>Updated: {format(new Date(complaint.updatedAt), 'PPpp')}</span>
+                                      <p className="text-xs text-muted-foreground line-clamp-1 mb-2">{complaint.description}</p>
+
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <Badge variant="secondary" className="text-xs">{complaint.subcategory}</Badge>
+                                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                          <Calendar className="w-3 h-3" />
+                                          {format(new Date(complaint.createdAt), 'MMM d, yyyy')}
+                                        </span>
+                                        {complaint.isAnonymous && (
+                                          <Badge variant="outline" className="text-xs">Anonymous</Badge>
+                                        )}
+                                        <span className="ml-auto">
+                                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                        </span>
+                                      </div>
+                                    </div>
                                   </div>
-                                </div>
-                              </motion.div>
-                            </CollapsibleContent>
-                          </CardContent>
-                        </Collapsible>
-                      </Card>
-                    </motion.div>
-                  );
-                })
-              )}
-            </AnimatePresence>
-          </TabsContent>
-        ))}
-      </Tabs>
+                                </button>
+                              </CollapsibleTrigger>
+
+                              <CollapsibleContent>
+                                <motion.div
+                                  initial={{ opacity: 0 }}
+                                  animate={{ opacity: 1 }}
+                                  className="px-4 pb-4 pt-0 border-t border-border/50 mt-0"
+                                >
+                                  <div className="pt-4 space-y-4">
+                                    <div>
+                                      <h4 className="text-xs font-medium text-muted-foreground mb-1">Full Description</h4>
+                                      <p className="text-sm">{complaint.description}</p>
+                                    </div>
+
+                                    {complaint.response && (
+                                      <div className="p-3 bg-primary/5 rounded-xl border border-primary/20">
+                                        <div className="flex items-center gap-2 mb-2">
+                                          <MessageSquare className="w-4 h-4 text-primary" />
+                                          <span className="text-xs font-medium text-primary">Response from {complaint.respondedBy || 'Admin'}</span>
+                                        </div>
+                                        <p className="text-sm text-foreground">{complaint.response}</p>
+                                      </div>
+                                    )}
+
+                                    <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-border/50">
+                                      <span>Submitted: {format(new Date(complaint.createdAt), 'PPpp')}</span>
+                                      <span>Updated: {format(new Date(complaint.updatedAt), 'PPpp')}</span>
+                                    </div>
+                                  </div>
+                                </motion.div>
+                              </CollapsibleContent>
+                            </CardContent>
+                          </Collapsible>
+                        </Card>
+                      </motion.div>
+                    );
+                  })
+                )}
+              </AnimatePresence>
+            </TabsContent>
+          ))}
+        </Tabs>
+      )}
     </motion.div>
   );
 }

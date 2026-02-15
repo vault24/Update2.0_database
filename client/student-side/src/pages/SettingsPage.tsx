@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { settingsService } from '@/services/settingsService';
+import { getErrorMessage } from '@/lib/api';
 import { 
   Settings, Bell, Lock, Palette, Globe, Monitor, Moon, Sun,
   Smartphone, Mail, MessageSquare, Shield,
@@ -118,21 +120,67 @@ export default function SettingsPage() {
   const [loggingOutAll, setLoggingOutAll] = useState(false);
 
   // Social links
-  const [socialLinks, setSocialLinks] = useState<SocialLink[]>([
-    { id: '1', platform: 'facebook', url: '', icon: Facebook },
-  ]);
+  const [socialLinks, setSocialLinks] = useState<SocialLink[]>([]);
   const [newLinkPlatform, setNewLinkPlatform] = useState('');
   const [newLinkUrl, setNewLinkUrl] = useState('');
   const [savingSocialLinks, setSavingSocialLinks] = useState(false);
 
-  const handleNotificationChange = (key: keyof typeof notifications) => {
-    setNotifications(prev => ({ ...prev, [key]: !prev[key] }));
-    toast.success('Notification preference updated');
+  // Load preferences on mount
+  useEffect(() => {
+    const loadPreferences = async () => {
+      try {
+        const prefs = await settingsService.getPreferences();
+        setNotifications(prefs.notifications);
+        setPrivacy(prefs.privacy);
+        setLanguage(prefs.language);
+        
+        const links = await settingsService.getSocialLinks();
+        // Add icons to loaded links
+        const linksWithIcons = links.map(link => {
+          const platform = platformOptions.find(p => p.value === link.platform);
+          return {
+            ...link,
+            icon: platform?.icon || Globe2
+          };
+        });
+        
+        setSocialLinks(linksWithIcons.length > 0 ? linksWithIcons : [
+          { id: '1', platform: 'facebook', url: '', icon: Facebook },
+        ]);
+      } catch (error) {
+        console.error('Failed to load preferences:', error);
+      }
+    };
+    
+    loadPreferences();
+  }, []);
+
+  const handleNotificationChange = async (key: keyof typeof notifications) => {
+    const newNotifications = { ...notifications, [key]: !notifications[key] };
+    setNotifications(newNotifications);
+    
+    try {
+      await settingsService.updatePreferences({ notifications: newNotifications });
+      toast.success('Notification preference updated');
+    } catch (error) {
+      toast.error('Failed to update preference');
+      // Revert on error
+      setNotifications(notifications);
+    }
   };
 
-  const handlePrivacyChange = (key: keyof typeof privacy) => {
-    setPrivacy(prev => ({ ...prev, [key]: !prev[key] }));
-    toast.success('Privacy setting updated');
+  const handlePrivacyChange = async (key: keyof typeof privacy) => {
+    const newPrivacy = { ...privacy, [key]: !privacy[key] };
+    setPrivacy(newPrivacy);
+    
+    try {
+      await settingsService.updatePreferences({ privacy: newPrivacy });
+      toast.success('Privacy setting updated');
+    } catch (error) {
+      toast.error('Failed to update setting');
+      // Revert on error
+      setPrivacy(privacy);
+    }
   };
 
   const handlePasswordChange = async () => {
@@ -146,12 +194,31 @@ export default function SettingsPage() {
     }
 
     setSavingPassword(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setSavingPassword(false);
-    
-    toast.success('Password changed successfully');
-    setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-    setShowPasswordSection(false);
+    try {
+      await settingsService.changePassword({
+        old_password: passwordData.currentPassword,
+        new_password: passwordData.newPassword,
+        confirm_password: passwordData.confirmPassword,
+      });
+      
+      toast.success('Password changed successfully');
+      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setShowPasswordSection(false);
+    } catch (error: any) {
+      // Handle specific error messages from backend
+      if (error?.old_password) {
+        toast.error(Array.isArray(error.old_password) ? error.old_password[0] : error.old_password);
+      } else if (error?.new_password) {
+        toast.error(Array.isArray(error.new_password) ? error.new_password[0] : error.new_password);
+      } else if (error?.confirm_password) {
+        toast.error(Array.isArray(error.confirm_password) ? error.confirm_password[0] : error.confirm_password);
+      } else {
+        const errorMsg = getErrorMessage(error);
+        toast.error(errorMsg || 'Failed to change password');
+      }
+    } finally {
+      setSavingPassword(false);
+    }
   };
 
   const handleAccountUpdate = async () => {
@@ -161,9 +228,36 @@ export default function SettingsPage() {
     }
 
     setSavingAccount(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setSavingAccount(false);
-    toast.success('Account details updated successfully');
+    try {
+      const nameParts = accountData.username.trim().split(' ');
+      const response = await settingsService.updateAccount({
+        email: accountData.email,
+        first_name: nameParts[0] || '',
+        last_name: nameParts.slice(1).join(' ') || '',
+      });
+      
+      // Update the user context with new data
+      if (response.user) {
+        // Trigger a re-fetch of user data by reloading the page or updating context
+        window.location.reload();
+      }
+      
+      toast.success('Account details updated successfully');
+    } catch (error: any) {
+      // Handle specific error messages from backend
+      if (error?.email) {
+        toast.error(Array.isArray(error.email) ? error.email[0] : error.email);
+      } else if (error?.first_name) {
+        toast.error(Array.isArray(error.first_name) ? error.first_name[0] : error.first_name);
+      } else if (error?.last_name) {
+        toast.error(Array.isArray(error.last_name) ? error.last_name[0] : error.last_name);
+      } else {
+        const errorMsg = getErrorMessage(error);
+        toast.error(errorMsg || 'Failed to update account');
+      }
+    } finally {
+      setSavingAccount(false);
+    }
   };
 
   const handleRoleRequest = async () => {
@@ -173,20 +267,36 @@ export default function SettingsPage() {
     }
 
     setSubmittingRoleRequest(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setSubmittingRoleRequest(false);
-    setRoleRequestDialogOpen(false);
-    toast.success('Role switch request submitted for admin approval');
-    setRoleRequestReason('');
-    setRequestedRole('');
+    try {
+      await settingsService.submitRoleRequest({
+        requested_role: requestedRole,
+        reason: roleRequestReason,
+      });
+      
+      toast.success('Role switch request submitted for admin approval');
+      setRoleRequestDialogOpen(false);
+      setRoleRequestReason('');
+      setRequestedRole('');
+    } catch (error) {
+      const errorMsg = getErrorMessage(error);
+      toast.error(errorMsg || 'Failed to submit request');
+    } finally {
+      setSubmittingRoleRequest(false);
+    }
   };
 
   const handleLogoutAllDevices = async () => {
     setLoggingOutAll(true);
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setLoggingOutAll(false);
-    toast.success('Logged out from all devices');
-    logout();
+    try {
+      await settingsService.logoutAllDevices();
+      toast.success('Logged out from all devices');
+      logout();
+    } catch (error) {
+      const errorMsg = getErrorMessage(error);
+      toast.error(errorMsg || 'Failed to logout');
+    } finally {
+      setLoggingOutAll(false);
+    }
   };
 
   const addSocialLink = () => {
@@ -215,9 +325,17 @@ export default function SettingsPage() {
 
   const saveSocialLinks = async () => {
     setSavingSocialLinks(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setSavingSocialLinks(false);
-    toast.success('Social links saved');
+    try {
+      // Remove icon property before saving (can't serialize React components)
+      const linksToSave = socialLinks.map(({ icon, ...link }) => link);
+      await settingsService.updateSocialLinks(linksToSave);
+      toast.success('Social links saved');
+    } catch (error) {
+      const errorMsg = getErrorMessage(error);
+      toast.error(errorMsg || 'Failed to save links');
+    } finally {
+      setSavingSocialLinks(false);
+    }
   };
 
   const getRoleLabel = () => {
@@ -949,9 +1067,15 @@ export default function SettingsPage() {
               <p className="font-medium">Display Language</p>
               <p className="text-sm text-muted-foreground">Select the language for the interface</p>
             </div>
-            <Select value={language} onValueChange={(value) => {
+            <Select value={language} onValueChange={async (value) => {
               setLanguage(value);
-              toast.success('Language updated');
+              try {
+                await settingsService.updatePreferences({ language: value });
+                toast.success('Language updated');
+              } catch (error) {
+                toast.error('Failed to update language');
+                setLanguage(language); // Revert on error
+              }
             }}>
               <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue />

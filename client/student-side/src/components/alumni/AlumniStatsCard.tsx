@@ -41,7 +41,9 @@ export function AlumniStatsCard({ alumni }: AlumniStatsCardProps) {
     {
       icon: GraduationCap,
       label: 'CGPA',
-      value: alumni.gpa.toFixed(2),
+      value: alumni.gpa && typeof alumni.gpa === 'number' 
+        ? alumni.gpa.toFixed(2) 
+        : alumni.gpa?.toString() || 'N/A',
       color: 'text-amber-500',
       bgColor: 'bg-amber-500/10',
     },

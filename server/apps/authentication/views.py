@@ -4,7 +4,7 @@ Authentication Views
 from rest_framework import status, permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
-from django.contrib.auth import login, logout
+from django.contrib.auth import login, logout, get_user_model
 from django.middleware.csrf import get_token
 from django.views.decorators.csrf import ensure_csrf_cookie
 
@@ -23,6 +23,8 @@ from .models import SignupRequest
 from django.utils import timezone
 from django.db import transaction
 from django.conf import settings
+
+User = get_user_model()
 
 
 @api_view(['GET'])
@@ -274,7 +276,7 @@ def change_password_view(request):
     {
         "old_password": "string",
         "new_password": "string",
-        "new_password_confirm": "string"
+        "confirm_password": "string"
     }
     
     Returns:
@@ -287,6 +289,13 @@ def change_password_view(request):
     )
     
     if serializer.is_valid():
+        # Verify old password
+        if not request.user.check_password(serializer.validated_data['old_password']):
+            return Response(
+                {'old_password': ['Current password is incorrect']},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
         # Set new password
         request.user.set_password(serializer.validated_data['new_password'])
         request.user.save()
@@ -299,6 +308,65 @@ def change_password_view(request):
         )
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['PUT', 'PATCH'])
+@permission_classes([permissions.IsAuthenticated])
+def update_profile_view(request):
+    """
+    Update user profile
+    PUT/PATCH /api/auth/profile/
+    
+    Request body:
+    {
+        "first_name": "string" (optional),
+        "last_name": "string" (optional),
+        "email": "string" (optional)
+    }
+    
+    Returns:
+    - 200: Profile updated successfully
+    - 400: Validation error
+    """
+    user = request.user
+    
+    # Get data from request
+    first_name = request.data.get('first_name')
+    last_name = request.data.get('last_name')
+    email = request.data.get('email')
+    
+    # Update fields if provided
+    if first_name is not None:
+        user.first_name = first_name.strip()
+    
+    if last_name is not None:
+        user.last_name = last_name.strip()
+    
+    if email is not None:
+        email = email.strip().lower()
+        # Check if email is already taken by another user
+        if User.objects.filter(email=email).exclude(id=user.id).exists():
+            return Response(
+                {'email': ['This email is already in use']},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        user.email = email
+    
+    try:
+        user.save()
+        serializer = UserSerializer(user)
+        return Response(
+            {
+                'message': 'Profile updated successfully',
+                'user': serializer.data
+            },
+            status=status.HTTP_200_OK
+        )
+    except Exception as e:
+        return Response(
+            {'error': f'Failed to update profile: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 
 

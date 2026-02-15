@@ -154,10 +154,10 @@ class Student(models.Model):
         # unless they've already completed 8th semester
         if highest_completed > 0:
             if highest_completed >= 8:
-                # Student has completed all semesters, should be graduated
+                # Student has completed all semesters, set to 8th semester
+                # Note: Status should NOT be automatically changed to 'graduated'
+                # Admin must manually transition student to alumni using the transition endpoint
                 new_semester = 8
-                if self.status == 'active':
-                    self.status = 'graduated'
             else:
                 # Student should be in the next semester
                 new_semester = highest_completed + 1

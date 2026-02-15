@@ -70,10 +70,15 @@ class AlumniSerializer(serializers.ModelSerializer):
             'portfolioUrl',
             'skills',
             'highlights',
+            'courses',
+            'isVerified',
+            'lastEditedAt',
+            'lastEditedBy',
+            'verificationNotes',
             'createdAt',
             'updatedAt',
         ]
-        read_only_fields = ['transitionDate', 'createdAt', 'updatedAt']
+        read_only_fields = ['transitionDate', 'createdAt', 'updatedAt', 'isVerified', 'lastEditedAt', 'lastEditedBy']
 
 
 class AlumniCreateSerializer(serializers.ModelSerializer):

@@ -201,6 +201,7 @@ class MotivationSettings(models.Model):
     Global settings for motivation system
     """
     # Display Settings
+    is_enabled = models.BooleanField(default=True, help_text="Enable or disable motivation display system")
     default_display_duration = models.IntegerField(default=86400, help_text="Default display duration in seconds")
     auto_rotate = models.BooleanField(default=True, help_text="Automatically rotate messages")
     rotation_interval = models.IntegerField(default=3600, help_text="Rotation interval in seconds")

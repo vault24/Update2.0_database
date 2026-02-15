@@ -126,11 +126,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Ensure relatedProfileId is properly set
           const relatedProfileId = response.user.related_profile_id || response.user.student_profile_id || response.user.teacher_profile_id || response.user.id;
           
+          // Try to get the full name from the profile
+          let fullName = response.user.username; // Default to username (email)
+          
+          // If first_name and last_name are available, use them
+          if (response.user.first_name && response.user.last_name) {
+            fullName = `${response.user.first_name} ${response.user.last_name}`;
+          } else if (relatedProfileId && (response.user.role === 'student' || response.user.role === 'captain')) {
+            // For students/captains, try to fetch the profile to get fullNameEnglish
+            try {
+              const profileResponse = await api.get<any>(`/students/${relatedProfileId}/`);
+              if (profileResponse.full_name_english) {
+                fullName = profileResponse.full_name_english;
+              }
+            } catch (profileError) {
+              console.error('Failed to fetch student profile for name:', profileError);
+            }
+          } else if (relatedProfileId && response.user.role === 'teacher') {
+            // For teachers, try to fetch the teacher profile
+            try {
+              const profileResponse = await api.get<any>(`/teachers/${relatedProfileId}/`);
+              if (profileResponse.full_name_english) {
+                fullName = profileResponse.full_name_english;
+              }
+            } catch (profileError) {
+              console.error('Failed to fetch teacher profile for name:', profileError);
+            }
+          }
+          
           setUser({
             id: response.user.id,
-            name: response.user.first_name && response.user.last_name 
-              ? `${response.user.first_name} ${response.user.last_name}` 
-              : response.user.username,
+            name: fullName,
             email: response.user.email,
             studentId: response.user.related_profile_id || response.user.id,
             role: response.user.role || 'student',
@@ -175,11 +201,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Ensure relatedProfileId is properly set
       const relatedProfileId = response.user.related_profile_id || response.user.student_profile_id || response.user.teacher_profile_id || response.user.id;
       
+      // Try to get the full name from the profile
+      let fullName = response.user.username; // Default to username (email)
+      
+      // If first_name and last_name are available, use them
+      if (response.user.first_name && response.user.last_name) {
+        fullName = `${response.user.first_name} ${response.user.last_name}`;
+      } else if (relatedProfileId && (response.user.role === 'student' || response.user.role === 'captain')) {
+        // For students/captains, try to fetch the profile to get fullNameEnglish
+        try {
+          const profileResponse = await api.get<any>(`/students/${relatedProfileId}/`);
+          if (profileResponse.full_name_english) {
+            fullName = profileResponse.full_name_english;
+          }
+        } catch (profileError) {
+          console.error('Failed to fetch student profile for name:', profileError);
+        }
+      } else if (relatedProfileId && response.user.role === 'teacher') {
+        // For teachers, try to fetch the teacher profile
+        try {
+          const profileResponse = await api.get<any>(`/teachers/${relatedProfileId}/`);
+          if (profileResponse.full_name_english) {
+            fullName = profileResponse.full_name_english;
+          }
+        } catch (profileError) {
+          console.error('Failed to fetch teacher profile for name:', profileError);
+        }
+      }
+      
       setUser({
         id: response.user.id,
-        name: response.user.first_name && response.user.last_name 
-          ? `${response.user.first_name} ${response.user.last_name}` 
-          : response.user.username,
+        name: fullName,
         email: response.user.email,
         studentId: response.user.related_profile_id || response.user.id,
         role: response.user.role || 'student',
@@ -271,7 +323,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         setUser({
           id: response.user.id,
-          name: data.fullName,
+          name: data.fullName, // Use the fullName from signup form
           email: data.email,
           studentId: response.user.related_profile_id || response.user.id,
           role: data.role,

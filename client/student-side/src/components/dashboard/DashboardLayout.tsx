@@ -26,16 +26,25 @@ export function DashboardLayout() {
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
+    if (!user) return;
     loadUnreadCount();
     const interval = setInterval(loadUnreadCount, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [user]);
 
   const loadUnreadCount = async () => {
+    if (!user) return;
     try {
       const response = await noticeService.getUnreadCount();
       setUnreadCount(response.unread_count);
     } catch (err) {
+      const statusCode = typeof err === 'object' && err !== null && 'status_code' in err
+        ? (err as { status_code?: number }).status_code
+        : undefined;
+      if (statusCode === 401 || statusCode === 403) {
+        setUnreadCount(0);
+        return;
+      }
       console.error('Error loading unread count:', err);
     }
   };

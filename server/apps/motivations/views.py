@@ -2,9 +2,11 @@ from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
+from django.db import DatabaseError, OperationalError, ProgrammingError
 from django.db.models import Q, Count, Avg, Sum
 from django.db.models.functions import TruncDate
 from datetime import timedelta
+from types import SimpleNamespace
 import random
 from .models import MotivationMessage, MotivationView, MotivationLike, MotivationSettings
 from .serializers import (
@@ -13,6 +15,42 @@ from .serializers import (
     MotivationLikeSerializer, MotivationSettingsSerializer,
     MotivationStatsSerializer, StudentMotivationSerializer
 )
+
+DEFAULT_MOTIVATION_SETTINGS = {
+    'is_enabled': True,
+    'default_display_duration': 86400,
+    'auto_rotate': True,
+    'rotation_interval': 3600,
+    'default_language': 'en',
+    'enable_multilingual': True,
+    'enable_likes': True,
+    'enable_analytics': True,
+    'enable_scheduling': True,
+    'max_messages_per_day': 5,
+    'prioritize_featured': True,
+    'created_at': None,
+    'updated_at': None,
+}
+
+# In-memory fallback store when DB schema is not ready.
+# This keeps settings functional in dev even before migrations run.
+RUNTIME_MOTIVATION_SETTINGS = {}
+
+
+def get_runtime_motivation_settings():
+    merged = {**DEFAULT_MOTIVATION_SETTINGS, **RUNTIME_MOTIVATION_SETTINGS}
+    return SimpleNamespace(**merged)
+
+
+def get_safe_motivation_settings():
+    """
+    Return persisted settings when schema is up-to-date.
+    Falls back to defaults when migrations are pending.
+    """
+    try:
+        return MotivationSettings.get_settings()
+    except (ProgrammingError, OperationalError, DatabaseError):
+        return get_runtime_motivation_settings()
 
 
 class MotivationMessageViewSet(viewsets.ModelViewSet):
@@ -23,10 +61,11 @@ class MotivationMessageViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     
     def get_serializer_class(self):
-        if self.action == 'list':
-            return MotivationMessageListSerializer
-        elif self.action in ['create', 'update', 'partial_update']:
+        if self.action in ['create', 'update', 'partial_update']:
             return MotivationMessageCreateUpdateSerializer
+        elif self.action == 'list':
+            # Admin edit flow needs full message fields (multilingual, reference, scheduling)
+            return MotivationMessageSerializer
         return MotivationMessageSerializer
     
     def get_serializer_context(self):
@@ -81,6 +120,13 @@ class MotivationMessageViewSet(viewsets.ModelViewSet):
         """
         Get active motivation messages for students
         """
+        settings = get_safe_motivation_settings()
+        if not settings.is_enabled:
+            return Response({
+                'count': 0,
+                'results': []
+            })
+
         now = timezone.now()
         queryset = MotivationMessage.objects.filter(
             is_active=True
@@ -94,7 +140,6 @@ class MotivationMessageViewSet(viewsets.ModelViewSet):
         language = request.GET.get('language', 'en')
         
         # Prioritize featured messages
-        settings = MotivationSettings.get_settings()
         if settings.prioritize_featured:
             featured_messages = list(queryset.filter(is_featured=True))
             regular_messages = list(queryset.filter(is_featured=False))
@@ -125,6 +170,11 @@ class MotivationMessageViewSet(viewsets.ModelViewSet):
         """
         Get a random active motivation message
         """
+        settings = get_safe_motivation_settings()
+        if not settings.is_enabled:
+            return Response({'message': 'Motivation system is disabled'},
+                          status=status.HTTP_404_NOT_FOUND)
+
         now = timezone.now()
         queryset = MotivationMessage.objects.filter(
             is_active=True
@@ -165,26 +215,26 @@ class MotivationMessageViewSet(viewsets.ModelViewSet):
         """
         Record a view for analytics
         """
-        message = self.get_object()
-        
-        # Create view record
-        view_data = {
-            'message': message.id,
-            'language_requested': request.GET.get('language', 'en'),
-            'ip_address': self.get_client_ip(request),
-            'user_agent': request.META.get('HTTP_USER_AGENT', '')
-        }
-        
-        if request.user.is_authenticated:
-            view_data['user'] = request.user.id
-        
-        view_serializer = MotivationViewSerializer(data=view_data)
-        if view_serializer.is_valid():
-            view_serializer.save()
+        try:
+            message = self.get_object()
+            requested_language = (
+                request.GET.get('language')
+                or request.data.get('language')
+                or 'en'
+            )
+
+            MotivationView.objects.create(
+                message=message,
+                user=request.user if request.user.is_authenticated else None,
+                language_requested=requested_language,
+                ip_address=self.get_client_ip(request),
+                user_agent=request.META.get('HTTP_USER_AGENT', ''),
+            )
             message.increment_view_count()
             return Response({'message': 'View recorded'})
-        
-        return Response(view_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            # View tracking should never break client UX.
+            return Response({'message': 'View tracking unavailable'}, status=status.HTTP_200_OK)
     
     @action(detail=True, methods=['post', 'delete'])
     def like(self, request, pk=None):
@@ -346,7 +396,7 @@ class MotivationSettingsViewSet(viewsets.ModelViewSet):
     
     def get_object(self):
         """Always return the singleton settings object"""
-        return MotivationSettings.get_settings()
+        return get_safe_motivation_settings()
     
     def list(self, request, *args, **kwargs):
         """Return the settings object as a single item"""
@@ -361,6 +411,20 @@ class MotivationSettingsViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         """Update the settings"""
         settings = self.get_object()
+        if not isinstance(settings, MotivationSettings):
+            # DB schema not ready: persist in runtime fallback instead of returning 503.
+            allowed_keys = {
+                'is_enabled', 'default_display_duration', 'auto_rotate', 'rotation_interval',
+                'default_language', 'enable_multilingual',
+                'enable_likes', 'enable_analytics', 'enable_scheduling',
+                'max_messages_per_day', 'prioritize_featured',
+            }
+            for key, value in request.data.items():
+                if key in allowed_keys:
+                    RUNTIME_MOTIVATION_SETTINGS[key] = value
+
+            return Response(get_runtime_motivation_settings().__dict__)
+
         serializer = self.get_serializer(settings, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         

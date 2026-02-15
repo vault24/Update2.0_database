@@ -43,8 +43,8 @@ class ComplaintSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.label', read_only=True)
     subcategory_name = serializers.CharField(source='subcategory.name', read_only=True)
     reporter_name_display = serializers.SerializerMethodField()
-    assigned_to_name = serializers.CharField(source='assigned_to.name', read_only=True)
-    responded_by_name = serializers.CharField(source='responded_by.name', read_only=True)
+    assigned_to_name = serializers.CharField(source='assigned_to.fullNameEnglish', read_only=True)
+    responded_by_name = serializers.CharField(source='responded_by.fullNameEnglish', read_only=True)
     department_name = serializers.CharField(source='department.name', read_only=True)
     
     class Meta:
@@ -70,7 +70,7 @@ class ComplaintSerializer(serializers.ModelSerializer):
         elif obj.student:
             return obj.student.fullNameEnglish
         elif obj.teacher:
-            return obj.teacher.name
+            return obj.teacher.fullNameEnglish
         else:
             return obj.reporter_name or "Unknown"
 
@@ -126,8 +126,8 @@ class ComplaintCommentSerializer(serializers.ModelSerializer):
 
 class ComplaintEscalationSerializer(serializers.ModelSerializer):
     """Complaint escalation serializer"""
-    escalated_from_name = serializers.CharField(source='escalated_from.name', read_only=True)
-    escalated_to_name = serializers.CharField(source='escalated_to.name', read_only=True)
+    escalated_from_name = serializers.CharField(source='escalated_from.fullNameEnglish', read_only=True)
+    escalated_to_name = serializers.CharField(source='escalated_to.fullNameEnglish', read_only=True)
     escalated_to_department_name = serializers.CharField(source='escalated_to_department.name', read_only=True)
     escalated_by_name = serializers.SerializerMethodField()
     
@@ -157,7 +157,7 @@ class ComplaintTemplateSerializer(serializers.ModelSerializer):
     """Complaint template serializer"""
     category_name = serializers.CharField(source='category.label', read_only=True)
     subcategory_name = serializers.CharField(source='subcategory.name', read_only=True)
-    created_by_name = serializers.CharField(source='created_by.name', read_only=True)
+    created_by_name = serializers.CharField(source='created_by.fullNameEnglish', read_only=True)
     
     class Meta:
         model = ComplaintTemplate
@@ -234,10 +234,17 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
         # Set the student/teacher based on the request user
         request = self.context.get('request')
         if request and hasattr(request, 'user'):
-            if hasattr(request.user, 'student_profile'):
-                validated_data['student'] = request.user.student_profile
-            elif hasattr(request.user, 'teacher_profile'):
-                validated_data['teacher'] = request.user.teacher_profile
+            user = request.user
+            if user.role in ['student', 'captain'] and user.related_profile_id:
+                from apps.students.models import Student
+                student_profile = Student.objects.filter(id=user.related_profile_id).first()
+                if student_profile:
+                    validated_data['student'] = student_profile
+            elif user.role == 'teacher' and user.related_profile_id:
+                from apps.teachers.models import Teacher
+                teacher_profile = Teacher.objects.filter(id=user.related_profile_id).first()
+                if teacher_profile:
+                    validated_data['teacher'] = teacher_profile
         
         return super().create(validated_data)
 
@@ -252,8 +259,13 @@ class ComplaintResponseSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         # Set response metadata
         request = self.context.get('request')
-        if request and hasattr(request, 'user') and hasattr(request.user, 'teacher_profile'):
-            instance.responded_by = request.user.teacher_profile
+        if request and hasattr(request, 'user'):
+            user = request.user
+            if user.role == 'teacher' and user.related_profile_id:
+                from apps.teachers.models import Teacher
+                teacher_profile = Teacher.objects.filter(id=user.related_profile_id).first()
+                if teacher_profile:
+                    instance.responded_by = teacher_profile
             from django.utils import timezone
             instance.responded_at = timezone.now()
             

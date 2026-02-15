@@ -57,22 +57,32 @@ export default function AlumniProfilePage() {
     
     try {
       // In demo mode, use demo data
-      if (user?.id.startsWith('demo-')) {
+      if (user?.id && String(user.id).startsWith('demo-')) {
         setAlumni({
           ...demoAlumniProfile,
-          id: user.id,
+          id: String(user.id),
           name: user.name,
           email: user.email,
         });
       } else {
-        const data = await alumniService.getProfile(user?.id || '');
+        // Fetch current user's alumni profile
+        const data = await alumniService.getProfile();
         setAlumni(data);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to fetch alumni data:', err);
-      setError('Failed to load profile data');
-      // Fallback to demo data
-      setAlumni(demoAlumniProfile);
+      
+      // Set appropriate error message
+      if (err.message?.includes('not found')) {
+        setError('Alumni profile not found. You may not have an alumni profile yet. Please contact administration.');
+      } else if (err.error) {
+        setError(err.error);
+      } else {
+        setError('Failed to load profile data. Please try again.');
+      }
+      
+      // Don't fallback to demo data for real users
+      setAlumni(null);
     } finally {
       setLoading(false);
     }
@@ -87,7 +97,7 @@ export default function AlumniProfilePage() {
     if (!alumni) return;
     
     try {
-      const updatedProfile = await alumniService.updateProfile(alumni.id, profileData);
+      const updatedProfile = await alumniService.updateProfile(profileData);
       setAlumni(updatedProfile);
       toast.success('Profile updated successfully');
     } catch (err) {
@@ -113,7 +123,7 @@ export default function AlumniProfilePage() {
     try {
       if ('id' in careerData) {
         // Update existing
-        await alumniService.updateCareer(alumni.id, careerData);
+        await alumniService.updateCareer(careerData);
         setAlumni({
           ...alumni,
           careers: alumni.careers.map(c => c.id === careerData.id ? careerData : c),
@@ -121,7 +131,7 @@ export default function AlumniProfilePage() {
         toast.success('Career entry updated');
       } else {
         // Add new
-        const newCareer = await alumniService.addCareer(alumni.id, careerData);
+        const newCareer = await alumniService.addCareer(careerData);
         setAlumni({
           ...alumni,
           careers: [...alumni.careers, newCareer],
@@ -137,7 +147,7 @@ export default function AlumniProfilePage() {
   const handleDeleteCareer = async (careerId: string) => {
     if (!alumni) return;
     try {
-      await alumniService.deleteCareer(alumni.id, careerId);
+      await alumniService.deleteCareer(careerId);
       setAlumni({
         ...alumni,
         careers: alumni.careers.filter(c => c.id !== careerId),
@@ -165,14 +175,14 @@ export default function AlumniProfilePage() {
     
     try {
       if ('id' in skillData) {
-        await alumniService.updateSkill(alumni.id, skillData);
+        await alumniService.updateSkill(skillData);
         setAlumni({
           ...alumni,
           skills: alumni.skills.map(s => s.id === skillData.id ? skillData : s),
         });
         toast.success('Skill updated');
       } else {
-        const newSkill = await alumniService.addSkill(alumni.id, skillData);
+        const newSkill = await alumniService.addSkill(skillData);
         setAlumni({
           ...alumni,
           skills: [...alumni.skills, newSkill],
@@ -188,7 +198,7 @@ export default function AlumniProfilePage() {
   const handleDeleteSkill = async (skillId: string) => {
     if (!alumni) return;
     try {
-      await alumniService.deleteSkill(alumni.id, skillId);
+      await alumniService.deleteSkill(skillId);
       setAlumni({
         ...alumni,
         skills: alumni.skills.filter(s => s.id !== skillId),
@@ -216,14 +226,14 @@ export default function AlumniProfilePage() {
     
     try {
       if ('id' in highlightData) {
-        await alumniService.updateHighlight(alumni.id, highlightData);
+        await alumniService.updateHighlight(highlightData);
         setAlumni({
           ...alumni,
           highlights: alumni.highlights.map(h => h.id === highlightData.id ? highlightData : h),
         });
         toast.success('Highlight updated');
       } else {
-        const newHighlight = await alumniService.addHighlight(alumni.id, highlightData);
+        const newHighlight = await alumniService.addHighlight(highlightData);
         setAlumni({
           ...alumni,
           highlights: [...alumni.highlights, newHighlight],
@@ -239,7 +249,7 @@ export default function AlumniProfilePage() {
   const handleDeleteHighlight = async (highlightId: string) => {
     if (!alumni) return;
     try {
-      await alumniService.deleteHighlight(alumni.id, highlightId);
+      await alumniService.deleteHighlight(highlightId);
       setAlumni({
         ...alumni,
         highlights: alumni.highlights.filter(h => h.id !== highlightId),
@@ -267,14 +277,14 @@ export default function AlumniProfilePage() {
     
     try {
       if ('id' in courseData) {
-        await alumniService.updateCourse(alumni.id, courseData);
+        await alumniService.updateCourse(courseData);
         setAlumni({
           ...alumni,
           courses: alumni.courses.map(c => c.id === courseData.id ? courseData : c),
         });
         toast.success('Course updated');
       } else {
-        const newCourse = await alumniService.addCourse(alumni.id, courseData);
+        const newCourse = await alumniService.addCourse(courseData);
         setAlumni({
           ...alumni,
           courses: [...alumni.courses, newCourse],
@@ -290,7 +300,7 @@ export default function AlumniProfilePage() {
   const handleDeleteCourse = async (courseId: string) => {
     if (!alumni) return;
     try {
-      await alumniService.deleteCourse(alumni.id, courseId);
+      await alumniService.deleteCourse(courseId);
       setAlumni({
         ...alumni,
         courses: alumni.courses.filter(c => c.id !== courseId),

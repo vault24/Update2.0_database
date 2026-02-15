@@ -82,6 +82,22 @@ export interface MotivationStats {
   views_this_month: number;
 }
 
+export interface MotivationSystemSettings {
+  is_enabled: boolean;
+  default_display_duration: number;
+  auto_rotate: boolean;
+  rotation_interval: number;
+  default_language: string;
+  enable_multilingual: boolean;
+  enable_likes: boolean;
+  enable_analytics: boolean;
+  enable_scheduling: boolean;
+  max_messages_per_day: number;
+  prioritize_featured: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface CreateMotivationData {
   title: string;
   message: string;
@@ -126,79 +142,9 @@ export const motivationService = {
       return await apiClient.get<MotivationResponse>('motivations/messages/', params);
     } catch (error) {
       console.error('Failed to fetch motivations:', error);
-      // Return fallback data
       return {
-        count: 4,
-        results: [
-          {
-            id: '1',
-            title: 'Keep Going!',
-            message: 'Success is not final, failure is not fatal: it is the courage to continue that counts. Every step you take brings you closer to your dreams.',
-            author: 'Academic Team',
-            category: 'encouragement',
-            primary_language: 'en',
-            display_duration: 86400,
-            priority: 8,
-            is_active: true,
-            is_featured: true,
-            view_count: 245,
-            like_count: 32,
-            created_at: '2024-01-15T10:00:00Z',
-            updated_at: '2024-01-15T10:00:00Z',
-            reference_source: 'Historical Quote'
-          },
-          {
-            id: '2',
-            title: 'Excellence in Learning',
-            message: 'Education is the most powerful weapon which you can use to change the world. Your dedication to learning today shapes tomorrow\'s innovations.',
-            author: 'Principal',
-            category: 'inspiration',
-            primary_language: 'en',
-            display_duration: 86400,
-            priority: 9,
-            is_active: true,
-            is_featured: true,
-            view_count: 189,
-            like_count: 28,
-            created_at: '2024-01-14T09:00:00Z',
-            updated_at: '2024-01-14T09:00:00Z',
-            reference_source: 'Historical Quote'
-          },
-          {
-            id: '3',
-            title: 'Believe in Yourself',
-            message: 'You are capable of amazing things. Every challenge you face is an opportunity to grow stronger and wiser.',
-            author: 'Student Counselor',
-            category: 'success',
-            primary_language: 'en',
-            display_duration: 86400,
-            priority: 7,
-            is_active: false,
-            is_featured: false,
-            view_count: 156,
-            like_count: 21,
-            created_at: '2024-01-13T14:30:00Z',
-            updated_at: '2024-01-13T14:30:00Z',
-            reference_source: 'Student Counseling'
-          },
-          {
-            id: '4',
-            title: 'Knowledge is Power',
-            message: 'The beautiful thing about learning is that no one can take it away from you. Invest in yourself through education.',
-            author: 'Faculty',
-            category: 'wisdom',
-            primary_language: 'en',
-            display_duration: 86400,
-            priority: 6,
-            is_active: true,
-            is_featured: false,
-            view_count: 203,
-            like_count: 25,
-            created_at: '2024-01-12T11:15:00Z',
-            updated_at: '2024-01-12T11:15:00Z',
-            reference_source: 'Educational Philosophy'
-          }
-        ]
+        count: 0,
+        results: []
       };
     }
   },
@@ -336,5 +282,19 @@ export const motivationService = {
     } catch (error) {
       console.debug('Failed to record motivation view:', error);
     }
+  },
+
+  /**
+   * Get global motivation system settings
+   */
+  getSettings: async (): Promise<MotivationSystemSettings> => {
+    return await apiClient.get<MotivationSystemSettings>('motivations/settings/');
+  },
+
+  /**
+   * Update global motivation system settings
+   */
+  updateSettings: async (data: Partial<MotivationSystemSettings>): Promise<MotivationSystemSettings> => {
+    return await apiClient.patch<MotivationSystemSettings>('motivations/settings/1/', data);
   }
 };

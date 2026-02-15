@@ -78,6 +78,11 @@ export interface Alumni {
   skills?: SkillData[];
   highlights?: HighlightData[];
   courses?: CourseData[];
+  // Verification fields
+  isVerified?: boolean;
+  lastEditedAt?: string;
+  lastEditedBy?: string;
+  verificationNotes?: string;
 }
 
 export interface AlumniFilters {
@@ -304,5 +309,12 @@ export const alumniService = {
    */
   deleteCourse: async (studentId: string, courseId: string): Promise<Alumni> => {
     return await apiClient.delete<Alumni>(`/alumni/${studentId}/courses/${courseId}/`);
+  },
+
+  /**
+   * Verify alumni profile
+   */
+  verifyProfile: async (studentId: string, notes?: string): Promise<Alumni> => {
+    return await apiClient.post<Alumni>(`/alumni/${studentId}/verify/`, { notes: notes || '' });
   },
 };

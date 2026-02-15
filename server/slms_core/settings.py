@@ -63,6 +63,7 @@ INSTALLED_APPS = [
     'apps.system_settings',
     'apps.motivations',
     'apps.stipends',
+    'apps.complaints',
 ]
 
 # --------------------------------------------------

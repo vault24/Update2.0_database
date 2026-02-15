@@ -170,7 +170,11 @@ export function AlumniProfileHeader({ alumni, onEdit, isEditable = true }: Alumn
             </div>
             <div>
               <p className="text-xs text-muted-foreground">GPA</p>
-              <p className="font-medium text-sm">{alumni.gpa.toFixed(2)}</p>
+              <p className="font-medium text-sm">
+                {alumni.gpa && typeof alumni.gpa === 'number' 
+                  ? alumni.gpa.toFixed(2) 
+                  : alumni.gpa || 'N/A'}
+              </p>
             </div>
           </motion.div>
         </div>

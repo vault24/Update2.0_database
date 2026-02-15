@@ -55,6 +55,7 @@ const menuItems: MenuItem[] = [
   { icon: AlertTriangle, label: 'Complaints', path: '/dashboard/complaints', roles: ['student', 'captain', 'teacher'] },
   { icon: Shield, label: 'My Allegations', path: '/dashboard/my-allegations', roles: ['student', 'captain'] },
   { icon: Send, label: 'Applications', path: '/dashboard/applications', roles: ['student', 'captain'] },
+  { icon: Settings, label: 'Settings', path: '/dashboard/settings', roles: ['student', 'captain', 'teacher', 'alumni'] },
   // Captain-specific items
   { icon: UserCheck, label: 'Add Attendance', path: '/dashboard/add-attendance', roles: ['captain'] },
   { icon: Phone, label: 'Teacher Contacts', path: '/dashboard/teacher-contacts', roles: ['captain'] },

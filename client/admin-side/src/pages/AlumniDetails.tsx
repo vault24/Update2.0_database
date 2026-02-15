@@ -5,7 +5,7 @@ import {
   ArrowLeft, Edit, Download, User, Phone, MapPin, GraduationCap, BookOpen, 
   Mail, Briefcase, Building2, Calendar, TrendingUp, Heart, HeartHandshake,
   ShieldCheck, Plus, X, Star, Target, CheckCircle, FileText, ExternalLink,
-  Code, Globe, Zap, Users, Loader2, AlertCircle, RefreshCw, Eye
+  Code, Globe, Zap, Users, Loader2, AlertCircle, RefreshCw, Eye, ShieldAlert
 } from 'lucide-react';
 import { alumniService, Alumni as AlumniType } from '@/services/alumniService';
 import { getErrorMessage } from '@/lib/api';
@@ -96,6 +96,10 @@ interface AlumniData {
   bio?: string;
   linkedin?: string;
   portfolio?: string;
+  isVerified?: boolean;
+  lastEditedAt?: string;
+  lastEditedBy?: string;
+  verificationNotes?: string;
 }
 
 // Transform API data to display format
@@ -149,6 +153,11 @@ const transformAlumniData = (apiData: AlumniType): AlumniData => {
       certificateUrl: course.certificateUrl,
       description: course.description
     })),
+    // Verification status
+    isVerified: apiData.isVerified !== undefined ? apiData.isVerified : true,
+    lastEditedAt: apiData.lastEditedAt,
+    lastEditedBy: apiData.lastEditedBy,
+    verificationNotes: apiData.verificationNotes,
   };
 };
 
@@ -266,6 +275,8 @@ export default function AlumniDetails() {
   const [isAddCourseOpen, setIsAddCourseOpen] = useState(false);
   const [isEditCourseOpen, setIsEditCourseOpen] = useState(false);
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
+  const [isVerifyDialogOpen, setIsVerifyDialogOpen] = useState(false);
+  const [verificationNotes, setVerificationNotes] = useState('');
   
   const [careerTypeSelection, setCareerTypeSelection] = useState<'job' | 'higherStudies' | 'business' | 'other' | null>(null);
   const [editingCareerId, setEditingCareerId] = useState<string | null>(null);
@@ -1100,6 +1111,29 @@ export default function AlumniDetails() {
     }
   };
 
+  const handleVerifyProfile = async () => {
+    if (!id) return;
+
+    try {
+      await alumniService.verifyProfile(id, verificationNotes);
+      await fetchAlumniData();
+      
+      toast({
+        title: 'Success',
+        description: 'Alumni profile verified successfully!'
+      });
+      
+      setIsVerifyDialogOpen(false);
+      setVerificationNotes('');
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: getErrorMessage(err),
+        variant: 'destructive'
+      });
+    }
+  };
+
   // Loading state
   if (loading) {
     return (
@@ -1166,9 +1200,34 @@ export default function AlumniDetails() {
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-foreground">Alumni Details</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-foreground">Alumni Details</h1>
+            {alumni.isVerified === false && (
+              <Badge variant="outline" className="bg-orange-500/20 text-orange-700 dark:text-orange-300 border-orange-500/30">
+                <ShieldAlert className="w-3 h-3 mr-1" />
+                Unverified
+              </Badge>
+            )}
+            {alumni.isVerified === true && (
+              <Badge variant="outline" className="bg-green-500/20 text-green-700 dark:text-green-300 border-green-500/30">
+                <ShieldCheck className="w-3 h-3 mr-1" />
+                Verified
+              </Badge>
+            )}
+          </div>
           <p className="text-muted-foreground">Complete profile and career information</p>
+          {alumni.isVerified === false && alumni.lastEditedAt && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Last edited {alumni.lastEditedBy === 'student' ? 'by student' : 'by admin'} on {new Date(alumni.lastEditedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            </p>
+          )}
         </div>
+        {alumni.isVerified === false && (
+          <Button onClick={() => setIsVerifyDialogOpen(true)} className="gradient-primary text-primary-foreground">
+            <ShieldCheck className="w-4 h-4 mr-2" />
+            Verify Profile
+          </Button>
+        )}
         <Button variant="outline" onClick={() => navigate(`/students/${id}`)}>
           <FileText className="w-4 h-4 mr-2" />
           View Full Profile
@@ -2563,6 +2622,58 @@ export default function AlumniDetails() {
             >
               <Edit className="w-4 h-4 mr-2" />
               Edit Career
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Verify Profile Dialog */}
+      <Dialog open={isVerifyDialogOpen} onOpenChange={setIsVerifyDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5" />
+              Verify Alumni Profile
+            </DialogTitle>
+            <DialogDescription>
+              Mark this alumni profile as verified. You can add optional notes about the verification.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {alumni.lastEditedAt && (
+              <div className="p-3 bg-muted/50 rounded-lg border border-border">
+                <p className="text-sm text-muted-foreground mb-1">Last Edit Information:</p>
+                <p className="text-sm font-medium">
+                  Edited {alumni.lastEditedBy === 'student' ? 'by student' : 'by admin'} on{' '}
+                  {new Date(alumni.lastEditedAt).toLocaleDateString('en-US', { 
+                    month: 'long', 
+                    day: 'numeric', 
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </p>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="verificationNotes">Verification Notes (Optional)</Label>
+              <Textarea
+                id="verificationNotes"
+                placeholder="Add any notes about this verification..."
+                value={verificationNotes}
+                onChange={(e) => setVerificationNotes(e.target.value)}
+                rows={4}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setIsVerifyDialogOpen(false);
+              setVerificationNotes('');
+            }}>Cancel</Button>
+            <Button onClick={handleVerifyProfile} className="gradient-primary text-primary-foreground">
+              <ShieldCheck className="w-4 h-4 mr-2" />
+              Verify Profile
             </Button>
           </DialogFooter>
         </DialogContent>

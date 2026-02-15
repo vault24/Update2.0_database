@@ -10,10 +10,10 @@ from django.db.models import Q, Count
 from django.utils import timezone
 from datetime import datetime, timedelta
 
-from .models import Complaint, ComplaintCategory
+from .models import Complaint, ComplaintCategory, ComplaintSubcategory
 from .serializers import (
     ComplaintSerializer, ComplaintDetailSerializer,
-    ComplaintCategorySerializer
+    ComplaintCategorySerializer, ComplaintSubcategorySerializer
 )
 
 
@@ -25,6 +25,16 @@ class ComplaintCategoryViewSet(viewsets.ReadOnlyModelViewSet):
     ordering = ['name']
 
 
+class ComplaintSubcategoryViewSet(viewsets.ReadOnlyModelViewSet):
+    """Complaint subcategory viewset"""
+    queryset = ComplaintSubcategory.objects.filter(is_active=True)
+    serializer_class = ComplaintSubcategorySerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['category']
+    search_fields = ['name']
+    ordering = ['sort_order', 'name']
+
 class ComplaintViewSet(viewsets.ModelViewSet):
     """Complaint viewset for students"""
     queryset = Complaint.objects.all()
@@ -35,16 +45,49 @@ class ComplaintViewSet(viewsets.ModelViewSet):
     search_fields = ['title', 'description', 'category__name']
     ordering_fields = ['created_at', 'updated_at', 'priority']
     ordering = ['-created_at']
-    
+
+    def _get_student_profile(self, user):
+        """Resolve student profile from related_profile_id."""
+        if user.role not in ['student', 'captain'] or not user.related_profile_id:
+            return None
+        from apps.students.models import Student
+        return Student.objects.filter(id=user.related_profile_id).first()
+
+    def _get_teacher_profile(self, user):
+        """Resolve teacher profile from related_profile_id."""
+        if user.role != 'teacher' or not user.related_profile_id:
+            return None
+        from apps.teachers.models import Teacher
+        return Teacher.objects.filter(id=user.related_profile_id).first()
+
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
-        
-        # Students can only see their own complaints
-        if hasattr(user, 'student_profile'):
-            queryset = queryset.filter(student=user.student_profile)
-        
-        return queryset
+
+        # Admin roles can view all complaints
+        if user.role in ['registrar', 'institute_head'] or user.is_staff:
+            return queryset
+
+        # Students/captains can only see their own complaints
+        if user.role in ['student', 'captain']:
+            student_profile = self._get_student_profile(user)
+            if student_profile:
+                return queryset.filter(student=student_profile)
+            # Fail closed: never expose all complaints if profile lookup fails
+            print(f"WARNING: Student profile not found for user {user.id} with role {user.role} and related_profile_id {user.related_profile_id}")
+            return queryset.none()
+
+        # Teachers can only see complaints they created/handle
+        if user.role == 'teacher':
+            teacher_profile = self._get_teacher_profile(user)
+            if teacher_profile:
+                return queryset.filter(
+                    Q(teacher=teacher_profile) |
+                    Q(assigned_to=teacher_profile) |
+                    Q(responded_by=teacher_profile)
+                ).distinct()
+
+        return queryset.none()
     
     def get_serializer_class(self):
         if self.action == 'retrieve':
@@ -54,18 +97,19 @@ class ComplaintViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """Set student when creating complaint"""
         user = self.request.user
-        
-        if not hasattr(user, 'student_profile'):
+
+        student_profile = self._get_student_profile(user)
+        if not student_profile:
             raise ValueError('Only students can create complaints')
-        
+
         serializer.save(
-            student=user.student_profile,
+            student=student_profile,
             status='pending'
         )
     
     def create(self, request, *args, **kwargs):
         """Create a new complaint"""
-        if not hasattr(request.user, 'student_profile'):
+        if not self._get_student_profile(request.user):
             return Response(
                 {'error': 'Only students can create complaints'},
                 status=status.HTTP_403_FORBIDDEN
@@ -101,14 +145,14 @@ class ComplaintViewSet(viewsets.ModelViewSet):
     def my_stats(self, request):
         """Get user's complaint statistics"""
         user = request.user
-        
-        if not hasattr(user, 'student_profile'):
+
+        student = self._get_student_profile(user)
+        if not student:
             return Response(
                 {'error': 'Only students can view complaint statistics'},
                 status=status.HTTP_403_FORBIDDEN
             )
-        
-        student = user.student_profile
+
         complaints = Complaint.objects.filter(student=student)
         
         stats = {
@@ -216,9 +260,7 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         
         if complaint.status == 'pending':
             complaint.status = 'seen'
-            complaint.seen_at = timezone.now()
-            complaint.seen_by = request.user
-            complaint.save()
+            complaint.save(update_fields=['status', 'updated_at'])
             
             return Response({'message': 'Complaint marked as seen'})
         
@@ -250,10 +292,13 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         
         # Update complaint with response
         complaint.response = response_text
-        complaint.responded_by = request.user.username
+        if request.user.role == 'teacher' and request.user.related_profile_id:
+            from apps.teachers.models import Teacher
+            teacher_profile = Teacher.objects.filter(id=request.user.related_profile_id).first()
+            if teacher_profile:
+                complaint.responded_by = teacher_profile
         complaint.responded_at = timezone.now()
         complaint.status = new_status
-        complaint.updated_at = timezone.now()
         complaint.save()
         
         return Response({
@@ -269,15 +314,29 @@ class DashboardViewSet(viewsets.ViewSet):
     def list(self, request):
         """Get dashboard data"""
         user = request.user
-        
-        if not hasattr(user, 'student_profile'):
+
+        if user.role not in ['student', 'captain']:
             return Response(
                 {'error': 'Only students can access complaints dashboard'},
                 status=status.HTTP_403_FORBIDDEN
             )
-        
-        student = user.student_profile
-        
+
+        if not user.related_profile_id:
+            print(f"ERROR: User {user.id} has no related_profile_id")
+            return Response(
+                {'error': 'Student profile not found'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        from apps.students.models import Student
+        student = Student.objects.filter(id=user.related_profile_id).first()
+        if not student:
+            print(f"ERROR: Student profile {user.related_profile_id} not found in database for user {user.id}")
+            return Response(
+                {'error': 'Student profile not found'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
         # Get user's complaints
         complaints = Complaint.objects.filter(student=student)
         

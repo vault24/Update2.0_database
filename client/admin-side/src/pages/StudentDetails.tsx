@@ -332,16 +332,32 @@ export default function StudentDetails() {
     try {
       setIsSaving(true);
       // Normalize and validate attendance payload before sending
-      const normalizedAttendance = attendanceData.map((semester) => ({
-        semester: semester.semester,
-        year: semester.year,
-        subjects: (semester.subjects || []).map((subject) => ({
-          code: (subject.code || '').trim(),
-          name: (subject.name || '').trim(),
-          present: Number.isFinite(subject.present) ? subject.present : Number(subject.present) || 0,
-          total: Number.isFinite(subject.total) ? subject.total : Number(subject.total) || 0,
-        })),
-      }));
+      const normalizedAttendance = attendanceData.map((semester) => {
+        const subjects = (semester.subjects || []).map((subject) => {
+          const present = Number.isFinite(subject.present) ? subject.present : Number(subject.present) || 0;
+          const total = Number.isFinite(subject.total) ? subject.total : Number(subject.total) || 0;
+          const percentage = total > 0 ? Math.round((present / total) * 100) : 0;
+          
+          return {
+            code: (subject.code || '').trim(),
+            name: (subject.name || '').trim(),
+            present,
+            total,
+            percentage
+          };
+        });
+        
+        // Calculate average percentage
+        const totalPercentage = subjects.reduce((sum, s) => sum + s.percentage, 0);
+        const averagePercentage = subjects.length > 0 ? totalPercentage / subjects.length : 0;
+        
+        return {
+          semester: semester.semester,
+          year: semester.year,
+          subjects,
+          averagePercentage
+        };
+      });
 
       // Basic validation to prevent backend 400s
       for (const semester of normalizedAttendance) {
@@ -583,16 +599,28 @@ export default function StudentDetails() {
   const isEligibleForAlumni = () => {
     if (!student) return false;
     
-    // Check if student is in 8th semester
-    const isIn8thSemester = student.semester === 8;
+    // Student must be active
+    if (student.status !== 'active') return false;
     
-    // Check if student has 8th semester results
+    // Check if student has 8th semester results with valid GPA
     const has8thSemesterResult = student.semesterResults?.some(result => 
-      result.semester === 8 && result.resultType === 'gpa' && result.gpa && result.gpa > 0
+      result.semester === 8 && 
+      result.resultType === 'gpa' && 
+      result.gpa !== undefined && 
+      result.gpa !== null && 
+      result.gpa > 0
     );
     
-    // Student should be active and either in 8th semester or have 8th semester results
-    return student.status === 'active' && (isIn8thSemester || has8thSemesterResult);
+    // Debug logging
+    console.log('Alumni Eligibility Check:', {
+      status: student.status,
+      semester: student.semester,
+      has8thSemesterResult,
+      semesterResults: student.semesterResults
+    });
+    
+    // Student is eligible if they have completed 8th semester results
+    return has8thSemesterResult;
   };
 
   const handleTransitionToAlumni = async () => {
@@ -797,7 +825,7 @@ export default function StudentDetails() {
                     onClick={() => setIsTransitionToAlumniDialogOpen(true)}
                   >
                     <Award className="w-4 h-4 mr-2" />
-                    Mark as Graduated
+                    Send to Alumni
                   </Button>
                 )}
                 {student.status === 'active' && (
@@ -1561,10 +1589,10 @@ export default function StudentDetails() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Award className="w-5 h-5 text-primary" />
-              Mark Student as Graduated
+              Send Student to Alumni
             </DialogTitle>
             <DialogDescription>
-              This will mark the student as graduated. The student will be available for alumni management in the Alumni section.
+              This will mark the student as graduated and move them to the Alumni section.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
@@ -1595,9 +1623,9 @@ export default function StudentDetails() {
                 <h5 className="font-semibold text-primary mb-2">What happens next?</h5>
                 <ul className="text-sm text-muted-foreground space-y-1">
                   <li>• Student status will be changed to "Graduated"</li>
-                  <li>• Student will be available for alumni management</li>
-                  <li>• Student will appear in the Alumni section</li>
-                  <li>• Alumni record can be created later if needed</li>
+                  <li>• Student will be moved to the Alumni section</li>
+                  <li>• Alumni profile will be created automatically</li>
+                  <li>• Student can access their alumni profile</li>
                 </ul>
               </div>
             </div>
@@ -1619,7 +1647,7 @@ export default function StudentDetails() {
               ) : (
                 <div className="flex items-center gap-2">
                   <Award className="w-4 h-4" />
-                  Mark as Graduated
+                  Send to Alumni
                 </div>
               )}
             </Button>

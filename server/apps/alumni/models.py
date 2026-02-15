@@ -59,6 +59,13 @@ class Alumni(models.Model):
     # Skills and highlights (stored as JSON)
     skills = models.JSONField(default=list, blank=True)
     highlights = models.JSONField(default=list, blank=True)
+    courses = models.JSONField(default=list, blank=True)
+    
+    # Verification status
+    isVerified = models.BooleanField(default=True)
+    lastEditedAt = models.DateTimeField(null=True, blank=True)
+    lastEditedBy = models.CharField(max_length=20, default='admin')  # 'student' or 'admin'
+    verificationNotes = models.TextField(blank=True, null=True)
     
     # Timestamps
     createdAt = models.DateTimeField(auto_now_add=True)
@@ -267,3 +274,79 @@ class Alumni(models.Model):
         self.careerHistory = [career for career in self.careerHistory if career.get('id') != career_id]
         self.save()
         return True
+    
+    def add_course(self, course_data):
+        """
+        Add a new course/certification
+        
+        Args:
+            course_data: dict with keys: name, provider, status, completionDate, certificateId, certificateUrl, description
+        """
+        if not self.courses:
+            self.courses = []
+        
+        # Generate ID for the course
+        course_id = str(len(self.courses) + 1)
+        course_data['id'] = course_id
+        
+        self.courses.append(course_data)
+        self.save()
+        return course_id
+    
+    def update_course(self, course_id, course_data):
+        """
+        Update an existing course/certification
+        
+        Args:
+            course_id: ID of the course to update
+            course_data: dict with updated course information
+        """
+        if not self.courses:
+            return False
+        
+        for i, course in enumerate(self.courses):
+            if course.get('id') == course_id:
+                course_data['id'] = course_id
+                self.courses[i] = course_data
+                self.save()
+                return True
+        return False
+    
+    def delete_course(self, course_id):
+        """
+        Delete a course/certification by ID
+        
+        Args:
+            course_id: ID of the course to delete
+        """
+        if not self.courses:
+            return False
+        
+        self.courses = [course for course in self.courses if course.get('id') != course_id]
+        self.save()
+        return True
+    
+    def mark_as_unverified(self, edited_by='student'):
+        """
+        Mark the alumni profile as unverified after student edits
+        
+        Args:
+            edited_by: Who made the edit ('student' or 'admin')
+        """
+        if edited_by == 'student':
+            self.isVerified = False
+            self.lastEditedAt = timezone.now()
+            self.lastEditedBy = 'student'
+            self.save()
+    
+    def verify_profile(self, notes=''):
+        """
+        Mark the alumni profile as verified by admin
+        
+        Args:
+            notes: Optional verification notes
+        """
+        self.isVerified = True
+        self.lastEditedBy = 'admin'
+        self.verificationNotes = notes
+        self.save()

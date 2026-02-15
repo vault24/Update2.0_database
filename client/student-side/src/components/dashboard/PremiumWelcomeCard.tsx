@@ -12,7 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
-import { motivationService, type MotivationMessage } from '@/services/motivationService';
+import { motivationService } from '@/services/motivationService';
 
 interface PremiumWelcomeCardProps {
   attendancePercentage?: number;
@@ -28,6 +28,7 @@ export function PremiumWelcomeCard({
   const { user } = useAuth();
   const navigate = useNavigate();
   const [motivationalQuote, setMotivationalQuote] = useState<string>('');
+  const [motivationEnabled, setMotivationEnabled] = useState(true);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -53,6 +54,13 @@ export function PremiumWelcomeCard({
   useEffect(() => {
     const fetchMotivation = async () => {
       try {
+        const settings = await motivationService.getSettings();
+        setMotivationEnabled(settings.is_enabled);
+        if (!settings.is_enabled) {
+          setMotivationalQuote('');
+          return;
+        }
+
         const response = await motivationService.getActiveMotivations();
         const activeMotivations = response.results;
         
@@ -60,7 +68,7 @@ export function PremiumWelcomeCard({
           // Get a random motivation message
           const randomIndex = Math.floor(Math.random() * activeMotivations.length);
           const selectedMotivation = activeMotivations[randomIndex];
-          setMotivationalQuote(selectedMotivation.message);
+          setMotivationalQuote(selectedMotivation.localized_message || selectedMotivation.message);
           
           // Record view for analytics
           motivationService.recordView(selectedMotivation.id);
@@ -71,6 +79,7 @@ export function PremiumWelcomeCard({
       } catch (error) {
         console.error('Failed to fetch motivation:', error);
         // Use fallback quote on error
+        setMotivationEnabled(true);
         setMotivationalQuote(getMotivationalQuote());
       }
     };
@@ -132,14 +141,16 @@ export function PremiumWelcomeCard({
               Welcome back, {user?.name?.split(' ')[0]}! 👋
             </motion.h1>
             
-            <motion.p
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.4 }}
-              className="text-white/80 text-sm md:text-base max-w-md italic"
-            >
-              "{motivationalQuote || getMotivationalQuote()}"
-            </motion.p>
+            {motivationEnabled && (
+              <motion.p
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.4 }}
+                className="text-white/80 text-sm md:text-base max-w-md italic"
+              >
+                "{motivationalQuote || getMotivationalQuote()}"
+              </motion.p>
+            )}
 
             {/* Quick Stats Row */}
             <motion.div

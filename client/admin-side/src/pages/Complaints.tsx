@@ -1,24 +1,25 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  MessageSquareWarning, 
-  GraduationCap, 
-  Monitor, 
-  Building2, 
-  Search, 
-  Filter, 
-  Clock, 
-  CheckCircle2, 
-  XCircle, 
+import {
+  MessageSquareWarning,
+  GraduationCap,
+  Monitor,
+  Building2,
+  Search,
+  Filter,
+  Clock,
+  CheckCircle2,
+  XCircle,
   AlertCircle,
   Eye,
   MoreHorizontal,
   User,
   Calendar,
   MessageSquare,
-  ChevronDown
+  ChevronDown,
+  Loader2
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -45,17 +46,36 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
+import { apiClient, getErrorMessage, PaginatedResponse } from '@/lib/api';
 
 type ComplaintCategory = 'academic' | 'system' | 'facility';
-type ComplaintStatus = 'pending' | 'in_progress' | 'resolved' | 'rejected';
+type ComplaintStatus = 'pending' | 'seen' | 'in_progress' | 'resolved' | 'closed' | 'rejected';
+type ComplaintPriority = 'low' | 'normal' | 'high' | 'urgent';
+
+interface ComplaintApi {
+  id: string;
+  title: string;
+  description: string;
+  category_name: string;
+  status: ComplaintStatus;
+  priority: ComplaintPriority;
+  reporter_name_display: string;
+  student?: string | null;
+  department_name?: string | null;
+  reference_number?: string;
+  response?: string;
+  created_at: string;
+  updated_at: string;
+}
 
 interface Complaint {
+  rawId: string;
   id: string;
   title: string;
   description: string;
   category: ComplaintCategory;
   status: ComplaintStatus;
-  priority: 'low' | 'medium' | 'high';
+  priority: ComplaintPriority;
   submittedBy: string;
   studentId: string;
   department: string;
@@ -64,127 +84,44 @@ interface Complaint {
   response?: string;
 }
 
-// Mock data
-const mockComplaints: Complaint[] = [
-  {
-    id: 'CMP001',
-    title: 'Incorrect marks in semester result',
-    description: 'My physics marks are showing 45 but I scored 65 in the exam. Please verify and correct.',
-    category: 'academic',
-    status: 'pending',
-    priority: 'high',
-    submittedBy: 'Rahim Uddin',
-    studentId: 'STU2024001',
-    department: 'Computer Technology',
-    submittedAt: '2026-01-20T10:30:00',
-    updatedAt: '2026-01-20T10:30:00',
-  },
-  {
-    id: 'CMP002',
-    title: 'Unable to download admit card',
-    description: 'The download button for admit card is not working. Getting error every time.',
-    category: 'system',
-    status: 'in_progress',
-    priority: 'medium',
-    submittedBy: 'Fatima Begum',
-    studentId: 'STU2024015',
-    department: 'Civil Technology',
-    submittedAt: '2026-01-19T14:20:00',
-    updatedAt: '2026-01-21T09:00:00',
-    response: 'We are investigating the issue. Please try again in 24 hours.',
-  },
-  {
-    id: 'CMP003',
-    title: 'Broken chairs in Room 204',
-    description: 'Multiple chairs are broken in classroom 204. Students are facing difficulty.',
-    category: 'facility',
-    status: 'resolved',
-    priority: 'medium',
-    submittedBy: 'Karim Hassan',
-    studentId: 'STU2024022',
-    department: 'Electrical Technology',
-    submittedAt: '2026-01-15T11:00:00',
-    updatedAt: '2026-01-18T16:30:00',
-    response: 'New chairs have been installed. Thank you for reporting.',
-  },
-  {
-    id: 'CMP004',
-    title: 'Class schedule conflict',
-    description: 'Two classes scheduled at the same time on Thursday - Math and English.',
-    category: 'academic',
-    status: 'resolved',
-    priority: 'high',
-    submittedBy: 'Nasir Ahmed',
-    studentId: 'STU2024008',
-    department: 'Mechanical Technology',
-    submittedAt: '2026-01-17T09:15:00',
-    updatedAt: '2026-01-19T11:00:00',
-    response: 'Schedule has been updated. English moved to Friday.',
-  },
-  {
-    id: 'CMP005',
-    title: 'Login issues with student portal',
-    description: 'Cannot login to student portal. Password reset not working either.',
-    category: 'system',
-    status: 'pending',
-    priority: 'high',
-    submittedBy: 'Sabina Khatun',
-    studentId: 'STU2024031',
-    department: 'Computer Technology',
-    submittedAt: '2026-01-21T08:45:00',
-    updatedAt: '2026-01-21T08:45:00',
-  },
-  {
-    id: 'CMP006',
-    title: 'Water dispenser not working',
-    description: 'The water dispenser on 3rd floor has been out of service for a week.',
-    category: 'facility',
-    status: 'in_progress',
-    priority: 'low',
-    submittedBy: 'Abdul Karim',
-    studentId: 'STU2024045',
-    department: 'Electronics Technology',
-    submittedAt: '2026-01-18T13:00:00',
-    updatedAt: '2026-01-20T10:00:00',
-    response: 'Maintenance team has been notified. Parts ordered.',
-  },
-  {
-    id: 'CMP007',
-    title: 'Missing attendance record',
-    description: 'My attendance for the entire week of January 10-14 is not recorded.',
-    category: 'academic',
-    status: 'rejected',
-    priority: 'medium',
-    submittedBy: 'Jalal Uddin',
-    studentId: 'STU2024019',
-    department: 'Power Technology',
-    submittedAt: '2026-01-16T15:30:00',
-    updatedAt: '2026-01-17T09:00:00',
-    response: 'Records show you were absent during that period. Please contact class teacher.',
-  },
-  {
-    id: 'CMP008',
-    title: 'AC not functioning in Lab 3',
-    description: 'Air conditioning in Computer Lab 3 has stopped working. Very hot inside.',
-    category: 'facility',
-    status: 'pending',
-    priority: 'high',
-    submittedBy: 'Rafiq Islam',
-    studentId: 'STU2024012',
-    department: 'Computer Technology',
-    submittedAt: '2026-01-21T11:00:00',
-    updatedAt: '2026-01-21T11:00:00',
-  },
-];
+const toList = <T,>(payload: PaginatedResponse<T> | T[]): T[] =>
+  Array.isArray(payload) ? payload : payload.results;
+
+const categoryFromText = (value: string): ComplaintCategory => {
+  const text = value.toLowerCase();
+  if (text.includes('academic')) return 'academic';
+  if (text.includes('system') || text.includes('website') || text.includes('technical') || text.includes('portal')) return 'system';
+  return 'facility';
+};
+
+const mapComplaint = (item: ComplaintApi): Complaint => ({
+  rawId: item.id,
+  id: item.reference_number || item.id.slice(0, 8),
+  title: item.title,
+  description: item.description,
+  category: categoryFromText(item.category_name || ''),
+  status: item.status,
+  priority: item.priority,
+  submittedBy: item.reporter_name_display || 'Unknown',
+  studentId: item.student ? item.student.slice(0, 8) : '-',
+  department: item.department_name || 'N/A',
+  submittedAt: item.created_at,
+  updatedAt: item.updated_at,
+  response: item.response || undefined,
+});
 
 const getStatusConfig = (status: ComplaintStatus) => {
   switch (status) {
     case 'pending':
       return { label: 'Pending', color: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20', icon: Clock };
+    case 'seen':
+      return { label: 'Seen', color: 'bg-indigo-500/10 text-indigo-600 border-indigo-500/20', icon: Eye };
     case 'in_progress':
       return { label: 'In Progress', color: 'bg-blue-500/10 text-blue-600 border-blue-500/20', icon: AlertCircle };
     case 'resolved':
       return { label: 'Resolved', color: 'bg-green-500/10 text-green-600 border-green-500/20', icon: CheckCircle2 };
+    case 'closed':
+      return { label: 'Closed', color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20', icon: CheckCircle2 };
     case 'rejected':
       return { label: 'Rejected', color: 'bg-red-500/10 text-red-600 border-red-500/20', icon: XCircle };
     default:
@@ -192,12 +129,14 @@ const getStatusConfig = (status: ComplaintStatus) => {
   }
 };
 
-const getPriorityConfig = (priority: string) => {
+const getPriorityConfig = (priority: ComplaintPriority) => {
   switch (priority) {
+    case 'urgent':
+      return { label: 'Urgent', color: 'bg-rose-500/10 text-rose-600 border-rose-500/20' };
     case 'high':
       return { label: 'High', color: 'bg-red-500/10 text-red-600 border-red-500/20' };
-    case 'medium':
-      return { label: 'Medium', color: 'bg-orange-500/10 text-orange-600 border-orange-500/20' };
+    case 'normal':
+      return { label: 'Normal', color: 'bg-orange-500/10 text-orange-600 border-orange-500/20' };
     case 'low':
       return { label: 'Low', color: 'bg-slate-500/10 text-slate-600 border-slate-500/20' };
     default:
@@ -219,31 +158,70 @@ const getCategoryConfig = (category: ComplaintCategory) => {
 };
 
 export default function Complaints() {
+  const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [activeTab, setActiveTab] = useState<ComplaintCategory | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<ComplaintStatus | 'all'>('all');
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [responseText, setResponseText] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isActionLoading, setIsActionLoading] = useState(false);
 
-  const filteredComplaints = mockComplaints.filter((complaint) => {
-    const matchesCategory = activeTab === 'all' || complaint.category === activeTab;
-    const matchesStatus = statusFilter === 'all' || complaint.status === statusFilter;
-    const matchesSearch =
-      complaint.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      complaint.submittedBy.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      complaint.id.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesStatus && matchesSearch;
-  });
+  const loadComplaints = async (selectedRawId?: string) => {
+    setIsLoading(true);
+    try {
+      const all: ComplaintApi[] = [];
+      let page = 1;
+
+      while (true) {
+        const response = await apiClient.get<PaginatedResponse<ComplaintApi> | ComplaintApi[]>('complaints/complaints/', { page });
+        const current = toList(response);
+        all.push(...current);
+
+        if (Array.isArray(response) || !response.next) break;
+        page += 1;
+      }
+
+      const mapped = all.map(mapComplaint);
+      setComplaints(mapped);
+      if (selectedRawId) {
+        const refreshed = mapped.find((item) => item.rawId === selectedRawId) || null;
+        setSelectedComplaint(refreshed);
+        setResponseText(refreshed?.response || '');
+      }
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadComplaints();
+  }, []);
+
+  const filteredComplaints = useMemo(() => {
+    return complaints.filter((complaint) => {
+      const matchesCategory = activeTab === 'all' || complaint.category === activeTab;
+      const matchesStatus = statusFilter === 'all' || complaint.status === statusFilter;
+      const query = searchQuery.trim().toLowerCase();
+      const matchesSearch = !query ||
+        complaint.title.toLowerCase().includes(query) ||
+        complaint.submittedBy.toLowerCase().includes(query) ||
+        complaint.id.toLowerCase().includes(query);
+      return matchesCategory && matchesStatus && matchesSearch;
+    });
+  }, [complaints, activeTab, statusFilter, searchQuery]);
 
   const stats = {
-    total: mockComplaints.length,
-    pending: mockComplaints.filter((c) => c.status === 'pending').length,
-    inProgress: mockComplaints.filter((c) => c.status === 'in_progress').length,
-    resolved: mockComplaints.filter((c) => c.status === 'resolved').length,
-    academic: mockComplaints.filter((c) => c.category === 'academic').length,
-    system: mockComplaints.filter((c) => c.category === 'system').length,
-    facility: mockComplaints.filter((c) => c.category === 'facility').length,
+    total: complaints.length,
+    pending: complaints.filter((c) => c.status === 'pending').length,
+    inProgress: complaints.filter((c) => c.status === 'seen' || c.status === 'in_progress').length,
+    resolved: complaints.filter((c) => c.status === 'resolved' || c.status === 'closed').length,
+    academic: complaints.filter((c) => c.category === 'academic').length,
+    system: complaints.filter((c) => c.category === 'system').length,
+    facility: complaints.filter((c) => c.category === 'facility').length,
   };
 
   const handleViewDetails = (complaint: Complaint) => {
@@ -252,24 +230,64 @@ export default function Complaints() {
     setDetailsOpen(true);
   };
 
-  const handleUpdateStatus = (status: ComplaintStatus) => {
+  const handleUpdateStatus = async (status: ComplaintStatus) => {
     if (!selectedComplaint) return;
-    toast.success(`Complaint ${selectedComplaint.id} status updated to ${status}`);
-    setDetailsOpen(false);
+
+    setIsActionLoading(true);
+    try {
+      if (status === 'seen') {
+        await apiClient.post(`complaints/complaints/${selectedComplaint.rawId}/mark_seen/`, {});
+      } else {
+        const effectiveResponse = responseText.trim() || selectedComplaint.response || '';
+        if (!effectiveResponse) {
+          toast.error('Please add a response before updating this status');
+          return;
+        }
+        await apiClient.post(`complaints/complaints/${selectedComplaint.rawId}/add_response/`, {
+          response: effectiveResponse,
+          status,
+        });
+      }
+
+      await loadComplaints(selectedComplaint.rawId);
+      toast.success(`Complaint ${selectedComplaint.id} updated`);
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setIsActionLoading(false);
+    }
   };
 
-  const handleSubmitResponse = () => {
-    if (!selectedComplaint || !responseText.trim()) {
+  const handleSubmitResponse = async () => {
+    if (!selectedComplaint) return;
+    if (!responseText.trim()) {
       toast.error('Please enter a response');
       return;
     }
-    toast.success('Response submitted successfully');
-    setDetailsOpen(false);
+
+    setIsActionLoading(true);
+    try {
+      const nextStatus: ComplaintStatus =
+        selectedComplaint.status === 'pending' || selectedComplaint.status === 'seen'
+          ? 'in_progress'
+          : selectedComplaint.status;
+
+      await apiClient.post(`complaints/complaints/${selectedComplaint.rawId}/add_response/`, {
+        response: responseText.trim(),
+        status: nextStatus,
+      });
+
+      await loadComplaints(selectedComplaint.rawId);
+      toast.success('Response submitted successfully');
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setIsActionLoading(false);
+    }
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -286,7 +304,6 @@ export default function Complaints() {
         </div>
       </motion.div>
 
-      {/* Stats Cards */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -337,7 +354,6 @@ export default function Complaints() {
         </Card>
       </motion.div>
 
-      {/* Filters and Tabs */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -384,137 +400,140 @@ export default function Complaints() {
                     <SelectContent className="bg-popover border-border z-50">
                       <SelectItem value="all">All Status</SelectItem>
                       <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="seen">Seen</SelectItem>
                       <SelectItem value="in_progress">In Progress</SelectItem>
                       <SelectItem value="resolved">Resolved</SelectItem>
+                      <SelectItem value="closed">Closed</SelectItem>
                       <SelectItem value="rejected">Rejected</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
-              {/* Complaints List */}
               <TabsContent value={activeTab} className="mt-0">
-                <div className="space-y-3">
-                  <AnimatePresence mode="popLayout">
-                    {filteredComplaints.length === 0 ? (
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="text-center py-12 text-muted-foreground"
-                      >
-                        <MessageSquareWarning className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                        <p>No complaints found</p>
-                      </motion.div>
-                    ) : (
-                      filteredComplaints.map((complaint, index) => {
-                        const statusConfig = getStatusConfig(complaint.status);
-                        const priorityConfig = getPriorityConfig(complaint.priority);
-                        const categoryConfig = getCategoryConfig(complaint.category);
-                        const StatusIcon = statusConfig.icon;
-                        const CategoryIcon = categoryConfig.icon;
+                {isLoading ? (
+                  <div className="text-center py-14">
+                    <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <AnimatePresence mode="popLayout">
+                      {filteredComplaints.length === 0 ? (
+                        <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          className="text-center py-12 text-muted-foreground"
+                        >
+                          <MessageSquareWarning className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                          <p>No complaints found</p>
+                        </motion.div>
+                      ) : (
+                        filteredComplaints.map((complaint, index) => {
+                          const statusConfig = getStatusConfig(complaint.status);
+                          const priorityConfig = getPriorityConfig(complaint.priority);
+                          const categoryConfig = getCategoryConfig(complaint.category);
+                          const StatusIcon = statusConfig.icon;
+                          const CategoryIcon = categoryConfig.icon;
 
-                        return (
-                          <motion.div
-                            key={complaint.id}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -20 }}
-                            transition={{ delay: index * 0.05 }}
-                            className="group"
-                          >
-                            <div className="p-4 rounded-xl bg-background border border-border/50 hover:border-primary/30 hover:shadow-md transition-all duration-200">
-                              <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-                                {/* Icon */}
-                                <div className={`p-3 rounded-xl bg-muted/50 shrink-0 ${categoryConfig.color}`}>
-                                  <CategoryIcon className="h-5 w-5" />
-                                </div>
+                          return (
+                            <motion.div
+                              key={complaint.rawId}
+                              initial={{ opacity: 0, y: 20 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -20 }}
+                              transition={{ delay: index * 0.05 }}
+                              className="group"
+                            >
+                              <div className="p-4 rounded-xl bg-background border border-border/50 hover:border-primary/30 hover:shadow-md transition-all duration-200">
+                                <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+                                  <div className={`p-3 rounded-xl bg-muted/50 shrink-0 ${categoryConfig.color}`}>
+                                    <CategoryIcon className="h-5 w-5" />
+                                  </div>
 
-                                {/* Content */}
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div>
-                                      <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors">
-                                        {complaint.title}
-                                      </h3>
-                                      <p className="text-sm text-muted-foreground line-clamp-1 mt-0.5">
-                                        {complaint.description}
-                                      </p>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div>
+                                        <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors">
+                                          {complaint.title}
+                                        </h3>
+                                        <p className="text-sm text-muted-foreground line-clamp-1 mt-0.5">
+                                          {complaint.description}
+                                        </p>
+                                      </div>
+                                      <div className="flex items-center gap-2 shrink-0">
+                                        <Badge variant="outline" className={priorityConfig.color}>
+                                          {priorityConfig.label}
+                                        </Badge>
+                                        <Badge variant="outline" className={statusConfig.color}>
+                                          <StatusIcon className="h-3 w-3 mr-1" />
+                                          {statusConfig.label}
+                                        </Badge>
+                                      </div>
                                     </div>
-                                    <div className="flex items-center gap-2 shrink-0">
-                                      <Badge variant="outline" className={priorityConfig.color}>
-                                        {priorityConfig.label}
-                                      </Badge>
-                                      <Badge variant="outline" className={statusConfig.color}>
-                                        <StatusIcon className="h-3 w-3 mr-1" />
-                                        {statusConfig.label}
-                                      </Badge>
+
+                                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-muted-foreground">
+                                      <span className="flex items-center gap-1">
+                                        <User className="h-3 w-3" />
+                                        {complaint.submittedBy}
+                                      </span>
+                                      <span className="flex items-center gap-1">
+                                        <span className="font-mono">{complaint.studentId}</span>
+                                      </span>
+                                      <span>{complaint.department}</span>
+                                      <span className="flex items-center gap-1">
+                                        <Calendar className="h-3 w-3" />
+                                        {new Date(complaint.submittedAt).toLocaleDateString()}
+                                      </span>
                                     </div>
                                   </div>
 
-                                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-muted-foreground">
-                                    <span className="flex items-center gap-1">
-                                      <User className="h-3 w-3" />
-                                      {complaint.submittedBy}
-                                    </span>
-                                    <span className="flex items-center gap-1">
-                                      <span className="font-mono">{complaint.studentId}</span>
-                                    </span>
-                                    <span>{complaint.department}</span>
-                                    <span className="flex items-center gap-1">
-                                      <Calendar className="h-3 w-3" />
-                                      {new Date(complaint.submittedAt).toLocaleDateString()}
-                                    </span>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleViewDetails(complaint)}
+                                      className="gap-1.5"
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                      View
+                                    </Button>
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                                          <MoreHorizontal className="h-4 w-4" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end" className="bg-popover border-border z-50">
+                                        <DropdownMenuItem onClick={() => handleViewDetails(complaint)}>
+                                          <Eye className="h-4 w-4 mr-2" />
+                                          View Details
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleViewDetails(complaint)}>
+                                          <MessageSquare className="h-4 w-4 mr-2" />
+                                          Add Response
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleViewDetails(complaint)}>
+                                          <CheckCircle2 className="h-4 w-4 mr-2" />
+                                          Mark Resolved
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
                                   </div>
-                                </div>
-
-                                {/* Actions */}
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleViewDetails(complaint)}
-                                    className="gap-1.5"
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                    View
-                                  </Button>
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                                        <MoreHorizontal className="h-4 w-4" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="bg-popover border-border z-50">
-                                      <DropdownMenuItem onClick={() => handleViewDetails(complaint)}>
-                                        <Eye className="h-4 w-4 mr-2" />
-                                        View Details
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem>
-                                        <MessageSquare className="h-4 w-4 mr-2" />
-                                        Add Response
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem>
-                                        <CheckCircle2 className="h-4 w-4 mr-2" />
-                                        Mark Resolved
-                                      </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
                                 </div>
                               </div>
-                            </div>
-                          </motion.div>
-                        );
-                      })
-                    )}
-                  </AnimatePresence>
-                </div>
+                            </motion.div>
+                          );
+                        })
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )}
               </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
       </motion.div>
 
-      {/* Details Dialog */}
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
         <DialogContent className="max-w-2xl bg-background border-border">
           <DialogHeader>
@@ -530,7 +549,6 @@ export default function Complaints() {
 
           {selectedComplaint && (
             <div className="space-y-6">
-              {/* Status and Priority */}
               <div className="flex flex-wrap gap-2">
                 <Badge variant="outline" className={getStatusConfig(selectedComplaint.status).color}>
                   {getStatusConfig(selectedComplaint.status).label}
@@ -543,7 +561,6 @@ export default function Complaints() {
                 </Badge>
               </div>
 
-              {/* Complaint Info */}
               <div className="space-y-4">
                 <div>
                   <h4 className="font-semibold text-foreground mb-1">{selectedComplaint.title}</h4>
@@ -570,7 +587,6 @@ export default function Complaints() {
                 </div>
               </div>
 
-              {/* Previous Response */}
               {selectedComplaint.response && (
                 <div className="p-4 rounded-xl bg-muted/50 border border-border/50">
                   <p className="text-xs text-muted-foreground mb-1">Previous Response:</p>
@@ -578,7 +594,6 @@ export default function Complaints() {
                 </div>
               )}
 
-              {/* Response Input */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">Add/Update Response</label>
                 <Textarea
@@ -590,15 +605,14 @@ export default function Complaints() {
                 />
               </div>
 
-              {/* Actions */}
               <div className="flex flex-wrap gap-2 pt-2">
-                <Button onClick={handleSubmitResponse} className="gap-1.5">
-                  <MessageSquare className="h-4 w-4" />
+                <Button onClick={handleSubmitResponse} className="gap-1.5" disabled={isActionLoading}>
+                  {isActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquare className="h-4 w-4" />}
                   Submit Response
                 </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="gap-1.5">
+                    <Button variant="outline" className="gap-1.5" disabled={isActionLoading}>
                       Update Status
                       <ChevronDown className="h-4 w-4" />
                     </Button>
@@ -608,6 +622,10 @@ export default function Complaints() {
                       <Clock className="h-4 w-4 mr-2 text-yellow-500" />
                       Mark as Pending
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleUpdateStatus('seen')}>
+                      <Eye className="h-4 w-4 mr-2 text-indigo-500" />
+                      Mark as Seen
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => handleUpdateStatus('in_progress')}>
                       <AlertCircle className="h-4 w-4 mr-2 text-blue-500" />
                       Mark as In Progress
@@ -616,13 +634,17 @@ export default function Complaints() {
                       <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" />
                       Mark as Resolved
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleUpdateStatus('closed')}>
+                      <CheckCircle2 className="h-4 w-4 mr-2 text-emerald-500" />
+                      Mark as Closed
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => handleUpdateStatus('rejected')}>
                       <XCircle className="h-4 w-4 mr-2 text-red-500" />
                       Mark as Rejected
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <Button variant="ghost" onClick={() => setDetailsOpen(false)}>
+                <Button variant="ghost" onClick={() => setDetailsOpen(false)} disabled={isActionLoading}>
                   Close
                 </Button>
               </div>

@@ -101,18 +101,53 @@ class MotivationMessageCreateUpdateSerializer(serializers.ModelSerializer):
             'is_active', 'is_featured',
             'start_date', 'end_date'
         ]
+        extra_kwargs = {
+            'title': {'required': False, 'allow_blank': True},
+            'message': {'required': False, 'allow_blank': True},
+            'author': {'required': False, 'allow_blank': True},
+        }
     
     def validate(self, data):
         """
         Validate the data
         """
-        # Ensure at least one language version is provided
-        if not data.get('title') or not data.get('message'):
-            raise serializers.ValidationError("Title and message are required.")
+        # Fill required base fields from multilingual input for create/update.
+        # This lets admin provide Bangla/Arabic-only content while satisfying model constraints.
+        current_title = self.instance.title if self.instance else ''
+        current_message = self.instance.message if self.instance else ''
+        current_author = self.instance.author if self.instance else ''
+
+        title = (
+            data.get('title')
+            or data.get('title_bn')
+            or data.get('title_ar')
+            or current_title
+            or 'Motivation'
+        )
+        message = (
+            data.get('message')
+            or data.get('message_bn')
+            or data.get('message_ar')
+            or current_message
+        )
+        author = (
+            data.get('author')
+            or data.get('author_bn')
+            or data.get('author_ar')
+            or current_author
+            or 'Unknown'
+        )
+
+        if not message:
+            raise serializers.ValidationError("At least one message is required.")
+
+        data['title'] = title
+        data['message'] = message
+        data['author'] = author
         
         # Validate date range
-        start_date = data.get('start_date')
-        end_date = data.get('end_date')
+        start_date = data.get('start_date', self.instance.start_date if self.instance else None)
+        end_date = data.get('end_date', self.instance.end_date if self.instance else None)
         if start_date and end_date and start_date >= end_date:
             raise serializers.ValidationError("End date must be after start date.")
         
@@ -155,7 +190,7 @@ class MotivationSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = MotivationSettings
         fields = [
-            'default_display_duration', 'auto_rotate', 'rotation_interval',
+            'is_enabled', 'default_display_duration', 'auto_rotate', 'rotation_interval',
             'default_language', 'enable_multilingual',
             'enable_likes', 'enable_analytics', 'enable_scheduling',
             'max_messages_per_day', 'prioritize_featured',
@@ -202,6 +237,9 @@ class StudentMotivationSerializer(serializers.ModelSerializer):
         model = MotivationMessage
         fields = [
             'id', 'localized_title', 'localized_message', 'localized_author',
+            'title', 'message', 'author',
+            'title_bn', 'message_bn', 'author_bn',
+            'title_ar', 'message_ar', 'author_ar',
             'category', 'display_duration', 'reference_source',
             'like_count', 'created_at'
         ]

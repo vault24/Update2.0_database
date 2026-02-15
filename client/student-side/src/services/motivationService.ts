@@ -76,6 +76,20 @@ export interface MotivationStats {
   views_this_month: number;
 }
 
+export interface MotivationSystemSettings {
+  is_enabled: boolean;
+  default_display_duration: number;
+  auto_rotate: boolean;
+  rotation_interval: number;
+  default_language: string;
+  enable_multilingual: boolean;
+  enable_likes: boolean;
+  enable_analytics: boolean;
+  enable_scheduling: boolean;
+  max_messages_per_day: number;
+  prioritize_featured: boolean;
+}
+
 // Service
 export const motivationService = {
   /**
@@ -209,5 +223,12 @@ export const motivationService = {
       console.error('Failed to unlike motivation:', error);
       throw error;
     }
+  },
+
+  /**
+   * Get global motivation settings
+   */
+  getSettings: async (): Promise<MotivationSystemSettings> => {
+    return await apiClient.get<MotivationSystemSettings>('motivations/settings/');
   }
 };
