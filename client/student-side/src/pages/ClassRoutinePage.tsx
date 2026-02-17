@@ -329,6 +329,7 @@ export default function ClassRoutinePage() {
       const ensureProfile = async () => {
         try {
           if (user.role === 'teacher') {
+            // For teachers, we'll fetch their routine using teacher ID
             setProfileLoaded(true);
             return;
           }
@@ -366,22 +367,58 @@ export default function ClassRoutinePage() {
 
   useEffect(() => {
     if (profileLoaded && user) {
-      if (user.role === 'teacher') {
-        setLoading(false);
-        setError('Class routine is not available for teachers.');
-        return;
-      }
       fetchRoutine();
     }
   }, [profileLoaded, user]);
 
   const fetchRoutine = async (isRetry: boolean = false) => {
+    // For teachers, fetch their routine using teacher ID
     if (user?.role === 'teacher') {
-      setLoading(false);
-      setError('Class routine is not available for teachers.');
+      const teacherId = user?.relatedProfileId;
+      
+      if (!teacherId) {
+        setError('Teacher profile not found.');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        if (isRetry) setIsRetrying(true);
+        else { setLoading(true); setRetryCount(0); }
+        setError(null);
+        
+        const queryParams: any = { teacher: teacherId };
+        if (isRetry || Date.now() - lastRefresh > 60000) queryParams._t = Date.now();
+        
+        const data = await routineService.getMyRoutine(queryParams);
+        setRoutine(data.routines);
+        const { timeSlots, schedule } = buildSchedule(data.routines);
+        setTimeSlots(timeSlots);
+        setSchedule(schedule);
+        setRetryCount(0);
+        setLastRefresh(Date.now());
+        
+        if (isRetry) toast.success('Routine loaded successfully');
+      } catch (err) {
+        const errorMsg = getErrorMessage(err);
+        setError(errorMsg);
+        
+        const isNetworkError = errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError') || errorMsg.includes('timeout');
+        if (isNetworkError && retryCount < 3 && !isRetry) {
+          setRetryCount(prev => prev + 1);
+          setTimeout(() => fetchRoutine(true), 2000 * (retryCount + 1));
+          toast.warning('Connection issue detected', { description: `Retrying (${retryCount + 1}/3)...` });
+          return;
+        }
+        toast.error('Failed to load routine', { description: errorMsg });
+      } finally {
+        setLoading(false);
+        setIsRetrying(false);
+      }
       return;
     }
 
+    // For students, fetch routine using department, semester, and shift
     const departmentId = profileDepartment || user?.department;
     const semesterValue = profileSemester || user?.semester;
     const shiftValue = profileShift || (user as any)?.shift || 'Day';

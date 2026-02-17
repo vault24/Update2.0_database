@@ -208,7 +208,9 @@ export const documentService = {
    * Get secure file URL for viewing
    */
   getSecureFileUrl: (filePath: string): string => {
-    return `${apiClient['baseURL']}/files/${filePath}`;
+    // Files are served at /files/ (not /api/files/)
+    const baseUrl = apiClient['baseURL'].replace('/api', '');
+    return `${baseUrl}/files/${filePath}`;
   },
 
   /**

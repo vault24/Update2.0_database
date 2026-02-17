@@ -222,7 +222,13 @@ class StudentDashboardView(APIView):
             
             # Attendance summary with error handling
             try:
-                attendance_records = AttendanceRecord.objects.filter(student=student)
+                # Keep student dashboard aligned with attendance page logic:
+                # count pending/approved/direct and exclude rejected/draft.
+                attendance_records = AttendanceRecord.objects.filter(
+                    student=student
+                ).exclude(
+                    status__in=['rejected', 'draft']
+                )
                 total_classes = attendance_records.count()
                 present_classes = attendance_records.filter(is_present=True).count()
                 attendance_percentage = (present_classes / total_classes * 100) if total_classes > 0 else 0

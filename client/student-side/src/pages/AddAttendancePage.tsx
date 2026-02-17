@@ -1,154 +1,307 @@
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { UserCheck, Calendar, Users, Save, Check, X, Search, Loader2, AlertCircle } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { UserCheck, Check, X, Search, Loader2, AlertCircle, Send, BookOpen, Clock, Users, Calendar, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { studentService, type Student } from '@/services/studentService';
 import { attendanceService, type AttendanceCreateData } from '@/services/attendanceService';
+import { routineService, type ClassRoutine } from '@/services/routineService';
 import { getErrorMessage } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 
-// Student with attendance status
+// Today's day name
+const getDayName = (): string => {
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  return days[new Date().getDay()];
+};
+
+// Format time
+const formatTime = (time: string) => {
+  const [h, m] = time.split(':');
+  const hour = parseInt(h);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const h12 = hour % 12 || 12;
+  return `${h12}:${m} ${ampm}`;
+};
+
 interface StudentWithAttendance extends Student {
   present: boolean;
 }
 
 export default function AddAttendancePage() {
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [selectedPeriod, setSelectedPeriod] = useState('1');
-  const [selectedSubject, setSelectedSubject] = useState('');
-  const [selectedSubjectName, setSelectedSubjectName] = useState('');
-  const [selectedSemester, setSelectedSemester] = useState<number>(1);
-  const [students, setStudents] = useState<StudentWithAttendance[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  
-  // API state
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const { user } = useAuth();
+  const [today] = useState(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
+  const dayName = getDayName();
 
-  // Fetch students on mount
+  const [students, setStudents] = useState<StudentWithAttendance[]>([]);
+  const [todayRoutines, setTodayRoutines] = useState<ClassRoutine[]>([]);
+  const [completedRoutineIds, setCompletedRoutineIds] = useState<Set<string>>(new Set());
+  const [selectedRoutine, setSelectedRoutine] = useState<ClassRoutine | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // API state
+  const [loadingStudents, setLoadingStudents] = useState(true);
+  const [loadingRoutines, setLoadingRoutines] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch students and today's routine on mount
   useEffect(() => {
+    if (!user?.relatedProfileId) return;
     fetchStudents();
-  }, []);
+    fetchTodayRoutines();
+  }, [user?.relatedProfileId]);
 
   const fetchStudents = async () => {
     try {
-      setLoading(true);
-      setError(null);
-      const response = await studentService.getStudents({ 
+      setLoadingStudents(true);
+
+      if (!user?.relatedProfileId) {
+        setError('No captain profile found');
+        setStudents([]);
+        return;
+      }
+
+      // Captain should only see students from own class cohort.
+      const studentProfile = await studentService.getMe(user.relatedProfileId);
+      const departmentId = typeof studentProfile.department === 'string'
+        ? studentProfile.department
+        : studentProfile.department.id;
+
+      // Fetch all pages to avoid missing students from large cohorts.
+      const baseFilters = {
         status: 'active',
-        page_size: 100,
-        ordering: 'currentRollNumber'
-      });
-      
-      // Initialize all students as present by default
-      const studentsWithAttendance: StudentWithAttendance[] = response.results.map(student => ({
-        ...student,
-        present: true
-      }));
-      
-      setStudents(studentsWithAttendance);
+        department: departmentId,
+        semester: studentProfile.semester,
+        shift: studentProfile.shift,
+        page_size: 200,
+        ordering: 'currentRollNumber',
+      } as const;
+
+      let page = 1;
+      let hasMore = true;
+      const allStudents: Student[] = [];
+
+      while (hasMore) {
+        const response = await studentService.getStudents({
+          ...baseFilters,
+          page,
+        });
+        allStudents.push(...response.results);
+        hasMore = !!response.next && allStudents.length < response.count;
+        page += 1;
+      }
+
+      setError(null);
+      setStudents(allStudents.map(s => ({ ...s, present: true })));
     } catch (err) {
-      const errorMsg = getErrorMessage(err);
-      setError(errorMsg);
-      toast.error('Failed to load students', {
-        description: errorMsg
-      });
+      setError(getErrorMessage(err));
     } finally {
-      setLoading(false);
+      setLoadingStudents(false);
+    }
+  };
+
+  const fetchTodayRoutines = async () => {
+    try {
+      setLoadingRoutines(true);
+      routineService.cache.invalidate('getMyRoutine');
+      
+      // Get student profile to fetch department, semester, shift
+      if (!user?.relatedProfileId) {
+        console.error('No student profile found');
+        setTodayRoutines([]);
+        return;
+      }
+      
+      const studentProfile = await studentService.getMe(user.relatedProfileId);
+      
+      // Extract department ID
+      const departmentId = typeof studentProfile.department === 'string' 
+        ? studentProfile.department 
+        : studentProfile.department.id;
+      
+      // Fetch routines with proper filters
+      const response = await routineService.getMyRoutine({
+        department: departmentId,
+        semester: studentProfile.semester,
+        shift: studentProfile.shift as any, // Cast to Shift type
+        _t: Date.now(),
+      });
+      
+      // Filter to today's classes
+      const todayClasses = response.routines.filter(
+        r => r.day_of_week === dayName && r.is_active
+      );
+      
+      // Check which routines have attendance for today
+      const routinesWithAttendance = await Promise.all(
+        todayClasses.map(async (routine) => {
+          try {
+            // Check if attendance exists for this routine and date
+            const attendanceCheck = await attendanceService.getByRoutine(
+              routine.id,
+              today,
+              ['pending', 'approved', 'direct']
+            );
+            return {
+              routine,
+              hasAttendance: attendanceCheck.length > 0
+            };
+          } catch {
+            return {
+              routine,
+              hasAttendance: false
+            };
+          }
+        })
+      );
+      
+      // Show ALL routines (don't filter out completed ones)
+      const allRoutines = routinesWithAttendance.map(item => item.routine);
+      allRoutines.sort((a, b) => a.start_time.localeCompare(b.start_time));
+      
+      // Track which routines are completed
+      const completedIds = new Set(
+        routinesWithAttendance
+          .filter(item => item.hasAttendance)
+          .map(item => item.routine.id)
+      );
+      
+      setTodayRoutines(allRoutines);
+      setCompletedRoutineIds(completedIds);
+      setSelectedRoutine(prev => (prev && allRoutines.some(r => r.id === prev.id) ? prev : null));
+    } catch (err) {
+      console.error('Failed to load routines:', err);
+      // Non-blocking — captain can still proceed
+      setSelectedRoutine(null);
+    } finally {
+      setLoadingRoutines(false);
     }
   };
 
   const toggleAttendance = (studentId: string) => {
-    setStudents(prev => 
-      prev.map(s => s.id === studentId ? { ...s, present: !s.present } : s)
+    setStudents(prev =>
+      prev.map(s => (s.id === studentId ? { ...s, present: !s.present } : s))
     );
   };
 
-  const markAllPresent = () => {
-    setStudents(prev => prev.map(s => ({ ...s, present: true })));
-  };
-
-  const markAllAbsent = () => {
-    setStudents(prev => prev.map(s => ({ ...s, present: false })));
-  };
+  const markAllPresent = () => setStudents(prev => prev.map(s => ({ ...s, present: true })));
+  const markAllAbsent = () => setStudents(prev => prev.map(s => ({ ...s, present: false })));
 
   const handleSubmit = async () => {
-    if (!selectedSubject || !selectedSubjectName) {
-      toast.error('Please enter subject code and name');
+    if (!selectedRoutine) {
+      toast.error('Please select a subject from today\'s routine');
+      return;
+    }
+
+    // Prevent submission if routine is already completed
+    if (completedRoutineIds.has(selectedRoutine.id)) {
+      toast.error('Attendance already submitted for this period');
+      return;
+    }
+
+    routineService.cache.invalidate('getRoutineById');
+    const freshRoutine = await routineService.getRoutineById(selectedRoutine.id).catch(() => null);
+    if (!freshRoutine) {
+      setSelectedRoutine(null);
+      await fetchTodayRoutines();
+      toast.error('Selected class is no longer available. Please select again.');
       return;
     }
 
     try {
       setSaving(true);
-      
-      // Prepare bulk attendance records
       const records: AttendanceCreateData[] = students.map(student => ({
         student: student.id,
-        subjectCode: selectedSubject,
-        subjectName: selectedSubjectName,
-        semester: selectedSemester,
-        date: selectedDate,
+        subjectCode: freshRoutine.subject_code,
+        subjectName: freshRoutine.subject_name,
+        semester: freshRoutine.semester,
+        date: today,
         isPresent: student.present,
+        status: 'pending', // Captain submission goes to pending for teacher approval
+        classRoutineId: freshRoutine.id,
       }));
 
-      // Submit bulk attendance
-      await attendanceService.bulkMarkAttendance(records);
-      
+      const response = await attendanceService.bulkMarkAttendance({
+        records,
+        classRoutineId: freshRoutine.id,
+      });
+
+      const totalRecords = records.length;
+      const savedRecords = response?.created ?? 0;
+      const failedRecords = response?.errors?.length ?? 0;
+      if (savedRecords < totalRecords || failedRecords > 0) {
+        const firstError = response?.errors?.[0]?.error;
+        toast.error('Attendance submission incomplete', {
+          description: `Saved ${savedRecords}/${totalRecords}. ${firstError ? `First error: ${firstError}` : 'Please retry.'}`,
+        });
+        await fetchTodayRoutines();
+        return;
+      }
+
       const presentCount = students.filter(s => s.present).length;
-      toast.success(`Attendance saved successfully!`, {
-        description: `${presentCount}/${students.length} students marked present.`
+      toast.success('Attendance submitted for approval!', {
+        description: `${presentCount}/${students.length} present for ${freshRoutine.subject_name}. Sent to ${freshRoutine.teacher?.fullNameEnglish || 'teacher'} for approval.`,
       });
-      
-      // Reset form
-      setSelectedSubject('');
-      setSelectedSubjectName('');
-      
-      // Mark all as present again for next entry
+
+      // Reset and refresh routine list to remove completed routine
+      setSelectedRoutine(null);
       markAllPresent();
+      await fetchTodayRoutines();
     } catch (err) {
-      const errorMsg = getErrorMessage(err);
-      toast.error('Failed to save attendance', {
-        description: errorMsg
-      });
+      const message = getErrorMessage(err);
+      if (message.includes('Class routine not found')) {
+        setSelectedRoutine(null);
+        await fetchTodayRoutines();
+        toast.error('Routine was updated. Please select the class again.', { description: message });
+      } else {
+        toast.error('Failed to submit', { description: message });
+      }
     } finally {
       setSaving(false);
     }
   };
 
-  const filteredStudents = students.filter(s => 
-    s.fullNameEnglish.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.currentRollNumber.includes(searchQuery)
+  const filteredStudents = useMemo(
+    () =>
+      students.filter(
+        s =>
+          s.fullNameEnglish.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          s.currentRollNumber.includes(searchQuery)
+      ),
+    [students, searchQuery]
   );
 
   const presentCount = students.filter(s => s.present).length;
   const absentCount = students.length - presentCount;
+  const loading = loadingStudents || loadingRoutines;
 
-  // Loading state
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center space-y-4">
           <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
-          <p className="text-muted-foreground">Loading students...</p>
+          <p className="text-muted-foreground">Loading class data...</p>
         </div>
       </div>
     );
   }
 
-  // Error state
   if (error && students.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="glass-card p-8 max-w-md text-center space-y-4">
+        <div className="bg-card border border-border rounded-2xl p-8 max-w-md text-center space-y-4 shadow-card">
           <AlertCircle className="w-12 h-12 text-destructive mx-auto" />
-          <div>
-            <h3 className="text-lg font-semibold mb-2">Error Loading Students</h3>
-            <p className="text-muted-foreground mb-4">{error}</p>
-          </div>
-          <Button onClick={fetchStudents} variant="hero">
+          <h3 className="text-lg font-semibold">Error Loading Data</h3>
+          <p className="text-muted-foreground">{error}</p>
+          <Button onClick={() => { fetchStudents(); fetchTodayRoutines(); }} variant="default">
             Try Again
           </Button>
         </div>
@@ -157,229 +310,248 @@ export default function AddAttendancePage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 pb-8 max-w-full overflow-x-hidden">
       {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col md:flex-row md:items-center justify-between gap-4"
-      >
-        <div>
-          <h1 className="text-2xl md:text-3xl font-display font-bold flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center">
-              <UserCheck className="w-5 h-5 text-primary-foreground" />
-            </div>
-            Add Attendance
-          </h1>
-          <p className="text-muted-foreground mt-1">Record class attendance for your students</p>
-        </div>
-
-        <Button variant="hero" onClick={handleSubmit} disabled={saving || students.length === 0}>
-          {saving ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            <>
-              <Save className="w-4 h-4 mr-2" />
-              Save Attendance
-            </>
-          )}
-        </Button>
-      </motion.div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="glass-card p-4 rounded-xl"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Users className="w-6 h-6 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Total Students</p>
-              <p className="text-2xl font-bold">{students.length}</p>
-            </div>
-          </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="glass-card p-4 rounded-xl"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-success/10 flex items-center justify-center">
-              <Check className="w-6 h-6 text-success" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Present</p>
-              <p className="text-2xl font-bold text-success">{presentCount}</p>
-            </div>
-          </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="glass-card p-4 rounded-xl"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-destructive/10 flex items-center justify-center">
-              <X className="w-6 h-6 text-destructive" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Absent</p>
-              <p className="text-2xl font-bold text-destructive">{absentCount}</p>
-            </div>
-          </div>
-        </motion.div>
-      </div>
-
-      {/* Filters */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="glass-card p-6 rounded-xl"
-      >
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Date</Label>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="pl-10"
-              />
-            </div>
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl md:text-2xl font-display font-bold flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+                <UserCheck className="w-5 h-5 text-primary" />
+              </div>
+              Take Attendance (Captain)
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              {dayName}, {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+            </p>
           </div>
 
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Semester</Label>
-            <select
-              value={selectedSemester}
-              onChange={(e) => setSelectedSemester(Number(e.target.value))}
-              className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              {[1, 2, 3, 4, 5, 6, 7, 8].map(s => (
-                <option key={s} value={s}>Semester {s}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Subject Code</Label>
-            <Input
-              type="text"
-              placeholder="e.g., CSE-101"
-              value={selectedSubject}
-              onChange={(e) => setSelectedSubject(e.target.value)}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Subject Name</Label>
-            <Input
-              type="text"
-              placeholder="e.g., Programming"
-              value={selectedSubjectName}
-              onChange={(e) => setSelectedSubjectName(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Search Student</Label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                type="text"
-                placeholder="Search by name or roll..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="flex gap-2 mt-4">
-          <Button variant="outline" size="sm" onClick={markAllPresent}>
-            <Check className="w-4 h-4 mr-1" />
-            Mark All Present
-          </Button>
-          <Button variant="outline" size="sm" onClick={markAllAbsent}>
-            <X className="w-4 h-4 mr-1" />
-            Mark All Absent
+          <Button
+            variant="default"
+            size="lg"
+            onClick={handleSubmit}
+            disabled={
+              saving || 
+              !selectedRoutine || 
+              students.length === 0 || 
+              (selectedRoutine && completedRoutineIds.has(selectedRoutine.id))
+            }
+            className="w-full sm:w-auto gap-2"
+          >
+            {saving ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> Submitting...</>
+            ) : selectedRoutine && completedRoutineIds.has(selectedRoutine.id) ? (
+              <><CheckCircle2 className="w-4 h-4" /> Already Submitted</>
+            ) : (
+              <><Send className="w-4 h-4" /> Submit for Approval</>
+            )}
           </Button>
         </div>
       </motion.div>
 
-      {/* Student List */}
+      {/* Info Banner */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-        className="glass-card rounded-xl overflow-hidden"
+        transition={{ delay: 0.05 }}
+        className="bg-primary/5 border border-primary/20 rounded-xl p-4"
       >
-        <div className="p-4 border-b border-border">
-          <h3 className="font-semibold">Student Attendance</h3>
+        <div className="flex items-start gap-3">
+          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <AlertCircle className="w-4 h-4 text-primary" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium">Captain Mode</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Your attendance submission will be sent to the teacher for approval. The teacher can approve or reject it.
+            </p>
+          </div>
         </div>
+      </motion.div>
 
-        <div className="divide-y divide-border">
-          {filteredStudents.map((student, index) => (
-            <motion.div
-              key={student.id}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: index * 0.05 }}
-              className="flex items-center justify-between p-4 hover:bg-secondary/50 transition-colors"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full gradient-accent flex items-center justify-center text-primary-foreground font-semibold text-sm">
-                  {student.currentRollNumber}
+      {/* Step 1: Select Subject from Today's Routine */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="bg-card border border-border rounded-xl p-4 md:p-5 shadow-card"
+      >
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
+          <BookOpen className="w-4 h-4" />
+          Step 1 — Select Today's Class
+        </h2>
+
+        {todayRoutines.length === 0 ? (
+          <div className="text-center py-6 text-muted-foreground">
+            <Calendar className="w-10 h-10 mx-auto mb-2 opacity-40" />
+            <p className="font-medium">No classes scheduled for {dayName}</p>
+            <p className="text-sm mt-1">Check back on a class day</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {todayRoutines.map((routine) => {
+              const isSelected = selectedRoutine?.id === routine.id;
+              const isCompleted = completedRoutineIds.has(routine.id);
+              return (
+                <motion.button
+                  key={routine.id}
+                  whileTap={{ scale: isCompleted ? 1 : 0.97 }}
+                  onClick={() => !isCompleted && setSelectedRoutine(isSelected ? null : routine)}
+                  disabled={isCompleted}
+                  className={`relative text-left p-4 rounded-xl border-2 transition-all duration-200 ${
+                    isCompleted
+                      ? 'border-success/30 bg-success/5 opacity-75 cursor-not-allowed'
+                      : isSelected
+                        ? 'border-primary bg-primary/5 shadow-md'
+                        : 'border-border hover:border-primary/40 hover:bg-secondary/50'
+                  }`}
+                >
+                  {isCompleted && (
+                    <div className="absolute top-2.5 right-2.5 flex items-center gap-1 px-2 py-1 rounded-full bg-success text-success-foreground text-xs font-semibold">
+                      <CheckCircle2 className="w-3 h-3" />
+                      Complete
+                    </div>
+                  )}
+                  {isSelected && !isCompleted && (
+                    <div className="absolute top-2.5 right-2.5 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                      <Check className="w-3 h-3 text-primary-foreground" />
+                    </div>
+                  )}
+                  <p className={`font-semibold text-sm leading-tight ${isCompleted ? 'pr-24' : 'pr-6'}`}>
+                    {routine.subject_name}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{routine.subject_code}</p>
+                  <div className="flex items-center gap-3 mt-2.5 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      {formatTime(routine.start_time)} – {formatTime(routine.end_time)}
+                    </span>
+                    {routine.class_type && (
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                        routine.class_type === 'Lab' ? 'bg-accent/10 text-accent-foreground' : 'bg-secondary text-secondary-foreground'
+                      }`}>
+                        {routine.class_type}
+                      </span>
+                    )}
+                  </div>
+                  {routine.teacher && (
+                    <p className="text-xs text-muted-foreground mt-2 truncate">
+                      → {routine.teacher.fullNameEnglish}
+                    </p>
+                  )}
+                </motion.button>
+              );
+            })}
+          </div>
+        )}
+      </motion.div>
+
+      {/* Step 2: Mark Attendance */}
+      <AnimatePresence>
+        {selectedRoutine && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="space-y-4 overflow-hidden"
+          >
+            {/* Quick Stats */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-card border border-border rounded-xl p-3 text-center shadow-sm">
+                <Users className="w-5 h-5 mx-auto text-primary mb-1" />
+                <p className="text-xl font-bold">{students.length}</p>
+                <p className="text-[11px] text-muted-foreground">Total</p>
+              </div>
+              <div className="bg-card border border-border rounded-xl p-3 text-center shadow-sm">
+                <Check className="w-5 h-5 mx-auto text-green-500 mb-1" />
+                <p className="text-xl font-bold text-green-500">{presentCount}</p>
+                <p className="text-[11px] text-muted-foreground">Present</p>
+              </div>
+              <div className="bg-card border border-border rounded-xl p-3 text-center shadow-sm">
+                <X className="w-5 h-5 mx-auto text-destructive mb-1" />
+                <p className="text-xl font-bold text-destructive">{absentCount}</p>
+                <p className="text-[11px] text-muted-foreground">Absent</p>
+              </div>
+            </div>
+
+            {/* Search & Bulk Actions */}
+            <div className="bg-card border border-border rounded-xl p-4 shadow-card">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
+                <UserCheck className="w-4 h-4" />
+                Step 2 — Mark Attendance
+              </h2>
+
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by name or roll..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
                 </div>
-                <div>
-                  <p className="font-medium">{student.fullNameEnglish}</p>
-                  <p className="text-sm text-muted-foreground">Roll: {student.currentRollNumber}</p>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={markAllPresent} className="flex-1 sm:flex-none gap-1">
+                    <Check className="w-3.5 h-3.5" /> All Present
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={markAllAbsent} className="flex-1 sm:flex-none gap-1">
+                    <X className="w-3.5 h-3.5" /> All Absent
+                  </Button>
                 </div>
               </div>
+            </div>
 
-              <button
-                onClick={() => toggleAttendance(student.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-                  student.present
-                    ? 'bg-success/10 text-success hover:bg-success/20'
-                    : 'bg-destructive/10 text-destructive hover:bg-destructive/20'
-                }`}
-              >
-                {student.present ? (
-                  <>
-                    <Check className="w-4 h-4" />
-                    Present
-                  </>
-                ) : (
-                  <>
-                    <X className="w-4 h-4" />
-                    Absent
-                  </>
+            {/* Student List */}
+            <div className="bg-card border border-border rounded-xl overflow-hidden shadow-card">
+              <div className="divide-y divide-border">
+                {filteredStudents.map((student, index) => (
+                  <motion.div
+                    key={student.id}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: Math.min(index * 0.02, 0.5) }}
+                    onClick={() => toggleAttendance(student.id)}
+                    className={`flex items-center justify-between p-3.5 cursor-pointer transition-colors active:bg-secondary/70 ${
+                      student.present ? 'hover:bg-green-500/5' : 'hover:bg-destructive/5'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                        student.present
+                          ? 'bg-green-500/10 text-green-600'
+                          : 'bg-destructive/10 text-destructive'
+                      }`}>
+                        {student.currentRollNumber}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm truncate">{student.fullNameEnglish}</p>
+                        <p className="text-xs text-muted-foreground">Roll: {student.currentRollNumber}</p>
+                      </div>
+                    </div>
+
+                    <div className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                      student.present
+                        ? 'bg-green-500/10 text-green-600'
+                        : 'bg-destructive/10 text-destructive'
+                    }`}>
+                      {student.present ? <Check className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
+                      <span className="hidden sm:inline">{student.present ? 'Present' : 'Absent'}</span>
+                    </div>
+                  </motion.div>
+                ))}
+
+                {filteredStudents.length === 0 && (
+                  <div className="p-8 text-center text-muted-foreground">
+                    <Search className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                    <p>No students found</p>
+                  </div>
                 )}
-              </button>
-            </motion.div>
-          ))}
-        </div>
-      </motion.div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

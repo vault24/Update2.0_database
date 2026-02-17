@@ -55,7 +55,7 @@ export function AlumniProfileHeader({ alumni, onEdit, isEditable = true }: Alumn
   return (
     <Card className="overflow-hidden border-0 shadow-lg">
       {/* Gradient Banner */}
-      <div className="h-32 sm:h-40 bg-gradient-to-r from-primary via-primary/80 to-primary/60 relative">
+      <div className="h-28 sm:h-40 bg-gradient-to-r from-primary via-primary/80 to-primary/60 relative">
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmZmZmYiIGZpbGwtb3BhY2l0eT0iMC4xIj48cGF0aCBkPSJNMzYgMzRjMC0yIDItNCAyLTRzLTItMi00LTJjMCAwLTIgMi0yIDRzMiA0IDIgNCBzIDItMiA0LTJ6Ii8+PC9nPjwvZz48L3N2Zz4=')] opacity-30" />
         
         {/* Actions */}
@@ -87,15 +87,15 @@ export function AlumniProfileHeader({ alumni, onEdit, isEditable = true }: Alumn
       {/* Profile Content */}
       <div className="px-4 sm:px-6 pb-6">
         {/* Avatar - Overlapping Banner */}
-        <div className="flex flex-col sm:flex-row sm:items-end gap-4 -mt-16 sm:-mt-12">
+        <div className="flex flex-col sm:flex-row sm:items-end gap-3 sm:gap-4 -mt-14 sm:-mt-12">
           <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.1 }}
           >
-            <Avatar className="w-28 h-28 sm:w-32 sm:h-32 border-4 border-background shadow-xl">
+            <Avatar className="w-24 h-24 sm:w-32 sm:h-32 border-4 border-background shadow-xl">
               <AvatarImage src={alumni.avatar} alt={alumni.name} />
-              <AvatarFallback className="text-2xl sm:text-3xl font-bold bg-gradient-to-br from-primary to-primary/60 text-primary-foreground">
+              <AvatarFallback className="text-xl sm:text-3xl font-bold bg-gradient-to-br from-primary to-primary/60 text-primary-foreground">
                 {getInitials(alumni.name)}
               </AvatarFallback>
             </Avatar>
@@ -103,10 +103,10 @@ export function AlumniProfileHeader({ alumni, onEdit, isEditable = true }: Alumn
 
           <div className="flex-1 sm:pb-2">
             <div className="flex flex-wrap items-center gap-2 mb-1">
-              <h1 className="text-2xl sm:text-3xl font-bold text-foreground">{alumni.name}</h1>
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground">{alumni.name}</h1>
               <Badge className={categoryBadge.color}>{categoryBadge.label}</Badge>
             </div>
-            <p className="text-lg text-muted-foreground">
+            <p className="text-sm sm:text-lg text-muted-foreground">
               {alumni.currentJob} at {alumni.company}
             </p>
           </div>
@@ -180,13 +180,13 @@ export function AlumniProfileHeader({ alumni, onEdit, isEditable = true }: Alumn
         </div>
 
         {/* Contact Info */}
-        <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t">
-          <a href={`mailto:${alumni.email}`} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors">
-            <Mail className="w-4 h-4" />
-            {alumni.email}
+        <div className="flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-4 mt-4 pt-4 border-t">
+          <a href={`mailto:${alumni.email}`} className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground hover:text-primary transition-colors truncate">
+            <Mail className="w-4 h-4 flex-shrink-0" />
+            <span className="truncate">{alumni.email}</span>
           </a>
-          <a href={`tel:${alumni.phone}`} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors">
-            <Phone className="w-4 h-4" />
+          <a href={`tel:${alumni.phone}`} className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground hover:text-primary transition-colors">
+            <Phone className="w-4 h-4 flex-shrink-0" />
             {alumni.phone}
           </a>
         </div>

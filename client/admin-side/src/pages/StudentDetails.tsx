@@ -97,6 +97,8 @@ export default function StudentDetails() {
   const [documentsLoading, setDocumentsLoading] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
   const [isViewOpen, setIsViewOpen] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   useEffect(() => {
     const fetchStudent = async () => {
@@ -658,9 +660,27 @@ export default function StudentDetails() {
     }
   };
 
-  const handleViewDocument = (doc: Document) => {
+  const handleViewDocument = async (doc: Document) => {
     setSelectedDoc(doc);
     setIsViewOpen(true);
+    setPreviewLoading(true);
+    setPreviewUrl(null);
+    
+    try {
+      // Fetch the document with credentials
+      const blob = await documentService.previewDocument(doc.id);
+      const url = window.URL.createObjectURL(blob);
+      setPreviewUrl(url);
+    } catch (err) {
+      console.error('Error loading document preview:', err);
+      toast({
+        title: 'Preview Error',
+        description: 'Failed to load document preview. You can still download it.',
+        variant: 'destructive',
+      });
+    } finally {
+      setPreviewLoading(false);
+    }
   };
 
   const handleDownloadDocument = async (doc: Document) => {
@@ -1656,7 +1676,14 @@ export default function StudentDetails() {
       </Dialog>
 
       {/* Document Preview Dialog */}
-      <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
+      <Dialog open={isViewOpen} onOpenChange={(open) => {
+        setIsViewOpen(open);
+        if (!open && previewUrl) {
+          // Clean up the blob URL when dialog closes
+          window.URL.revokeObjectURL(previewUrl);
+          setPreviewUrl(null);
+        }
+      }}>
         <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
           {selectedDoc && (
             <>
@@ -1718,65 +1745,89 @@ export default function StudentDetails() {
                     
                     {/* Document Content */}
                     <div className="bg-white dark:bg-gray-900 p-4">
-                      {selectedDoc.is_pdf ? (
-                        <div className="w-full">
-                          <iframe
-                            src={documentService.getDocumentPreviewUrl(selectedDoc.id)}
-                            className="w-full border-0 rounded"
-                            title={`Preview of ${selectedDoc.fileName}`}
-                            style={{ 
-                              height: '600px',
-                              minHeight: '600px',
-                              width: '100%'
-                            }}
-                          />
+                      {previewLoading ? (
+                        <div className="flex items-center justify-center py-12">
+                          <div className="w-8 h-8 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+                          <span className="ml-3 text-muted-foreground">Loading preview...</span>
                         </div>
-                      ) : selectedDoc.is_image ? (
-                        <div className="text-center">
-                          <div className="relative inline-block">
-                            <img
-                              src={documentService.getDocumentPreviewUrl(selectedDoc.id)}
-                              alt={selectedDoc.fileName}
-                              className="max-w-full h-auto object-contain rounded shadow-lg cursor-zoom-in"
-                              style={{ 
-                                maxHeight: '500px',
-                                minHeight: '200px'
-                              }}
-                              onClick={(e) => {
-                                const img = e.target as HTMLImageElement;
-                                if (img.style.transform === 'scale(1.5)') {
-                                  img.style.transform = 'scale(1)';
-                                  img.style.cursor = 'zoom-in';
-                                } else {
-                                  img.style.transform = 'scale(1.5)';
-                                  img.style.cursor = 'zoom-out';
-                                  img.style.transformOrigin = 'center';
-                                  img.style.transition = 'transform 0.3s ease';
-                                }
-                              }}
-                            />
-                          </div>
-                          
-                          {/* Image Controls */}
-                          <div className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground bg-background/80 backdrop-blur-sm rounded-md px-3 py-2 inline-flex">
-                            <span>Click to zoom</span>
-                            <span>•</span>
-                            <span>Right-click to save</span>
-                          </div>
-                        </div>
+                      ) : previewUrl ? (
+                        <>
+                          {selectedDoc.is_pdf ? (
+                            <div className="w-full">
+                              <iframe
+                                src={previewUrl}
+                                className="w-full border-0 rounded"
+                                title={`Preview of ${selectedDoc.fileName}`}
+                                style={{ 
+                                  height: '600px',
+                                  minHeight: '600px',
+                                  width: '100%'
+                                }}
+                              />
+                            </div>
+                          ) : selectedDoc.is_image ? (
+                            <div className="text-center">
+                              <div className="relative inline-block">
+                                <img
+                                  src={previewUrl}
+                                  alt={selectedDoc.fileName}
+                                  className="max-w-full h-auto object-contain rounded shadow-lg cursor-zoom-in"
+                                  style={{ 
+                                    maxHeight: '500px',
+                                    minHeight: '200px'
+                                  }}
+                                  onClick={(e) => {
+                                    const img = e.target as HTMLImageElement;
+                                    if (img.style.transform === 'scale(1.5)') {
+                                      img.style.transform = 'scale(1)';
+                                      img.style.cursor = 'zoom-in';
+                                    } else {
+                                      img.style.transform = 'scale(1.5)';
+                                      img.style.cursor = 'zoom-out';
+                                      img.style.transformOrigin = 'center';
+                                      img.style.transition = 'transform 0.3s ease';
+                                    }
+                                  }}
+                                />
+                              </div>
+                              
+                              {/* Image Controls */}
+                              <div className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground bg-background/80 backdrop-blur-sm rounded-md px-3 py-2 inline-flex">
+                                <span>Click to zoom</span>
+                                <span>•</span>
+                                <span>Right-click to save</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center justify-center text-center py-12">
+                              <FileText className="w-16 h-16 text-muted-foreground mb-4" />
+                              <p className="text-muted-foreground mb-2">Preview not available for this file type</p>
+                              <p className="text-sm text-muted-foreground mb-4">
+                                File type: {selectedDoc.fileType.toUpperCase()}
+                              </p>
+                              <Button 
+                                variant="outline" 
+                                onClick={() => handleDownloadDocument(selectedDoc)}
+                              >
+                                <Download className="w-4 h-4 mr-2" />
+                                Download to View
+                              </Button>
+                            </div>
+                          )}
+                        </>
                       ) : (
                         <div className="flex flex-col items-center justify-center text-center py-12">
-                          <FileText className="w-16 h-16 text-muted-foreground mb-4" />
-                          <p className="text-muted-foreground mb-2">Preview not available for this file type</p>
+                          <AlertTriangle className="w-16 h-16 text-warning mb-4" />
+                          <p className="text-muted-foreground mb-2">Failed to load preview</p>
                           <p className="text-sm text-muted-foreground mb-4">
-                            File type: {selectedDoc.fileType.toUpperCase()}
+                            You can still download the document
                           </p>
                           <Button 
                             variant="outline" 
                             onClick={() => handleDownloadDocument(selectedDoc)}
                           >
                             <Download className="w-4 h-4 mr-2" />
-                            Download to View
+                            Download Document
                           </Button>
                         </div>
                       )}
@@ -1796,18 +1847,26 @@ export default function StudentDetails() {
               </div>
               
               <DialogFooter className="px-6 py-4 border-t bg-background">
-                <Button variant="outline" onClick={() => setIsViewOpen(false)}>
+                <Button variant="outline" onClick={() => {
+                  setIsViewOpen(false);
+                  if (previewUrl) {
+                    window.URL.revokeObjectURL(previewUrl);
+                    setPreviewUrl(null);
+                  }
+                }}>
                   Close
                 </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={() => {
-                    window.open(documentService.getDocumentPreviewUrl(selectedDoc.id), '_blank');
-                  }}
-                >
-                  <Eye className="w-4 h-4 mr-2" />
-                  Open in New Tab
-                </Button>
+                {previewUrl && (
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      window.open(previewUrl, '_blank');
+                    }}
+                  >
+                    <Eye className="w-4 h-4 mr-2" />
+                    Open in New Tab
+                  </Button>
+                )}
                 <Button 
                   className="gradient-primary text-primary-foreground" 
                   onClick={() => handleDownloadDocument(selectedDoc)}

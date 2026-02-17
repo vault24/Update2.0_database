@@ -34,7 +34,14 @@ class SecureFileView(View):
             raise Http404("File not found")
         
         # Get file info from storage
-        file_info = file_storage.get_file_info(file_path)
+        # Try structured storage first (new system)
+        from utils.structured_file_storage import structured_storage
+        file_info = structured_storage.get_file_info(file_path)
+        
+        # Fallback to old storage if not found
+        if not file_info or not file_info.get('exists'):
+            file_info = file_storage.get_file_info(file_path)
+        
         if not file_info or not file_info.get('exists'):
             raise Http404("File not found")
         
@@ -95,8 +102,8 @@ class SecureFileView(View):
         if user.is_staff or getattr(user, 'role', None) == 'admin':
             return True
         
-        # Student access to own documents
-        if getattr(user, 'role', None) == 'student':
+        # Student and captain access to own documents
+        if getattr(user, 'role', None) in ['student', 'captain']:
             if hasattr(user, 'related_profile_id') and user.related_profile_id:
                 if str(document.student_id) == str(user.related_profile_id):
                     return True
@@ -178,7 +185,7 @@ class DocumentThumbnailView(View):
         if user.is_staff or getattr(user, 'role', None) == 'admin':
             return True
         
-        if getattr(user, 'role', None) == 'student':
+        if getattr(user, 'role', None) in ['student', 'captain']:
             if hasattr(user, 'related_profile_id') and user.related_profile_id:
                 if str(document.student_id) == str(user.related_profile_id):
                     return True

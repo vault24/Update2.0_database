@@ -1,11 +1,12 @@
 import { motion } from 'framer-motion';
 import { 
   Clock, MapPin, Users, Coffee, BookOpen, 
-  ChevronLeft, ChevronRight 
+  ChevronLeft, ChevronRight, Loader2, AlertCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { apiClient } from '@/lib/api';
 
 type DayOfWeek = 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday';
 
@@ -21,32 +22,24 @@ interface ScheduleSlot {
   type: 'class' | 'lab' | 'break';
 }
 
-const days: DayOfWeek[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
+interface ClassRoutine {
+  id: string;
+  day_of_week: string;
+  start_time: string;
+  end_time: string;
+  subject_name: string;
+  subject_code: string;
+  department: {
+    id: string;
+    name: string;
+  };
+  semester: number;
+  room_number: string;
+  class_type: string;
+  lab_name?: string;
+}
 
-// Mock schedule data
-const mockSchedule: Record<DayOfWeek, ScheduleSlot[]> = {
-  Sunday: [
-    { id: '1', startTime: '09:00', endTime: '10:30', subject: 'Database Systems', subjectCode: 'CSE-401', department: 'CSE', semester: 4, room: '301', type: 'class' },
-    { id: '2', startTime: '10:30', endTime: '11:00', subject: 'Break', subjectCode: '', department: '', semester: 0, room: '', type: 'break' },
-    { id: '3', startTime: '11:00', endTime: '12:30', subject: 'Software Engineering', subjectCode: 'CSE-501', department: 'CSE', semester: 5, room: '402', type: 'class' },
-    { id: '4', startTime: '15:30', endTime: '17:00', subject: 'Computer Networks', subjectCode: 'EEE-501', department: 'EEE', semester: 5, room: '201', type: 'class' },
-  ],
-  Monday: [
-    { id: '5', startTime: '09:00', endTime: '10:30', subject: 'Software Engineering', subjectCode: 'CSE-501', department: 'CSE', semester: 5, room: '402', type: 'class' },
-    { id: '6', startTime: '14:00', endTime: '16:00', subject: 'Database Lab', subjectCode: 'CSE-401L', department: 'CSE', semester: 4, room: 'Lab-1', type: 'lab' },
-  ],
-  Tuesday: [
-    { id: '7', startTime: '14:00', endTime: '15:30', subject: 'Web Development', subjectCode: 'CSE-601', department: 'CSE', semester: 6, room: '305', type: 'class' },
-  ],
-  Wednesday: [
-    { id: '8', startTime: '09:00', endTime: '10:30', subject: 'Database Systems', subjectCode: 'CSE-401', department: 'CSE', semester: 4, room: '301', type: 'class' },
-    { id: '9', startTime: '11:00', endTime: '12:30', subject: 'Web Development', subjectCode: 'CSE-601', department: 'CSE', semester: 6, room: '305', type: 'class' },
-  ],
-  Thursday: [
-    { id: '10', startTime: '11:00', endTime: '12:30', subject: 'Computer Networks', subjectCode: 'EEE-501', department: 'EEE', semester: 5, room: '201', type: 'class' },
-    { id: '11', startTime: '14:00', endTime: '15:30', subject: 'Software Engineering', subjectCode: 'CSE-501', department: 'CSE', semester: 5, room: '402', type: 'class' },
-  ],
-};
+const days: DayOfWeek[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
 
 const typeStyles = {
   class: {
@@ -69,13 +62,84 @@ const typeStyles = {
   },
 };
 
-export function TeacherScheduleTab() {
+interface TeacherScheduleTabProps {
+  teacherId: string;
+}
+
+export function TeacherScheduleTab({ teacherId }: TeacherScheduleTabProps) {
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>(() => {
     const today = new Date().getDay();
     if (today === 0) return 'Sunday';
     if (today >= 1 && today <= 4) return days[today] as DayOfWeek;
     return 'Sunday'; // Default to Sunday for Friday/Saturday
   });
+  
+  const [schedule, setSchedule] = useState<Record<DayOfWeek, ScheduleSlot[]>>({
+    Sunday: [],
+    Monday: [],
+    Tuesday: [],
+    Wednesday: [],
+    Thursday: [],
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchTeacherRoutine();
+  }, [teacherId]);
+
+  const fetchTeacherRoutine = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Fetch teacher's routine from API
+      const response = await apiClient.get<{ count: number; routines: ClassRoutine[] }>(
+        `/class-routines/my-routine/`,
+        { teacher: teacherId }
+      );
+
+      // Transform API data to schedule format
+      const scheduleByDay: Record<DayOfWeek, ScheduleSlot[]> = {
+        Sunday: [],
+        Monday: [],
+        Tuesday: [],
+        Wednesday: [],
+        Thursday: [],
+      };
+
+      response.routines.forEach((routine) => {
+        const day = routine.day_of_week as DayOfWeek;
+        if (days.includes(day)) {
+          scheduleByDay[day].push({
+            id: routine.id,
+            startTime: routine.start_time.substring(0, 5), // Format HH:MM
+            endTime: routine.end_time.substring(0, 5),
+            subject: routine.subject_name,
+            subjectCode: routine.subject_code,
+            department: routine.department.name,
+            semester: routine.semester,
+            room: routine.room_number,
+            type: routine.class_type.toLowerCase() === 'lab' ? 'lab' : 'class',
+          });
+        }
+      });
+
+      // Sort each day's schedule by start time
+      Object.keys(scheduleByDay).forEach((day) => {
+        scheduleByDay[day as DayOfWeek].sort((a, b) => 
+          a.startTime.localeCompare(b.startTime)
+        );
+      });
+
+      setSchedule(scheduleByDay);
+    } catch (err: any) {
+      console.error('Error fetching teacher routine:', err);
+      setError(err.message || 'Failed to load teacher schedule');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const currentDayIndex = days.indexOf(selectedDay);
 
@@ -91,7 +155,28 @@ export function TeacherScheduleTab() {
     }
   };
 
-  const totalClasses = Object.values(mockSchedule).flat().filter(s => s.type !== 'break').length;
+  const totalClasses = Object.values(schedule).flat().filter(s => s.type !== 'break').length;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-6 text-center">
+        <AlertCircle className="w-12 h-12 mx-auto text-destructive mb-3" />
+        <p className="text-destructive font-medium mb-2">Failed to load schedule</p>
+        <p className="text-sm text-muted-foreground mb-4">{error}</p>
+        <Button onClick={fetchTeacherRoutine} variant="outline" size="sm">
+          Try Again
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 md:space-y-6">
@@ -110,7 +195,7 @@ export function TeacherScheduleTab() {
 
         <div className="grid grid-cols-5 gap-2 md:gap-3">
           {days.map((day) => {
-            const dayClasses = mockSchedule[day].filter(s => s.type !== 'break');
+            const dayClasses = schedule[day].filter(s => s.type !== 'break');
             const isSelected = day === selectedDay;
             const isToday = new Date().getDay() === days.indexOf(day);
 
@@ -174,7 +259,7 @@ export function TeacherScheduleTab() {
 
       {/* Schedule Timeline */}
       <div className="space-y-3 md:space-y-4">
-        {mockSchedule[selectedDay].length === 0 ? (
+        {schedule[selectedDay].length === 0 ? (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -184,7 +269,7 @@ export function TeacherScheduleTab() {
             <p className="text-muted-foreground">No classes scheduled for {selectedDay}</p>
           </motion.div>
         ) : (
-          mockSchedule[selectedDay].map((slot, index) => {
+          schedule[selectedDay].map((slot, index) => {
             const styles = typeStyles[slot.type];
             const Icon = styles.icon;
 

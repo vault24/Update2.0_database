@@ -83,7 +83,7 @@ export function CoursesCard({ courses, onAdd, onEdit, onDelete, isEditable = tru
               >
                 {/* Edit/Delete Actions */}
                 {isEditable && (
-                  <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                  <div className="absolute top-3 right-3 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onEdit?.(course)}>
                       <Edit className="w-3.5 h-3.5" />
                     </Button>

@@ -65,6 +65,15 @@ class User(AbstractUser):
         help_text='UUID of related Student or Teacher profile'
     )
     
+    # Student ID (generated from SSC Board Roll)
+    student_id = models.CharField(
+        max_length=50,
+        unique=True,
+        null=True,
+        blank=True,
+        help_text='Student ID in format SIPI-{ssc_roll}'
+    )
+    
     # Additional fields
     mobile_number = models.CharField(max_length=11, blank=True)
     

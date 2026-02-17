@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { 
   Plus, Edit, Trash2, Users, GraduationCap, BookOpen, Building2, 
-  Search, MoreVertical, ChevronRight, TrendingUp, Award
+  Search, MoreVertical, ChevronRight, Award
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,6 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import {
   DropdownMenu,
@@ -19,6 +18,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { API_BASE_URL } from '@/config/api';
 import departmentService, { Department as APIDepartment } from '@/services/departmentService';
 import { LoadingState } from '@/components/LoadingState';
 import { EmptyState } from '@/components/EmptyState';
@@ -26,14 +26,13 @@ import { EmptyState } from '@/components/EmptyState';
 interface Department {
   id: string;
   name: string;
-  shortName: string;
-  head: string;
+  code: string;
+  head: string | null;
   totalStudents: number;
   activeStudents: number;
   faculty: number;
-  established: string;
-  description: string;
-  status: 'Active' | 'Inactive';
+  established: string | null;
+  photo_url: string | null;
 }
 
 export default function Departments() {
@@ -47,10 +46,10 @@ export default function Departments() {
   const [selectedDept, setSelectedDept] = useState<Department | null>(null);
   const [formData, setFormData] = useState({
     name: '',
-    shortName: '',
+    code: '',
     head: '',
-    description: '',
     established: '',
+    photo: null as File | null,
   });
   const { toast } = useToast();
 
@@ -63,17 +62,25 @@ export default function Departments() {
     try {
       setLoading(true);
       const response = await departmentService.getDepartments();
+      
+      // Get base URL without /api suffix for media files
+      const baseURL = API_BASE_URL.replace('/api', '');
+      
       const mappedDepts = response.results.map((dept: APIDepartment) => ({
         id: dept.id,
         name: dept.name,
-        shortName: dept.short_name,
-        head: dept.head || '',
+        code: dept.code || dept.short_name,
+        head: dept.head || null,
         totalStudents: dept.total_students,
         activeStudents: dept.active_students,
         faculty: dept.faculty_count,
-        established: dept.established_year,
-        description: dept.description,
-        status: dept.is_active ? 'Active' as const : 'Inactive' as const,
+        established: dept.established_year || null,
+        // Convert relative photo URL to absolute URL
+        photo_url: dept.photo_url 
+          ? (dept.photo_url.startsWith('http') 
+              ? dept.photo_url 
+              : `${baseURL}${dept.photo_url}`)
+          : null,
       }));
       setDepartments(mappedDepts);
     } catch (error) {
@@ -90,31 +97,29 @@ export default function Departments() {
 
   const filteredDepartments = departments.filter(d => 
     d.name.toLowerCase().includes(search.toLowerCase()) ||
-    d.shortName.toLowerCase().includes(search.toLowerCase()) ||
-    d.head.toLowerCase().includes(search.toLowerCase())
+    d.code.toLowerCase().includes(search.toLowerCase()) ||
+    (d.head && d.head.toLowerCase().includes(search.toLowerCase()))
   );
 
   const totalStudents = departments.reduce((acc, d) => acc + (d.totalStudents || 0), 0);
   const totalFaculty = departments.reduce((acc, d) => acc + (d.faculty || 0), 0);
-  const activeDepartments = departments.filter(d => d.status === 'Active').length;
 
   const handleAdd = async () => {
-    if (!formData.name || !formData.shortName) {
-      toast({ title: "Error", description: "Name and Short Name are required.", variant: "destructive" });
+    if (!formData.name || !formData.code) {
+      toast({ title: "Error", description: "Name and Department Code are required.", variant: "destructive" });
       return;
     }
     
     try {
       await departmentService.createDepartment({
         name: formData.name,
-        short_name: formData.shortName,
-        head: formData.head || undefined,
-        description: formData.description || undefined,
-        established_year: formData.established || new Date().getFullYear().toString(),
-        is_active: true,
+        code: formData.code,
+        head: formData.head,
+        established_year: formData.established,
+        photo: formData.photo || undefined,
       });
       
-      setFormData({ name: '', shortName: '', head: '', description: '', established: '' });
+      setFormData({ name: '', code: '', head: '', established: '', photo: null });
       setIsAddOpen(false);
       toast({ title: "Department Added", description: `${formData.name} has been added successfully.` });
       fetchDepartments();
@@ -131,15 +136,22 @@ export default function Departments() {
   const handleEdit = async () => {
     if (!selectedDept) return;
     
+    if (!formData.name || !formData.code) {
+      toast({ title: "Error", description: "Name and Department Code are required.", variant: "destructive" });
+      return;
+    }
+    
     try {
       await departmentService.updateDepartment(selectedDept.id, {
         name: formData.name,
-        short_name: formData.shortName,
-        head: formData.head || undefined,
-        description: formData.description || undefined,
+        code: formData.code,
+        head: formData.head,
+        established_year: formData.established,
+        photo: formData.photo || undefined,
       });
       
       setIsEditOpen(false);
+      setFormData({ name: '', code: '', head: '', established: '', photo: null });
       toast({ title: "Department Updated", description: "Department details have been updated." });
       fetchDepartments();
     } catch (error) {
@@ -174,10 +186,10 @@ export default function Departments() {
     setSelectedDept(dept);
     setFormData({
       name: dept.name,
-      shortName: dept.shortName,
-      head: dept.head,
-      description: dept.description,
-      established: dept.established,
+      code: dept.code,
+      head: dept.head || '',
+      established: dept.established || '',
+      photo: null,
     });
     setIsEditOpen(true);
   };
@@ -261,11 +273,11 @@ export default function Departments() {
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-warning/20 flex items-center justify-center">
-                  <TrendingUp className="w-5 h-5 text-warning" />
+                  <Award className="w-5 h-5 text-warning" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-foreground">{activeDepartments || 0}</p>
-                  <p className="text-xs text-muted-foreground">Active Departments</p>
+                  <p className="text-2xl font-bold text-foreground">{departments.length || 0}</p>
+                  <p className="text-xs text-muted-foreground">Active Programs</p>
                 </div>
               </div>
             </CardContent>
@@ -322,18 +334,23 @@ export default function Departments() {
               </div>
               <CardContent className="p-6">
                 <div className="flex items-start gap-4 mb-4">
-                  <div className="w-16 h-16 rounded-xl gradient-primary flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
-                    <span className="text-xl font-bold text-primary-foreground">{dept.shortName}</span>
-                  </div>
+                  {dept.photo_url ? (
+                    <img 
+                      src={dept.photo_url} 
+                      alt={dept.name}
+                      className="w-16 h-16 rounded-xl object-cover flex-shrink-0 group-hover:scale-110 transition-transform"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 rounded-xl gradient-primary flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
+                      <span className="text-xl font-bold text-primary-foreground">{dept.code}</span>
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <h3 className="font-bold text-lg text-foreground mb-1 truncate">{dept.name}</h3>
-                    <p className="text-sm text-muted-foreground">Est. {dept.established}</p>
-                    <Badge 
-                      variant={dept.status === 'Active' ? 'default' : 'secondary'}
-                      className="mt-2"
-                    >
-                      {dept.status}
-                    </Badge>
+                    <p className="text-sm text-muted-foreground">Code: {dept.code}</p>
+                    {dept.established && (
+                      <p className="text-sm text-muted-foreground">Est. {dept.established}</p>
+                    )}
                   </div>
                 </div>
                 
@@ -398,11 +415,11 @@ export default function Departments() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Short Name *</Label>
+                <Label>Department Code *</Label>
                 <Input 
                   placeholder="e.g., CT" 
-                  value={formData.shortName}
-                  onChange={(e) => setFormData({ ...formData, shortName: e.target.value })}
+                  value={formData.code}
+                  onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
                 />
               </div>
             </div>
@@ -425,11 +442,11 @@ export default function Departments() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Description</Label>
-              <Textarea 
-                placeholder="Brief description of the department..."
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              <Label>Department Photo</Label>
+              <Input 
+                type="file"
+                accept="image/*"
+                onChange={(e) => setFormData({ ...formData, photo: e.target.files?.[0] || null })}
               />
             </div>
           </div>
@@ -459,26 +476,42 @@ export default function Departments() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Short Name *</Label>
+                <Label>Department Code *</Label>
                 <Input 
-                  value={formData.shortName}
-                  onChange={(e) => setFormData({ ...formData, shortName: e.target.value })}
+                  value={formData.code}
+                  onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Department Head</Label>
+                <Input 
+                  value={formData.head}
+                  onChange={(e) => setFormData({ ...formData, head: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Established Year</Label>
+                <Input 
+                  value={formData.established}
+                  onChange={(e) => setFormData({ ...formData, established: e.target.value })}
                 />
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Department Head</Label>
+              <Label>Department Photo</Label>
               <Input 
-                value={formData.head}
-                onChange={(e) => setFormData({ ...formData, head: e.target.value })}
+                type="file"
+                accept="image/*"
+                onChange={(e) => setFormData({ ...formData, photo: e.target.files?.[0] || null })}
               />
-            </div>
-            <div className="space-y-2">
-              <Label>Description</Label>
-              <Textarea 
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              />
+              {selectedDept?.photo_url && (
+                <div className="mt-2">
+                  <img src={selectedDept.photo_url} alt="Current" className="w-20 h-20 rounded object-cover" />
+                  <p className="text-xs text-muted-foreground mt-1">Current photo</p>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>

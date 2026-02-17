@@ -35,6 +35,7 @@ interface SignupData {
   mobile: string;
   password: string;
   role: UserRole;
+  sscBoardRoll?: string; // For students and captains
   fullNameBangla?: string;
   designation?: string;
   department?: string;
@@ -158,7 +159,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             id: response.user.id,
             name: fullName,
             email: response.user.email,
-            studentId: response.user.related_profile_id || response.user.id,
+            studentId: response.user.student_id || response.user.id, // Use student_id field
             role: response.user.role || 'student',
             admissionStatus: response.user.admission_status || 'not_started',
             relatedProfileId: relatedProfileId,
@@ -233,7 +234,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         id: response.user.id,
         name: fullName,
         email: response.user.email,
-        studentId: response.user.related_profile_id || response.user.id,
+        studentId: response.user.student_id || response.user.id, // Use student_id field
         role: response.user.role || 'student',
         admissionStatus: response.user.admission_status || 'not_started',
         relatedProfileId: relatedProfileId,
@@ -299,6 +300,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role: data.role,
       };
       
+      // Add SSC Board Roll for students and captains
+      if ((data.role === 'student' || data.role === 'captain') && data.sscBoardRoll) {
+        registrationData.ssc_board_roll = data.sscBoardRoll;
+      }
+      
       if (data.role === 'teacher') {
         registrationData.full_name_english = data.fullName;
         registrationData.full_name_bangla = data.fullNameBangla || '';
@@ -325,7 +331,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           id: response.user.id,
           name: data.fullName, // Use the fullName from signup form
           email: data.email,
-          studentId: response.user.related_profile_id || response.user.id,
+          studentId: response.user.student_id || response.user.id, // Use student_id field
           role: data.role,
           admissionStatus: response.user.admission_status || 'not_started',
           relatedProfileId: relatedProfileId,

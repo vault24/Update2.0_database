@@ -14,17 +14,19 @@ import { useAuth } from '@/contexts/AuthContext';
 
 const semesters = ['1st Semester', '2nd Semester', '3rd Semester', '4th Semester'];
 
+interface MarkColumn {
+  id: string;
+  name: string;
+  maxMarks: number;
+}
+
 interface SubjectMark {
   subject: string;
   code: string;
-  ct1: number;
-  ct2: number;
-  ct3: number;
-  assignment: number;
-  attendance: number;
-  internalTotal: number;
-  finalExam: number | null;
-  total: number | null;
+  customMarks: { [columnId: string]: number };
+  columnDefinitions: MarkColumn[];
+  total: number;
+  percentage: number;
   grade: string | null;
   gpa: number | null;
 }
@@ -50,11 +52,10 @@ const getGradeColor = (grade: string | null) => {
   return 'text-destructive';
 };
 
-const getPercentageColor = (total: number | null) => {
-  if (total === null) return 'bg-muted';
-  if (total >= 80) return 'bg-success';
-  if (total >= 60) return 'bg-primary';
-  if (total >= 40) return 'bg-warning';
+const getPercentageColor = (percentage: number) => {
+  if (percentage >= 80) return 'bg-success';
+  if (percentage >= 60) return 'bg-primary';
+  if (percentage >= 40) return 'bg-warning';
   return 'bg-destructive';
 };
 
@@ -122,18 +123,13 @@ export default function MarksPage() {
       
       // Group marks by subject and aggregate from MarksRecord
       const subjectMap = new Map<string, SubjectMark>();
-      
-      // Track quiz marks separately to properly assign to CT-1, CT-2, CT-3
-      const quizMarksBySubject = new Map<string, { ct1?: number; ct2?: number; ct3?: number }>();
+      const columnsBySubject = new Map<string, Map<string, MarkColumn>>();
       
       // Helper to get field value (handle both camelCase and snake_case)
       const getField = (record: any, field: string): any => {
-        // Try camelCase first
         if (record[field] !== undefined) return record[field];
-        // Try snake_case
         const snakeCase = field.replace(/([A-Z])/g, '_$1').toLowerCase();
         if (record[snakeCase] !== undefined) return record[snakeCase];
-        // Try lowercase
         if (record[field.toLowerCase()] !== undefined) return record[field.toLowerCase()];
         return null;
       };
@@ -145,190 +141,97 @@ export default function MarksPage() {
         return isNaN(num) ? 0 : num;
       };
       
-      // Process marks response
+      // First pass: collect all columns and marks
       if (marksResponse?.results && marksResponse.results.length > 0) {
         marksResponse.results.forEach((record: any) => {
-          // Handle both camelCase and snake_case field names
           const subjectCode = getField(record, 'subjectCode') || '';
           const subjectName = getField(record, 'subjectName') || '';
-          const examType = getField(record, 'examType') || '';
           const marksObtained = toNumber(getField(record, 'marksObtained'));
+          const totalMarks = toNumber(getField(record, 'totalMarks'));
           const remarks = getField(record, 'remarks') || '';
-          
-          if (!subjectCode) {
-            console.warn('Skipping mark record with missing subjectCode:', record);
-            return;
-          }
-          
-          const key = subjectCode;
-          
-          // Collect quiz marks separately, using remarks to identify CT number
-          if (examType === 'quiz') {
-            if (!quizMarksBySubject.has(key)) {
-              quizMarksBySubject.set(key, {});
-            }
-            const quizData = quizMarksBySubject.get(key)!;
-            // Check remarks to identify which CT this is
-            const remarksLower = remarks.toLowerCase();
-            if (remarksLower.includes('ct-1') || remarksLower.includes('ct1')) {
-              quizData.ct1 = marksObtained;
-            } else if (remarksLower.includes('ct-2') || remarksLower.includes('ct2')) {
-              quizData.ct2 = marksObtained;
-            } else if (remarksLower.includes('ct-3') || remarksLower.includes('ct3')) {
-              quizData.ct3 = marksObtained;
-            } else {
-              // Fallback: assign sequentially if no remarks
-              if (quizData.ct1 === undefined) quizData.ct1 = marksObtained;
-              else if (quizData.ct2 === undefined) quizData.ct2 = marksObtained;
-              else if (quizData.ct3 === undefined) quizData.ct3 = marksObtained;
-            }
-          }
-        });
-        
-        // Process all marks
-        marksResponse.results.forEach((record: any) => {
-          const subjectCode = getField(record, 'subjectCode') || '';
-          const subjectName = getField(record, 'subjectName') || '';
           const examType = getField(record, 'examType') || '';
-          const marksObtained = toNumber(getField(record, 'marksObtained'));
           
           if (!subjectCode) return;
           
           const key = subjectCode;
+          
+          // Initialize column map for this subject
+          if (!columnsBySubject.has(key)) {
+            columnsBySubject.set(key, new Map());
+          }
+          const columnsMap = columnsBySubject.get(key)!;
+          
+          // Create column definition from remarks (column name)
+          const columnName = remarks || `${examType}`;
+          const columnId = `${examType}_${remarks.replace(/\s+/g, '_').toLowerCase()}`;
+          
+          if (!columnsMap.has(columnId)) {
+            columnsMap.set(columnId, {
+              id: columnId,
+              name: columnName,
+              maxMarks: totalMarks
+            });
+          }
+          
+          // Initialize subject if not exists
           if (!subjectMap.has(key)) {
             subjectMap.set(key, {
               subject: subjectName || 'Unknown Subject',
               code: subjectCode,
-              ct1: 0,
-              ct2: 0,
-              ct3: 0,
-              assignment: 0,
-              attendance: 0,
-              internalTotal: 0,
-              finalExam: null,
-              total: null,
+              customMarks: {},
+              columnDefinitions: [],
+              total: 0,
+              percentage: 0,
               grade: null,
               gpa: null
             });
           }
           
           const subject = subjectMap.get(key)!;
-          
-          // Aggregate marks based on exam type
-          if (examType === 'quiz') {
-            // Quiz marks are handled separately below
-            // Do nothing here, we'll assign them after processing all records
-          } else if (examType === 'midterm') {
-            // CT-2 is saved as 'midterm' from admin side (backward compatibility)
-            subject.ct2 = marksObtained;
-          } else if (examType === 'assignment') {
-            subject.assignment = marksObtained;
-          } else if (examType === 'practical') {
-            // Attendance is saved as 'practical'
-            subject.attendance = marksObtained;
-          } else if (examType === 'final') {
-            subject.finalExam = marksObtained;
-          }
+          subject.customMarks[columnId] = marksObtained;
         });
       }
       
-      // Now assign quiz marks to CT-1, CT-2, CT-3 slots
-      quizMarksBySubject.forEach((quizData, key) => {
-        if (subjectMap.has(key)) {
-          const subject = subjectMap.get(key)!;
-          // Assign quiz marks based on remarks or sequentially
-          if (quizData.ct1 !== undefined && subject.ct1 === 0) {
-            subject.ct1 = quizData.ct1;
-          }
-          if (quizData.ct2 !== undefined && subject.ct2 === 0) {
-            subject.ct2 = quizData.ct2;
-          }
-          if (quizData.ct3 !== undefined && subject.ct3 === 0) {
-            subject.ct3 = quizData.ct3;
-          }
+      // Second pass: calculate totals and percentages
+      subjectMap.forEach((subject, key) => {
+        const columnsMap = columnsBySubject.get(key);
+        if (columnsMap) {
+          subject.columnDefinitions = Array.from(columnsMap.values());
         }
+        
+        // Calculate total obtained and max
+        const totalObtained = Object.values(subject.customMarks).reduce((sum, val) => sum + val, 0);
+        const totalMax = subject.columnDefinitions.reduce((sum, col) => sum + col.maxMarks, 0);
+        
+        subject.total = totalObtained;
+        subject.percentage = totalMax > 0 ? (totalObtained / totalMax) * 100 : 0;
+        
+        // Calculate grade based on percentage
+        if (subject.percentage >= 80) subject.grade = 'A+';
+        else if (subject.percentage >= 75) subject.grade = 'A';
+        else if (subject.percentage >= 70) subject.grade = 'A-';
+        else if (subject.percentage >= 65) subject.grade = 'B+';
+        else if (subject.percentage >= 60) subject.grade = 'B';
+        else if (subject.percentage >= 55) subject.grade = 'B-';
+        else if (subject.percentage >= 50) subject.grade = 'C+';
+        else if (subject.percentage >= 45) subject.grade = 'C';
+        else if (subject.percentage >= 40) subject.grade = 'D';
+        else subject.grade = 'F';
+        
+        // Calculate GPA
+        if (subject.percentage >= 80) subject.gpa = 4.0;
+        else if (subject.percentage >= 75) subject.gpa = 3.75;
+        else if (subject.percentage >= 70) subject.gpa = 3.50;
+        else if (subject.percentage >= 65) subject.gpa = 3.25;
+        else if (subject.percentage >= 60) subject.gpa = 3.0;
+        else if (subject.percentage >= 55) subject.gpa = 2.75;
+        else if (subject.percentage >= 50) subject.gpa = 2.50;
+        else if (subject.percentage >= 45) subject.gpa = 2.25;
+        else if (subject.percentage >= 40) subject.gpa = 2.0;
+        else subject.gpa = 0.0;
       });
       
-      // Also check semesterResults from Student model for the selected semester
-      if (studentData?.semesterResults) {
-        const semesterResult = studentData.semesterResults.find(
-          (result: any) => result.semester === semesterNum
-        );
-        
-        if (semesterResult?.subjects) {
-          semesterResult.subjects.forEach((subjectResult: any) => {
-            const key = subjectResult.code;
-            if (!subjectMap.has(key)) {
-              // Create new entry from semesterResults
-              // Convert grade to estimated total for display
-              const gradeToTotal: { [key: string]: number } = {
-                'A+': 90, 'A': 85, 'A-': 80,
-                'B+': 75, 'B': 70, 'B-': 65,
-                'C+': 60, 'C': 55, 'C-': 50,
-                'D': 45, 'F': 35
-              };
-              const estimatedTotal = subjectResult.grade ? (gradeToTotal[subjectResult.grade] || null) : null;
-              
-              subjectMap.set(key, {
-                subject: subjectResult.name,
-                code: subjectResult.code,
-                ct1: 0,
-                ct2: 0,
-                ct3: 0,
-                assignment: 0,
-                attendance: 0,
-                internalTotal: 0,
-                finalExam: null,
-                total: estimatedTotal,
-                grade: subjectResult.grade || null,
-                gpa: subjectResult.gradePoint || null
-              });
-            } else {
-              // Update existing entry with grade/GPA from semesterResults if available
-              const subject = subjectMap.get(key)!;
-              if (subjectResult.grade) {
-                subject.grade = subjectResult.grade;
-              }
-              if (subjectResult.gradePoint) {
-                subject.gpa = subjectResult.gradePoint;
-              }
-              // If we have grade but no total, estimate total from grade
-              if (subjectResult.grade && !subject.total) {
-                const gradeToTotal: { [key: string]: number } = {
-                  'A+': 90, 'A': 85, 'A-': 80,
-                  'B+': 75, 'B': 70, 'B-': 65,
-                  'C+': 60, 'C': 55, 'C-': 50,
-                  'D': 45, 'F': 35
-                };
-                subject.total = gradeToTotal[subjectResult.grade] || null;
-              }
-            }
-          });
-        }
-      }
-      
-      // Calculate totals and grades
-      const transformedData = Array.from(subjectMap.values()).map(subject => {
-        // Calculate internal total (CT-1 + CT-2 + CT-3 + Assignment + Attendance)
-        subject.internalTotal = (subject.ct1 || 0) + (subject.ct2 || 0) + (subject.ct3 || 0) + (subject.assignment || 0) + (subject.attendance || 0);
-        
-        // Calculate total if we have final exam marks
-        if (subject.finalExam !== null && subject.finalExam > 0) {
-          subject.total = subject.internalTotal + subject.finalExam;
-          // Only calculate grade/GPA if not already set from semesterResults
-          if (!subject.grade) {
-            subject.grade = calculateGrade(subject.total);
-          }
-          if (!subject.gpa) {
-            subject.gpa = calculateGPA(subject.total);
-          }
-        } else if (subject.total === null && subject.internalTotal > 0) {
-          // If we have internal marks but no final, show internal as total
-          subject.total = subject.internalTotal;
-        }
-        return subject;
-      });
-      
+      const transformedData = Array.from(subjectMap.values());
       setMarksData(transformedData);
     } catch (err) {
       const errorMsg = getErrorMessage(err);
@@ -341,31 +244,33 @@ export default function MarksPage() {
     }
   };
 
-  const calculateGrade = (total: number): string => {
-    if (total >= 90) return 'A+';
-    if (total >= 85) return 'A';
-    if (total >= 80) return 'A-';
-    if (total >= 75) return 'B+';
-    if (total >= 70) return 'B';
-    if (total >= 65) return 'C+';
-    if (total >= 60) return 'C';
-    if (total >= 50) return 'D';
+  const calculateGrade = (percentage: number): string => {
+    if (percentage >= 80) return 'A+';
+    if (percentage >= 75) return 'A';
+    if (percentage >= 70) return 'A-';
+    if (percentage >= 65) return 'B+';
+    if (percentage >= 60) return 'B';
+    if (percentage >= 55) return 'B-';
+    if (percentage >= 50) return 'C+';
+    if (percentage >= 45) return 'C';
+    if (percentage >= 40) return 'D';
     return 'F';
   };
 
-  const calculateGPA = (total: number): number => {
-    if (total >= 90) return 4.00;
-    if (total >= 85) return 4.00;
-    if (total >= 80) return 3.75;
-    if (total >= 75) return 3.50;
-    if (total >= 70) return 3.25;
-    if (total >= 65) return 3.00;
-    if (total >= 60) return 2.75;
-    if (total >= 50) return 2.50;
+  const calculateGPA = (percentage: number): number => {
+    if (percentage >= 80) return 4.0;
+    if (percentage >= 75) return 3.75;
+    if (percentage >= 70) return 3.50;
+    if (percentage >= 65) return 3.25;
+    if (percentage >= 60) return 3.0;
+    if (percentage >= 55) return 2.75;
+    if (percentage >= 50) return 2.50;
+    if (percentage >= 45) return 2.25;
+    if (percentage >= 40) return 2.0;
     return 0;
   };
 
-  const completedSubjects = marksData.filter(s => s.total !== null || s.grade !== null);
+  const completedSubjects = marksData.filter(s => s.total > 0);
   
   // Use CGPA from semesterResults if available, otherwise calculate
   const cgpa = semesterResult?.cgpa 
@@ -380,13 +285,13 @@ export default function MarksPage() {
     : cgpa;
   
   const avgPercentage = completedSubjects.length > 0
-    ? Math.round(completedSubjects.reduce((sum, s) => sum + (s.total || 0), 0) / completedSubjects.length)
+    ? Math.round(completedSubjects.reduce((sum, s) => sum + s.percentage, 0) / completedSubjects.length)
     : 0;
 
   const highestMark = completedSubjects.length > 0 
-    ? Math.max(...completedSubjects.map(s => s.total || 0).filter(t => t > 0))
+    ? Math.max(...completedSubjects.map(s => s.percentage))
     : 0;
-  const highestSubject = completedSubjects.find(s => s.total === highestMark);
+  const highestSubject = completedSubjects.find(s => s.percentage === highestMark);
 
   // Loading state
   if (loading) {
@@ -545,7 +450,7 @@ export default function MarksPage() {
               <p className="text-[10px] md:text-xs lg:text-sm text-muted-foreground">{highestSubject.code}</p>
             </div>
             <div className="text-right flex-shrink-0">
-              <p className="text-lg md:text-xl lg:text-3xl font-bold text-warning">{highestSubject.total}%</p>
+              <p className="text-lg md:text-xl lg:text-3xl font-bold text-warning">{highestMark.toFixed(1)}%</p>
               <p className="text-[10px] md:text-xs lg:text-sm font-medium text-success">{highestSubject.grade}</p>
             </div>
           </div>
@@ -622,15 +527,18 @@ export default function MarksPage() {
             <thead>
               <tr className="border-b border-border bg-secondary/30">
                 <th className="text-left py-1.5 md:py-2 lg:py-3 px-1 sm:px-1.5 md:px-2 lg:px-4 text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-medium text-muted-foreground">Subject</th>
-                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground">CT1</th>
-                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground">CT2</th>
-                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground hidden sm:table-cell">CT3</th>
-                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground hidden md:table-cell">Asgn</th>
-                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground hidden md:table-cell">Att</th>
-                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground hidden sm:table-cell">Int</th>
-                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground hidden sm:table-cell">Fin</th>
-                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground">Tot</th>
-                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground">Grd</th>
+                {/* Dynamic columns - show first subject's columns as template */}
+                {marksData.length > 0 && marksData[0].columnDefinitions.map((col) => (
+                  <th key={col.id} className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground">
+                    <div className="flex flex-col items-center">
+                      <span>{col.name}</span>
+                      <span className="text-[7px] sm:text-[8px] md:text-[9px]">/{col.maxMarks}</span>
+                    </div>
+                  </th>
+                ))}
+                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground">Total</th>
+                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground">%</th>
+                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground">Grade</th>
                 <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground hidden lg:table-cell">GPA</th>
               </tr>
             </thead>
@@ -653,36 +561,22 @@ export default function MarksPage() {
                       <p className="text-[8px] sm:text-[9px] md:text-[10px] lg:text-xs text-muted-foreground">{row.code}</p>
                     </div>
                   </td>
-                  <td className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-center text-[9px] sm:text-[10px] md:text-xs lg:text-sm">
-                    {row.ct1 > 0 ? row.ct1 : <span className="text-muted-foreground">-</span>}
-                  </td>
-                  <td className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-center text-[9px] sm:text-[10px] md:text-xs lg:text-sm">
-                    {row.ct2 > 0 ? row.ct2 : <span className="text-muted-foreground">-</span>}
-                  </td>
-                  <td className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-center text-[9px] sm:text-[10px] md:text-xs lg:text-sm hidden sm:table-cell">
-                    {row.ct3 > 0 ? row.ct3 : <span className="text-muted-foreground">-</span>}
-                  </td>
-                  <td className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-center text-[9px] sm:text-[10px] md:text-xs lg:text-sm hidden md:table-cell">
-                    {row.assignment > 0 ? row.assignment : <span className="text-muted-foreground">-</span>}
-                  </td>
-                  <td className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-center text-[9px] sm:text-[10px] md:text-xs lg:text-sm hidden md:table-cell">
-                    {row.attendance > 0 ? row.attendance : <span className="text-muted-foreground">-</span>}
-                  </td>
-                  <td className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-center text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-medium hidden sm:table-cell">
-                    {row.internalTotal > 0 ? row.internalTotal : <span className="text-muted-foreground">-</span>}
-                  </td>
-                  <td className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-center text-[9px] sm:text-[10px] md:text-xs lg:text-sm hidden sm:table-cell">
-                    {row.finalExam !== null ? row.finalExam : (
-                      <span className="text-[8px] sm:text-[9px] md:text-[10px] lg:text-xs text-muted-foreground italic">-</span>
-                    )}
+                  {/* Dynamic column values */}
+                  {row.columnDefinitions.map((col) => (
+                    <td key={col.id} className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-center text-[9px] sm:text-[10px] md:text-xs lg:text-sm">
+                      {row.customMarks[col.id] > 0 ? row.customMarks[col.id] : <span className="text-muted-foreground">-</span>}
+                    </td>
+                  ))}
+                  <td className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-center text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-medium">
+                    {row.total > 0 ? row.total : <span className="text-muted-foreground">-</span>}
                   </td>
                   <td className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-center">
-                    {row.total !== null ? (
+                    {row.percentage > 0 ? (
                       <span className={cn(
-                        "inline-flex items-center justify-center w-6 h-4 sm:w-7 sm:h-5 md:w-8 md:h-6 lg:w-12 lg:h-8 rounded sm:rounded-md lg:rounded-lg text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-bold text-white",
-                        getPercentageColor(row.total)
+                        "inline-flex items-center justify-center w-8 h-5 sm:w-10 sm:h-6 md:w-12 md:h-7 lg:w-14 lg:h-8 rounded sm:rounded-md lg:rounded-lg text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-bold text-white",
+                        row.percentage >= 40 ? 'bg-emerald-500' : 'bg-red-500'
                       )}>
-                        {row.total}
+                        {row.percentage.toFixed(1)}%
                       </span>
                     ) : (
                       <span className="text-[8px] sm:text-[9px] md:text-[10px] lg:text-xs text-muted-foreground italic">-</span>
@@ -708,7 +602,7 @@ export default function MarksPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={11} className="py-8 text-center text-muted-foreground">
+                  <td colSpan={100} className="py-8 text-center text-muted-foreground">
                     <div className="flex flex-col items-center gap-2">
                       <BookOpen className="w-8 h-8 opacity-50" />
                       <p>No marks available for this semester</p>
@@ -754,7 +648,7 @@ export default function MarksPage() {
           Subject Performance Overview
         </h3>
         <div className="space-y-3 md:space-y-4">
-          {marksData.filter(s => s.total !== null).map((subject, i) => (
+          {marksData.filter(s => s.total > 0).map((subject, i) => (
             <div key={subject.code}>
               <div className="flex items-center justify-between mb-1.5 md:mb-2">
                 <div className="flex items-center gap-1.5 md:gap-2 min-w-0 flex-1">
@@ -763,14 +657,14 @@ export default function MarksPage() {
                     {subject.grade}
                   </span>
                 </div>
-                <span className="text-xs md:text-sm font-semibold flex-shrink-0 ml-2">{subject.total}%</span>
+                <span className="text-xs md:text-sm font-semibold flex-shrink-0 ml-2">{subject.percentage.toFixed(1)}%</span>
               </div>
               <div className="h-2 md:h-2.5 lg:h-3 bg-secondary rounded-full overflow-hidden">
                 <motion.div
                   initial={{ width: 0 }}
-                  animate={{ width: `${subject.total}%` }}
+                  animate={{ width: `${subject.percentage}%` }}
                   transition={{ duration: 0.8, delay: 0.1 * i }}
-                  className={cn("h-full rounded-full", getPercentageColor(subject.total))}
+                  className={cn("h-full rounded-full", subject.percentage >= 40 ? 'bg-emerald-500' : 'bg-red-500')}
                 />
               </div>
             </div>

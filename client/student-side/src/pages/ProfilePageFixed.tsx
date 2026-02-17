@@ -91,7 +91,7 @@ export function ProfilePageFixed() {
       setStudentData({
         fullNameEnglish: user.name || 'Student',
         email: user.email || 'N/A',
-        currentRollNumber: user.studentId || 'N/A',
+        currentRollNumber: user.studentId || studentData?.currentRollNumber || 'N/A',
         department: user.department || 'N/A',
         semester: user.semester || 1,
         status: 'active',
@@ -269,7 +269,7 @@ export function ProfilePageFixed() {
         location={studentData?.presentAddress 
           ? `${studentData.presentAddress.district || ''}, ${studentData.presentAddress.division || 'Bangladesh'}`.replace(/^,\s*|,\s*$/g, '')
           : undefined}
-        studentId={user?.relatedProfileId || studentData?.id || user?.studentId || 'N/A'}
+        studentId={user?.studentId || studentData?.id || user?.relatedProfileId || 'N/A'}
         status={studentData?.status || 'active'}
       />
 
@@ -321,7 +321,7 @@ export function ProfilePageFixed() {
                 personalInfo={{
                   fullName: displayName,
                   fullNameBangla: studentData?.fullNameBangla,
-                  rollNumber: studentData?.currentRollNumber || user?.studentId || 'N/A',
+                  rollNumber: user?.studentId || studentData?.currentRollNumber || 'N/A',
                   email: studentData?.email || user?.email || 'N/A',
                   mobile: studentData?.mobileStudent,
                   dateOfBirth: studentData?.dateOfBirth,

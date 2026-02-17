@@ -201,10 +201,9 @@ export default function AdmissionDetails() {
 
     try {
       setProcessing(true);
-      // For now, we'll use default values for the required fields
-      // In a real implementation, you might want to show a form to collect these
+      // Approve admission with required fields
+      // Roll number is auto-generated from SSC Board Roll
       await admissionService.approveAdmission(admission.id, {
-        current_roll_number: `ROLL-${Date.now()}`,
         current_registration_number: `REG-${Date.now()}`,
         semester: 1,
         current_group: admission.group || 'A',

@@ -34,6 +34,15 @@ class Admission(models.Model):
     # Primary Key
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     
+    # Application ID (derived from student_id)
+    application_id = models.CharField(
+        max_length=50,
+        unique=True,
+        null=True,
+        blank=True,
+        help_text='Application ID same as Student ID (SIPI-{ssc_roll})'
+    )
+    
     # User relationship
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
@@ -165,6 +174,7 @@ class Admission(models.Model):
             bool: True if all documents processed successfully
         """
         from apps.documents.models import Document
+        from utils.structured_file_storage import structured_storage
         from utils.file_storage import file_storage
         from django.core.exceptions import ValidationError
         
@@ -172,6 +182,35 @@ class Admission(models.Model):
         processed_documents = []
         
         try:
+            # Try to get student data for structured storage
+            student_data = None
+            student_id = None
+            
+            # Check if user has a related student profile
+            if hasattr(self.user, 'student_profile'):
+                student = self.user.student_profile
+                student_id = student.id
+                
+                # Prepare student data for structured storage
+                student_data = {
+                    'department_code': self.desired_department.code.lower().replace(' ', '-'),
+                    'department_name': self.desired_department.name.lower().replace(' ', '-'),
+                    'session': self.session,
+                    'shift': self.desired_shift.lower().replace(' ', '-'),
+                    'student_name': self.full_name_english.replace(' ', ''),
+                    'student_id': getattr(student, 'currentRollNumber', f'ADM-{self.id}'),
+                }
+            elif self.desired_department:
+                # Use admission data if no student profile exists yet
+                student_data = {
+                    'department_code': self.desired_department.code.lower().replace(' ', '-'),
+                    'department_name': self.desired_department.name.lower().replace(' ', '-'),
+                    'session': self.session,
+                    'shift': self.desired_shift.lower().replace(' ', '-'),
+                    'student_name': self.full_name_english.replace(' ', ''),
+                    'student_id': f'ADM-{str(self.id)[:8]}',  # Use admission ID as temporary student ID
+                }
+            
             for field_name, file_obj in document_files.items():
                 if not file_obj:
                     continue
@@ -194,19 +233,46 @@ class Admission(models.Model):
                         'extraCertificates': 'Certificate',
                     }
                     
-                    category = category_mapping.get(field_name, 'Other')
+                    # Map to structured storage document categories
+                    document_category_mapping = {
+                        'photo': 'photo',
+                        'sscMarksheet': 'ssc_marksheet',
+                        'sscCertificate': 'ssc_certificate',
+                        'birthCertificateDoc': 'birth_certificate',
+                        'studentNIDCopy': 'nid',
+                        'fatherNIDFront': 'father_nid',
+                        'fatherNIDBack': 'father_nid',
+                        'motherNIDFront': 'mother_nid',
+                        'motherNIDBack': 'mother_nid',
+                        'testimonial': 'transcript',
+                        'medicalCertificate': 'medical_certificate',
+                        'quotaDocument': 'quota_document',
+                        'extraCertificates': 'other',
+                    }
                     
-                    # Use enhanced file storage service
-                    file_info = file_storage.save_file(
-                        uploaded_file=file_obj,
-                        category='documents',
-                        subfolder=f'admission/{field_name}',
-                        validate=True
-                    )
+                    category = category_mapping.get(field_name, 'Other')
+                    document_category = document_category_mapping.get(field_name, 'other')
+                    
+                    # Use structured storage if student data is available
+                    if student_data:
+                        file_info = structured_storage.save_student_document(
+                            uploaded_file=file_obj,
+                            student_data=student_data,
+                            document_category=document_category,
+                            validate=True
+                        )
+                    else:
+                        # Fallback to old storage if no student data
+                        file_info = file_storage.save_file(
+                            uploaded_file=file_obj,
+                            category='documents',
+                            subfolder=f'admission/{field_name}',
+                            validate=True
+                        )
                     
                     # Create document record with enhanced fields
                     document = Document.objects.create(
-                        student_id=getattr(self.user, 'related_profile_id', None),  # Link to student if exists
+                        student_id=student_id,
                         fileName=file_info['file_name'],
                         fileType=file_info['file_type'],
                         category=category,
@@ -218,7 +284,15 @@ class Admission(models.Model):
                         source_id=self.id,
                         original_field_name=field_name,
                         description=f'Admission document: {field_name}',
-                        status='active'
+                        status='active',
+                        # Add structured storage fields if available
+                        document_type=file_info.get('document_type', 'student'),
+                        department_code=file_info.get('department_code', ''),
+                        session=file_info.get('session', ''),
+                        shift=file_info.get('shift', ''),
+                        owner_name=file_info.get('owner_name', ''),
+                        owner_id=file_info.get('owner_id', ''),
+                        document_category=file_info.get('document_category', 'other'),
                     )
                     
                     processed_documents.append(document.id)

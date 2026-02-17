@@ -44,7 +44,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
     
     def create(self, request, *args, **kwargs):
         """
-        Enhanced document upload with filesystem storage
+        Enhanced document upload with structured storage
         
         POST /api/documents/
         """
@@ -60,14 +60,62 @@ class DocumentViewSet(viewsets.ModelViewSet):
         
         try:
             with transaction.atomic():
-                # Save file using enhanced storage service
-                file_info = file_storage.save_file(
-                    uploaded_file=validated_data['file'],
-                    category='documents',
-                    subfolder=validated_data.get('category', '').lower(),
-                    custom_name=validated_data.get('custom_filename'),
-                    validate=True
-                )
+                # Get student if provided
+                student_id = validated_data.get('student')
+                
+                if student_id:
+                    # Use structured storage for student documents
+                    from apps.students.models import Student
+                    from utils.structured_file_storage import structured_storage
+                    
+                    try:
+                        student = Student.objects.select_related('department').get(id=student_id)
+                    except Student.DoesNotExist:
+                        return Response(
+                            {'error': 'Student not found'},
+                            status=status.HTTP_404_NOT_FOUND
+                        )
+                    
+                    # Prepare student data
+                    student_data = {
+                        'department_code': student.department.code.lower().replace(' ', '-'),
+                        'department_name': student.department.name.lower().replace(' ', '-'),
+                        'session': student.session,
+                        'shift': student.shift.lower().replace(' ', '-'),
+                        'student_name': student.fullNameEnglish.replace(' ', ''),
+                        'student_id': student.currentRollNumber,
+                    }
+                    
+                    # Map category to document_category
+                    category_map = {
+                        'Photo': 'photo',
+                        'Birth Certificate': 'birth_certificate',
+                        'NID': 'nid',
+                        'Marksheet': 'ssc_marksheet',
+                        'Certificate': 'ssc_certificate',
+                        'Testimonial': 'transcript',
+                        'Medical Certificate': 'medical_certificate',
+                        'Quota Document': 'quota_document',
+                        'Other': 'other',
+                    }
+                    document_category = category_map.get(validated_data['category'], 'other')
+                    
+                    # Save file using structured storage
+                    file_info = structured_storage.save_student_document(
+                        uploaded_file=validated_data['file'],
+                        student_data=student_data,
+                        document_category=document_category,
+                        validate=True
+                    )
+                else:
+                    # Use old storage for non-student documents
+                    file_info = file_storage.save_file(
+                        uploaded_file=validated_data['file'],
+                        category='documents',
+                        subfolder=validated_data.get('category', '').lower(),
+                        custom_name=validated_data.get('custom_filename'),
+                        validate=True
+                    )
                 
                 # Create document record with enhanced fields
                 document = Document.objects.create(
@@ -85,7 +133,15 @@ class DocumentViewSet(viewsets.ModelViewSet):
                     description=validated_data.get('description', ''),
                     tags=validated_data.get('tags', []),
                     is_public=validated_data.get('is_public', False),
-                    status='active'
+                    status='active',
+                    # Add structured storage fields if available
+                    document_type=file_info.get('document_type', 'student'),
+                    department_code=file_info.get('department_code', ''),
+                    session=file_info.get('session', ''),
+                    shift=file_info.get('shift', ''),
+                    owner_name=file_info.get('owner_name', ''),
+                    owner_id=file_info.get('owner_id', ''),
+                    document_category=file_info.get('document_category', 'other'),
                 )
                 
                 # Log the upload
@@ -189,7 +245,13 @@ class DocumentViewSet(viewsets.ModelViewSet):
             )
         
         # Get file information
-        file_info = file_storage.get_file_info(document.filePath)
+        # Try structured storage first (new system)
+        from utils.structured_file_storage import structured_storage
+        file_info = structured_storage.get_file_info(document.filePath)
+        
+        # Fallback to old storage if not found
+        if not file_info or not file_info.get('exists'):
+            file_info = file_storage.get_file_info(document.filePath)
         
         if not file_info or not file_info.get('exists'):
             self._log_document_access(
@@ -292,7 +354,13 @@ class DocumentViewSet(viewsets.ModelViewSet):
             )
         
         # Get file information
-        file_info = file_storage.get_file_info(document.filePath)
+        # Try structured storage first (new system)
+        from utils.structured_file_storage import structured_storage
+        file_info = structured_storage.get_file_info(document.filePath)
+        
+        # Fallback to old storage if not found
+        if not file_info or not file_info.get('exists'):
+            file_info = file_storage.get_file_info(document.filePath)
         
         if not file_info or not file_info.get('exists'):
             self._log_document_access(
@@ -395,8 +463,8 @@ class DocumentViewSet(viewsets.ModelViewSet):
 
         student_id = request.data.get('student_id')
 
-        # If student is setting their own photo, infer from related_profile_id
-        if getattr(request.user, 'role', None) == 'student':
+        # If student or captain is setting their own photo, infer from related_profile_id
+        if getattr(request.user, 'role', None) in ['student', 'captain']:
             if hasattr(request.user, 'related_profile_id') and request.user.related_profile_id:
                 student_id = str(request.user.related_profile_id)
             else:
@@ -421,7 +489,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
         if not document.student_id and document.source_type == 'admission' and document.source_id:
             try:
                 admission = Admission.objects.get(id=document.source_id)
-                if getattr(request.user, 'role', None) == 'student' and admission.user != request.user:
+                if getattr(request.user, 'role', None) in ['student', 'captain'] and admission.user != request.user:
                     return Response(
                         {'error': 'Permission denied', 'details': 'Admission document does not belong to you'},
                         status=status.HTTP_403_FORBIDDEN
@@ -550,15 +618,64 @@ class DocumentViewSet(viewsets.ModelViewSet):
         
         try:
             with transaction.atomic():
+                # Get student if provided
+                student = None
+                student_data = None
+                
+                if student_id:
+                    from apps.students.models import Student
+                    from utils.structured_file_storage import structured_storage
+                    
+                    try:
+                        student = Student.objects.select_related('department').get(id=student_id)
+                        # Prepare student data for structured storage
+                        student_data = {
+                            'department_code': student.department.code.lower().replace(' ', '-'),
+                            'department_name': student.department.name.lower().replace(' ', '-'),
+                            'session': student.session,
+                            'shift': student.shift.lower().replace(' ', '-'),
+                            'student_name': student.fullNameEnglish.replace(' ', ''),
+                            'student_id': student.currentRollNumber,
+                        }
+                    except Student.DoesNotExist:
+                        return Response(
+                            {'error': 'Student not found'},
+                            status=status.HTTP_404_NOT_FOUND
+                        )
+                
                 for i, doc_data in enumerate(documents_data):
                     try:
-                        # Save file using enhanced storage
-                        file_info = file_storage.save_file(
-                            uploaded_file=doc_data['file'],
-                            category='documents',
-                            subfolder=doc_data['category'].lower(),
-                            validate=True
-                        )
+                        if student_data:
+                            # Use structured storage for student documents
+                            # Map category to document_category
+                            category_map = {
+                                'Photo': 'photo',
+                                'Birth Certificate': 'birth_certificate',
+                                'NID': 'nid',
+                                'Marksheet': 'ssc_marksheet',
+                                'Certificate': 'ssc_certificate',
+                                'Testimonial': 'transcript',
+                                'Medical Certificate': 'medical_certificate',
+                                'Quota Document': 'quota_document',
+                                'Other': 'other',
+                            }
+                            document_category = category_map.get(doc_data['category'], 'other')
+                            
+                            # Save file using structured storage
+                            file_info = structured_storage.save_student_document(
+                                uploaded_file=doc_data['file'],
+                                student_data=student_data,
+                                document_category=document_category,
+                                validate=True
+                            )
+                        else:
+                            # Use old storage for non-student documents
+                            file_info = file_storage.save_file(
+                                uploaded_file=doc_data['file'],
+                                category='documents',
+                                subfolder=doc_data['category'].lower(),
+                                validate=True
+                            )
                         
                         # Create document record
                         document = Document.objects.create(
@@ -577,7 +694,15 @@ class DocumentViewSet(viewsets.ModelViewSet):
                             tags=doc_data.get('tags', []),
                             is_public=doc_data.get('is_public', False),
                             metadata=doc_data.get('metadata', {}),
-                            status='active'
+                            status='active',
+                            # Add structured storage fields if available
+                            document_type=file_info.get('document_type', 'student'),
+                            department_code=file_info.get('department_code', ''),
+                            session=file_info.get('session', ''),
+                            shift=file_info.get('shift', ''),
+                            owner_name=file_info.get('owner_name', ''),
+                            owner_id=file_info.get('owner_id', ''),
+                            document_category=file_info.get('document_category', 'other'),
                         )
                         
                         created_documents.append(document)
@@ -673,13 +798,13 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Check permission - students can only access their own documents
+        # Check permission - students and captains can only access their own documents
         if request.user.is_authenticated:
             if request.user.is_staff or getattr(request.user, 'role', None) == 'admin':
                 # Admins can access any student's documents
                 pass
-            elif getattr(request.user, 'role', None) == 'student':
-                # Students can only access their own documents
+            elif getattr(request.user, 'role', None) in ['student', 'captain']:
+                # Students and captains can only access their own documents
                 if hasattr(request.user, 'related_profile_id') and str(request.user.related_profile_id) != str(student_id):
                     return Response(
                         {'error': 'Permission denied'},
@@ -763,8 +888,8 @@ class DocumentViewSet(viewsets.ModelViewSet):
         if user and user.is_authenticated and (user.is_staff or getattr(user, 'role', None) == 'admin'):
             return True
         
-        # Students can access their own documents
-        if user and user.is_authenticated and getattr(user, 'role', None) == 'student':
+        # Students and captains can access their own documents
+        if user and user.is_authenticated and getattr(user, 'role', None) in ['student', 'captain']:
             if hasattr(user, 'related_profile_id') and user.related_profile_id:
                 if str(document.student_id) == str(user.related_profile_id):
                     return True

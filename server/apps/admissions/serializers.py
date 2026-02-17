@@ -13,11 +13,13 @@ class AdmissionListSerializer(serializers.ModelSerializer):
     """
     department_name = serializers.SerializerMethodField()
     user_email = serializers.EmailField(source='user.email', read_only=True)
+    id = serializers.SerializerMethodField()
     
     class Meta:
         model = Admission
         fields = [
             'id',
+            'application_id',
             'full_name_english',
             'email',
             'mobile_student',
@@ -29,6 +31,10 @@ class AdmissionListSerializer(serializers.ModelSerializer):
             'submitted_at',
             'user_email'
         ]
+    
+    def get_id(self, obj):
+        """Return application_id as id for frontend compatibility"""
+        return obj.application_id or str(obj.id)
     
     def get_department_name(self, obj):
         """Safely get department name"""
@@ -45,10 +51,15 @@ class AdmissionDetailSerializer(serializers.ModelSerializer):
     department_name = serializers.SerializerMethodField()
     user_email = serializers.EmailField(source='user.email', read_only=True)
     reviewed_by_username = serializers.SerializerMethodField()
+    id = serializers.SerializerMethodField()
     
     class Meta:
         model = Admission
         fields = '__all__'
+    
+    def get_id(self, obj):
+        """Return application_id as id for frontend compatibility"""
+        return obj.application_id or str(obj.id)
     
     def get_department_name(self, obj):
         """Safely get department name"""
@@ -151,6 +162,10 @@ class AdmissionCreateSerializer(serializers.ModelSerializer):
         validated_data['user'] = user
         validated_data['status'] = 'pending'
         
+        # Set application_id from user's student_id
+        if hasattr(user, 'student_id') and user.student_id:
+            validated_data['application_id'] = user.student_id
+        
         admission = Admission.objects.create(**validated_data)
         
         # Update user's admission status
@@ -163,22 +178,15 @@ class AdmissionCreateSerializer(serializers.ModelSerializer):
 class AdmissionApproveSerializer(serializers.Serializer):
     """
     Serializer for approving admissions
+    Note: current_roll_number is auto-generated from SSC Board Roll
     """
     review_notes = serializers.CharField(required=False, allow_blank=True)
     
     # Student profile fields
-    current_roll_number = serializers.CharField(required=True)
     current_registration_number = serializers.CharField(required=True)
     semester = serializers.IntegerField(required=True, min_value=1, max_value=8)
     current_group = serializers.CharField(required=True)
     enrollment_date = serializers.DateField(required=True)
-    
-    def validate_current_roll_number(self, value):
-        """Ensure roll number is unique"""
-        from apps.students.models import Student
-        if Student.objects.filter(currentRollNumber=value).exists():
-            raise serializers.ValidationError('This roll number is already in use')
-        return value
     
     def validate_current_registration_number(self, value):
         """Ensure registration number is unique"""

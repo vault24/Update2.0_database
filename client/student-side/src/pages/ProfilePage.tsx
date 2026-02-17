@@ -282,7 +282,7 @@ export function ProfilePage() {
       user?.department || 'N/A');
   const displaySemester = isTeacher ? null : (studentData?.semester || user?.semester || 1);
   const displayEmail = studentData?.email || user?.email || 'N/A';
-  const displayStudentId = isTeacher ? (user?.studentId || 'N/A') : (studentData?.currentRollNumber || user?.studentId || 'N/A');
+  const displayStudentId = isTeacher ? (user?.studentId || 'N/A') : (user?.studentId || studentData?.currentRollNumber || 'N/A');
   const displaySession = isTeacher ? null : (studentData?.session || '2024-25');
   const displayShift = isTeacher ? null : (studentData?.shift || '1st Shift');
 
@@ -790,7 +790,7 @@ export function ProfilePage() {
               ) : admission ? (
                 <div className="grid md:grid-cols-2 gap-6">
                   <div className="space-y-0">
-                    <InfoRow label="Application ID" value={admission.id?.slice(0, 8) || 'N/A'} />
+                    <InfoRow label="Application ID" value={admission.id || 'N/A'} />
                     <InfoRow label="Admission Date" value={admission.submitted_at ? new Date(admission.submitted_at).toLocaleDateString() : 'N/A'} />
                     <InfoRow label="SSC GPA" value={admission.gpa || 'N/A'} />
                     <InfoRow label="Department" value={typeof admission.desired_department === 'object' 

@@ -460,8 +460,8 @@ export function Dashboard() {
     : [
         {
           icon: BookOpen,
-          label: 'Classes',
-          value: (dashboardData as StudentDashboardData)?.routine?.totalClasses?.toString() || '0',
+          label: 'Classes Taken',
+          value: (dashboardData as StudentDashboardData)?.attendance?.totalClasses?.toString() || '0',
           color: 'from-violet-500 to-purple-600',
         },
         {

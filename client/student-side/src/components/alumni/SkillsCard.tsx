@@ -119,7 +119,7 @@ export function SkillsCard({ skills, onAdd, onEdit, onDelete, isEditable = true 
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-medium">{skill.name}</span>
                             {isEditable && (
-                              <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                              <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                 <Button 
                                   size="icon" 
                                   variant="ghost" 

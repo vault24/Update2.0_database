@@ -152,7 +152,7 @@ class ApiClient {
   /**
    * POST request
    */
-  async post<T>(endpoint: string, data?: any, isFormData: boolean = false): Promise<T> {
+  async post<T>(endpoint: string, data?: any, options?: { headers?: HeadersInit }): Promise<T> {
     const url = this.buildURL(endpoint);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
@@ -160,13 +160,16 @@ class ApiClient {
     let headers: HeadersInit;
     let body: any;
 
+    // Check if data is FormData
+    const isFormData = data instanceof FormData;
+
     if (isFormData) {
       // For FormData, don't set Content-Type (browser will set it with boundary)
       // But still include CSRF token
-      headers = this.getHeaders(false);
+      headers = { ...this.getHeaders(false), ...options?.headers };
       body = data;
     } else {
-      headers = this.getHeaders();
+      headers = { ...this.getHeaders(), ...options?.headers };
       body = JSON.stringify(data);
     }
 
@@ -227,16 +230,32 @@ class ApiClient {
   /**
    * PATCH request
    */
-  async patch<T>(endpoint: string, data?: any): Promise<T> {
+  async patch<T>(endpoint: string, data?: any, options?: { headers?: HeadersInit }): Promise<T> {
     const url = this.buildURL(endpoint);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
+    let headers: HeadersInit;
+    let body: any;
+
+    // Check if data is FormData
+    const isFormData = data instanceof FormData;
+
+    if (isFormData) {
+      // For FormData, don't set Content-Type (browser will set it with boundary)
+      // But still include CSRF token
+      headers = { ...this.getHeaders(false), ...options?.headers };
+      body = data;
+    } else {
+      headers = { ...this.getHeaders(), ...options?.headers };
+      body = JSON.stringify(data);
+    }
+
     try {
       const response = await fetch(url, {
         method: 'PATCH',
-        headers: this.getHeaders(),
-        body: JSON.stringify(data),
+        headers,
+        body,
         credentials: 'include',
         signal: controller.signal,
       });

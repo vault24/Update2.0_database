@@ -85,7 +85,7 @@ export function HighlightsCard({ highlights, onAdd, onEdit, onDelete, isEditable
             )}
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-3 grid-cols-1">
             {highlights.map((highlight, index) => {
               const Icon = getHighlightIcon(highlight.type);
               const colorClass = getHighlightColor(highlight.type);
@@ -99,7 +99,7 @@ export function HighlightsCard({ highlights, onAdd, onEdit, onDelete, isEditable
                   className={`relative p-4 rounded-xl border ${colorClass} group`}
                 >
                   {isEditable && (
-                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute top-2 right-2 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                       <Button 
                         size="icon" 
                         variant="ghost" 

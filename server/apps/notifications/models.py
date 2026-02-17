@@ -10,6 +10,7 @@ NOTIFICATION_TYPES = [
     ('system_announcement', 'System Announcement'),
     ('deadline_reminder', 'Deadline Reminder'),
     ('account_activity', 'Account Activity'),
+    ('attendance_update', 'Attendance Update'),
 ]
 
 # Notification status choices

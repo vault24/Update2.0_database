@@ -14,12 +14,7 @@ class DepartmentSerializer(serializers.ModelSerializer):
     total_students = serializers.SerializerMethodField()
     active_students = serializers.SerializerMethodField()
     faculty_count = serializers.SerializerMethodField()
-    
-    # These fields are sent by frontend but don't exist in model - accept but ignore them
-    head = serializers.CharField(required=False, allow_blank=True, allow_null=True, write_only=True)
-    description = serializers.CharField(required=False, allow_blank=True, allow_null=True, write_only=True)
-    established_year = serializers.CharField(required=False, allow_blank=True, allow_null=True, write_only=True)
-    is_active = serializers.BooleanField(default=True, required=False, write_only=True)
+    photo_url = serializers.SerializerMethodField()
     
     # Provide both camelCase and snake_case for timestamps
     created_at = serializers.DateTimeField(source='createdAt', read_only=True)
@@ -45,18 +40,29 @@ class DepartmentSerializer(serializers.ModelSerializer):
             return obj.teacher_count()
         except:
             return 0
+    
+    def get_photo_url(self, obj):
+        """Get photo URL if exists"""
+        if obj.photo:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.photo.url)
+            return obj.photo.url
+        return None
 
     class Meta:
         model = Department
         fields = [
-            'id', 'name', 'code', 'short_name', 'head', 'description', 
-            'established_year', 'is_active', 'total_students', 'active_students', 
+            'id', 'name', 'code', 'short_name', 'head', 
+            'established_year', 'photo', 'photo_url',
+            'total_students', 'active_students', 
             'faculty_count', 'created_at', 'updated_at', 'createdAt', 'updatedAt'
         ]
         read_only_fields = ['id', 'createdAt', 'updatedAt', 'created_at', 'updated_at', 
-                           'total_students', 'active_students', 'faculty_count']
+                           'total_students', 'active_students', 'faculty_count', 'photo_url']
         extra_kwargs = {
-            'code': {'required': False}  # Make code optional since we accept short_name too
+            'code': {'required': False},  # Make code optional since we accept short_name too
+            'photo': {'required': False}
         }
 
     def validate_name(self, value):
@@ -84,11 +90,11 @@ class DepartmentSerializer(serializers.ModelSerializer):
                 'code': 'Code or short_name is required'
             })
         
-        # Remove fields that don't exist in the model (they're write_only and just for compatibility)
-        attrs.pop('head', None)
-        attrs.pop('description', None)
-        attrs.pop('established_year', None)
-        attrs.pop('is_active', None)
+        # Convert empty strings to None for optional fields
+        if 'head' in attrs and not attrs['head']:
+            attrs['head'] = None
+        if 'established_year' in attrs and not attrs['established_year']:
+            attrs['established_year'] = None
         
         return attrs
 
@@ -97,6 +103,46 @@ class DepartmentListSerializer(serializers.ModelSerializer):
     """
     Lightweight serializer for listing departments
     """
+    short_name = serializers.CharField(source='code', read_only=True)
+    total_students = serializers.SerializerMethodField()
+    active_students = serializers.SerializerMethodField()
+    faculty_count = serializers.SerializerMethodField()
+    photo_url = serializers.SerializerMethodField()
+    
+    def get_total_students(self, obj):
+        """Get total student count for department"""
+        try:
+            return obj.student_count()
+        except:
+            return 0
+    
+    def get_active_students(self, obj):
+        """Get active student count for department"""
+        try:
+            return obj.student_set.filter(status='active').count()
+        except:
+            return 0
+    
+    def get_faculty_count(self, obj):
+        """Get teacher count for department"""
+        try:
+            return obj.teacher_count()
+        except:
+            return 0
+    
+    def get_photo_url(self, obj):
+        """Get photo URL if exists"""
+        if obj.photo:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.photo.url)
+            return obj.photo.url
+        return None
+    
     class Meta:
         model = Department
-        fields = ['id', 'name', 'code']
+        fields = [
+            'id', 'name', 'code', 'short_name', 'head', 
+            'established_year', 'photo_url',
+            'total_students', 'active_students', 'faculty_count'
+        ]

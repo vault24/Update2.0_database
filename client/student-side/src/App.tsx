@@ -12,6 +12,7 @@ import AdmissionPage from "./pages/AdmissionPage";
 import ProfilePageFixed from "./pages/ProfilePageFixed";
 import SettingsPage from "./pages/SettingsPage";
 import NoticesPage from "./pages/NoticesPage";
+import NotificationsPage from "./pages/NotificationsPage";
 import StudentAllegationsPage from "./pages/StudentAllegationsPage";
 import LearningHubPage from "./pages/LearningHubPage";
 import StudentListPage from "./pages/StudentListPage";
@@ -110,6 +111,7 @@ const App = () => (
         
         {/* Common routes */}
         <Route path="notices" element={<NoticesPage />} />
+        <Route path="notifications" element={<NotificationsPage />} />
         <Route path="profile" element={<ProfilePageFixed />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="learning-hub" element={<LearningHubPage />} />

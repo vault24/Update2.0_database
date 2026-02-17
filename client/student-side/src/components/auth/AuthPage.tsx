@@ -57,6 +57,7 @@ export function AuthPage() {
     password: '',
     fullName: '',
     mobile: '',
+    sscBoardRoll: '', // New field for SSC Board Roll
     fullNameBangla: '',
     designation: '',
     department: '',
@@ -92,6 +93,11 @@ export function AuthPage() {
           password: formData.password,
           role: selectedRole,
         };
+
+        // Add SSC Board Roll for students
+        if (selectedRole === 'student' || selectedRole === 'captain') {
+          signupData.sscBoardRoll = formData.sscBoardRoll;
+        }
 
         if (selectedRole === 'teacher') {
           signupData.fullNameBangla = formData.fullNameBangla;
@@ -470,6 +476,30 @@ export function AuthPage() {
                           />
                         </div>
                       </div>
+
+                      {/* SSC Board Roll for Students and Captains */}
+                      {(selectedRole === 'student' || selectedRole === 'captain') && (
+                        <div className="space-y-1.5">
+                          <Label htmlFor="sscBoardRoll" className="text-sm font-medium">
+                            SSC Board Roll <span className="text-destructive">*</span>
+                          </Label>
+                          <div className="relative">
+                            <GraduationCap className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                            <Input
+                              id="sscBoardRoll"
+                              type="text"
+                              placeholder="Enter your SSC Board Roll (e.g., 679377)"
+                              className="pl-10 h-11"
+                              value={formData.sscBoardRoll}
+                              onChange={(e) => setFormData({ ...formData, sscBoardRoll: e.target.value })}
+                              required
+                            />
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Your Student ID will be: SIPI-{formData.sscBoardRoll || 'XXXXXX'}
+                          </p>
+                        </div>
+                      )}
 
                       <div className="space-y-1.5">
                         <Label htmlFor="email" className="text-sm font-medium">Email Address</Label>

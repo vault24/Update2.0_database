@@ -24,9 +24,9 @@ class AdmissionViewSet(viewsets.ModelViewSet):
     Endpoints:
     - POST /api/admissions/ - Submit admission application (student/captain)
     - GET /api/admissions/ - List all admissions (admin only)
-    - GET /api/admissions/{id}/ - Get admission details
-    - POST /api/admissions/{id}/approve/ - Approve admission (admin only)
-    - POST /api/admissions/{id}/reject/ - Reject admission (admin only)
+    - GET /api/admissions/{id}/ - Get admission details (accepts UUID or application_id)
+    - POST /api/admissions/{id}/approve/ - Approve admission (admin only, accepts UUID or application_id)
+    - POST /api/admissions/{id}/reject/ - Reject admission (admin only, accepts UUID or application_id)
     - GET /api/admissions/my-admission/ - Get current user's admission
     """
     queryset = Admission.objects.all()
@@ -35,6 +35,36 @@ class AdmissionViewSet(viewsets.ModelViewSet):
     search_fields = ['full_name_english', 'full_name_bangla', 'email', 'mobile_student']
     ordering_fields = ['submitted_at', 'full_name_english', 'gpa']
     ordering = ['-submitted_at']
+    
+    def get_object(self):
+        """
+        Override to support lookup by both UUID (pk) and application_id
+        This allows URLs to work with both formats:
+        - /api/admissions/a1fe42e7-53c3-4c34-a66e-4eead461a186/ (UUID)
+        - /api/admissions/SIPI-889900/ (application_id)
+        """
+        lookup_value = self.kwargs.get('pk')
+        
+        # Try UUID lookup first (for backward compatibility and admin operations)
+        try:
+            import uuid
+            # Validate if it's a valid UUID format
+            uuid.UUID(str(lookup_value))
+            return Admission.objects.get(id=lookup_value)
+        except (ValueError, TypeError):
+            # Not a valid UUID format, try application_id lookup
+            try:
+                return Admission.objects.get(application_id=lookup_value)
+            except Admission.DoesNotExist:
+                from rest_framework.exceptions import NotFound
+                raise NotFound(f'Admission with application_id "{lookup_value}" not found')
+        except Admission.DoesNotExist:
+            # Valid UUID but not found, try application_id as fallback
+            try:
+                return Admission.objects.get(application_id=lookup_value)
+            except Admission.DoesNotExist:
+                from rest_framework.exceptions import NotFound
+                raise NotFound(f'Admission with id "{lookup_value}" not found')
     
     def get_serializer_class(self):
         """Return appropriate serializer based on action"""
@@ -201,12 +231,13 @@ class AdmissionViewSet(viewsets.ModelViewSet):
         POST /api/admissions/{id}/approve/
         
         Required fields:
-        - current_roll_number
         - current_registration_number
         - semester
         - current_group
         - enrollment_date
         - review_notes (optional)
+        
+        Note: current_roll_number is automatically generated from SSC Board Roll (SIPI-{ssc_roll})
         """
         admission = self.get_object()
         
@@ -219,6 +250,9 @@ class AdmissionViewSet(viewsets.ModelViewSet):
         
         serializer = AdmissionApproveSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        
+        # Generate roll number from SSC Board Roll (use student_id from user)
+        current_roll_number = admission.user.student_id if admission.user.student_id else f"SIPI-{admission.roll_number}"
         
         # Create or update student profile
         from apps.students.models import Student
@@ -254,7 +288,7 @@ class AdmissionViewSet(viewsets.ModelViewSet):
             'gpa': admission.gpa,
             'institutionName': admission.institution_name,
             # Current Academic Information
-            'currentRollNumber': serializer.validated_data['current_roll_number'],
+            'currentRollNumber': current_roll_number,
             'currentRegistrationNumber': serializer.validated_data['current_registration_number'],
             'semester': serializer.validated_data['semester'],
             'department': admission.desired_department,
@@ -285,7 +319,8 @@ class AdmissionViewSet(viewsets.ModelViewSet):
             return Response({
                 'message': 'Admission approved successfully',
                 'admission': response_serializer.data,
-                'student_id': str(student.id)
+                'student_id': str(student.id),
+                'roll_number': current_roll_number
             }, status=status.HTTP_200_OK)
             
         except Exception as e:

@@ -289,6 +289,25 @@ export default api;
 export function getErrorMessage(error: unknown): string {
   if (typeof error === 'object' && error !== null && 'error' in error) {
     const apiError = error as ApiError;
+    
+    // Handle validation errors with details object
+    if (apiError.details && typeof apiError.details === 'object') {
+      try {
+        const detailsStr = JSON.stringify(apiError.details, null, 2);
+        return `${apiError.error}: ${detailsStr}`;
+      } catch {
+        return apiError.error;
+      }
+    }
+    
+    // Handle field errors
+    if (apiError.field_errors) {
+      const fieldErrors = Object.entries(apiError.field_errors)
+        .map(([field, errors]) => `${field}: ${errors.join(', ')}`)
+        .join('; ');
+      return `${apiError.error}: ${fieldErrors}`;
+    }
+    
     return apiError.details || apiError.error;
   }
   if (error instanceof Error) {

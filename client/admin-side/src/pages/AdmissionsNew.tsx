@@ -91,7 +91,6 @@ export default function Admissions() {
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [selectedAdmission, setSelectedAdmission] = useState<Admission | null>(null);
   const [approveData, setApproveData] = useState<AdmissionApproveData>({
-    current_roll_number: '',
     current_registration_number: '',
     semester: 1,
     current_group: '',
@@ -171,7 +170,6 @@ export default function Admissions() {
   const handleApproveClick = (admission: Admission) => {
     setSelectedAdmission(admission);
     setApproveData({
-      current_roll_number: '',
       current_registration_number: '',
       semester: 1,
       current_group: admission.group || '',
@@ -557,18 +555,10 @@ export default function Admissions() {
             <DialogTitle>Approve Admission</DialogTitle>
             <DialogDescription>
               Enter student details to create their profile and approve the admission.
+              Roll number will be auto-generated from SSC Board Roll.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="roll">Roll Number *</Label>
-              <Input
-                id="roll"
-                value={approveData.current_roll_number}
-                onChange={(e) => setApproveData({ ...approveData, current_roll_number: e.target.value })}
-                placeholder="e.g., 123456"
-              />
-            </div>
             <div className="grid gap-2">
               <Label htmlFor="reg">Registration Number *</Label>
               <Input

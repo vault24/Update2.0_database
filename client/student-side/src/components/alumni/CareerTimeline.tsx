@@ -121,7 +121,7 @@ export function CareerTimeline({ careers, onAdd, onEdit, onDelete, isEditable = 
                     <div className="p-4 rounded-xl bg-muted/50 hover:bg-muted/70 transition-colors relative">
                       {/* Edit/Delete Actions */}
                       {isEditable && (
-                        <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                        <div className="absolute top-3 right-3 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => onEdit?.(career)}>
                             <Edit className="w-4 h-4" />
                           </Button>

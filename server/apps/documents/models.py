@@ -59,6 +59,63 @@ class Document(models.Model):
         default='Other'
     )
     
+    # Structured storage fields
+    document_type = models.CharField(
+        max_length=50,
+        choices=[
+            ('student', 'Student Document'),
+            ('teacher', 'Teacher Document'),
+            ('alumni', 'Alumni Document'),
+            ('department', 'Department Document'),
+            ('system', 'System Document'),
+        ],
+        default='student',
+        help_text='Type of document'
+    )
+    department_code = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text='Department code for hierarchical storage'
+    )
+    session = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text='Academic session (e.g., 2024-2025)'
+    )
+    shift = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text='Shift (e.g., 1st-shift, 2nd-shift)'
+    )
+    owner_name = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text='Name of document owner'
+    )
+    owner_id = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text='ID of document owner (student ID, teacher ID, etc.)'
+    )
+    document_category = models.CharField(
+        max_length=50,
+        choices=[
+            ('photo', 'Photo'),
+            ('birth_certificate', 'Birth Certificate'),
+            ('nid', 'National ID'),
+            ('father_nid', 'Father NID'),
+            ('mother_nid', 'Mother NID'),
+            ('ssc_marksheet', 'SSC Marksheet'),
+            ('ssc_certificate', 'SSC Certificate'),
+            ('transcript', 'Transcript'),
+            ('medical_certificate', 'Medical Certificate'),
+            ('quota_document', 'Quota Document'),
+            ('other', 'Other'),
+        ],
+        default='other',
+        help_text='Standardized document category'
+    )
+    
     # Enhanced storage fields
     filePath = models.CharField(
         max_length=500, 
@@ -79,6 +136,17 @@ class Document(models.Model):
     # Metadata
     uploadDate = models.DateTimeField(auto_now_add=True)
     lastModified = models.DateTimeField(auto_now=True)
+    year = models.IntegerField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text='Year for partitioning (extracted from uploadDate)'
+    )
+    search_text = models.TextField(
+        blank=True,
+        default='',
+        help_text='Searchable text combining filename, description, and tags'
+    )
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
@@ -140,6 +208,8 @@ class Document(models.Model):
             models.Index(fields=['source_id']),
             models.Index(fields=['status']),
             models.Index(fields=['fileHash']),
+            models.Index(fields=['document_type', 'department_code', 'session'], name='doc_hierarchy_idx'),
+            models.Index(fields=['owner_id', 'document_category'], name='doc_owner_cat_idx'),
         ]
         constraints = [
             models.CheckConstraint(
@@ -165,6 +235,16 @@ class Document(models.Model):
     def file_url(self):
         """Get public URL for file access"""
         from utils.file_storage import file_storage
+        from utils.structured_file_storage import structured_storage
+        
+        # Try structured storage first (new system)
+        if self.filePath:
+            # Check if file exists in structured storage
+            file_info = structured_storage.get_file_info(self.filePath)
+            if file_info and file_info.get('exists'):
+                return structured_storage.get_file_url(self.filePath)
+        
+        # Fallback to old storage system
         return file_storage.get_file_url(self.filePath)
     
     @property
@@ -186,6 +266,14 @@ class Document(models.Model):
     def get_file_info(self):
         """Get detailed file information from storage"""
         from utils.file_storage import file_storage
+        from utils.structured_file_storage import structured_storage
+        
+        # Try structured storage first (new system)
+        file_info = structured_storage.get_file_info(self.filePath)
+        if file_info and file_info.get('exists'):
+            return file_info
+        
+        # Fallback to old storage system
         return file_storage.get_file_info(self.filePath)
     
     def verify_integrity(self):
@@ -212,6 +300,30 @@ class Document(models.Model):
                 return False, "File hash mismatch - file may be corrupted"
         except Exception as e:
             return False, f"Error verifying integrity: {str(e)}"
+    def save(self, *args, **kwargs):
+        """Override save to populate year and search_text"""
+        # Populate year field from uploadDate
+        if not self.year and self.uploadDate:
+            self.year = self.uploadDate.year
+        elif not self.year:
+            from django.utils import timezone
+            self.year = timezone.now().year
+
+        # Populate search_text field
+        search_parts = [self.fileName]
+        if self.description:
+            search_parts.append(self.description)
+        if self.tags:
+            search_parts.extend(self.tags)
+        if self.owner_name:
+            search_parts.append(self.owner_name)
+        if self.owner_id:
+            search_parts.append(self.owner_id)
+
+        self.search_text = ' '.join(search_parts).lower()
+
+        super().save(*args, **kwargs)
+
 
 
 class DocumentAccessLog(models.Model):

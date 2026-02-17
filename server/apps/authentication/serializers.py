@@ -6,6 +6,7 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
+from django.db import models
 
 User = get_user_model()
 
@@ -15,18 +16,124 @@ class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
     confirm_password = serializers.CharField(write_only=True)
     
+    # Student-specific fields
+    ssc_board_roll = serializers.CharField(required=False, allow_blank=True)
+    
+    # Teacher-specific fields
+    full_name_english = serializers.CharField(required=False, allow_blank=True)
+    full_name_bangla = serializers.CharField(required=False, allow_blank=True)
+    designation = serializers.CharField(required=False, allow_blank=True)
+    department = serializers.UUIDField(required=False, allow_null=True)
+    qualifications = serializers.ListField(required=False, default=list)
+    specializations = serializers.ListField(required=False, default=list)
+    office_location = serializers.CharField(required=False, allow_blank=True)
+    mobile_number = serializers.CharField(required=False, allow_blank=True)
+    
     class Meta:
         model = User
-        fields = ['username', 'email', 'password', 'confirm_password', 'first_name', 'last_name', 'role']
+        fields = [
+            'username', 'email', 'password', 'confirm_password', 
+            'first_name', 'last_name', 'role', 'mobile_number',
+            # Student-specific fields
+            'ssc_board_roll',
+            # Teacher-specific fields
+            'full_name_english', 'full_name_bangla', 'designation',
+            'department', 'qualifications', 'specializations', 'office_location'
+        ]
     
     def validate(self, attrs):
         if attrs['password'] != attrs['confirm_password']:
             raise serializers.ValidationError("Passwords don't match")
+        
+        # Validate student-specific fields if role is student or captain
+        if attrs.get('role') in ['student', 'captain']:
+            if not attrs.get('ssc_board_roll'):
+                raise serializers.ValidationError({
+                    'ssc_board_roll': 'SSC Board Roll is required for student registration'
+                })
+            # Validate SSC Board Roll format (should be numeric)
+            ssc_roll = attrs.get('ssc_board_roll', '').strip()
+            if not ssc_roll.isdigit():
+                raise serializers.ValidationError({
+                    'ssc_board_roll': 'SSC Board Roll must contain only numbers'
+                })
+            
+            # Check for duplicate SSC Board Roll (check base ID and any with suffixes)
+            student_id_base = f"SIPI-{ssc_roll}"
+            # Check exact match or any with suffix pattern
+            if User.objects.filter(
+                student_id__startswith=student_id_base
+            ).filter(
+                models.Q(student_id=student_id_base) | 
+                models.Q(student_id__regex=f'^{student_id_base}-[0-9]+$')
+            ).exists():
+                raise serializers.ValidationError({
+                    'ssc_board_roll': 'This SSC Board Roll is already registered. Please contact admin if this is an error.'
+                })
+        
+        # Validate teacher-specific fields if role is teacher
+        if attrs.get('role') == 'teacher':
+            required_fields = ['full_name_english', 'full_name_bangla', 'designation', 'department']
+            missing_fields = [field for field in required_fields if not attrs.get(field)]
+            if missing_fields:
+                raise serializers.ValidationError({
+                    field: f"{field.replace('_', ' ').title()} is required for teacher registration"
+                    for field in missing_fields
+                })
+        
         return attrs
     
     def create(self, validated_data):
+        # Extract student-specific fields
+        ssc_board_roll = validated_data.pop('ssc_board_roll', '')
+        
+        # Extract teacher-specific fields
+        teacher_fields = {
+            'full_name_english': validated_data.pop('full_name_english', ''),
+            'full_name_bangla': validated_data.pop('full_name_bangla', ''),
+            'designation': validated_data.pop('designation', ''),
+            'department': validated_data.pop('department', None),
+            'qualifications': validated_data.pop('qualifications', []),
+            'specializations': validated_data.pop('specializations', []),
+            'office_location': validated_data.pop('office_location', ''),
+        }
+        
         validated_data.pop('confirm_password')
+        
+        # Set account_status based on role
+        if validated_data.get('role') == 'teacher':
+            validated_data['account_status'] = 'pending'
+        else:
+            validated_data['account_status'] = 'active'
+        
+        # Generate Student ID from SSC Board Roll for students and captains
+        if validated_data.get('role') in ['student', 'captain'] and ssc_board_roll:
+            validated_data['student_id'] = f"SIPI-{ssc_board_roll}"
+        
+        # Create user
         user = User.objects.create_user(**validated_data)
+        
+        # Create TeacherSignupRequest if role is teacher
+        if user.role == 'teacher':
+            from apps.teacher_requests.models import TeacherSignupRequest
+            from apps.departments.models import Department
+            
+            department = Department.objects.get(id=teacher_fields['department'])
+            
+            TeacherSignupRequest.objects.create(
+                user=user,
+                full_name_english=teacher_fields['full_name_english'],
+                full_name_bangla=teacher_fields['full_name_bangla'],
+                email=user.email,
+                mobile_number=validated_data.get('mobile_number', ''),
+                designation=teacher_fields['designation'],
+                department=department,
+                qualifications=teacher_fields['qualifications'],
+                specializations=teacher_fields['specializations'],
+                office_location=teacher_fields['office_location'],
+                status='pending'
+            )
+        
         return user
 
 
@@ -265,10 +372,10 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name', 'role',
-            'related_profile_id', 'admission_status', 'account_status',
+            'related_profile_id', 'student_id', 'admission_status', 'account_status',
             'mobile_number', 'semester', 'student_status', 'is_alumni'
         ]
-        read_only_fields = ['id', 'username', 'role']
+        read_only_fields = ['id', 'username', 'role', 'student_id']
     
     def get_semester(self, obj):
         """Get student's current semester"""

@@ -114,7 +114,6 @@ export interface AdmissionCreateData {
 }
 
 export interface AdmissionApproveData {
-  current_roll_number: string;
   current_registration_number: string;
   semester: number;
   current_group: string;

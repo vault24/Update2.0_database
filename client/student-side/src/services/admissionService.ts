@@ -30,6 +30,7 @@ export interface AdmissionFormData {
   gender: string;
   religion: string;
   blood_group: string;
+  nationality?: string;
   
   // Contact Information
   mobile_student: string;
@@ -270,6 +271,7 @@ class AdmissionService {
   async checkExistingAdmission(): Promise<{
     hasAdmission: boolean;
     admissionId?: string;
+    application_id?: string;
     status?: string;
   }> {
     try {
@@ -277,6 +279,7 @@ class AdmissionService {
       return {
         hasAdmission: true,
         admissionId: admission.id,
+        application_id: admission.application_id || admission.id,
         status: admission.status
       };
     } catch (error: any) {

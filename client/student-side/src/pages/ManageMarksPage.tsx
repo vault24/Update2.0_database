@@ -5,7 +5,7 @@ import {
   Download, Upload, TrendingUp, Users, Award, 
   ChevronDown, ChevronUp, FileSpreadsheet, Printer,
   CheckCircle2, XCircle, MoreVertical, Eye, Edit2, RefreshCw,
-  GraduationCap, BookOpen, Calculator
+  GraduationCap, BookOpen, Calculator, Plus, Trash2, Settings
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -42,7 +42,17 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { marksService, type MarksRecord, type ExamType } from '@/services/marksService';
 import { studentService } from '@/services/studentService';
+import { subjectService, type Subject } from '@/services/subjectService';
 import { getErrorMessage } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
+
+interface MarkColumn {
+  id: string;
+  name: string;
+  maxMarks: number;
+  examType: ExamType;
+  order: number;
+}
 
 interface StudentMarks {
   studentId: string;
@@ -50,16 +60,9 @@ interface StudentMarks {
   roll: string;
   subjectCode: string;
   subjectName: string;
-  ct1: number | null;
-  ct2: number | null;
-  ct3: number | null;
-  assignment: number | null;
-  attendance: number | null;
-  final: number | null;
-  internal: number;
+  customMarks: { [columnId: string]: number | null };
   total: number;
-  grade: string;
-  gpa: number;
+  percentage: number;
   marksRecords: { [key: string]: MarksRecord };
   isSelected?: boolean;
 }
@@ -74,26 +77,21 @@ interface Stats {
   gradeDistribution: { [key: string]: number };
 }
 
-const semesters = ['1', '2', '3', '4', '5', '6', '7', '8'];
-
-const subjects = [
-  { code: 'MATH101', name: 'Mathematics-I' },
-  { code: 'PHY101', name: 'Physics-I' },
-  { code: 'CHEM101', name: 'Chemistry' },
-  { code: 'ENG101', name: 'English' },
-  { code: 'CSE101', name: 'Computer Fundamentals' },
-  { code: 'EEE101', name: 'Basic Electrical' },
-  { code: 'MECH101', name: 'Workshop Practice' },
-  { code: 'CIV101', name: 'Engineering Drawing' },
-];
-
 export default function ManageMarksPage() {
-  const [selectedSubject, setSelectedSubject] = useState(subjects[0].code);
-  const [selectedSemester, setSelectedSemester] = useState(semesters[0]);
+  const { user } = useAuth();
+  
+  // Data states
+  const [semesters, setSemesters] = useState<number[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [selectedSubject, setSelectedSubject] = useState<string>('');
+  const [selectedSemester, setSelectedSemester] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [students, setStudents] = useState<StudentMarks[]>([]);
   const [allStudents, setAllStudents] = useState<any[]>([]);
+  
+  // UI states
   const [loading, setLoading] = useState(true);
+  const [loadingSubjects, setLoadingSubjects] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -104,16 +102,92 @@ export default function ManageMarksPage() {
   const [bulkField, setBulkField] = useState<string>('');
   const [bulkValue, setBulkValue] = useState<string>('');
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+  
+  // Column Management
+  const [markColumns, setMarkColumns] = useState<MarkColumn[]>([
+    { id: 'ct1', name: 'CT-1', maxMarks: 20, examType: 'quiz', order: 1 },
+    { id: 'ct2', name: 'CT-2', maxMarks: 20, examType: 'quiz', order: 2 },
+    { id: 'ct3', name: 'CT-3', maxMarks: 20, examType: 'quiz', order: 3 },
+    { id: 'assignment', name: 'Assignment', maxMarks: 10, examType: 'assignment', order: 4 },
+    { id: 'attendance', name: 'Attendance', maxMarks: 10, examType: 'practical', order: 5 },
+    { id: 'final', name: 'Final', maxMarks: 50, examType: 'final', order: 6 },
+  ]);
+  const [columnDialog, setColumnDialog] = useState(false);
+  const [editingColumn, setEditingColumn] = useState<MarkColumn | null>(null);
+  const [newColumnName, setNewColumnName] = useState('');
+  const [newColumnMax, setNewColumnMax] = useState('20');
+  const [newColumnType, setNewColumnType] = useState<ExamType>('quiz');
+
+  // Fetch semesters and subjects on mount
+  useEffect(() => {
+    fetchSemestersAndSubjects();
+  }, []);
 
   useEffect(() => {
-    fetchStudents();
+    if (selectedSemester) {
+      fetchStudents();
+    }
   }, [selectedSemester]);
 
   useEffect(() => {
-    if (allStudents.length > 0) {
+    if (allStudents.length > 0 && selectedSubject) {
       fetchMarks();
     }
   }, [selectedSubject, selectedSemester, allStudents]);
+
+  const fetchSemestersAndSubjects = async () => {
+    try {
+      setLoadingSubjects(true);
+      
+      // Get teacher ID from user context
+      const teacherId = user?.relatedProfileId;
+      console.log('Fetching subjects for teacher:', teacherId);
+      
+      // Fetch subjects from teacher's class routines
+      const teacherSubjects = await subjectService.getTeacherSubjects(teacherId);
+      console.log('Fetched teacher subjects:', teacherSubjects);
+      
+      if (teacherSubjects.length === 0) {
+        toast.error('No subjects assigned', { 
+          description: 'You have no subjects assigned in your class routine. Please contact administration.' 
+        });
+        setSubjects([]);
+        setSemesters([]);
+        return;
+      }
+      
+      setSubjects(teacherSubjects);
+      
+      // Extract unique semesters
+      const uniqueSemesters = new Set<number>();
+      teacherSubjects.forEach(subject => uniqueSemesters.add(subject.semester));
+      const semesterList = Array.from(uniqueSemesters).sort((a, b) => a - b);
+      setSemesters(semesterList);
+      console.log('Available semesters:', semesterList);
+      
+      // Set default selections
+      if (semesterList.length > 0) {
+        setSelectedSemester(semesterList[0].toString());
+        
+        // Find subjects for first semester
+        const firstSemesterSubjects = teacherSubjects.filter(
+          s => s.semester === semesterList[0]
+        );
+        console.log('First semester subjects:', firstSemesterSubjects);
+        
+        if (firstSemesterSubjects.length > 0) {
+          setSelectedSubject(firstSemesterSubjects[0].code);
+          console.log('Selected subject:', firstSemesterSubjects[0]);
+        }
+      }
+    } catch (err) {
+      const errorMsg = getErrorMessage(err);
+      toast.error('Failed to load subjects', { description: errorMsg });
+      console.error('Error fetching subjects:', err);
+    } finally {
+      setLoadingSubjects(false);
+    }
+  };
 
   const fetchStudents = async () => {
     try {
@@ -168,29 +242,47 @@ export default function ManageMarksPage() {
         marksByStudent.get(mark.student)!.push(mark);
       });
       
+      console.log('Loaded marks:', allMarks.length, 'records');
+      console.log('Current columns:', markColumns.map(c => ({ id: c.id, name: c.name, type: c.examType })));
+      
       const transformedData: StudentMarks[] = allStudents.map((student) => {
         const studentMarks = marksByStudent.get(student.id) || [];
         
         const marksRecords: { [key: string]: MarksRecord } = {};
-        studentMarks.forEach(mark => {
-          if (mark.examType === 'quiz') {
-            if (!marksRecords['quiz1']) marksRecords['quiz1'] = mark;
-            else if (!marksRecords['quiz2']) marksRecords['quiz2'] = mark;
-            else if (!marksRecords['quiz3']) marksRecords['quiz3'] = mark;
+        const customMarks: { [columnId: string]: number | null } = {};
+        
+        // Map marks to columns by matching remarks (column name) and examType
+        markColumns.forEach((col) => {
+          // Try to find exact match by remarks and examType
+          let matchingMark = studentMarks.find(m => 
+            m.examType === col.examType && m.remarks === col.name
+          );
+          
+          // If no exact match, try matching by examType only (for backward compatibility)
+          if (!matchingMark) {
+            // For backward compatibility with old data without remarks
+            const marksOfType = studentMarks.filter(m => m.examType === col.examType);
+            
+            // Check if this column ID suggests it's an old default column
+            if (col.id === 'ct1' || col.id === 'ct2' || col.id === 'ct3') {
+              const index = col.id === 'ct1' ? 0 : col.id === 'ct2' ? 1 : 2;
+              matchingMark = marksOfType[index];
+            } else if (col.id === 'assignment' || col.id === 'attendance' || col.id === 'final') {
+              matchingMark = marksOfType[0];
+            }
+          }
+          
+          if (matchingMark) {
+            customMarks[col.id] = matchingMark.marksObtained;
+            marksRecords[col.id] = matchingMark;
           } else {
-            marksRecords[mark.examType] = mark;
+            customMarks[col.id] = null;
           }
         });
         
-        const ct1 = marksRecords['quiz1']?.marksObtained || null;
-        const ct2 = marksRecords['quiz2']?.marksObtained || null;
-        const ct3 = marksRecords['quiz3']?.marksObtained || null;
-        const assignment = marksRecords['assignment']?.marksObtained || null;
-        const attendance = marksRecords['practical']?.marksObtained || null;
-        const final = marksRecords['final']?.marksObtained || null;
-        
-        const internal = (ct1 || 0) + (ct2 || 0) + (ct3 || 0) + (assignment || 0) + (attendance || 0);
-        const total = internal + (final || 0);
+        const totalObtained = Object.values(customMarks).reduce((sum, val) => sum + (val || 0), 0);
+        const totalMax = markColumns.reduce((sum, col) => sum + col.maxMarks, 0);
+        const percentage = calculatePercentage(totalObtained, totalMax);
         
         return {
           studentId: student.id,
@@ -198,10 +290,9 @@ export default function ManageMarksPage() {
           roll: student.currentRollNumber,
           subjectCode: selectedSubject,
           subjectName: subjects.find(s => s.code === selectedSubject)?.name || selectedSubject,
-          ct1, ct2, ct3, assignment, attendance, final,
-          internal, total,
-          grade: calculateGrade(total),
-          gpa: calculateGPA(total),
+          customMarks,
+          total: totalObtained,
+          percentage,
           marksRecords: marksRecords as any,
           isSelected: false
         };
@@ -218,46 +309,23 @@ export default function ManageMarksPage() {
     }
   };
 
-  const calculateGrade = (total: number): string => {
-    if (total >= 90) return 'A+';
-    if (total >= 85) return 'A';
-    if (total >= 80) return 'A-';
-    if (total >= 75) return 'B+';
-    if (total >= 70) return 'B';
-    if (total >= 65) return 'C+';
-    if (total >= 60) return 'C';
-    if (total >= 50) return 'D';
-    return 'F';
-  };
-
-  const calculateGPA = (total: number): number => {
-    if (total >= 90) return 4.00;
-    if (total >= 85) return 4.00;
-    if (total >= 80) return 3.75;
-    if (total >= 75) return 3.50;
-    if (total >= 70) return 3.25;
-    if (total >= 65) return 3.00;
-    if (total >= 60) return 2.75;
-    if (total >= 50) return 2.50;
-    return 0;
+  const calculatePercentage = (obtained: number, total: number): number => {
+    if (total === 0) return 0;
+    return (obtained / total) * 100;
   };
 
   const calculateStats = (): Stats => {
     const completedStudents = students.filter(s => s.total > 0);
-    const passedStudents = students.filter(s => s.grade !== 'F' && s.total > 0);
     const totals = completedStudents.map(s => s.total);
+    const percentages = completedStudents.map(s => s.percentage);
+    const passedStudents = students.filter(s => s.percentage >= 40 && s.total > 0);
     
     const gradeDistribution: { [key: string]: number } = {};
-    students.forEach(s => {
-      if (s.grade) {
-        gradeDistribution[s.grade] = (gradeDistribution[s.grade] || 0) + 1;
-      }
-    });
 
     return {
       totalStudents: students.length,
       completedEntries: completedStudents.length,
-      averageMarks: totals.length > 0 ? totals.reduce((a, b) => a + b, 0) / totals.length : 0,
+      averageMarks: percentages.length > 0 ? percentages.reduce((a, b) => a + b, 0) / percentages.length : 0,
       passRate: students.length > 0 ? (passedStudents.length / students.length) * 100 : 0,
       highestMarks: totals.length > 0 ? Math.max(...totals) : 0,
       lowestMarks: totals.length > 0 ? Math.min(...totals) : 0,
@@ -265,20 +333,20 @@ export default function ManageMarksPage() {
     };
   };
 
-  const handleMarkChange = (studentId: string, field: 'ct1' | 'ct2' | 'ct3' | 'assignment' | 'attendance' | 'final', value: string) => {
+  const handleMarkChange = (studentId: string, columnId: string, value: string) => {
     setStudents(prev => prev.map(student => {
       if (student.studentId === studentId) {
         const numValue = value === '' ? null : parseFloat(value);
-        const updated = { ...student, [field]: numValue };
+        const updated = { 
+          ...student, 
+          customMarks: { ...student.customMarks, [columnId]: numValue }
+        };
         
-        const internal = (updated.ct1 || 0) + (updated.ct2 || 0) + (updated.ct3 || 0) + 
-                        (updated.assignment || 0) + (updated.attendance || 0);
-        const total = internal + (updated.final || 0);
+        const totalObtained = Object.values(updated.customMarks).reduce((sum, val) => sum + (val || 0), 0);
+        const totalMax = markColumns.reduce((sum, col) => sum + col.maxMarks, 0);
         
-        updated.internal = internal;
-        updated.total = total;
-        updated.grade = calculateGrade(total);
-        updated.gpa = calculateGPA(total);
+        updated.total = totalObtained;
+        updated.percentage = calculatePercentage(totalObtained, totalMax);
         
         return updated;
       }
@@ -312,16 +380,16 @@ export default function ManageMarksPage() {
 
     setStudents(prev => prev.map(student => {
       if (selectedStudents.has(student.studentId)) {
-        const updated = { ...student, [bulkField]: numValue };
+        let updated = { 
+          ...student,
+          customMarks: { ...student.customMarks, [bulkField]: numValue }
+        };
         
-        const internal = (updated.ct1 || 0) + (updated.ct2 || 0) + (updated.ct3 || 0) + 
-                        (updated.assignment || 0) + (updated.attendance || 0);
-        const total = internal + (updated.final || 0);
+        const totalObtained = Object.values(updated.customMarks).reduce((sum, val) => sum + (val || 0), 0);
+        const totalMax = markColumns.reduce((sum, col) => sum + col.maxMarks, 0);
         
-        updated.internal = internal;
-        updated.total = total;
-        updated.grade = calculateGrade(total);
-        updated.gpa = calculateGPA(total);
+        updated.total = totalObtained;
+        updated.percentage = calculatePercentage(totalObtained, totalMax);
         
         return updated;
       }
@@ -335,6 +403,90 @@ export default function ManageMarksPage() {
     toast.success(`Updated ${selectedStudents.size} students`);
   };
 
+  const handleAddColumn = () => {
+    if (!newColumnName.trim() || !newColumnMax) return;
+    
+    const newColumn: MarkColumn = {
+      id: `col_${Date.now()}`,
+      name: newColumnName.trim(),
+      maxMarks: parseInt(newColumnMax),
+      examType: newColumnType,
+      order: markColumns.length + 1
+    };
+    
+    setMarkColumns(prev => [...prev, newColumn]);
+    
+    // Add null values for this column to all students and recalculate
+    setStudents(prev => prev.map(student => {
+      const updated = {
+        ...student,
+        customMarks: { ...student.customMarks, [newColumn.id]: null }
+      };
+      
+      const totalObtained = Object.values(updated.customMarks).reduce((sum, val) => sum + (val || 0), 0);
+      const totalMax = [...markColumns, newColumn].reduce((sum, col) => sum + col.maxMarks, 0);
+      
+      updated.total = totalObtained;
+      updated.percentage = calculatePercentage(totalObtained, totalMax);
+      
+      return updated;
+    }));
+    
+    setNewColumnName('');
+    setNewColumnMax('20');
+    setNewColumnType('quiz');
+    setColumnDialog(false);
+    toast.success(`Column "${newColumn.name}" added successfully!`);
+  };
+
+  const handleEditColumn = (column: MarkColumn) => {
+    setEditingColumn(column);
+    setNewColumnName(column.name);
+    setNewColumnMax(column.maxMarks.toString());
+    setNewColumnType(column.examType);
+    setColumnDialog(true);
+  };
+
+  const handleUpdateColumn = () => {
+    if (!editingColumn || !newColumnName.trim() || !newColumnMax) return;
+    
+    setMarkColumns(prev => prev.map(col => 
+      col.id === editingColumn.id 
+        ? { ...col, name: newColumnName.trim(), maxMarks: parseInt(newColumnMax), examType: newColumnType }
+        : col
+    ));
+    
+    setEditingColumn(null);
+    setNewColumnName('');
+    setNewColumnMax('20');
+    setNewColumnType('quiz');
+    setColumnDialog(false);
+    toast.success('Column updated successfully!');
+  };
+
+  const handleDeleteColumn = (columnId: string) => {
+    const updatedColumns = markColumns.filter(col => col.id !== columnId);
+    setMarkColumns(updatedColumns);
+    
+    // Remove this column's data from all students and recalculate
+    setStudents(prev => prev.map(student => {
+      const { [columnId]: removed, ...restMarks } = student.customMarks;
+      
+      const totalObtained = Object.values(restMarks).reduce((sum, val) => sum + (val || 0), 0);
+      const totalMax = updatedColumns.reduce((sum, col) => sum + col.maxMarks, 0);
+      
+      return {
+        ...student,
+        customMarks: restMarks,
+        total: totalObtained,
+        percentage: calculatePercentage(totalObtained, totalMax)
+      };
+    }));
+    
+    setHasChanges(true);
+    toast.success('Column deleted successfully!');
+  };
+
   const handleSort = (key: string) => {
     setSortConfig(prev => ({
       key,
@@ -343,11 +495,14 @@ export default function ManageMarksPage() {
   };
 
   const handleExport = (format: 'csv' | 'excel') => {
-    const headers = ['Roll', 'Name', 'CT1', 'CT2', 'CT3', 'Assignment', 'Attendance', 'Internal', 'Final', 'Total', 'Grade', 'GPA'];
+    const columnHeaders = markColumns.map(col => col.name);
+    const headers = ['Roll', 'Name', ...columnHeaders, 'Total', 'Percentage'];
     const rows = filteredStudents.map(s => [
-      s.roll, s.studentName, s.ct1 || '', s.ct2 || '', s.ct3 || '',
-      s.assignment || '', s.attendance || '', s.internal, s.final || '',
-      s.total, s.grade, s.gpa.toFixed(2)
+      s.roll, 
+      s.studentName, 
+      ...markColumns.map(col => s.customMarks[col.id] ?? ''),
+      s.total,
+      s.percentage.toFixed(2) + '%'
     ]);
     
     const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -370,80 +525,86 @@ export default function ManageMarksPage() {
       const marksToSave: any[] = [];
       
       students.forEach(student => {
-        if (student.ct1 !== null) {
-          marksToSave.push({
-            student: student.studentId, subjectCode: selectedSubject, subjectName,
-            semester: semesterNum, examType: 'quiz' as ExamType,
-            marksObtained: student.ct1, totalMarks: 20,
-            id: (student.marksRecords as any)['quiz1']?.id
-          });
-        }
-        if (student.ct2 !== null) {
-          marksToSave.push({
-            student: student.studentId, subjectCode: selectedSubject, subjectName,
-            semester: semesterNum, examType: 'quiz' as ExamType,
-            marksObtained: student.ct2, totalMarks: 20,
-            id: (student.marksRecords as any)['quiz2']?.id
-          });
-        }
-        if (student.ct3 !== null) {
-          marksToSave.push({
-            student: student.studentId, subjectCode: selectedSubject, subjectName,
-            semester: semesterNum, examType: 'quiz' as ExamType,
-            marksObtained: student.ct3, totalMarks: 20,
-            id: (student.marksRecords as any)['quiz3']?.id
-          });
-        }
-        if (student.assignment !== null) {
-          marksToSave.push({
-            student: student.studentId, subjectCode: selectedSubject, subjectName,
-            semester: semesterNum, examType: 'assignment' as ExamType,
-            marksObtained: student.assignment, totalMarks: 10,
-            id: (student.marksRecords as any)['assignment']?.id
-          });
-        }
-        if (student.attendance !== null) {
-          marksToSave.push({
-            student: student.studentId, subjectCode: selectedSubject, subjectName,
-            semester: semesterNum, examType: 'practical' as ExamType,
-            marksObtained: student.attendance, totalMarks: 10,
-            id: (student.marksRecords as any)['practical']?.id
-          });
-        }
-        if (student.final !== null) {
-          marksToSave.push({
-            student: student.studentId, subjectCode: selectedSubject, subjectName,
-            semester: semesterNum, examType: 'final' as ExamType,
-            marksObtained: student.final, totalMarks: 50,
-            id: (student.marksRecords as any)['final']?.id
-          });
-        }
+        markColumns.forEach(col => {
+          const markValue = student.customMarks[col.id];
+          // Save even if mark is 0, but skip if null/undefined
+          if (markValue !== null && markValue !== undefined) {
+            const existingMarkId = (student.marksRecords as any)[col.id]?.id;
+            
+            marksToSave.push({
+              student: student.studentId,
+              subjectCode: selectedSubject,
+              subjectName,
+              semester: semesterNum,
+              examType: col.examType,
+              marksObtained: markValue,
+              totalMarks: col.maxMarks,
+              remarks: col.name,
+              id: existingMarkId
+            });
+          }
+        });
       });
+      
+      console.log('Saving marks:', marksToSave.length, 'records');
       
       const savePromises = marksToSave.map(mark => {
         if (mark.id) {
-          return marksService.updateMarks(mark.id, { marksObtained: mark.marksObtained, totalMarks: mark.totalMarks });
+          // Update existing mark
+          return marksService.updateMarks(mark.id, { 
+            marksObtained: mark.marksObtained, 
+            totalMarks: mark.totalMarks,
+            remarks: mark.remarks 
+          }).catch(err => {
+            console.error('Failed to update mark:', mark.id, err);
+            throw err;
+          });
         } else {
+          // Create new mark
           return marksService.createMarks({
-            student: mark.student, subjectCode: mark.subjectCode, subjectName: mark.subjectName,
-            semester: mark.semester, examType: mark.examType,
-            marksObtained: mark.marksObtained, totalMarks: mark.totalMarks
+            student: mark.student,
+            subjectCode: mark.subjectCode,
+            subjectName: mark.subjectName,
+            semester: mark.semester,
+            examType: mark.examType,
+            marksObtained: mark.marksObtained,
+            totalMarks: mark.totalMarks,
+            remarks: mark.remarks
+          }).catch(err => {
+            console.error('Failed to create mark:', mark, err);
+            throw err;
           });
         }
       });
       
       await Promise.all(savePromises);
       
+      console.log('All marks saved successfully');
       toast.success('All marks saved successfully!');
       setHasChanges(false);
       await fetchMarks();
     } catch (err) {
       const errorMsg = getErrorMessage(err);
+      console.error('Save error:', err);
       toast.error('Failed to save marks', { description: errorMsg });
     } finally {
       setSaving(false);
     }
   };
+
+  const handleSemesterChange = (semester: string) => {
+    setSelectedSemester(semester);
+    
+    // Filter subjects for selected semester
+    const semesterSubjects = subjects.filter(s => s.semester === parseInt(semester));
+    if (semesterSubjects.length > 0) {
+      setSelectedSubject(semesterSubjects[0].code);
+    } else {
+      setSelectedSubject('');
+    }
+  };
+
+  const filteredSubjects = subjects.filter(s => s.semester === parseInt(selectedSemester || '0'));
 
   let filteredStudents = students.filter(student =>
     student.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -464,28 +625,32 @@ export default function ManageMarksPage() {
 
   const stats = calculateStats();
 
-  const getGradeColor = (grade: string) => {
-    const colors: { [key: string]: string } = {
-      'A+': 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30',
-      'A': 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/25',
-      'A-': 'bg-teal-500/15 text-teal-600 dark:text-teal-400 border-teal-500/25',
-      'B+': 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/25',
-      'B': 'bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/25',
-      'C+': 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/25',
-      'C': 'bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/25',
-      'D': 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/25',
-      'F': 'bg-red-600/20 text-red-600 dark:text-red-400 border-red-600/30',
-    };
-    return colors[grade] || 'bg-muted text-muted-foreground';
-  };
+  if (loadingSubjects) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-10 h-10 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground">Loading subjects and semesters...</p>
+        </div>
+      </div>
+    );
+  }
 
-  const getGPAColor = (gpa: number) => {
-    if (gpa >= 3.75) return 'text-emerald-600 dark:text-emerald-400';
-    if (gpa >= 3.25) return 'text-blue-600 dark:text-blue-400';
-    if (gpa >= 2.75) return 'text-amber-600 dark:text-amber-400';
-    if (gpa > 0) return 'text-red-600 dark:text-red-400';
-    return 'text-muted-foreground';
-  };
+  if (semesters.length === 0 || subjects.length === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4 max-w-md">
+          <AlertCircle className="w-12 h-12 mx-auto text-destructive" />
+          <h3 className="text-lg font-semibold">No Subjects Available</h3>
+          <p className="text-muted-foreground">No active subjects found. Please contact administration.</p>
+          <Button onClick={fetchSemestersAndSubjects}>
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Try Again
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading && students.length === 0) {
     return (
@@ -605,8 +770,8 @@ export default function ManageMarksPage() {
                     <Calculator className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">{stats.averageMarks.toFixed(1)}</p>
-                    <p className="text-xs text-muted-foreground">Average Marks</p>
+                    <p className="text-2xl font-bold">{stats.averageMarks.toFixed(1)}%</p>
+                    <p className="text-xs text-muted-foreground">Avg Percentage</p>
                   </div>
                 </div>
               </CardContent>
@@ -668,16 +833,16 @@ export default function ManageMarksPage() {
           <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-muted-foreground">Semester</Label>
-              <Select value={selectedSemester} onValueChange={setSelectedSemester}>
+              <Select value={selectedSemester} onValueChange={handleSemesterChange}>
                 <SelectTrigger className="h-9">
                   <GraduationCap className="w-4 h-4 mr-2 text-muted-foreground" />
-                  <SelectValue />
+                  <SelectValue placeholder="Select semester" />
                 </SelectTrigger>
                 <SelectContent>
                   {semesters.map(semester => {
-                    const num = parseInt(semester);
+                    const num = semester;
                     const suffix = num === 1 ? 'st' : num === 2 ? 'nd' : num === 3 ? 'rd' : 'th';
-                    return <SelectItem key={semester} value={semester}>{semester}{suffix} Semester</SelectItem>;
+                    return <SelectItem key={semester} value={semester.toString()}>{semester}{suffix} Semester</SelectItem>;
                   })}
                 </SelectContent>
               </Select>
@@ -685,14 +850,16 @@ export default function ManageMarksPage() {
 
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-muted-foreground">Subject</Label>
-              <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+              <Select value={selectedSubject} onValueChange={setSelectedSubject} disabled={loadingSubjects || filteredSubjects.length === 0}>
                 <SelectTrigger className="h-9">
                   <BookOpen className="w-4 h-4 mr-2 text-muted-foreground" />
-                  <SelectValue />
+                  <SelectValue placeholder="Select subject" />
                 </SelectTrigger>
                 <SelectContent>
-                  {subjects.map(subject => (
-                    <SelectItem key={subject.code} value={subject.code}>{subject.name}</SelectItem>
+                  {filteredSubjects.map(subject => (
+                    <SelectItem key={`${subject.code}_${subject.semester}`} value={subject.code}>
+                      {subject.code} - {subject.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -774,15 +941,31 @@ export default function ManageMarksPage() {
           <div className="flex items-center gap-3">
             <BarChart3 className="w-5 h-5 text-primary" />
             <div>
-              <h2 className="font-semibold">Internal Assessment & Final Results</h2>
+              <h2 className="font-semibold">Assessment Marks Entry</h2>
               <p className="text-xs text-muted-foreground hidden sm:block">
-                CT: 20 each • Assignment: 10 • Attendance: 10 • Final: 50 • Total: 100
+                Customizable columns • Total: {markColumns.reduce((sum, col) => sum + col.maxMarks, 0)} marks
               </p>
             </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={fetchMarks} disabled={loading}>
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => {
+                setEditingColumn(null);
+                setNewColumnName('');
+                setNewColumnMax('20');
+                setNewColumnType('quiz');
+                setColumnDialog(true);
+              }}
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Add Column
+            </Button>
+            <Button variant="ghost" size="sm" onClick={fetchMarks} disabled={loading}>
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -806,15 +989,37 @@ export default function ManageMarksPage() {
                     )}
                   </div>
                 </TableHead>
-                <TableHead className="text-center w-20">CT-1<br/><span className="text-[10px] font-normal text-muted-foreground">/20</span></TableHead>
-                <TableHead className="text-center w-20">CT-2<br/><span className="text-[10px] font-normal text-muted-foreground">/20</span></TableHead>
-                <TableHead className="text-center w-20">CT-3<br/><span className="text-[10px] font-normal text-muted-foreground">/20</span></TableHead>
-                <TableHead className="text-center w-20">Assign<br/><span className="text-[10px] font-normal text-muted-foreground">/10</span></TableHead>
-                <TableHead className="text-center w-20">Attend<br/><span className="text-[10px] font-normal text-muted-foreground">/10</span></TableHead>
-                <TableHead className="text-center w-16 bg-primary/5">Int.</TableHead>
-                <TableHead className="text-center w-20 bg-primary/5">Final<br/><span className="text-[10px] font-normal text-muted-foreground">/50</span></TableHead>
+                {markColumns.map(col => (
+                  <TableHead key={col.id} className="text-center w-20">
+                    <div className="flex flex-col items-center gap-0.5">
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs">{col.name}</span>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-4 w-4 p-0 hover:bg-muted">
+                              <Settings className="w-3 h-3" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleEditColumn(col)}>
+                              <Edit2 className="w-3 h-3 mr-2" />Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              onClick={() => handleDeleteColumn(col.id)}
+                              className="text-destructive"
+                            >
+                              <Trash2 className="w-3 h-3 mr-2" />Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                      <span className="text-[10px] font-normal text-muted-foreground">/{col.maxMarks}</span>
+                    </div>
+                  </TableHead>
+                ))}
                 <TableHead 
-                  className="text-center w-16 bg-primary/10 cursor-pointer hover:bg-primary/15"
+                  className="text-center w-20 bg-primary/10 cursor-pointer hover:bg-primary/15"
                   onClick={() => handleSort('total')}
                 >
                   <div className="flex items-center justify-center gap-1">
@@ -825,23 +1030,22 @@ export default function ManageMarksPage() {
                   </div>
                 </TableHead>
                 <TableHead 
-                  className="text-center w-16 cursor-pointer hover:bg-muted/50"
-                  onClick={() => handleSort('grade')}
+                  className="text-center w-24 cursor-pointer hover:bg-muted/50"
+                  onClick={() => handleSort('percentage')}
                 >
-                  Grade
-                </TableHead>
-                <TableHead 
-                  className="text-center w-16 cursor-pointer hover:bg-muted/50"
-                  onClick={() => handleSort('gpa')}
-                >
-                  GPA
+                  <div className="flex items-center justify-center gap-1">
+                    Percentage
+                    {sortConfig?.key === 'percentage' && (
+                      sortConfig.direction === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
+                    )}
+                  </div>
                 </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredStudents.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={12} className="text-center py-12">
+                  <TableCell colSpan={markColumns.length + 4} className="text-center py-12">
                     <div className="flex flex-col items-center gap-2 text-muted-foreground">
                       <Users className="w-8 h-8 opacity-50" />
                       <p>{searchQuery ? 'No students found matching your search.' : 'No students found for this semester.'}</p>
@@ -874,90 +1078,25 @@ export default function ManageMarksPage() {
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-center p-2">
-                      <Input
-                        type="number"
-                        min="0"
-                        max="20"
-                        value={student.ct1 ?? ''}
-                        onChange={(e) => handleMarkChange(student.studentId, 'ct1', e.target.value)}
-                        className="w-14 h-8 text-center text-sm mx-auto"
-                        placeholder="-"
-                      />
-                    </TableCell>
-                    <TableCell className="text-center p-2">
-                      <Input
-                        type="number"
-                        min="0"
-                        max="20"
-                        value={student.ct2 ?? ''}
-                        onChange={(e) => handleMarkChange(student.studentId, 'ct2', e.target.value)}
-                        className="w-14 h-8 text-center text-sm mx-auto"
-                        placeholder="-"
-                      />
-                    </TableCell>
-                    <TableCell className="text-center p-2">
-                      <Input
-                        type="number"
-                        min="0"
-                        max="20"
-                        value={student.ct3 ?? ''}
-                        onChange={(e) => handleMarkChange(student.studentId, 'ct3', e.target.value)}
-                        className="w-14 h-8 text-center text-sm mx-auto"
-                        placeholder="-"
-                      />
-                    </TableCell>
-                    <TableCell className="text-center p-2">
-                      <Input
-                        type="number"
-                        min="0"
-                        max="10"
-                        value={student.assignment ?? ''}
-                        onChange={(e) => handleMarkChange(student.studentId, 'assignment', e.target.value)}
-                        className="w-14 h-8 text-center text-sm mx-auto"
-                        placeholder="-"
-                      />
-                    </TableCell>
-                    <TableCell className="text-center p-2">
-                      <Input
-                        type="number"
-                        min="0"
-                        max="10"
-                        value={student.attendance ?? ''}
-                        onChange={(e) => handleMarkChange(student.studentId, 'attendance', e.target.value)}
-                        className="w-14 h-8 text-center text-sm mx-auto"
-                        placeholder="-"
-                      />
-                    </TableCell>
-                    <TableCell className="text-center p-2 bg-primary/5">
-                      <span className="font-semibold text-primary">{student.internal}</span>
-                    </TableCell>
-                    <TableCell className="text-center p-2 bg-primary/5">
-                      <Input
-                        type="number"
-                        min="0"
-                        max="50"
-                        value={student.final ?? ''}
-                        onChange={(e) => handleMarkChange(student.studentId, 'final', e.target.value)}
-                        className="w-14 h-8 text-center text-sm mx-auto"
-                        placeholder="-"
-                      />
-                    </TableCell>
+                    {markColumns.map(col => (
+                      <TableCell key={col.id} className="text-center p-2">
+                        <Input
+                          type="number"
+                          min="0"
+                          max={col.maxMarks}
+                          value={student.customMarks[col.id] ?? ''}
+                          onChange={(e) => handleMarkChange(student.studentId, col.id, e.target.value)}
+                          className="w-14 h-8 text-center text-sm mx-auto"
+                          placeholder="-"
+                        />
+                      </TableCell>
+                    ))}
                     <TableCell className="text-center p-2 bg-primary/10">
                       <span className="font-bold text-base text-primary">{student.total}</span>
                     </TableCell>
                     <TableCell className="text-center p-2">
-                      {student.total > 0 ? (
-                        <Badge variant="outline" className={`${getGradeColor(student.grade)} font-semibold`}>
-                          {student.grade}
-                        </Badge>
-                      ) : (
-                        <span className="text-muted-foreground text-xs">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-center p-2">
-                      <span className={`font-semibold ${getGPAColor(student.gpa)}`}>
-                        {student.gpa > 0 ? student.gpa.toFixed(2) : '-'}
+                      <span className={`font-semibold ${student.percentage >= 40 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                        {student.percentage.toFixed(2)}%
                       </span>
                     </TableCell>
                   </motion.tr>
@@ -967,17 +1106,17 @@ export default function ManageMarksPage() {
           </Table>
         </div>
 
-        {/* Grade Legend */}
+        {/* Stats Footer */}
         <div className="p-4 border-t bg-muted/20">
-          <p className="text-xs text-muted-foreground mb-2 font-medium">Grade Scale:</p>
-          <div className="flex flex-wrap gap-2">
-            {['A+', 'A', 'A-', 'B+', 'B', 'C+', 'C', 'D', 'F'].map(grade => (
-              <Badge key={grade} variant="outline" className={`${getGradeColor(grade)} text-[10px] px-2 py-0.5`}>
-                {grade}: {grade === 'A+' ? '90-100' : grade === 'A' ? '85-89' : grade === 'A-' ? '80-84' : 
-                  grade === 'B+' ? '75-79' : grade === 'B' ? '70-74' : grade === 'C+' ? '65-69' : 
-                  grade === 'C' ? '60-64' : grade === 'D' ? '50-59' : '<50'}
-              </Badge>
-            ))}
+          <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+            <div>
+              <span className="font-medium">Total Marks: </span>
+              <span className="text-foreground">{markColumns.reduce((sum, col) => sum + col.maxMarks, 0)}</span>
+            </div>
+            <div>
+              <span className="font-medium">Pass Percentage: </span>
+              <span className="text-foreground">40%</span>
+            </div>
           </div>
         </div>
       </motion.div>
@@ -1000,12 +1139,11 @@ export default function ManageMarksPage() {
                   <SelectValue placeholder="Choose a field..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ct1">CT-1 (max 20)</SelectItem>
-                  <SelectItem value="ct2">CT-2 (max 20)</SelectItem>
-                  <SelectItem value="ct3">CT-3 (max 20)</SelectItem>
-                  <SelectItem value="assignment">Assignment (max 10)</SelectItem>
-                  <SelectItem value="attendance">Attendance (max 10)</SelectItem>
-                  <SelectItem value="final">Final (max 50)</SelectItem>
+                  {markColumns.map(col => (
+                    <SelectItem key={col.id} value={col.id}>
+                      {col.name} (max {col.maxMarks})
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -1015,7 +1153,7 @@ export default function ManageMarksPage() {
               <Input
                 type="number"
                 min="0"
-                max={bulkField === 'final' ? 50 : ['assignment', 'attendance'].includes(bulkField) ? 10 : 20}
+                max={markColumns.find(c => c.id === bulkField)?.maxMarks || 20}
                 value={bulkValue}
                 onChange={(e) => setBulkValue(e.target.value)}
                 placeholder="Enter marks..."
@@ -1027,6 +1165,74 @@ export default function ManageMarksPage() {
             <Button variant="outline" onClick={() => setBulkEditDialog(false)}>Cancel</Button>
             <Button onClick={handleBulkEdit} disabled={!bulkField || bulkValue === ''}>
               Apply to {selectedStudents.size} Students
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Column Management Dialog */}
+      <Dialog open={columnDialog} onOpenChange={setColumnDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingColumn ? 'Edit Column' : 'Add New Column'}</DialogTitle>
+            <DialogDescription>
+              {editingColumn ? 'Update column details' : 'Create a new marks column with custom name and maximum marks'}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Column Name</Label>
+              <Input
+                value={newColumnName}
+                onChange={(e) => setNewColumnName(e.target.value)}
+                placeholder="e.g., Quiz 1, Midterm, Project"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Maximum Marks</Label>
+              <Input
+                type="number"
+                min="1"
+                max="100"
+                value={newColumnMax}
+                onChange={(e) => setNewColumnMax(e.target.value)}
+                placeholder="e.g., 20, 10, 50"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Exam Type</Label>
+              <Select value={newColumnType} onValueChange={(val) => setNewColumnType(val as ExamType)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="quiz">Quiz</SelectItem>
+                  <SelectItem value="assignment">Assignment</SelectItem>
+                  <SelectItem value="practical">Practical</SelectItem>
+                  <SelectItem value="midterm">Midterm</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setColumnDialog(false);
+              setEditingColumn(null);
+              setNewColumnName('');
+              setNewColumnMax('20');
+              setNewColumnType('quiz');
+            }}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={editingColumn ? handleUpdateColumn : handleAddColumn} 
+              disabled={!newColumnName.trim() || !newColumnMax}
+            >
+              {editingColumn ? 'Update' : 'Add'} Column
             </Button>
           </DialogFooter>
         </DialogContent>

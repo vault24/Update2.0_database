@@ -19,6 +19,16 @@ class NotificationViewSet(viewsets.ModelViewSet):
     search_fields = ['title', 'message']
     ordering_fields = ['created_at', 'status']
     ordering = ['-created_at']
+    
+    # Add pagination
+    from rest_framework.pagination import PageNumberPagination
+    
+    class NotificationPagination(PageNumberPagination):
+        page_size = 50
+        page_size_query_param = 'page_size'
+        max_page_size = 100
+    
+    pagination_class = NotificationPagination
 
     def get_queryset(self):
         """Return notifications for the current user"""
@@ -31,7 +41,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(status=status_param)
 
         # Filter by notification type if provided
-        type_param = self.request.query_params.get('type')
+        type_param = self.request.query_params.get('notification_type')
         if type_param:
             queryset = queryset.filter(notification_type=type_param)
 
@@ -65,7 +75,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
-    @action(detail=True, methods=['patch'])
+    @action(detail=True, methods=['post', 'patch'])
     def mark_as_read(self, request, pk=None):
         """Mark a notification as read"""
         notification = self.get_object()
@@ -73,7 +83,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(notification)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['patch'])
+    @action(detail=True, methods=['post', 'patch'])
     def archive(self, request, pk=None):
         """Archive a notification"""
         notification = self.get_object()
@@ -93,16 +103,16 @@ class NotificationViewSet(viewsets.ModelViewSet):
         """Get count of unread notifications"""
         # If user is not authenticated, return 0
         if not request.user.is_authenticated:
-            return Response({'unread_count': 0})
+            return Response({'count': 0})
         
         user = request.user
         count = Notification.objects.filter(
             recipient=user,
             status='unread'
         ).count()
-        return Response({'unread_count': count})
+        return Response({'count': count})
 
-    @action(detail=False, methods=['patch'])
+    @action(detail=False, methods=['post', 'patch'])
     def mark_all_as_read(self, request):
         """Mark all notifications as read"""
         user = request.user
@@ -113,7 +123,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
         count = notifications.count()
         for notification in notifications:
             notification.mark_as_read()
-        return Response({'marked_as_read': count})
+        return Response({'message': f'{count} notifications marked as read', 'updated': count})
 
 
 class NotificationPreferenceViewSet(viewsets.ViewSet):

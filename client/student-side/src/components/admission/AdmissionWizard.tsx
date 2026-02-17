@@ -165,10 +165,10 @@ export function AdmissionWizard() {
         if (cancelled) return;
 
         if (existing.hasAdmission) {
-          setApplicationId(existing.admissionId || '');
+          setApplicationId(existing.application_id || existing.admissionId || '');
           setIsSubmitted(true);
           setCurrentStep(7); // Move to success page
-          persistSubmissionState(existing.admissionId || '');
+          persistSubmissionState(existing.application_id || existing.admissionId || '');
           await admissionService.clearDraft();
           if (user?.id) {
             localStorage.removeItem(`${STORAGE_KEY}_${user.id}`);

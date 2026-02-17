@@ -176,8 +176,8 @@ export function DashboardLayout() {
               variant="ghost" 
               size="icon" 
               className="relative"
-              onClick={() => navigate('/dashboard/notices')}
-              title="View Notices & Updates"
+              onClick={() => navigate('/dashboard/notifications')}
+              title="View Notifications"
             >
               <Bell className="w-5 h-5" />
               {unreadCount > 0 && (
