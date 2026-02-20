@@ -61,7 +61,7 @@ export function StudentStatsCard({
   ];
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-4 w-full">
       {stats.map((stat, index) => (
         <motion.div
           key={stat.label}
@@ -69,7 +69,7 @@ export function StudentStatsCard({
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 * index }}
           whileHover={{ scale: 1.02, y: -2 }}
-          className="group relative bg-card rounded-xl lg:rounded-2xl border border-border p-4 md:p-5 shadow-card overflow-hidden transition-all duration-300 hover:shadow-xl hover:border-primary/30"
+          className="group relative bg-card rounded-xl lg:rounded-2xl border border-border p-3 md:p-5 shadow-card overflow-hidden transition-all duration-300 hover:shadow-xl hover:border-primary/30 min-w-0"
         >
           {/* Background gradient on hover */}
           <div className={cn(
@@ -80,17 +80,17 @@ export function StudentStatsCard({
           <div className="relative z-10">
             <div className="flex items-start justify-between mb-3">
               <div className={cn(
-                "w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110",
+                "w-8 h-8 md:w-12 md:h-12 rounded-lg md:rounded-xl flex items-center justify-center transition-transform group-hover:scale-110",
                 stat.bgColor
               )}>
-                <stat.icon className={cn("w-5 h-5 md:w-6 md:h-6", stat.iconColor)} />
+                <stat.icon className={cn("w-4 h-4 md:w-6 md:h-6", stat.iconColor)} />
               </div>
-              <TrendingUp className="w-4 h-4 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <TrendingUp className="w-4 h-4 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity hidden md:block" />
             </div>
             
-            <p className="text-2xl md:text-3xl font-bold mb-0.5">{stat.value}</p>
-            <p className="text-xs md:text-sm font-medium text-foreground">{stat.label}</p>
-            <p className="text-[10px] md:text-xs text-muted-foreground">{stat.subLabel}</p>
+            <p className="text-xl md:text-3xl font-bold mb-0.5 truncate">{stat.value}</p>
+            <p className="text-[11px] md:text-sm font-medium text-foreground truncate">{stat.label}</p>
+            <p className="text-[10px] md:text-xs text-muted-foreground truncate">{stat.subLabel}</p>
           </div>
         </motion.div>
       ))}

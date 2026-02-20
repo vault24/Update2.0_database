@@ -439,7 +439,7 @@ export function ProfilePage() {
   };
 
   return (
-    <div className="space-y-4 md:space-y-6 max-w-full overflow-x-hidden">
+    <div className="space-y-4 md:space-y-6 w-full min-w-0 overflow-hidden">
       {/* Enhanced Profile Header */}
       <StudentProfileHeader
         name={displayName}
@@ -458,15 +458,17 @@ export function ProfilePage() {
       />
 
       {/* Stats Cards */}
-      <StudentStatsCard
-        gpa={Number(performanceMetrics.currentGPA) || 0}
-        attendancePercentage={performanceMetrics.attendancePercentage}
-        subjectsCount={performanceMetrics.subjectsCount}
-      />
+      <div className="overflow-hidden">
+        <StudentStatsCard
+          gpa={Number(performanceMetrics.currentGPA) || 0}
+          attendancePercentage={performanceMetrics.attendancePercentage}
+          subjectsCount={performanceMetrics.subjectsCount}
+        />
+      </div>
 
       {/* Tabs */}
-      <div className="overflow-x-auto -mx-3 px-3 md:-mx-4 md:px-4 lg:mx-0 lg:px-0">
-        <div className="flex gap-1 md:gap-1.5 lg:gap-2 min-w-max pb-2">
+      <div className="overflow-x-auto -mx-3 px-3 md:-mx-4 md:px-4 lg:mx-0 lg:px-0 scrollbar-none">
+        <div className="flex gap-1.5 md:gap-2 min-w-max pb-2">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
@@ -474,14 +476,15 @@ export function ProfilePage() {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  "flex items-center gap-1 md:gap-1.5 lg:gap-2 px-3 md:px-4 lg:px-5 py-2 md:py-2.5 lg:py-3 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 whitespace-nowrap",
+                  "flex items-center gap-1 md:gap-1.5 lg:gap-2 px-2.5 md:px-4 lg:px-5 py-2 md:py-2.5 lg:py-3 rounded-xl text-[11px] md:text-sm font-medium transition-all duration-200 whitespace-nowrap",
                   isActive
                     ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg"
                     : "bg-card text-muted-foreground hover:text-foreground hover:bg-secondary border border-border"
                 )}
               >
                 <tab.icon className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                <span>{tab.label}</span>
+                <span className="hidden sm:inline">{tab.label}</span>
+                <span className="sm:hidden">{tab.label.split(' ')[0]}</span>
               </button>
             );
           })}

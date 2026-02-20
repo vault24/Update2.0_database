@@ -61,6 +61,7 @@ export interface AdmissionFormData {
 
 export interface Admission {
   id: string;
+  application_id?: string;
   full_name_english: string;
   full_name_bangla: string;
   email: string;

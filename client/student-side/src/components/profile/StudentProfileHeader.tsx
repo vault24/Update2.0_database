@@ -78,7 +78,7 @@ export function StudentProfileHeader({
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="relative overflow-hidden rounded-2xl lg:rounded-3xl bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 shadow-xl"
+      className="relative overflow-hidden rounded-2xl lg:rounded-3xl bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 shadow-xl max-w-full"
     >
       {/* Decorative elements */}
       <div className="absolute top-0 right-0 w-80 h-80 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
@@ -153,23 +153,23 @@ export function StudentProfileHeader({
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.4 }}
-              className="flex flex-wrap gap-2 mb-3 md:mb-4"
+              className="flex flex-wrap gap-1.5 md:gap-2 mb-3 md:mb-4"
             >
-              <Badge className="bg-white/15 text-white border-0 backdrop-blur-sm text-xs md:text-sm">
-                <GraduationCap className="w-3 h-3 md:w-4 md:h-4 mr-1" />
-                {department}
+              <Badge className="bg-white/15 text-white border-0 backdrop-blur-sm text-[10px] md:text-sm px-2 py-0.5 md:px-2.5 md:py-1">
+                <GraduationCap className="w-3 h-3 md:w-4 md:h-4 mr-1 flex-shrink-0" />
+                <span className="truncate max-w-[120px] md:max-w-none">{department}</span>
               </Badge>
-              <Badge className="bg-white/15 text-white border-0 backdrop-blur-sm text-xs md:text-sm">
-                <Calendar className="w-3 h-3 md:w-4 md:h-4 mr-1" />
-                Semester {semester}
+              <Badge className="bg-white/15 text-white border-0 backdrop-blur-sm text-[10px] md:text-sm px-2 py-0.5 md:px-2.5 md:py-1">
+                <Calendar className="w-3 h-3 md:w-4 md:h-4 mr-1 flex-shrink-0" />
+                Sem {semester}
               </Badge>
               {session && (
-                <Badge className="bg-white/15 text-white border-0 backdrop-blur-sm text-xs md:text-sm">
-                  Session: {session}
+                <Badge className="bg-white/15 text-white border-0 backdrop-blur-sm text-[10px] md:text-sm px-2 py-0.5 md:px-2.5 md:py-1">
+                  {session}
                 </Badge>
               )}
               {shift && (
-                <Badge className="bg-white/15 text-white border-0 backdrop-blur-sm text-xs md:text-sm">
+                <Badge className="bg-white/15 text-white border-0 backdrop-blur-sm text-[10px] md:text-sm px-2 py-0.5 md:px-2.5 md:py-1">
                   {shift}
                 </Badge>
               )}
