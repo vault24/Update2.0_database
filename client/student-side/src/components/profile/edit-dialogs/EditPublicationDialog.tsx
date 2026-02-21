@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 export interface Publication {
+  id?: string;
   title: string;
   journal: string;
   year: string;

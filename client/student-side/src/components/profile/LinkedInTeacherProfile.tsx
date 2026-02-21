@@ -1,7 +1,7 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
-  GraduationCap, Mail, Phone, MapPin, Building, Edit, Award, Calendar, 
+  GraduationCap, Mail, Phone, MapPin, Building, Edit, Award, 
   BookOpen, Users, Globe, ExternalLink, Copy, Check, Share2,
   FileText, Briefcase, Star, MessageSquare, Clock, Target,
   TrendingUp, Lightbulb, Presentation, FlaskConical, Plus, Trash2, Pencil, Camera
@@ -20,6 +20,11 @@ import { EditAwardDialog, type Award as AwardType } from './edit-dialogs/EditAwa
 import { EditSkillsDialog } from './edit-dialogs/EditSkillsDialog';
 import { EditProfileHeaderDialog, type ProfileHeaderData } from './edit-dialogs/EditProfileHeaderDialog';
 import { ConfirmDeleteDialog } from './edit-dialogs/ConfirmDeleteDialog';
+import { teacherService } from '@/services/teacherService';
+import { settingsService } from '@/services/settingsService';
+import { useAuth } from '@/contexts/AuthContext';
+import { LoadingState } from '@/components/LoadingState';
+import { ErrorState } from '@/components/ErrorState';
 
 interface TeacherProfileData {
   id: string;
@@ -201,8 +206,11 @@ interface LinkedInTeacherProfileProps {
 }
 
 export function LinkedInTeacherProfile({ isPublicView = false, teacherId }: LinkedInTeacherProfileProps) {
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [teacher, setTeacher] = useState<TeacherProfileData>(initialTeacherData);
+  const [teacher, setTeacher] = useState<TeacherProfileData | null>(null);
   const contactSectionRef = useRef<HTMLDivElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const profileInputRef = useRef<HTMLInputElement>(null);
@@ -225,7 +233,81 @@ export function LinkedInTeacherProfile({ isPublicView = false, teacherId }: Link
   const [editingPublication, setEditingPublication] = useState<{ index: number; data: Publication } | null>(null);
   const [editingResearch, setEditingResearch] = useState<{ index: number; data: Research } | null>(null);
   const [editingAward, setEditingAward] = useState<{ index: number; data: AwardType } | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<{ type: string; index: number; title: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: string; index: number; title: string; id?: string } | null>(null);
+
+  // Fetch teacher profile data
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Determine which teacher ID to use
+        const idToFetch = teacherId || user?.relatedProfileId;
+        
+        if (!idToFetch) {
+          setError('No teacher ID provided');
+          return;
+        }
+
+        // Fetch profile data
+        const profileData = await teacherService.getTeacherProfile(idToFetch);
+        
+        // Try to fetch system settings, but don't fail if it errors
+        let instituteName = 'Sylhet Polytechnic Institute'; // Default fallback
+        try {
+          const systemSettings = await settingsService.getSystemSettings();
+          instituteName = systemSettings.institute_name || instituteName;
+        } catch (settingsErr) {
+          console.warn('Could not fetch system settings, using default institute name:', settingsErr);
+        }
+        
+        // Transform backend data to component format
+        setTeacher({
+          id: profileData.id,
+          name: profileData.fullNameEnglish,
+          headline: profileData.headline || `${profileData.designation} at ${profileData.department.name}`,
+          department: profileData.department.name,
+          designation: profileData.designation,
+          email: profileData.email,
+          phone: profileData.mobileNumber,
+          employeeId: profileData.id,
+          joiningDate: new Date(profileData.joiningDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+          officeLocation: profileData.officeLocation,
+          university: instituteName,
+          profileImage: profileData.profilePhoto,
+          coverImage: profileData.coverPhoto,
+          about: profileData.about || '',
+          specializations: profileData.specializations || [],
+          skills: profileData.skills || [],
+          connections: 0, // Placeholder
+          profileViews: 0, // Placeholder
+          experience: profileData.experiences || [],
+          education: profileData.education || [],
+          publications: profileData.publications || [],
+          research: profileData.research || [],
+          awards: profileData.awards || [],
+          courses: [] // Would need separate API call
+        });
+      } catch (err: any) {
+        console.error('Error fetching teacher profile:', err);
+        setError(err.message || 'Failed to load teacher profile');
+        toast.error('Failed to load profile');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, [teacherId, user]);
+
+  if (loading) {
+    return <LoadingState message="Loading teacher profile..." />;
+  }
+
+  if (error || !teacher) {
+    return <ErrorState error={error || 'Teacher profile not found'} />;
+  }
 
   const publicProfileUrl = `${window.location.origin}/faculty/${teacher.id}`;
 
@@ -249,89 +331,160 @@ export function LinkedInTeacherProfile({ isPublicView = false, teacherId }: Link
   };
 
   // Save handlers
-  const handleSaveProfile = (data: ProfileHeaderData) => {
-    setTeacher({ ...teacher, ...data });
-    toast.success('Profile updated successfully');
-  };
-
-  const handleSaveAbout = (about: string) => {
-    setTeacher({ ...teacher, about });
-    toast.success('About section updated');
-  };
-
-  const handleSaveExperience = (exp: Experience) => {
-    if (editingExperience) {
-      const updated = [...teacher.experience];
-      updated[editingExperience.index] = exp;
-      setTeacher({ ...teacher, experience: updated });
-      toast.success('Experience updated');
-    } else {
-      setTeacher({ ...teacher, experience: [exp, ...teacher.experience] });
-      toast.success('Experience added');
+  const handleSaveProfile = async (data: ProfileHeaderData) => {
+    try {
+      await teacherService.updateProfile(teacher.id, {
+        headline: data.headline
+      });
+      setTeacher({ ...teacher, ...data });
+      toast.success('Profile updated successfully');
+    } catch (err: any) {
+      console.error('Error updating profile:', err);
+      toast.error('Failed to update profile');
     }
-    setEditingExperience(null);
   };
 
-  const handleSaveEducation = (edu: Education) => {
-    if (editingEducation) {
-      const updated = [...teacher.education];
-      updated[editingEducation.index] = edu;
-      setTeacher({ ...teacher, education: updated });
-      toast.success('Education updated');
-    } else {
-      setTeacher({ ...teacher, education: [edu, ...teacher.education] });
-      toast.success('Education added');
+  const handleSaveAbout = async (about: string) => {
+    try {
+      await teacherService.updateProfile(teacher.id, { about });
+      setTeacher({ ...teacher, about });
+      toast.success('About section updated');
+    } catch (err: any) {
+      console.error('Error updating about:', err);
+      toast.error('Failed to update about section');
     }
-    setEditingEducation(null);
   };
 
-  const handleSavePublication = (pub: Publication) => {
-    if (editingPublication) {
-      const updated = [...teacher.publications];
-      updated[editingPublication.index] = pub;
-      setTeacher({ ...teacher, publications: updated });
-      toast.success('Publication updated');
-    } else {
-      setTeacher({ ...teacher, publications: [pub, ...teacher.publications] });
-      toast.success('Publication added');
+  const handleSaveExperience = async (exp: Experience) => {
+    try {
+      if (editingExperience && exp.id) {
+        // Update existing
+        await teacherService.updateExperience(teacher.id, exp.id, exp);
+        const updated = [...teacher.experience];
+        updated[editingExperience.index] = exp;
+        setTeacher({ ...teacher, experience: updated });
+        toast.success('Experience updated');
+      } else {
+        // Add new
+        const newExp = await teacherService.addExperience(teacher.id, exp);
+        setTeacher({ ...teacher, experience: [newExp, ...teacher.experience] });
+        toast.success('Experience added');
+      }
+      setEditingExperience(null);
+    } catch (err: any) {
+      console.error('Error saving experience:', err);
+      toast.error('Failed to save experience');
     }
-    setEditingPublication(null);
   };
 
-  const handleSaveResearch = (res: Research) => {
-    if (editingResearch) {
-      const updated = [...teacher.research];
-      updated[editingResearch.index] = res;
-      setTeacher({ ...teacher, research: updated });
-      toast.success('Research updated');
-    } else {
-      setTeacher({ ...teacher, research: [res, ...teacher.research] });
-      toast.success('Research added');
+  const handleSaveEducation = async (edu: Education) => {
+    try {
+      if (editingEducation && edu.id) {
+        // Update existing
+        await teacherService.updateEducation(teacher.id, edu.id, edu);
+        const updated = [...teacher.education];
+        updated[editingEducation.index] = edu;
+        setTeacher({ ...teacher, education: updated });
+        toast.success('Education updated');
+      } else {
+        // Add new
+        const newEdu = await teacherService.addEducation(teacher.id, edu);
+        setTeacher({ ...teacher, education: [newEdu, ...teacher.education] });
+        toast.success('Education added');
+      }
+      setEditingEducation(null);
+    } catch (err: any) {
+      console.error('Error saving education:', err);
+      toast.error('Failed to save education');
     }
-    setEditingResearch(null);
   };
 
-  const handleSaveAward = (award: AwardType) => {
-    if (editingAward) {
-      const updated = [...teacher.awards];
-      updated[editingAward.index] = award;
-      setTeacher({ ...teacher, awards: updated });
-      toast.success('Award updated');
-    } else {
-      setTeacher({ ...teacher, awards: [award, ...teacher.awards] });
-      toast.success('Award added');
+  const handleSavePublication = async (pub: Publication) => {
+    try {
+      if (editingPublication && pub.id) {
+        // Update existing
+        await teacherService.updatePublication(teacher.id, pub.id, pub);
+        const updated = [...teacher.publications];
+        updated[editingPublication.index] = pub;
+        setTeacher({ ...teacher, publications: updated });
+        toast.success('Publication updated');
+      } else {
+        // Add new
+        const newPub = await teacherService.addPublication(teacher.id, pub);
+        setTeacher({ ...teacher, publications: [newPub, ...teacher.publications] });
+        toast.success('Publication added');
+      }
+      setEditingPublication(null);
+    } catch (err: any) {
+      console.error('Error saving publication:', err);
+      toast.error('Failed to save publication');
     }
-    setEditingAward(null);
   };
 
-  const handleSaveSpecializations = (items: string[]) => {
-    setTeacher({ ...teacher, specializations: items });
-    toast.success('Specializations updated');
+  const handleSaveResearch = async (res: Research) => {
+    try {
+      if (editingResearch && res.id) {
+        // Update existing
+        await teacherService.updateResearch(teacher.id, res.id, res);
+        const updated = [...teacher.research];
+        updated[editingResearch.index] = res;
+        setTeacher({ ...teacher, research: updated });
+        toast.success('Research updated');
+      } else {
+        // Add new
+        const newRes = await teacherService.addResearch(teacher.id, res);
+        setTeacher({ ...teacher, research: [newRes, ...teacher.research] });
+        toast.success('Research added');
+      }
+      setEditingResearch(null);
+    } catch (err: any) {
+      console.error('Error saving research:', err);
+      toast.error('Failed to save research');
+    }
   };
 
-  const handleSaveSkills = (items: string[]) => {
-    setTeacher({ ...teacher, skills: items });
-    toast.success('Skills updated');
+  const handleSaveAward = async (award: AwardType) => {
+    try {
+      if (editingAward && award.id) {
+        // Update existing
+        await teacherService.updateAward(teacher.id, award.id, award);
+        const updated = [...teacher.awards];
+        updated[editingAward.index] = award;
+        setTeacher({ ...teacher, awards: updated });
+        toast.success('Award updated');
+      } else {
+        // Add new
+        const newAward = await teacherService.addAward(teacher.id, award);
+        setTeacher({ ...teacher, awards: [newAward, ...teacher.awards] });
+        toast.success('Award added');
+      }
+      setEditingAward(null);
+    } catch (err: any) {
+      console.error('Error saving award:', err);
+      toast.error('Failed to save award');
+    }
+  };
+
+  const handleSaveSpecializations = async (items: string[]) => {
+    try {
+      await teacherService.updateProfile(teacher.id, { specializations: items });
+      setTeacher({ ...teacher, specializations: items });
+      toast.success('Specializations updated');
+    } catch (err: any) {
+      console.error('Error updating specializations:', err);
+      toast.error('Failed to update specializations');
+    }
+  };
+
+  const handleSaveSkills = async (items: string[]) => {
+    try {
+      await teacherService.updateProfile(teacher.id, { skills: items });
+      setTeacher({ ...teacher, skills: items });
+      toast.success('Skills updated');
+    } catch (err: any) {
+      console.error('Error updating skills:', err);
+      toast.error('Failed to update skills');
+    }
   };
 
   const scrollToContact = () => {
@@ -362,28 +515,49 @@ export function LinkedInTeacherProfile({ isPublicView = false, teacherId }: Link
     }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleteTarget) return;
     
-    switch (deleteTarget.type) {
-      case 'experience':
-        setTeacher({ ...teacher, experience: teacher.experience.filter((_, i) => i !== deleteTarget.index) });
-        break;
-      case 'education':
-        setTeacher({ ...teacher, education: teacher.education.filter((_, i) => i !== deleteTarget.index) });
-        break;
-      case 'publication':
-        setTeacher({ ...teacher, publications: teacher.publications.filter((_, i) => i !== deleteTarget.index) });
-        break;
-      case 'research':
-        setTeacher({ ...teacher, research: teacher.research.filter((_, i) => i !== deleteTarget.index) });
-        break;
-      case 'award':
-        setTeacher({ ...teacher, awards: teacher.awards.filter((_, i) => i !== deleteTarget.index) });
-        break;
+    try {
+      switch (deleteTarget.type) {
+        case 'experience':
+          if (deleteTarget.id) {
+            await teacherService.deleteExperience(teacher.id, deleteTarget.id);
+          }
+          setTeacher({ ...teacher, experience: teacher.experience.filter((_, i) => i !== deleteTarget.index) });
+          break;
+        case 'education':
+          if (deleteTarget.id) {
+            await teacherService.deleteEducation(teacher.id, deleteTarget.id);
+          }
+          setTeacher({ ...teacher, education: teacher.education.filter((_, i) => i !== deleteTarget.index) });
+          break;
+        case 'publication':
+          if (deleteTarget.id) {
+            await teacherService.deletePublication(teacher.id, deleteTarget.id);
+          }
+          setTeacher({ ...teacher, publications: teacher.publications.filter((_, i) => i !== deleteTarget.index) });
+          break;
+        case 'research':
+          if (deleteTarget.id) {
+            await teacherService.deleteResearch(teacher.id, deleteTarget.id);
+          }
+          setTeacher({ ...teacher, research: teacher.research.filter((_, i) => i !== deleteTarget.index) });
+          break;
+        case 'award':
+          if (deleteTarget.id) {
+            await teacherService.deleteAward(teacher.id, deleteTarget.id);
+          }
+          setTeacher({ ...teacher, awards: teacher.awards.filter((_, i) => i !== deleteTarget.index) });
+          break;
+      }
+      toast.success(`${deleteTarget.type.charAt(0).toUpperCase() + deleteTarget.type.slice(1)} deleted`);
+    } catch (err: any) {
+      console.error('Error deleting item:', err);
+      toast.error('Failed to delete item');
+    } finally {
+      setDeleteTarget(null);
     }
-    toast.success(`${deleteTarget.type.charAt(0).toUpperCase() + deleteTarget.type.slice(1)} deleted`);
-    setDeleteTarget(null);
   };
 
   const EditButton = ({ onClick, className = '' }: { onClick: () => void; className?: string }) => (
@@ -680,7 +854,7 @@ export function LinkedInTeacherProfile({ isPublicView = false, teacherId }: Link
                         </div>
                         <ItemActions 
                           onEdit={() => { setEditingExperience({ index, data: exp }); setEditExperienceOpen(true); }}
-                          onDelete={() => { setDeleteTarget({ type: 'experience', index, title: exp.title }); setDeleteDialogOpen(true); }}
+                          onDelete={() => { setDeleteTarget({ type: 'experience', index, title: exp.title, id: exp.id }); setDeleteDialogOpen(true); }}
                         />
                       </div>
                       <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1">
@@ -723,7 +897,7 @@ export function LinkedInTeacherProfile({ isPublicView = false, teacherId }: Link
                         </div>
                         <ItemActions 
                           onEdit={() => { setEditingEducation({ index, data: edu }); setEditEducationOpen(true); }}
-                          onDelete={() => { setDeleteTarget({ type: 'education', index, title: edu.degree }); setDeleteDialogOpen(true); }}
+                          onDelete={() => { setDeleteTarget({ type: 'education', index, title: edu.degree, id: edu.id }); setDeleteDialogOpen(true); }}
                         />
                       </div>
                     </div>
@@ -762,7 +936,7 @@ export function LinkedInTeacherProfile({ isPublicView = false, teacherId }: Link
                       <div className="flex items-center gap-1">
                         <ItemActions 
                           onEdit={() => { setEditingPublication({ index, data: pub }); setEditPublicationOpen(true); }}
-                          onDelete={() => { setDeleteTarget({ type: 'publication', index, title: pub.title }); setDeleteDialogOpen(true); }}
+                          onDelete={() => { setDeleteTarget({ type: 'publication', index, title: pub.title, id: pub.id }); setDeleteDialogOpen(true); }}
                         />
                         {pub.link && (
                           <Button size="sm" variant="ghost" className="gap-1">
@@ -803,7 +977,7 @@ export function LinkedInTeacherProfile({ isPublicView = false, teacherId }: Link
                       </div>
                       <ItemActions 
                         onEdit={() => { setEditingResearch({ index, data: res }); setEditResearchOpen(true); }}
-                        onDelete={() => { setDeleteTarget({ type: 'research', index, title: res.title }); setDeleteDialogOpen(true); }}
+                        onDelete={() => { setDeleteTarget({ type: 'research', index, title: res.title, id: res.id }); setDeleteDialogOpen(true); }}
                       />
                     </div>
                   </div>
@@ -920,7 +1094,7 @@ export function LinkedInTeacherProfile({ isPublicView = false, teacherId }: Link
               <div className="absolute top-2 right-2">
                 <ItemActions 
                   onEdit={() => { setEditingAward({ index, data: award }); setEditAwardOpen(true); }}
-                  onDelete={() => { setDeleteTarget({ type: 'award', index, title: award.title }); setDeleteDialogOpen(true); }}
+                  onDelete={() => { setDeleteTarget({ type: 'award', index, title: award.title, id: award.id }); setDeleteDialogOpen(true); }}
                 />
               </div>
               <div className="flex items-center gap-2 mb-2">

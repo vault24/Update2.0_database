@@ -33,6 +33,11 @@ class RoleBasedAccessMiddleware:
         }
     
     def __call__(self, request):
+        # Skip middleware for non-authenticated requests to public endpoints
+        public_get_endpoints = ['/api/settings/']
+        if not request.user.is_authenticated and request.path in public_get_endpoints and request.method == 'GET':
+            return self.get_response(request)
+        
         # Skip middleware for non-authenticated requests
         if not request.user.is_authenticated:
             return self.get_response(request)
@@ -90,6 +95,10 @@ class RoleBasedAccessMiddleware:
         path = request.path
         for pattern, allowed_roles in self.access_rules.items():
             if path.startswith(pattern):
+                # Allow GET requests to settings for all authenticated users
+                if pattern == '/api/settings/' and request.method == 'GET':
+                    continue
+                
                 if request.user.role not in allowed_roles:
                     return JsonResponse({
                         'error': 'Access denied',

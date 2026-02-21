@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export interface Research {
+  id?: string;
   title: string;
   status: 'ongoing' | 'completed';
   year: string;
