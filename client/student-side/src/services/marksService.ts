@@ -11,18 +11,18 @@ export type ExamType = 'midterm' | 'final' | 'assignment' | 'practical' | 'quiz'
 export interface MarksRecord {
   id: string;
   student: string;
-  studentName?: string;
-  studentRoll?: string;
-  subjectCode: string;
-  subjectName: string;
+  student_name?: string;
+  student_roll?: string;
+  subject_code: string;
+  subject_name: string;
   semester: number;
-  examType: ExamType;
-  marksObtained: number;
-  totalMarks: number;
+  exam_type: ExamType;
+  marks_obtained: number;
+  total_marks: number;
   percentage?: number;
-  recordedBy?: string;
-  recordedByName?: string;
-  recordedAt?: string;
+  recorded_by?: string;
+  recorded_by_name?: string;
+  recorded_at?: string;
   remarks?: string;
 }
 
@@ -38,13 +38,13 @@ export interface MarksFilters {
 
 export interface MarksCreateData {
   student: string;
-  subjectCode: string;
-  subjectName: string;
+  subject_code: string;
+  subject_name: string;
   semester: number;
-  examType: ExamType;
-  marksObtained: number;
-  totalMarks: number;
-  recordedBy?: string;
+  exam_type: ExamType;
+  marks_obtained: number;
+  total_marks: number;
+  recorded_by?: string;
   remarks?: string;
 }
 

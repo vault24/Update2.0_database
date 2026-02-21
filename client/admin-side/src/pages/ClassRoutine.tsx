@@ -111,6 +111,41 @@ export default function ClassRoutine() {
   const { toast } = useToast();
   const timeSlots = timeSlotsByShift[shift] || [];
 
+  // Helper function to filter teachers by shift permission
+  const getFilteredTeachers = (): Teacher[] => {
+    if (!shift) return teachers;
+    
+    const shiftLower = shift.toLowerCase();
+    const filtered = teachers.filter(teacher => {
+      const teacherShifts = teacher.shifts || [];
+      const hasShift = teacherShifts.includes(shiftLower);
+      
+      // Debug logging
+      if (teacherShifts.length > 0) {
+        console.log(`Teacher ${teacher.fullNameEnglish}:`, {
+          shifts: teacherShifts,
+          lookingFor: shiftLower,
+          hasShift
+        });
+      }
+      
+      return hasShift;
+    });
+    
+    console.log(`Filtered teachers for ${shift}:`, filtered.length, 'out of', teachers.length);
+    
+    // If no teachers have shifts assigned yet, show all teachers as fallback
+    if (filtered.length === 0 && teachers.length > 0) {
+      const teachersWithShifts = teachers.filter(t => t.shifts && t.shifts.length > 0);
+      if (teachersWithShifts.length === 0) {
+        console.warn('No teachers have shifts assigned yet, showing all teachers');
+        return teachers;
+      }
+    }
+    
+    return filtered;
+  };
+
   // Load departments and teachers once
   useEffect(() => {
     const loadInitialData = async () => {
@@ -921,11 +956,17 @@ export default function ClassRoutine() {
                     <SelectValue placeholder="Select a teacher" />
                   </SelectTrigger>
                   <SelectContent>
-                    {teachers.map(teacher => (
-                      <SelectItem key={teacher.id} value={teacher.id}>
-                        {teacher.fullNameEnglish} - {teacher.departmentName || 'Unknown Dept'}
-                      </SelectItem>
-                    ))}
+                    {getFilteredTeachers().length > 0 ? (
+                      getFilteredTeachers().map(teacher => (
+                        <SelectItem key={teacher.id} value={teacher.id}>
+                          {teacher.fullNameEnglish} - {teacher.departmentName || 'Unknown Dept'}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                        No teachers available for {shift} shift
+                      </div>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -1196,11 +1237,17 @@ export default function ClassRoutine() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="tba">TBA</SelectItem>
-                      {teachers.map(teacher => (
-                        <SelectItem key={teacher.id} value={teacher.id}>
-                          {teacher.fullNameEnglish} - {teacher.departmentName || 'Unknown Dept'}
-                        </SelectItem>
-                      ))}
+                      {getFilteredTeachers().length > 0 ? (
+                        getFilteredTeachers().map(teacher => (
+                          <SelectItem key={teacher.id} value={teacher.id}>
+                            {teacher.fullNameEnglish} - {teacher.departmentName || 'Unknown Dept'}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                          No teachers available for {shift} shift
+                        </div>
+                      )}
                     </SelectContent>
                   </Select>
                   {slotFormErrors.teacher && (

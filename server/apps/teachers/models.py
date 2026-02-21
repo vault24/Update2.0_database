@@ -29,6 +29,7 @@ class Teacher(models.Model):
     subjects = models.JSONField(default=list)  # List of subject names
     qualifications = models.JSONField(default=list)  # List of qualification objects
     specializations = models.JSONField(default=list)  # List of specialization strings
+    shifts = models.JSONField(default=list)  # List of assigned shifts: ['morning', 'day']
     
     # Contact Information
     email = models.EmailField(unique=True)

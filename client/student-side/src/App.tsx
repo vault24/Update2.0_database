@@ -33,6 +33,7 @@ import TeacherAttendancePage from "./pages/TeacherAttendancePage";
 import ManageMarksPage from "./pages/ManageMarksPage";
 import TeacherAllegationsPage from "./pages/TeacherAllegationsPage";
 import PublicStudentProfilePage from "./pages/PublicStudentProfilePage";
+import PublicTeacherProfilePage from "./pages/PublicTeacherProfilePage";
 import AlumniProfilePage from "./pages/AlumniProfilePage";
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -96,6 +97,7 @@ const App = () => (
       
       {/* Public routes - no authentication required */}
       <Route path="/student/:studentId" element={<PublicStudentProfilePage />} />
+      <Route path="/faculty/:teacherId" element={<PublicTeacherProfilePage />} />
       
       {/* Dashboard routes with nested structure */}
       <Route 

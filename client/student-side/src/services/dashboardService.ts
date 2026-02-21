@@ -28,6 +28,12 @@ export interface StudentDashboardData {
   routine: {
     totalClasses: number;
   };
+  performance?: {
+    currentGpa: number | null;
+    classRank: number | null;
+    cohortSize: number;
+    rankedStudents: number;
+  };
 }
 
 export interface TeacherDashboardData {

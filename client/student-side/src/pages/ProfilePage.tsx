@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { studentService, type Student } from '@/services/studentService';
+import { dashboardService } from '@/services/dashboardService';
 import { getErrorMessage } from '@/lib/api';
 import { toast } from 'sonner';
 import { routineService, type ClassRoutine, type DayOfWeek } from '@/services/routineService';
@@ -68,6 +69,7 @@ export function ProfilePage() {
   
   const [attendanceSummary, setAttendanceSummary] = useState<AttendanceSummary | null>(null);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [classRank, setClassRank] = useState<number | string>('-');
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -95,11 +97,16 @@ export function ProfilePage() {
       setLoading(true);
       setError(null);
       
-      const data = await studentService.getMe(user.relatedProfileId);
+      const [data, dashboardData] = await Promise.all([
+        studentService.getMe(user.relatedProfileId),
+        dashboardService.getStudentStats(user.relatedProfileId).catch(() => null),
+      ]);
       setStudentData(data);
+      setClassRank(dashboardData?.performance?.classRank ?? '-');
     } catch (err) {
       const errorMsg = getErrorMessage(err);
       setError(errorMsg);
+      setClassRank('-');
       toast.error('Failed to load profile', {
         description: errorMsg
       });
@@ -282,7 +289,7 @@ export function ProfilePage() {
       user?.department || 'N/A');
   const displaySemester = isTeacher ? null : (studentData?.semester || user?.semester || 1);
   const displayEmail = studentData?.email || user?.email || 'N/A';
-  const displayStudentId = isTeacher ? (user?.studentId || 'N/A') : (user?.studentId || studentData?.currentRollNumber || 'N/A');
+  const displayStudentId = isTeacher ? (user?.studentId || 'N/A') : (studentData?.currentRollNumber || user?.studentId || 'N/A');
   const displaySession = isTeacher ? null : (studentData?.session || '2024-25');
   const displayShift = isTeacher ? null : (studentData?.shift || '1st Shift');
 
@@ -409,7 +416,7 @@ export function ProfilePage() {
       });
     }
 
-    marks.forEach(m => uniqueSubjects.add(m.subjectCode || m.subjectName || ''));
+    marks.forEach(m => uniqueSubjects.add(m.subject_code || m.subject_name || ''));
     if (uniqueSubjects.size === 0 && routine.length > 0) {
       routine.forEach(r => uniqueSubjects.add(r.subject_code || r.subject_name || ''));
     }
@@ -454,6 +461,7 @@ export function ProfilePage() {
           ? `${studentData.presentAddress.district || ''}, ${studentData.presentAddress.division || 'Bangladesh'}`.replace(/^,\s*|,\s*$/g, '')
           : undefined}
         studentId={displayStudentId}
+        rollNumber={studentData?.currentRollNumber}
         status={studentData?.status || 'active'}
       />
 
@@ -463,6 +471,7 @@ export function ProfilePage() {
           gpa={Number(performanceMetrics.currentGPA) || 0}
           attendancePercentage={performanceMetrics.attendancePercentage}
           subjectsCount={performanceMetrics.subjectsCount}
+          rank={classRank}
         />
       </div>
 
@@ -524,6 +533,7 @@ export function ProfilePage() {
                 gpa: Number(performanceMetrics.currentGPA) || 0,
                 attendancePercentage: performanceMetrics.attendancePercentage,
                 subjectsCount: performanceMetrics.subjectsCount,
+                rank: classRank,
               }}
               parentInfo={{
                 fatherName: studentData?.fatherName,

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   BarChart3, TrendingUp, Award, Filter, Download,
-  ChevronDown, Star, Target, BookOpen, Trophy, Loader2, AlertCircle
+  Star, Target, BookOpen, Trophy, Loader2, AlertCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -27,30 +27,7 @@ interface SubjectMark {
   columnDefinitions: MarkColumn[];
   total: number;
   percentage: number;
-  grade: string | null;
-  gpa: number | null;
 }
-
-const gradeScale = [
-  { range: '80-100', grade: 'A+', gpa: 4.0 },
-  { range: '75-79', grade: 'A', gpa: 3.75 },
-  { range: '70-74', grade: 'A-', gpa: 3.50 },
-  { range: '65-69', grade: 'B+', gpa: 3.25 },
-  { range: '60-64', grade: 'B', gpa: 3.0 },
-  { range: '55-59', grade: 'B-', gpa: 2.75 },
-  { range: '50-54', grade: 'C+', gpa: 2.50 },
-  { range: '45-49', grade: 'C', gpa: 2.25 },
-  { range: '40-44', grade: 'D', gpa: 2.0 },
-  { range: '0-39', grade: 'F', gpa: 0.0 },
-];
-
-const getGradeColor = (grade: string | null) => {
-  if (!grade) return 'text-muted-foreground';
-  if (grade.startsWith('A')) return 'text-success';
-  if (grade.startsWith('B')) return 'text-primary';
-  if (grade.startsWith('C')) return 'text-warning';
-  return 'text-destructive';
-};
 
 const getPercentageColor = (percentage: number) => {
   if (percentage >= 80) return 'bg-success';
@@ -62,7 +39,6 @@ const getPercentageColor = (percentage: number) => {
 export default function MarksPage() {
   const { user, loading: authLoading } = useAuth();
   const [selectedSemester, setSelectedSemester] = useState(0);
-  const [showGradeScale, setShowGradeScale] = useState(false);
   const [marksData, setMarksData] = useState<SubjectMark[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -181,9 +157,7 @@ export default function MarksPage() {
               customMarks: {},
               columnDefinitions: [],
               total: 0,
-              percentage: 0,
-              grade: null,
-              gpa: null
+              percentage: 0
             });
           }
           
@@ -205,30 +179,6 @@ export default function MarksPage() {
         
         subject.total = totalObtained;
         subject.percentage = totalMax > 0 ? (totalObtained / totalMax) * 100 : 0;
-        
-        // Calculate grade based on percentage
-        if (subject.percentage >= 80) subject.grade = 'A+';
-        else if (subject.percentage >= 75) subject.grade = 'A';
-        else if (subject.percentage >= 70) subject.grade = 'A-';
-        else if (subject.percentage >= 65) subject.grade = 'B+';
-        else if (subject.percentage >= 60) subject.grade = 'B';
-        else if (subject.percentage >= 55) subject.grade = 'B-';
-        else if (subject.percentage >= 50) subject.grade = 'C+';
-        else if (subject.percentage >= 45) subject.grade = 'C';
-        else if (subject.percentage >= 40) subject.grade = 'D';
-        else subject.grade = 'F';
-        
-        // Calculate GPA
-        if (subject.percentage >= 80) subject.gpa = 4.0;
-        else if (subject.percentage >= 75) subject.gpa = 3.75;
-        else if (subject.percentage >= 70) subject.gpa = 3.50;
-        else if (subject.percentage >= 65) subject.gpa = 3.25;
-        else if (subject.percentage >= 60) subject.gpa = 3.0;
-        else if (subject.percentage >= 55) subject.gpa = 2.75;
-        else if (subject.percentage >= 50) subject.gpa = 2.50;
-        else if (subject.percentage >= 45) subject.gpa = 2.25;
-        else if (subject.percentage >= 40) subject.gpa = 2.0;
-        else subject.gpa = 0.0;
       });
       
       const transformedData = Array.from(subjectMap.values());
@@ -244,45 +194,14 @@ export default function MarksPage() {
     }
   };
 
-  const calculateGrade = (percentage: number): string => {
-    if (percentage >= 80) return 'A+';
-    if (percentage >= 75) return 'A';
-    if (percentage >= 70) return 'A-';
-    if (percentage >= 65) return 'B+';
-    if (percentage >= 60) return 'B';
-    if (percentage >= 55) return 'B-';
-    if (percentage >= 50) return 'C+';
-    if (percentage >= 45) return 'C';
-    if (percentage >= 40) return 'D';
-    return 'F';
-  };
-
-  const calculateGPA = (percentage: number): number => {
-    if (percentage >= 80) return 4.0;
-    if (percentage >= 75) return 3.75;
-    if (percentage >= 70) return 3.50;
-    if (percentage >= 65) return 3.25;
-    if (percentage >= 60) return 3.0;
-    if (percentage >= 55) return 2.75;
-    if (percentage >= 50) return 2.50;
-    if (percentage >= 45) return 2.25;
-    if (percentage >= 40) return 2.0;
-    return 0;
-  };
-
   const completedSubjects = marksData.filter(s => s.total > 0);
   
-  // Use CGPA from semesterResults if available, otherwise calculate
-  const cgpa = semesterResult?.cgpa 
-    ? semesterResult.cgpa.toFixed(2)
-    : (completedSubjects.length > 0 
-        ? (completedSubjects.reduce((sum, s) => sum + (s.gpa || 0), 0) / completedSubjects.length).toFixed(2)
-        : '0.00');
-  
-  // Use GPA from semesterResults if available, otherwise calculate average
+  // Use GPA from semesterResults if available, otherwise calculate from percentage
   const semesterGPA = semesterResult?.gpa 
     ? semesterResult.gpa.toFixed(2)
-    : cgpa;
+    : (completedSubjects.length > 0 
+        ? (completedSubjects.reduce((sum, s) => sum + s.percentage, 0) / completedSubjects.length / 25).toFixed(2) // Convert percentage to 4.0 scale
+        : '0.00');
   
   const avgPercentage = completedSubjects.length > 0
     ? Math.round(completedSubjects.reduce((sum, s) => sum + s.percentage, 0) / completedSubjects.length)
@@ -346,23 +265,7 @@ export default function MarksPage() {
       </motion.div>
 
       {/* Performance Overview */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 md:gap-3 lg:gap-4">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-br from-primary/10 via-primary/5 to-transparent rounded-lg md:rounded-xl lg:rounded-2xl border border-primary/20 p-2.5 md:p-3 lg:p-5 shadow-card"
-        >
-          <div className="flex items-center gap-1.5 md:gap-2 lg:gap-3">
-            <div className="w-8 h-8 md:w-10 md:h-10 lg:w-12 lg:h-12 rounded-md md:rounded-lg lg:rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
-              <Award className="w-4 h-4 md:w-5 md:h-5 lg:w-6 lg:h-6 text-primary" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[9px] md:text-[10px] lg:text-sm text-muted-foreground truncate">CGPA</p>
-              <p className="text-lg md:text-xl lg:text-3xl font-bold text-primary">{cgpa}</p>
-            </div>
-          </div>
-        </motion.div>
-
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3 lg:gap-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -373,9 +276,10 @@ export default function MarksPage() {
             <div className="w-8 h-8 md:w-10 md:h-10 lg:w-12 lg:h-12 rounded-md md:rounded-lg lg:rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
               <Award className="w-4 h-4 md:w-5 md:h-5 lg:w-6 lg:h-6 text-primary" />
             </div>
-            <div className="min-w-0">
-              <p className="text-[9px] md:text-[10px] lg:text-sm text-muted-foreground truncate">Semester GPA</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-[9px] md:text-[10px] lg:text-sm text-muted-foreground truncate">GPA</p>
               <p className="text-lg md:text-xl lg:text-3xl font-bold text-primary">{semesterGPA}</p>
+              <p className="text-[8px] md:text-[9px] lg:text-xs text-muted-foreground/70 mt-0.5 hidden sm:block">Estimated based on marks</p>
             </div>
           </div>
         </motion.div>
@@ -451,7 +355,6 @@ export default function MarksPage() {
             </div>
             <div className="text-right flex-shrink-0">
               <p className="text-lg md:text-xl lg:text-3xl font-bold text-warning">{highestMark.toFixed(1)}%</p>
-              <p className="text-[10px] md:text-xs lg:text-sm font-medium text-success">{highestSubject.grade}</p>
             </div>
           </div>
         </motion.div>
@@ -490,37 +393,7 @@ export default function MarksPage() {
             <span className="hidden sm:inline">Internal Assessment & Final Results</span>
             <span className="sm:hidden">Marks</span>
           </h3>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowGradeScale(!showGradeScale)}
-            className="gap-1 text-xs md:text-sm"
-          >
-            <span className="hidden sm:inline">Grade Scale</span>
-            <span className="sm:hidden">Scale</span>
-            <ChevronDown className={cn("w-3.5 h-3.5 md:w-4 md:h-4 transition-transform", showGradeScale && "rotate-180")} />
-          </Button>
         </div>
-
-        {/* Grade Scale Dropdown */}
-        {showGradeScale && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="px-2.5 md:px-3 lg:px-4 py-2 md:py-2.5 lg:py-3 bg-secondary/30 border-b border-border"
-          >
-            <div className="flex flex-wrap gap-1.5 md:gap-2 lg:gap-3">
-              {gradeScale.map((item) => (
-                <div key={item.grade} className="flex items-center gap-1 md:gap-1.5 lg:gap-2 bg-background rounded-md md:rounded-lg px-1.5 md:px-2 lg:px-3 py-1 md:py-1.5">
-                  <span className="text-[9px] md:text-[10px] lg:text-xs text-muted-foreground">{item.range}</span>
-                  <span className={cn("text-xs md:text-sm font-semibold", getGradeColor(item.grade))}>{item.grade}</span>
-                  <span className="text-[9px] md:text-[10px] lg:text-xs text-muted-foreground">({item.gpa})</span>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        )}
 
         <div className="overflow-x-auto -mx-2 px-2 sm:-mx-3 sm:px-3 md:-mx-4 md:px-4 lg:mx-0 lg:px-0">
           <table className="w-full min-w-[480px] sm:min-w-[600px] md:min-w-[700px]">
@@ -538,8 +411,6 @@ export default function MarksPage() {
                 ))}
                 <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground">Total</th>
                 <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground">%</th>
-                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground">Grade</th>
-                <th className="text-center py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-[8px] sm:text-[9px] md:text-[10px] lg:text-sm font-medium text-muted-foreground hidden lg:table-cell">GPA</th>
               </tr>
             </thead>
             <tbody>
@@ -582,22 +453,6 @@ export default function MarksPage() {
                       <span className="text-[8px] sm:text-[9px] md:text-[10px] lg:text-xs text-muted-foreground italic">-</span>
                     )}
                   </td>
-                  <td className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-center">
-                    {row.grade ? (
-                      <span className={cn("text-[10px] sm:text-xs md:text-sm lg:text-lg font-bold", getGradeColor(row.grade))}>
-                        {row.grade}
-                      </span>
-                    ) : (
-                      <span className="text-[8px] sm:text-[9px] md:text-[10px] lg:text-xs text-muted-foreground italic">-</span>
-                    )}
-                  </td>
-                  <td className="py-1.5 md:py-2 lg:py-3 px-0.5 md:px-1 lg:px-3 text-center hidden lg:table-cell">
-                    {row.gpa !== null ? (
-                      <span className="text-xs md:text-sm font-medium">{row.gpa.toFixed(2)}</span>
-                    ) : (
-                      <span className="text-[10px] md:text-xs text-muted-foreground italic">-</span>
-                    )}
-                  </td>
                 </motion.tr>
                 ))
               ) : (
@@ -625,7 +480,7 @@ export default function MarksPage() {
               </div>
               <div>
                 <p className="text-[10px] md:text-xs text-muted-foreground">Semester GPA</p>
-                <p className="text-xs md:text-sm font-semibold text-primary">{cgpa}</p>
+                <p className="text-xs md:text-sm font-semibold text-primary">{semesterGPA}</p>
               </div>
             </div>
             <div className="flex items-center gap-1.5 md:gap-2">
@@ -653,9 +508,6 @@ export default function MarksPage() {
               <div className="flex items-center justify-between mb-1.5 md:mb-2">
                 <div className="flex items-center gap-1.5 md:gap-2 min-w-0 flex-1">
                   <span className="text-xs md:text-sm font-medium truncate">{subject.subject}</span>
-                  <span className={cn("text-xs md:text-sm font-bold flex-shrink-0", getGradeColor(subject.grade))}>
-                    {subject.grade}
-                  </span>
                 </div>
                 <span className="text-xs md:text-sm font-semibold flex-shrink-0 ml-2">{subject.percentage.toFixed(1)}%</span>
               </div>

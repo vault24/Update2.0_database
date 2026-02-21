@@ -207,6 +207,101 @@ class StudentDashboardView(APIView):
     
     GET /api/dashboard/student/?student={student_id}
     """
+
+    def _to_float(self, value):
+        """Safely parse numeric values from JSON fields."""
+        try:
+            if value is None:
+                return None
+            number = float(value)
+            if number < 0:
+                return None
+            return number
+        except (TypeError, ValueError):
+            return None
+
+    def _extract_current_gpa(self, student):
+        """
+        Extract student's current GPA from semester results.
+        Uses the latest semester GPA record (falls back to CGPA only if GPA missing).
+        """
+        semester_results = student.semesterResults or []
+        if not isinstance(semester_results, list):
+            return None
+
+        best_semester = -1
+        best_gpa = None
+
+        for result in semester_results:
+            if not isinstance(result, dict):
+                continue
+
+            if str(result.get('resultType', '')).lower() != 'gpa':
+                continue
+
+            try:
+                semester_value = int(result.get('semester', 0))
+            except (TypeError, ValueError):
+                semester_value = 0
+
+            gpa_value = self._to_float(result.get('gpa'))
+            if gpa_value is None:
+                gpa_value = self._to_float(result.get('cgpa'))
+
+            if gpa_value is None:
+                continue
+
+            if semester_value > best_semester:
+                best_semester = semester_value
+                best_gpa = gpa_value
+
+        if best_gpa is None:
+            return None
+
+        return round(best_gpa, 2)
+
+    def _calculate_class_rank(self, student):
+        """
+        Rank student by current GPA within same department + semester + shift.
+        Rank formula: sorted index (0-based) + 1.
+        """
+        peers = Student.objects.filter(
+            department=student.department,
+            semester=student.semester,
+            shift=student.shift,
+            status='active'
+        ).only('id', 'currentRollNumber', 'semesterResults')
+
+        cohort_size = peers.count()
+        ranked_students = []
+
+        for peer in peers:
+            peer_gpa = self._extract_current_gpa(peer)
+            if peer_gpa is None:
+                continue
+            ranked_students.append({
+                'id': peer.id,
+                'roll': peer.currentRollNumber or '',
+                'gpa': peer_gpa
+            })
+
+        ranked_students.sort(key=lambda row: (-row['gpa'], row['roll']))
+
+        class_rank = None
+        student_current_gpa = self._extract_current_gpa(student)
+
+        if student_current_gpa is not None:
+            for index, row in enumerate(ranked_students):
+                if row['id'] == student.id:
+                    class_rank = index + 1
+                    break
+
+        return {
+            'current_gpa': student_current_gpa,
+            'class_rank': class_rank,
+            'cohort_size': cohort_size,
+            'ranked_students': len(ranked_students),
+        }
     
     def get(self, request):
         """Get student dashboard data"""
@@ -303,6 +398,9 @@ class StudentDashboardView(APIView):
             except Exception as e:
                 print(f"Error fetching routine: {e}")
                 routine_count = 0
+
+            # GPA + class rank within department/semester/shift
+            performance = self._calculate_class_rank(student)
             
             data = {
                 'student': {
@@ -325,6 +423,12 @@ class StudentDashboardView(APIView):
                 },
                 'routine': {
                     'totalClasses': routine_count,
+                },
+                'performance': {
+                    'currentGpa': performance['current_gpa'],
+                    'classRank': performance['class_rank'],
+                    'cohortSize': performance['cohort_size'],
+                    'rankedStudents': performance['ranked_students'],
                 }
             }
             

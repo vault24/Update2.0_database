@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { Users, Inbox, Search, Filter, Check, X, Eye, Calendar, Mail, Phone, Briefcase, Building2, Award, MapPin, Loader2, AlertCircle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -589,6 +590,7 @@ const TeacherRequestsTab = () => {
 };
 
 const TeacherDirectoryTab = () => {
+  const navigate = useNavigate();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [filteredTeachers, setFilteredTeachers] = useState<Teacher[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -597,8 +599,6 @@ const TeacherDirectoryTab = () => {
   const [departmentFilter, setDepartmentFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [departments, setDepartments] = useState<{ id: string; name: string }[]>([]);
-  const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
-  const [viewModalOpen, setViewModalOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -666,8 +666,7 @@ const TeacherDirectoryTab = () => {
   };
 
   const handleView = (teacher: Teacher) => {
-    setSelectedTeacher(teacher);
-    setViewModalOpen(true);
+    navigate(`/teachers/${teacher.id}`);
   };
 
   const getStatusBadge = (status: string) => {
@@ -846,94 +845,6 @@ const TeacherDirectoryTab = () => {
           )}
         </CardContent>
       </Card>
-
-      {/* View Teacher Details Modal */}
-      <Dialog open={viewModalOpen} onOpenChange={setViewModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          {selectedTeacher && (
-            <>
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-3">
-                  <Avatar className="w-12 h-12">
-                    <AvatarImage src={selectedTeacher.profilePhoto} />
-                    <AvatarFallback className="gradient-primary text-primary-foreground">
-                      {selectedTeacher.fullNameEnglish?.charAt(0) || 'T'}
-                    </AvatarFallback>
-                  </Avatar>
-                  {selectedTeacher.fullNameEnglish}
-                </DialogTitle>
-                <DialogDescription>{selectedTeacher.fullNameBangla}</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm text-muted-foreground">Designation</Label>
-                    <p className="font-medium">{selectedTeacher.designation}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm text-muted-foreground">Department</Label>
-                    <p className="font-medium">{selectedTeacher.departmentName || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm text-muted-foreground">Email</Label>
-                    <p className="font-medium">{selectedTeacher.email}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm text-muted-foreground">Mobile</Label>
-                    <p className="font-medium">{selectedTeacher.mobileNumber}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm text-muted-foreground">Office Location</Label>
-                    <p className="font-medium">{selectedTeacher.officeLocation || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm text-muted-foreground">Employment Status</Label>
-                    <div>{getStatusBadge(selectedTeacher.employmentStatus)}</div>
-                  </div>
-                  <div>
-                    <Label className="text-sm text-muted-foreground">Joining Date</Label>
-                    <p className="font-medium">
-                      {selectedTeacher.joiningDate 
-                        ? new Date(selectedTeacher.joiningDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-                        : 'N/A'}
-                    </p>
-                  </div>
-                </div>
-                {selectedTeacher.qualifications && selectedTeacher.qualifications.length > 0 && (
-                  <div>
-                    <Label className="text-sm text-muted-foreground">Qualifications</Label>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {selectedTeacher.qualifications.map((qual, idx) => (
-                        <Badge key={idx} variant="secondary">{qual}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {selectedTeacher.specializations && selectedTeacher.specializations.length > 0 && (
-                  <div>
-                    <Label className="text-sm text-muted-foreground">Specializations</Label>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {selectedTeacher.specializations.map((spec, idx) => (
-                        <Badge key={idx} variant="outline">{spec}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {selectedTeacher.subjects && selectedTeacher.subjects.length > 0 && (
-                  <div>
-                    <Label className="text-sm text-muted-foreground">Subjects</Label>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {selectedTeacher.subjects.map((subject, idx) => (
-                        <Badge key={idx} variant="secondary">{subject}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

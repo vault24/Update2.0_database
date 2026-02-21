@@ -53,7 +53,7 @@ export function StudentStatsCard({
       icon: Award,
       label: 'Class Rank',
       value: rank,
-      subLabel: 'in department',
+      subLabel: '',
       color: 'from-amber-500 to-orange-600',
       iconColor: 'text-amber-500',
       bgColor: 'bg-amber-500/10'
@@ -90,7 +90,9 @@ export function StudentStatsCard({
             
             <p className="text-xl md:text-3xl font-bold mb-0.5 truncate">{stat.value}</p>
             <p className="text-[11px] md:text-sm font-medium text-foreground truncate">{stat.label}</p>
-            <p className="text-[10px] md:text-xs text-muted-foreground truncate">{stat.subLabel}</p>
+            {stat.subLabel ? (
+              <p className="text-[10px] md:text-xs text-muted-foreground truncate">{stat.subLabel}</p>
+            ) : null}
           </div>
         </motion.div>
       ))}

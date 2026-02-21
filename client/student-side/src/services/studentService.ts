@@ -125,4 +125,11 @@ export const studentService = {
   getMe: async (studentId: string): Promise<Student> => {
     return await apiClient.get<Student>(`students/${studentId}/`);
   },
+
+  /**
+   * Get student by ID or roll number (for public profile)
+   */
+  getStudentByIdentifier: async (identifier: string): Promise<Student> => {
+    return await apiClient.get<Student>(`students/by-identifier/${identifier}/`);
+  },
 };

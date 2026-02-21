@@ -23,6 +23,7 @@ export interface Teacher {
   profilePhoto?: string;
   employmentStatus: 'active' | 'inactive' | 'retired';
   joiningDate: string;
+  shifts?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -132,7 +133,7 @@ export const teacherService = {
    * Update teacher
    */
   async updateTeacher(id: string, data: TeacherUpdateData): Promise<Teacher> {
-    return apiClient.put<Teacher>(API_ENDPOINTS.teachers.update(id), data);
+    return apiClient.patch<Teacher>(API_ENDPOINTS.teachers.update(id), data);
   },
 
   /**
@@ -150,8 +151,7 @@ export const teacherService = {
     formData.append('photo', photoFile);
     return apiClient.post<Teacher>(
       API_ENDPOINTS.teachers.uploadPhoto(id),
-      formData,
-      true
+      formData
     );
   },
 

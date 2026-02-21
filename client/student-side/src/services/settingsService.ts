@@ -1,5 +1,16 @@
 import api from '@/lib/api';
 
+export interface SystemSettings {
+  id: string;
+  current_academic_year: string;
+  current_semester: number;
+  institute_name: string;
+  institute_address: string;
+  institute_phone: string;
+  institute_email: string;
+  updated_at: string;
+}
+
 export interface UserPreferences {
   notifications: {
     email: boolean;
@@ -40,6 +51,14 @@ export interface UpdateAccountData {
 }
 
 class SettingsService {
+  /**
+   * Get system settings (public endpoint)
+   */
+  async getSystemSettings(): Promise<SystemSettings> {
+    const response = await api.get<SystemSettings>('/settings/');
+    return response;
+  }
+
   /**
    * Change user password
    */

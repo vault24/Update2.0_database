@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { motion } from 'framer-motion';
 import { 
   BarChart3, Save, Search, Filter, Loader2, AlertCircle, 
-  Download, Upload, TrendingUp, Users, Award, 
+  Download, Users, TrendingUp, Award,
   ChevronDown, ChevronUp, FileSpreadsheet, Printer,
-  CheckCircle2, XCircle, MoreVertical, Eye, Edit2, RefreshCw,
-  GraduationCap, BookOpen, Calculator, Plus, Trash2, Settings
+  Edit2, RefreshCw, CheckCircle2,
+  GraduationCap, BookOpen, Plus, Trash2, Settings, Calculator
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -13,9 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,8 +40,9 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { marksService, type MarksRecord, type ExamType } from '@/services/marksService';
 import { studentService } from '@/services/studentService';
-import { subjectService, type Subject } from '@/services/subjectService';
-import { getErrorMessage } from '@/lib/api';
+import { type Subject, type ClassRoutine } from '@/services/subjectService';
+import { teacherService } from '@/services/teacherService';
+import { getErrorMessage, apiClient, PaginatedResponse } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface MarkColumn {
@@ -67,24 +66,42 @@ interface StudentMarks {
   isSelected?: boolean;
 }
 
-interface Stats {
+interface TeacherRoutineOption {
+  shift: string;
+  semester: number;
+  subjectCode: string;
+  subjectName: string;
+  departmentId: string;
+  departmentName: string;
+}
+
+interface DepartmentOption {
+  id: string;
+  name: string;
+}
+
+interface SummaryStats {
   totalStudents: number;
   completedEntries: number;
   averageMarks: number;
   passRate: number;
   highestMarks: number;
   lowestMarks: number;
-  gradeDistribution: { [key: string]: number };
 }
 
 export default function ManageMarksPage() {
   const { user } = useAuth();
+  const studentRequestRef = useRef(0);
+  const marksRequestRef = useRef(0);
   
   // Data states
-  const [semesters, setSemesters] = useState<number[]>([]);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [routineOptions, setRoutineOptions] = useState<TeacherRoutineOption[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [selectedSemester, setSelectedSemester] = useState<string>('');
+  const [selectedShift, setSelectedShift] = useState<string>('');
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+  const [availableShifts, setAvailableShifts] = useState<string[]>([]);
+  const [teacherShifts, setTeacherShifts] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [students, setStudents] = useState<StudentMarks[]>([]);
   const [allStudents, setAllStudents] = useState<any[]>([]);
@@ -95,28 +112,91 @@ export default function ManageMarksPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
-  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
-  const [showStatsPanel, setShowStatsPanel] = useState(true);
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
   const [bulkEditDialog, setBulkEditDialog] = useState(false);
   const [bulkField, setBulkField] = useState<string>('');
   const [bulkValue, setBulkValue] = useState<string>('');
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   
-  // Column Management
-  const [markColumns, setMarkColumns] = useState<MarkColumn[]>([
-    { id: 'ct1', name: 'CT-1', maxMarks: 20, examType: 'quiz', order: 1 },
-    { id: 'ct2', name: 'CT-2', maxMarks: 20, examType: 'quiz', order: 2 },
-    { id: 'ct3', name: 'CT-3', maxMarks: 20, examType: 'quiz', order: 3 },
-    { id: 'assignment', name: 'Assignment', maxMarks: 10, examType: 'assignment', order: 4 },
-    { id: 'attendance', name: 'Attendance', maxMarks: 10, examType: 'practical', order: 5 },
-    { id: 'final', name: 'Final', maxMarks: 50, examType: 'final', order: 6 },
-  ]);
+  // Column Management - start with empty, will be populated from database
+  const [markColumns, setMarkColumns] = useState<MarkColumn[]>([]);
   const [columnDialog, setColumnDialog] = useState(false);
   const [editingColumn, setEditingColumn] = useState<MarkColumn | null>(null);
   const [newColumnName, setNewColumnName] = useState('');
   const [newColumnMax, setNewColumnMax] = useState('20');
   const [newColumnType, setNewColumnType] = useState<ExamType>('quiz');
+
+  const semesters = useMemo(() => {
+    if (!selectedShift) return [];
+
+    const uniqueSemesters = new Set<number>();
+    routineOptions.forEach((option) => {
+      if (option.shift === selectedShift) {
+        uniqueSemesters.add(option.semester);
+      }
+    });
+    return Array.from(uniqueSemesters).sort((a, b) => a - b);
+  }, [routineOptions, selectedShift]);
+
+  const filteredSubjects = useMemo(() => {
+    if (!selectedShift || !selectedSemester) return [];
+
+    const semester = parseInt(selectedSemester, 10);
+    if (Number.isNaN(semester)) return [];
+
+    const subjectsMap = new Map<string, Subject>();
+    routineOptions.forEach((option) => {
+      if (
+        option.shift === selectedShift &&
+        option.semester === semester &&
+        option.subjectCode
+      ) {
+        if (!subjectsMap.has(option.subjectCode)) {
+          subjectsMap.set(option.subjectCode, {
+            code: option.subjectCode,
+            name: option.subjectName,
+            semester: option.semester,
+          });
+        }
+      }
+    });
+
+    return Array.from(subjectsMap.values()).sort((a, b) => a.code.localeCompare(b.code));
+  }, [routineOptions, selectedShift, selectedSemester]);
+
+  const selectedSubjectName = useMemo(() => {
+    return filteredSubjects.find((subject) => subject.code === selectedSubject)?.name || '';
+  }, [filteredSubjects, selectedSubject]);
+
+  const filteredDepartments = useMemo(() => {
+    if (!selectedShift || !selectedSemester || !selectedSubject) return [];
+
+    const semester = parseInt(selectedSemester, 10);
+    if (Number.isNaN(semester)) return [];
+
+    const departmentsMap = new Map<string, DepartmentOption>();
+    routineOptions.forEach((option) => {
+      if (
+        option.shift === selectedShift &&
+        option.semester === semester &&
+        option.subjectCode === selectedSubject &&
+        option.departmentId
+      ) {
+        if (!departmentsMap.has(option.departmentId)) {
+          departmentsMap.set(option.departmentId, {
+            id: option.departmentId,
+            name: option.departmentName || option.departmentId,
+          });
+        }
+      }
+    });
+
+    return Array.from(departmentsMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [routineOptions, selectedShift, selectedSemester, selectedSubject]);
+
+  const selectedDepartmentName = useMemo(() => {
+    return filteredDepartments.find((department) => department.id === selectedDepartment)?.name || '';
+  }, [filteredDepartments, selectedDepartment]);
 
   // Fetch semesters and subjects on mount
   useEffect(() => {
@@ -124,10 +204,81 @@ export default function ManageMarksPage() {
   }, []);
 
   useEffect(() => {
-    if (selectedSemester) {
-      fetchStudents();
+    if (!selectedShift) {
+      setSelectedSemester('');
+      setSelectedSubject('');
+      return;
     }
-  }, [selectedSemester]);
+
+    if (semesters.length === 0) {
+      setSelectedSemester('');
+      setSelectedSubject('');
+      return;
+    }
+
+    const currentSemester = parseInt(selectedSemester, 10);
+    if (Number.isNaN(currentSemester) || !semesters.includes(currentSemester)) {
+      setSelectedSemester(semesters[0].toString());
+    }
+  }, [selectedShift, semesters, selectedSemester]);
+
+  useEffect(() => {
+    if (!selectedShift || !selectedSemester) {
+      setSelectedSubject('');
+      return;
+    }
+
+    if (filteredSubjects.length === 0) {
+      setSelectedSubject('');
+      return;
+    }
+
+    if (!filteredSubjects.some((subject) => subject.code === selectedSubject)) {
+      setSelectedSubject(filteredSubjects[0].code);
+    }
+  }, [selectedShift, selectedSemester, filteredSubjects, selectedSubject]);
+
+  useEffect(() => {
+    if (!selectedShift || !selectedSemester || !selectedSubject) {
+      setSelectedDepartment('');
+      return;
+    }
+
+    if (filteredDepartments.length === 0) {
+      setSelectedDepartment('');
+      return;
+    }
+
+    if (!filteredDepartments.some((department) => department.id === selectedDepartment)) {
+      setSelectedDepartment(filteredDepartments[0].id);
+    }
+  }, [selectedShift, selectedSemester, selectedSubject, filteredDepartments, selectedDepartment]);
+
+  useEffect(() => {
+    // Invalidate in-flight requests whenever any core filter changes.
+    studentRequestRef.current += 1;
+    marksRequestRef.current += 1;
+  }, [selectedShift, selectedSemester, selectedSubject, selectedDepartment]);
+
+  useEffect(() => {
+    if (!selectedSemester || !selectedShift || !selectedSubject || !selectedDepartment) return;
+
+    const semester = parseInt(selectedSemester, 10);
+    const validSemester = !Number.isNaN(semester) && semesters.includes(semester);
+    const validSubject = filteredSubjects.some((subject) => subject.code === selectedSubject);
+    const validDepartment = filteredDepartments.some((department) => department.id === selectedDepartment);
+
+    if (!validSemester || !validSubject || !validDepartment) return;
+    fetchStudents();
+  }, [
+    selectedSemester,
+    selectedShift,
+    selectedSubject,
+    selectedDepartment,
+    semesters,
+    filteredSubjects,
+    filteredDepartments,
+  ]);
 
   useEffect(() => {
     if (allStudents.length > 0 && selectedSubject) {
@@ -143,42 +294,94 @@ export default function ManageMarksPage() {
       const teacherId = user?.relatedProfileId;
       console.log('Fetching subjects for teacher:', teacherId);
       
-      // Fetch subjects from teacher's class routines
-      const teacherSubjects = await subjectService.getTeacherSubjects(teacherId);
-      console.log('Fetched teacher subjects:', teacherSubjects);
+      // Fetch teacher profile to get assigned shifts
+      let assignedShifts: string[] = [];
+      try {
+        const teacherProfile = await teacherService.getTeacher(teacherId);
+        assignedShifts = ((teacherProfile as any).shifts || [])
+          .map((shift: string) => shift.toLowerCase());
+        setTeacherShifts(assignedShifts);
+        console.log('Teacher assigned shifts:', assignedShifts);
+      } catch (err) {
+        console.warn('Could not fetch teacher shifts:', err);
+      }
       
-      if (teacherSubjects.length === 0) {
+      // Fetch class routines to get subjects and shifts
+      const routinesResponse = await apiClient.get<PaginatedResponse<ClassRoutine>>('class-routines/', {
+        teacher: teacherId,
+        is_active: true,
+        page_size: 1000,
+        ordering: 'semester,subject_code'
+      });
+      
+      console.log('Fetched class routines:', routinesResponse);
+      
+      if (routinesResponse.results.length === 0) {
         toast.error('No subjects assigned', { 
           description: 'You have no subjects assigned in your class routine. Please contact administration.' 
         });
-        setSubjects([]);
-        setSemesters([]);
+        setRoutineOptions([]);
+        setAvailableShifts([]);
+        setSelectedShift('');
+        setSelectedSemester('');
+        setSelectedSubject('');
+        setSelectedDepartment('');
         return;
       }
       
-      setSubjects(teacherSubjects);
-      
-      // Extract unique semesters
-      const uniqueSemesters = new Set<number>();
-      teacherSubjects.forEach(subject => uniqueSemesters.add(subject.semester));
-      const semesterList = Array.from(uniqueSemesters).sort((a, b) => a - b);
-      setSemesters(semesterList);
-      console.log('Available semesters:', semesterList);
-      
-      // Set default selections
-      if (semesterList.length > 0) {
-        setSelectedSemester(semesterList[0].toString());
-        
-        // Find subjects for first semester
-        const firstSemesterSubjects = teacherSubjects.filter(
-          s => s.semester === semesterList[0]
-        );
-        console.log('First semester subjects:', firstSemesterSubjects);
-        
-        if (firstSemesterSubjects.length > 0) {
-          setSelectedSubject(firstSemesterSubjects[0].code);
-          console.log('Selected subject:', firstSemesterSubjects[0]);
-        }
+      const parsedOptions: TeacherRoutineOption[] = [];
+
+      routinesResponse.results.forEach((routine: any) => {
+        const shift = (routine.shift || '').toLowerCase();
+        const semester = Number(routine.semester || 0);
+        const subjectCode = routine.subjectCode || routine.subject_code || '';
+        const subjectName = routine.subjectName || routine.subject_name || '';
+        const departmentData = routine.department;
+        const departmentId = (departmentData && typeof departmentData === 'object')
+          ? String((departmentData as any).id || '')
+          : String(departmentData || '');
+        const departmentName = (departmentData && typeof departmentData === 'object')
+          ? String((departmentData as any).name || '')
+          : '';
+
+        if (!shift || !semester || !subjectCode || !departmentId) return;
+
+        parsedOptions.push({
+          shift,
+          semester,
+          subjectCode,
+          subjectName,
+          departmentId,
+          departmentName,
+        });
+      });
+
+      let filteredOptions = parsedOptions;
+      if (assignedShifts.length > 0) {
+        filteredOptions = parsedOptions.filter((option) => assignedShifts.includes(option.shift));
+      }
+
+      const shiftOrder: Record<string, number> = { morning: 0, day: 1, evening: 2 };
+      const availableShiftsList = Array.from(
+        new Set(filteredOptions.map((option) => option.shift))
+      ).sort((a, b) => {
+        const aOrder = shiftOrder[a] ?? 99;
+        const bOrder = shiftOrder[b] ?? 99;
+        if (aOrder !== bOrder) return aOrder - bOrder;
+        return a.localeCompare(b);
+      });
+
+      setRoutineOptions(filteredOptions);
+      setAvailableShifts(availableShiftsList);
+      console.log('Available shifts:', availableShiftsList);
+
+      if (availableShiftsList.length > 0) {
+        setSelectedShift((prev) => (prev && availableShiftsList.includes(prev) ? prev : availableShiftsList[0]));
+      } else {
+        setSelectedShift('');
+        setSelectedSemester('');
+        setSelectedSubject('');
+        setSelectedDepartment('');
       }
     } catch (err) {
       const errorMsg = getErrorMessage(err);
@@ -190,34 +393,122 @@ export default function ManageMarksPage() {
   };
 
   const fetchStudents = async () => {
+    const requestId = ++studentRequestRef.current;
+
     try {
       setLoading(true);
       setError(null);
       
-      const semesterNum = parseInt(selectedSemester);
-      const response = await studentService.getStudents({
+      // Clear current students immediately when filters change
+      setAllStudents([]);
+      setStudents([]);
+      
+      if (!selectedShift || !selectedSemester || !selectedSubject || !selectedDepartment) {
+        return;
+      }
+      
+      // Capitalize shift for API call (API expects 'Morning', 'Day', 'Evening')
+      const capitalizedShift = selectedShift.charAt(0).toUpperCase() + selectedShift.slice(1);
+
+      const semesterNum = parseInt(selectedSemester, 10);
+      const matchingRoutines = routineOptions.filter((routine) => (
+        routine.shift === selectedShift &&
+        routine.semester === semesterNum &&
+        routine.subjectCode === selectedSubject &&
+        routine.departmentId === selectedDepartment
+      ));
+      
+      if (matchingRoutines.length === 0) {
+        toast.error('No routine found', { 
+          description: 'No class routine found for this subject, semester, and shift combination.' 
+        });
+        return;
+      }
+      
+      const departmentId = selectedDepartment;
+      console.log('Auto-selected department ID from routine:', departmentId);
+      
+      console.log('Fetching students with filters:', {
         semester: semesterNum,
+        department: departmentId,
+        shift: capitalizedShift,
         status: 'active',
         page_size: 1000,
         ordering: 'currentRollNumber'
       });
       
-      setAllStudents(response.results);
+      const response = await studentService.getStudents({
+        semester: semesterNum,
+        department: departmentId,
+        shift: capitalizedShift,
+        status: 'active',
+        page_size: 1000,
+        ordering: 'currentRollNumber'
+      });
+      
+      console.log('Fetched students:', response.results.length, 'students');
+      console.log('Sample student:', response.results[0]);
+
+      // Ignore stale responses when filters changed while this request was in-flight.
+      if (requestId !== studentRequestRef.current) {
+        console.log('Ignoring stale student response');
+        return;
+      }
+
+      // Defensive client-side filtering to ensure strict match with selected filters.
+      const strictFilteredStudents = response.results.filter((student: any) => {
+        const studentDepartmentId = (student.department && typeof student.department === 'object')
+          ? student.department.id
+          : student.department;
+        const studentShift = String(student.shift || '').toLowerCase().trim();
+        const selectedShiftNormalized = selectedShift.toLowerCase().trim();
+        const matchesShift = studentShift ? studentShift === selectedShiftNormalized : true;
+
+        return (
+          Number(student.semester) === semesterNum &&
+          String(studentDepartmentId || '') === String(departmentId) &&
+          matchesShift
+        );
+      });
+
+      if (strictFilteredStudents.length !== response.results.length) {
+        console.warn(
+          'Student API returned out-of-filter records; applied strict client filtering.',
+          { before: response.results.length, after: strictFilteredStudents.length }
+        );
+      }
+
+      setAllStudents(strictFilteredStudents);
     } catch (err) {
+      if (requestId !== studentRequestRef.current) return;
       const errorMsg = getErrorMessage(err);
       setError(errorMsg);
       toast.error('Failed to load students', { description: errorMsg });
     } finally {
-      setLoading(false);
+      if (requestId === studentRequestRef.current) {
+        setLoading(false);
+      }
     }
   };
 
   const fetchMarks = async () => {
-    if (allStudents.length === 0) return;
+    const requestId = ++marksRequestRef.current;
+
+    if (allStudents.length === 0) {
+      console.log('No students to fetch marks for');
+      if (requestId === marksRequestRef.current) {
+        setStudents([]);
+        setMarkColumns([]);
+      }
+      return;
+    }
     
     try {
       setLoading(true);
       setError(null);
+      
+      console.log('Fetching marks for', allStudents.length, 'students');
+      console.log('Subject:', selectedSubject, 'Semester:', selectedSemester);
       
       const semesterNum = parseInt(selectedSemester);
       
@@ -234,6 +525,59 @@ export default function ManageMarksPage() {
         console.log('No marks found for this subject/semester');
       }
       
+      // Build columns dynamically from marks data with consistent ordering
+      const columnsMap = new Map<string, MarkColumn>();
+      
+      // Define exam type priority for consistent ordering
+      const examTypePriority: Record<string, number> = {
+        'quiz': 1,
+        'assignment': 2,
+        'practical': 3,
+        'midterm': 4,
+        'final': 5
+      };
+      
+      allMarks.forEach(mark => {
+        const columnKey = `${mark.exam_type}_${mark.remarks || 'default'}`;
+        if (!columnsMap.has(columnKey)) {
+          columnsMap.set(columnKey, {
+            id: columnKey,
+            name: mark.remarks || mark.exam_type,
+            maxMarks: Number(mark.total_marks) || 0,
+            examType: mark.exam_type,
+            order: 0 // Will be set during sorting
+          });
+        }
+      });
+      
+      // Convert to array and sort by exam type priority, then by name
+      const dynamicColumns = Array.from(columnsMap.values()).sort((a, b) => {
+        const aPriority = examTypePriority[a.examType] || 99;
+        const bPriority = examTypePriority[b.examType] || 99;
+        
+        if (aPriority !== bPriority) {
+          return aPriority - bPriority;
+        }
+        
+        // If same exam type, sort by name
+        return a.name.localeCompare(b.name);
+      }).map((col, index) => ({
+        ...col,
+        order: index + 1
+      }));
+      
+      // If no marks exist yet, use default columns
+      const columnsToUse = dynamicColumns.length > 0 ? dynamicColumns : [
+        { id: 'ct1', name: 'CT-1', maxMarks: 20, examType: 'quiz' as ExamType, order: 1 },
+        { id: 'ct2', name: 'CT-2', maxMarks: 20, examType: 'quiz' as ExamType, order: 2 },
+        { id: 'ct3', name: 'CT-3', maxMarks: 20, examType: 'quiz' as ExamType, order: 3 },
+        { id: 'assignment', name: 'Assignment', maxMarks: 10, examType: 'assignment' as ExamType, order: 4 },
+        { id: 'attendance', name: 'Attendance', maxMarks: 10, examType: 'practical' as ExamType, order: 5 },
+        { id: 'final', name: 'Final', maxMarks: 50, examType: 'final' as ExamType, order: 6 },
+      ];
+      
+      setMarkColumns(columnsToUse);
+      
       const marksByStudent = new Map<string, MarksRecord[]>();
       allMarks.forEach(mark => {
         if (!marksByStudent.has(mark.student)) {
@@ -243,7 +587,7 @@ export default function ManageMarksPage() {
       });
       
       console.log('Loaded marks:', allMarks.length, 'records');
-      console.log('Current columns:', markColumns.map(c => ({ id: c.id, name: c.name, type: c.examType })));
+      console.log('Dynamic columns:', columnsToUse.map(c => ({ id: c.id, name: c.name, type: c.examType })));
       
       const transformedData: StudentMarks[] = allStudents.map((student) => {
         const studentMarks = marksByStudent.get(student.id) || [];
@@ -251,17 +595,17 @@ export default function ManageMarksPage() {
         const marksRecords: { [key: string]: MarksRecord } = {};
         const customMarks: { [columnId: string]: number | null } = {};
         
-        // Map marks to columns by matching remarks (column name) and examType
-        markColumns.forEach((col) => {
-          // Try to find exact match by remarks and examType
+        // Map marks to columns by matching remarks (column name) and exam_type
+        columnsToUse.forEach((col) => {
+          // Try to find exact match by remarks and exam_type
           let matchingMark = studentMarks.find(m => 
-            m.examType === col.examType && m.remarks === col.name
+            m.exam_type === col.examType && m.remarks === col.name
           );
           
-          // If no exact match, try matching by examType only (for backward compatibility)
+          // If no exact match, try matching by exam_type only (for backward compatibility)
           if (!matchingMark) {
             // For backward compatibility with old data without remarks
-            const marksOfType = studentMarks.filter(m => m.examType === col.examType);
+            const marksOfType = studentMarks.filter(m => m.exam_type === col.examType);
             
             // Check if this column ID suggests it's an old default column
             if (col.id === 'ct1' || col.id === 'ct2' || col.id === 'ct3') {
@@ -273,7 +617,9 @@ export default function ManageMarksPage() {
           }
           
           if (matchingMark) {
-            customMarks[col.id] = matchingMark.marksObtained;
+            // Parse as number to avoid string concatenation issues
+            const marksValue = Number(matchingMark.marks_obtained);
+            customMarks[col.id] = isNaN(marksValue) ? null : marksValue;
             marksRecords[col.id] = matchingMark;
           } else {
             customMarks[col.id] = null;
@@ -281,7 +627,7 @@ export default function ManageMarksPage() {
         });
         
         const totalObtained = Object.values(customMarks).reduce((sum, val) => sum + (val || 0), 0);
-        const totalMax = markColumns.reduce((sum, col) => sum + col.maxMarks, 0);
+        const totalMax = columnsToUse.reduce((sum, col) => sum + col.maxMarks, 0);
         const percentage = calculatePercentage(totalObtained, totalMax);
         
         return {
@@ -289,7 +635,7 @@ export default function ManageMarksPage() {
           studentName: student.fullNameEnglish,
           roll: student.currentRollNumber,
           subjectCode: selectedSubject,
-          subjectName: subjects.find(s => s.code === selectedSubject)?.name || selectedSubject,
+          subjectName: selectedSubjectName || selectedSubject,
           customMarks,
           total: totalObtained,
           percentage,
@@ -298,14 +644,25 @@ export default function ManageMarksPage() {
         };
       });
       
+      console.log('Transformed student marks data:', transformedData.length, 'students');
+      console.log('Sample transformed student:', transformedData[0]);
+
+      if (requestId !== marksRequestRef.current) {
+        console.log('Ignoring stale marks response');
+        return;
+      }
+
       setStudents(transformedData);
       setSelectedStudents(new Set());
     } catch (err) {
+      if (requestId !== marksRequestRef.current) return;
       const errorMsg = getErrorMessage(err);
       setError(errorMsg);
       toast.error('Failed to load marks', { description: errorMsg });
     } finally {
-      setLoading(false);
+      if (requestId === marksRequestRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -314,13 +671,11 @@ export default function ManageMarksPage() {
     return (obtained / total) * 100;
   };
 
-  const calculateStats = (): Stats => {
-    const completedStudents = students.filter(s => s.total > 0);
-    const totals = completedStudents.map(s => s.total);
-    const percentages = completedStudents.map(s => s.percentage);
-    const passedStudents = students.filter(s => s.percentage >= 40 && s.total > 0);
-    
-    const gradeDistribution: { [key: string]: number } = {};
+  const calculateSummaryStats = (): SummaryStats => {
+    const completedStudents = students.filter((student) => student.total > 0);
+    const totals = completedStudents.map((student) => student.total);
+    const percentages = completedStudents.map((student) => student.percentage);
+    const passedStudents = students.filter((student) => student.percentage >= 40 && student.total > 0);
 
     return {
       totalStudents: students.length,
@@ -329,7 +684,6 @@ export default function ManageMarksPage() {
       passRate: students.length > 0 ? (passedStudents.length / students.length) * 100 : 0,
       highestMarks: totals.length > 0 ? Math.max(...totals) : 0,
       lowestMarks: totals.length > 0 ? Math.min(...totals) : 0,
-      gradeDistribution
     };
   };
 
@@ -406,15 +760,40 @@ export default function ManageMarksPage() {
   const handleAddColumn = () => {
     if (!newColumnName.trim() || !newColumnMax) return;
     
+    // Define exam type priority for consistent ordering
+    const examTypePriority: Record<string, number> = {
+      'quiz': 1,
+      'assignment': 2,
+      'practical': 3,
+      'midterm': 4,
+      'final': 5
+    };
+    
     const newColumn: MarkColumn = {
-      id: `col_${Date.now()}`,
+      id: `${newColumnType}_${newColumnName.trim().replace(/\s+/g, '_').toLowerCase()}`,
       name: newColumnName.trim(),
       maxMarks: parseInt(newColumnMax),
       examType: newColumnType,
-      order: markColumns.length + 1
+      order: 0 // Will be recalculated
     };
     
-    setMarkColumns(prev => [...prev, newColumn]);
+    // Add new column and re-sort all columns
+    const updatedColumns = [...markColumns, newColumn].sort((a, b) => {
+      const aPriority = examTypePriority[a.examType] || 99;
+      const bPriority = examTypePriority[b.examType] || 99;
+      
+      if (aPriority !== bPriority) {
+        return aPriority - bPriority;
+      }
+      
+      // If same exam type, sort by name
+      return a.name.localeCompare(b.name);
+    }).map((col, index) => ({
+      ...col,
+      order: index + 1
+    }));
+    
+    setMarkColumns(updatedColumns);
     
     // Add null values for this column to all students and recalculate
     setStudents(prev => prev.map(student => {
@@ -424,7 +803,7 @@ export default function ManageMarksPage() {
       };
       
       const totalObtained = Object.values(updated.customMarks).reduce((sum, val) => sum + (val || 0), 0);
-      const totalMax = [...markColumns, newColumn].reduce((sum, col) => sum + col.maxMarks, 0);
+      const totalMax = updatedColumns.reduce((sum, col) => sum + col.maxMarks, 0);
       
       updated.total = totalObtained;
       updated.percentage = calculatePercentage(totalObtained, totalMax);
@@ -436,6 +815,7 @@ export default function ManageMarksPage() {
     setNewColumnMax('20');
     setNewColumnType('quiz');
     setColumnDialog(false);
+    setHasChanges(true);
     toast.success(`Column "${newColumn.name}" added successfully!`);
   };
 
@@ -450,41 +830,93 @@ export default function ManageMarksPage() {
   const handleUpdateColumn = () => {
     if (!editingColumn || !newColumnName.trim() || !newColumnMax) return;
     
-    setMarkColumns(prev => prev.map(col => 
+    // Define exam type priority for consistent ordering
+    const examTypePriority: Record<string, number> = {
+      'quiz': 1,
+      'assignment': 2,
+      'practical': 3,
+      'midterm': 4,
+      'final': 5
+    };
+    
+    // Update the column and re-sort if exam type changed
+    const updatedColumns = markColumns.map(col => 
       col.id === editingColumn.id 
         ? { ...col, name: newColumnName.trim(), maxMarks: parseInt(newColumnMax), examType: newColumnType }
         : col
-    ));
+    ).sort((a, b) => {
+      const aPriority = examTypePriority[a.examType] || 99;
+      const bPriority = examTypePriority[b.examType] || 99;
+      
+      if (aPriority !== bPriority) {
+        return aPriority - bPriority;
+      }
+      
+      // If same exam type, sort by name
+      return a.name.localeCompare(b.name);
+    }).map((col, index) => ({
+      ...col,
+      order: index + 1
+    }));
+    
+    setMarkColumns(updatedColumns);
     
     setEditingColumn(null);
     setNewColumnName('');
     setNewColumnMax('20');
     setNewColumnType('quiz');
     setColumnDialog(false);
+    setHasChanges(true);
     toast.success('Column updated successfully!');
   };
 
-  const handleDeleteColumn = (columnId: string) => {
-    const updatedColumns = markColumns.filter(col => col.id !== columnId);
-    setMarkColumns(updatedColumns);
+  const handleDeleteColumn = async (columnId: string) => {
+    const columnToDelete = markColumns.find(col => col.id === columnId);
+    if (!columnToDelete) return;
     
-    // Remove this column's data from all students and recalculate
-    setStudents(prev => prev.map(student => {
-      const { [columnId]: removed, ...restMarks } = student.customMarks;
+    try {
+      // Delete all marks records for this column from the database
+      const marksToDelete: string[] = [];
+      students.forEach(student => {
+        const markRecord = (student.marksRecords as any)[columnId];
+        if (markRecord?.id) {
+          marksToDelete.push(markRecord.id);
+        }
+      });
       
-      const totalObtained = Object.values(restMarks).reduce((sum, val) => sum + (val || 0), 0);
-      const totalMax = updatedColumns.reduce((sum, col) => sum + col.maxMarks, 0);
+      if (marksToDelete.length > 0) {
+        // Delete marks from database
+        await Promise.all(marksToDelete.map(id => marksService.deleteMarks(id)));
+        console.log(`Deleted ${marksToDelete.length} marks records for column ${columnToDelete.name}`);
+      }
       
-      return {
-        ...student,
-        customMarks: restMarks,
-        total: totalObtained,
-        percentage: calculatePercentage(totalObtained, totalMax)
-      };
-    }));
-    
-    setHasChanges(true);
-    toast.success('Column deleted successfully!');
+      // Update local state
+      const updatedColumns = markColumns.filter(col => col.id !== columnId);
+      setMarkColumns(updatedColumns);
+      
+      // Remove this column's data from all students and recalculate
+      setStudents(prev => prev.map(student => {
+        const { [columnId]: removed, ...restMarks } = student.customMarks;
+        const { [columnId]: removedRecord, ...restRecords } = student.marksRecords as any;
+        
+        const totalObtained = Object.values(restMarks).reduce((sum, val) => sum + (val || 0), 0);
+        const totalMax = updatedColumns.reduce((sum, col) => sum + col.maxMarks, 0);
+        
+        return {
+          ...student,
+          customMarks: restMarks,
+          marksRecords: restRecords,
+          total: totalObtained,
+          percentage: calculatePercentage(totalObtained, totalMax)
+        };
+      }));
+      
+      toast.success(`Column "${columnToDelete.name}" and all its marks deleted successfully!`);
+    } catch (err) {
+      const errorMsg = getErrorMessage(err);
+      console.error('Delete column error:', err);
+      toast.error('Failed to delete column', { description: errorMsg });
+    }
   };
 
   const handleSort = (key: string) => {
@@ -520,7 +952,7 @@ export default function ManageMarksPage() {
     try {
       setSaving(true);
       const semesterNum = parseInt(selectedSemester);
-      const subjectName = subjects.find(s => s.code === selectedSubject)?.name || selectedSubject;
+      const subjectName = selectedSubjectName || selectedSubject;
       
       const marksToSave: any[] = [];
       
@@ -533,12 +965,12 @@ export default function ManageMarksPage() {
             
             marksToSave.push({
               student: student.studentId,
-              subjectCode: selectedSubject,
-              subjectName,
+              subject_code: selectedSubject,
+              subject_name: subjectName,
               semester: semesterNum,
-              examType: col.examType,
-              marksObtained: markValue,
-              totalMarks: col.maxMarks,
+              exam_type: col.examType,
+              marks_obtained: markValue,
+              total_marks: col.maxMarks,
               remarks: col.name,
               id: existingMarkId
             });
@@ -552,8 +984,8 @@ export default function ManageMarksPage() {
         if (mark.id) {
           // Update existing mark
           return marksService.updateMarks(mark.id, { 
-            marksObtained: mark.marksObtained, 
-            totalMarks: mark.totalMarks,
+            marks_obtained: mark.marks_obtained, 
+            total_marks: mark.total_marks,
             remarks: mark.remarks 
           }).catch(err => {
             console.error('Failed to update mark:', mark.id, err);
@@ -563,12 +995,12 @@ export default function ManageMarksPage() {
           // Create new mark
           return marksService.createMarks({
             student: mark.student,
-            subjectCode: mark.subjectCode,
-            subjectName: mark.subjectName,
+            subject_code: mark.subject_code,
+            subject_name: mark.subject_name,
             semester: mark.semester,
-            examType: mark.examType,
-            marksObtained: mark.marksObtained,
-            totalMarks: mark.totalMarks,
+            exam_type: mark.exam_type,
+            marks_obtained: mark.marks_obtained,
+            total_marks: mark.total_marks,
             remarks: mark.remarks
           }).catch(err => {
             console.error('Failed to create mark:', mark, err);
@@ -594,17 +1026,7 @@ export default function ManageMarksPage() {
 
   const handleSemesterChange = (semester: string) => {
     setSelectedSemester(semester);
-    
-    // Filter subjects for selected semester
-    const semesterSubjects = subjects.filter(s => s.semester === parseInt(semester));
-    if (semesterSubjects.length > 0) {
-      setSelectedSubject(semesterSubjects[0].code);
-    } else {
-      setSelectedSubject('');
-    }
   };
-
-  const filteredSubjects = subjects.filter(s => s.semester === parseInt(selectedSemester || '0'));
 
   let filteredStudents = students.filter(student =>
     student.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -623,7 +1045,7 @@ export default function ManageMarksPage() {
     });
   }
 
-  const stats = calculateStats();
+  const summaryStats = calculateSummaryStats();
 
   if (loadingSubjects) {
     return (
@@ -636,7 +1058,7 @@ export default function ManageMarksPage() {
     );
   }
 
-  if (semesters.length === 0 || subjects.length === 0) {
+  if (availableShifts.length === 0 || routineOptions.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center space-y-4 max-w-md">
@@ -726,101 +1148,96 @@ export default function ManageMarksPage() {
         </div>
       </motion.div>
 
-      {/* Stats Cards */}
-      <AnimatePresence>
-        {showStatsPanel && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3"
-          >
-            <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-blue-500/20">
-                    <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{stats.totalStudents}</p>
-                    <p className="text-xs text-muted-foreground">Total Students</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+      {/* Summary Cards */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3"
+      >
+        <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-500/20">
+                <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{summaryStats.totalStudents}</p>
+                <p className="text-xs text-muted-foreground">Total Students</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-            <Card className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border-emerald-500/20">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-emerald-500/20">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{stats.completedEntries}</p>
-                    <p className="text-xs text-muted-foreground">Entries Done</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+        <Card className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border-emerald-500/20">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-emerald-500/20">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{summaryStats.completedEntries}</p>
+                <p className="text-xs text-muted-foreground">Entries Done</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-            <Card className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/20">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-purple-500/20">
-                    <Calculator className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{stats.averageMarks.toFixed(1)}%</p>
-                    <p className="text-xs text-muted-foreground">Avg Percentage</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+        <Card className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/20">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-purple-500/20">
+                <Calculator className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{summaryStats.averageMarks.toFixed(1)}%</p>
+                <p className="text-xs text-muted-foreground">Avg Percentage</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-            <Card className="bg-gradient-to-br from-amber-500/10 to-amber-600/5 border-amber-500/20">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-amber-500/20">
-                    <TrendingUp className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{stats.passRate.toFixed(0)}%</p>
-                    <p className="text-xs text-muted-foreground">Pass Rate</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+        <Card className="bg-gradient-to-br from-amber-500/10 to-amber-600/5 border-amber-500/20">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-amber-500/20">
+                <TrendingUp className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{summaryStats.passRate.toFixed(0)}%</p>
+                <p className="text-xs text-muted-foreground">Pass Rate</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-            <Card className="bg-gradient-to-br from-teal-500/10 to-teal-600/5 border-teal-500/20">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-teal-500/20">
-                    <Award className="w-5 h-5 text-teal-600 dark:text-teal-400" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{stats.highestMarks}</p>
-                    <p className="text-xs text-muted-foreground">Highest Score</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+        <Card className="bg-gradient-to-br from-teal-500/10 to-teal-600/5 border-teal-500/20">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-teal-500/20">
+                <Award className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{summaryStats.highestMarks}</p>
+                <p className="text-xs text-muted-foreground">Highest Score</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-            <Card className="bg-gradient-to-br from-rose-500/10 to-rose-600/5 border-rose-500/20">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-rose-500/20">
-                    <BookOpen className="w-5 h-5 text-rose-600 dark:text-rose-400" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{stats.lowestMarks || '-'}</p>
-                    <p className="text-xs text-muted-foreground">Lowest Score</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
-      </AnimatePresence>
+        <Card className="bg-gradient-to-br from-rose-500/10 to-rose-600/5 border-rose-500/20">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-rose-500/20">
+                <BookOpen className="w-5 h-5 text-rose-600 dark:text-rose-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{summaryStats.lowestMarks || '-'}</p>
+                <p className="text-xs text-muted-foreground">Lowest Score</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
 
       {/* Filters & Controls */}
       <motion.div
@@ -830,10 +1247,35 @@ export default function ManageMarksPage() {
         className="bg-card border rounded-xl p-4 shadow-sm"
       >
         <div className="flex flex-col lg:flex-row gap-4">
-          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            {availableShifts.length > 0 && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-muted-foreground">
+                  Shift {teacherShifts.length > 0 && <span className="text-[10px] text-muted-foreground/70">(Based on permissions)</span>}
+                </Label>
+                <Select value={selectedShift} onValueChange={setSelectedShift}>
+                  <SelectTrigger className="h-9">
+                    <Filter className="w-4 h-4 mr-2 text-muted-foreground" />
+                    <SelectValue placeholder="Select shift" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableShifts.map(shift => (
+                      <SelectItem key={shift} value={shift} className="capitalize">
+                        {shift.charAt(0).toUpperCase() + shift.slice(1)} Shift
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-muted-foreground">Semester</Label>
-              <Select value={selectedSemester} onValueChange={handleSemesterChange}>
+              <Select
+                value={selectedSemester}
+                onValueChange={handleSemesterChange}
+                disabled={!selectedShift || semesters.length === 0}
+              >
                 <SelectTrigger className="h-9">
                   <GraduationCap className="w-4 h-4 mr-2 text-muted-foreground" />
                   <SelectValue placeholder="Select semester" />
@@ -850,7 +1292,11 @@ export default function ManageMarksPage() {
 
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-muted-foreground">Subject</Label>
-              <Select value={selectedSubject} onValueChange={setSelectedSubject} disabled={loadingSubjects || filteredSubjects.length === 0}>
+              <Select
+                value={selectedSubject}
+                onValueChange={setSelectedSubject}
+                disabled={loadingSubjects || !selectedSemester || filteredSubjects.length === 0}
+              >
                 <SelectTrigger className="h-9">
                   <BookOpen className="w-4 h-4 mr-2 text-muted-foreground" />
                   <SelectValue placeholder="Select subject" />
@@ -865,7 +1311,28 @@ export default function ManageMarksPage() {
               </Select>
             </div>
 
-            <div className="space-y-1.5 sm:col-span-2 lg:col-span-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">Department</Label>
+              <Select
+                value={selectedDepartment}
+                onValueChange={setSelectedDepartment}
+                disabled={!selectedSubject || filteredDepartments.length === 0}
+              >
+                <SelectTrigger className="h-9">
+                  <Users className="w-4 h-4 mr-2 text-muted-foreground" />
+                  <SelectValue placeholder="Select department" />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredDepartments.map((department) => (
+                    <SelectItem key={department.id} value={department.id}>
+                      {department.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className={`space-y-1.5 ${availableShifts.length > 0 ? 'sm:col-span-2 lg:col-span-1' : 'sm:col-span-2 lg:col-span-2'}`}>
               <Label className="text-xs font-medium text-muted-foreground">Search Student</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -881,16 +1348,6 @@ export default function ManageMarksPage() {
           </div>
 
           <div className="flex items-end gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowStatsPanel(!showStatsPanel)}
-              className="h-9"
-            >
-              {showStatsPanel ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-              <span className="ml-1 hidden sm:inline">Stats</span>
-            </Button>
-            
             {selectedStudents.size > 0 && (
               <Button
                 variant="secondary"
@@ -909,14 +1366,22 @@ export default function ManageMarksPage() {
         <div className="mt-4 pt-4 border-t flex flex-wrap items-center gap-3 text-sm">
           <Badge variant="outline" className="bg-primary/5 border-primary/20">
             <Filter className="w-3 h-3 mr-1" />
-            {(() => {
+            {selectedSemester ? (() => {
               const num = parseInt(selectedSemester);
               const suffix = num === 1 ? 'st' : num === 2 ? 'nd' : num === 3 ? 'rd' : 'th';
               return `${selectedSemester}${suffix} Semester`;
-            })()}
+            })() : 'Semester not selected'}
           </Badge>
           <Badge variant="outline" className="bg-secondary/50">
-            {subjects.find(s => s.code === selectedSubject)?.name}
+            {selectedSubjectName || 'Subject not selected'}
+          </Badge>
+          {selectedShift && (
+            <Badge variant="outline" className="capitalize">
+              {selectedShift} Shift
+            </Badge>
+          )}
+          <Badge variant="outline">
+            {selectedDepartmentName || 'Department not selected'}
           </Badge>
           <Badge variant="outline">
             {filteredStudents.length} Students
@@ -1092,11 +1557,11 @@ export default function ManageMarksPage() {
                       </TableCell>
                     ))}
                     <TableCell className="text-center p-2 bg-primary/10">
-                      <span className="font-bold text-base text-primary">{student.total}</span>
+                      <span className="font-bold text-base text-primary">{Number(student.total).toFixed(2)}</span>
                     </TableCell>
                     <TableCell className="text-center p-2">
                       <span className={`font-semibold ${student.percentage >= 40 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                        {student.percentage.toFixed(2)}%
+                        {isNaN(student.percentage) ? '0.00' : Number(student.percentage).toFixed(2)}%
                       </span>
                     </TableCell>
                   </motion.tr>
@@ -1106,19 +1571,6 @@ export default function ManageMarksPage() {
           </Table>
         </div>
 
-        {/* Stats Footer */}
-        <div className="p-4 border-t bg-muted/20">
-          <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-            <div>
-              <span className="font-medium">Total Marks: </span>
-              <span className="text-foreground">{markColumns.reduce((sum, col) => sum + col.maxMarks, 0)}</span>
-            </div>
-            <div>
-              <span className="font-medium">Pass Percentage: </span>
-              <span className="text-foreground">40%</span>
-            </div>
-          </div>
-        </div>
       </motion.div>
 
       {/* Bulk Edit Dialog */}

@@ -129,10 +129,10 @@ export default function Settings() {
       setSettings(data);
       
       // Populate form fields
-      setInstituteName(data.instituteName || '');
-      setEmail(data.instituteEmail || '');
-      setPhone(data.institutePhone || '');
-      setAddress(data.instituteAddress || '');
+      setInstituteName(data.institute_name || '');
+      setEmail(data.institute_email || '');
+      setPhone(data.institute_phone || '');
+      setAddress(data.institute_address || '');
     } catch (err) {
       const errorMsg = getErrorMessage(err);
       setError(errorMsg);
@@ -223,10 +223,10 @@ export default function Settings() {
     try {
       setSaving(true);
       await settingsService.updateSettings({
-        instituteName,
-        instituteEmail: email,
-        institutePhone: phone,
-        instituteAddress: address,
+        institute_name: instituteName,
+        institute_email: email,
+        institute_phone: phone,
+        institute_address: address,
       });
       
       toast({
@@ -236,9 +236,11 @@ export default function Settings() {
       
       await fetchSettings();
     } catch (err) {
+      const errorMsg = getErrorMessage(err);
       toast({
-        title: "Settings Saved",
-        description: "Institute information has been updated successfully.",
+        title: "Error",
+        description: errorMsg || "Failed to save institute information.",
+        variant: 'destructive',
       });
     } finally {
       setSaving(false);

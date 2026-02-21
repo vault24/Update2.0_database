@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
-  GraduationCap, Mail, Phone, MapPin, Building, Award, Calendar, 
-  BookOpen, Copy, Check, Share2, FileText, Star, Clock, Target,
+  GraduationCap, Mail, Phone, MapPin, Building, Award, 
+  BookOpen, Copy, Check, Share2, FileText, Clock, Target,
   TrendingUp, User, BarChart3, Loader2, AlertCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -13,45 +13,8 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { studentService } from '@/services/studentService';
-import { documentService } from '@/services/documentService';
+import { settingsService, SystemSettings } from '@/services/settingsService';
 import { getErrorMessage } from '@/lib/api';
-
-// Mock student data
-const mockStudentData = {
-  id: 'STU-2024-001',
-  name: 'Md. Abdullah Al Mamun',
-  headline: 'Computer Science Student | Web Developer | Tech Enthusiast',
-  department: 'Computer Science & Engineering',
-  semester: 6,
-  session: '2021-22',
-  rollNumber: 'CSE-2021-045',
-  email: 'abdullah.mamun@student.spi.edu.bd',
-  phone: '+880 1812-345678',
-  location: 'Sylhet, Bangladesh',
-  university: 'Sylhet Polytechnic Institute',
-  about: `Passionate computer science student with a strong interest in web development and artificial intelligence. Currently in my 6th semester, I'm focused on building practical skills through projects and internships.
-
-I believe in continuous learning and regularly participate in coding competitions and hackathons. My goal is to become a full-stack developer and contribute to innovative tech solutions.`,
-  skills: ['JavaScript', 'React', 'Python', 'HTML/CSS', 'Git', 'MySQL', 'Node.js', 'Tailwind CSS'],
-  interests: ['Web Development', 'Machine Learning', 'Mobile Apps', 'UI/UX Design'],
-  cgpa: 3.75,
-  attendanceRate: 92,
-  completedCourses: 28,
-  currentCourses: [
-    { name: 'Database Management Systems', code: 'CSE-401', grade: 'A' },
-    { name: 'Software Engineering', code: 'CSE-501', grade: 'A-' },
-    { name: 'Web Development', code: 'CSE-601', grade: 'A' },
-  ],
-  achievements: [
-    { title: 'Dean\'s List', issuer: 'Sylhet Polytechnic Institute', year: '2023' },
-    { title: '1st Place - Inter-College Hackathon', issuer: 'Tech Fest 2023', year: '2023' },
-    { title: 'Best Project Award', issuer: 'CSE Department', year: '2022' },
-  ],
-  projects: [
-    { title: 'E-Learning Platform', description: 'Built a full-stack e-learning platform using React and Node.js', year: '2023' },
-    { title: 'Inventory Management System', description: 'Developed an inventory system for local businesses', year: '2022' },
-  ],
-};
 
 export default function PublicStudentProfilePage() {
   const { studentId } = useParams();
@@ -60,35 +23,64 @@ export default function PublicStudentProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
+  const [instituteSettings, setInstituteSettings] = useState<SystemSettings | null>(null);
 
-  const publicProfileUrl = `${window.location.origin}/student/${studentId}`;
+  const getPreferredRollNumber = (studentData: any): string | null => {
+    const rollCandidates = [
+      studentData?.currentRollNumber,
+      studentData?.current_roll_number,
+      studentData?.rollNumber,
+      studentData?.roll_number,
+    ];
+
+    for (const value of rollCandidates) {
+      if (typeof value === 'string' && value.trim()) return value.trim();
+      if (typeof value === 'number') return String(value);
+    }
+
+    return null;
+  };
+
+  const preferredRollNumber = getPreferredRollNumber(student);
+
+  // Generate public profile URL using roll number if available, otherwise use the identifier from URL
+  const publicProfileUrl = preferredRollNumber
+    ? `${window.location.origin}/student/${preferredRollNumber}`
+    : `${window.location.origin}/student/${studentId}`;
 
   useEffect(() => {
     if (studentId) {
-      fetchStudentData();
+      fetchData();
     }
   }, [studentId]);
 
-  const fetchStudentData = async () => {
+  const fetchData = async () => {
     if (!studentId) return;
 
     try {
       setLoading(true);
       setError(null);
 
-      // Fetch student data
-      const studentData = await studentService.getStudent(studentId);
-      setStudent(studentData);
+      // Fetch both student data and institute settings in parallel
+      const [studentData, settings] = await Promise.all([
+        studentService.getStudentByIdentifier(studentId),
+        settingsService.getSystemSettings().catch(() => null) // Don't fail if settings unavailable
+      ]);
 
-      // Try to fetch profile picture
-      try {
-        const response = await documentService.getMyDocuments(studentId, 'Photo');
-        const photoDoc = response.documents.find((doc: any) => doc.category === 'Photo');
-        if (photoDoc) {
-          setProfilePicture(documentService.getDocumentPreviewUrl(photoDoc.id));
-        }
-      } catch (docError) {
-        console.log('Could not fetch profile picture:', docError);
+      console.log('Student data received:', studentData);
+      console.log('Current Roll Number:', studentData.currentRollNumber);
+      
+      setStudent(studentData);
+      setInstituteSettings(settings);
+
+      // Use profilePhoto from student data if available
+      if (studentData.profilePhoto) {
+        // Construct the full URL for the profile photo
+        const photoUrl = studentData.profilePhoto.startsWith('http') 
+          ? studentData.profilePhoto 
+          : `${window.location.origin}/${studentData.profilePhoto}`;
+        console.log('Profile photo URL:', photoUrl);
+        setProfilePicture(photoUrl);
       }
     } catch (err: any) {
       console.error('Failed to load student profile:', err);
@@ -134,6 +126,83 @@ export default function PublicStudentProfilePage() {
   }
 
   // Transform student data to match the expected format
+  const instituteName = instituteSettings?.institute_name || 'Sylhet Polytechnic Institute';
+  
+  // Calculate CGPA from semester results
+  const calculateCGPA = () => {
+    if (!student.semesterResults || student.semesterResults.length === 0) {
+      return 0;
+    }
+
+    // Get all GPA results
+    const gpaResults = student.semesterResults.filter(
+      (result: any) => result.resultType === 'gpa' && result.gpa != null
+    );
+
+    if (gpaResults.length === 0) {
+      return 0;
+    }
+
+    // If CGPA is available in the latest result and is not 0, use it
+    const latestResult = gpaResults[gpaResults.length - 1];
+    if (latestResult.cgpa != null && latestResult.cgpa > 0) {
+      return latestResult.cgpa;
+    }
+
+    // If CGPA is 0 or null, use the latest GPA instead
+    if (latestResult.gpa != null && latestResult.gpa > 0) {
+      return latestResult.gpa;
+    }
+
+    // Otherwise, calculate average GPA as fallback
+    const totalGPA = gpaResults.reduce((sum: number, result: any) => sum + result.gpa, 0);
+    return totalGPA / gpaResults.length;
+  };
+
+  // Calculate attendance rate from semester attendance
+  const calculateAttendanceRate = () => {
+    if (!student.semesterAttendance || student.semesterAttendance.length === 0) {
+      return 0;
+    }
+
+    let totalPresent = 0;
+    let totalClasses = 0;
+
+    student.semesterAttendance.forEach((semesterAtt: any) => {
+      if (semesterAtt.subjects && Array.isArray(semesterAtt.subjects)) {
+        semesterAtt.subjects.forEach((subject: any) => {
+          totalPresent += subject.present || 0;
+          totalClasses += subject.total || 0;
+        });
+      }
+    });
+
+    if (totalClasses === 0) {
+      return 0;
+    }
+
+    return Math.round((totalPresent / totalClasses) * 100);
+  };
+
+  const calculatedCGPA = calculateCGPA();
+  const calculatedAttendance = calculateAttendanceRate();
+  
+  // Show roll number first; if missing, fall back to student identifier/id
+  const displayRollNumber =
+    preferredRollNumber ||
+    student.studentId ||
+    student.student_id ||
+    student.id ||
+    studentId ||
+    'N/A';
+  
+  console.log('URL Identifier:', studentId);
+  console.log('Student Current Roll Number from API:', student.currentRollNumber);
+  console.log('Student Preferred Roll Number:', preferredRollNumber);
+  console.log('Display Roll Number:', displayRollNumber);
+  console.log('Calculated CGPA:', calculatedCGPA);
+  console.log('Calculated Attendance:', calculatedAttendance);
+  
   const transformedStudent = {
     id: student.id,
     name: student.fullNameEnglish || 'Student',
@@ -141,21 +210,21 @@ export default function PublicStudentProfilePage() {
     department: student.departmentName || (typeof student.department === 'object' ? student.department?.name : student.department) || 'N/A',
     semester: student.semester || 1,
     session: student.session || '2024-25',
-    rollNumber: student.currentRollNumber || studentId,
+    rollNumber: displayRollNumber,
     email: student.email || 'N/A',
     phone: student.mobileStudent || 'N/A',
     location: student.presentAddress ? 
       `${student.presentAddress.district || ''}, ${student.presentAddress.division || 'Bangladesh'}`.replace(/^,\s*|,\s*$/g, '') : 
       'Bangladesh',
-    university: 'Sylhet Polytechnic Institute',
+    university: instituteName,
     about: `${student.fullNameEnglish || 'Student'} is currently studying ${student.departmentName || (typeof student.department === 'object' ? student.department?.name : student.department) || 'at our institute'} in semester ${student.semester || 1}. 
 
 This is a public profile showcasing academic information and achievements.`,
     skills: ['Academic Excellence', 'Problem Solving', 'Team Work', 'Communication'],
     interests: ['Technology', 'Learning', 'Innovation', 'Development'],
-    cgpa: 0, // Would need to be calculated from marks
-    attendanceRate: 0, // Would need to be calculated from attendance
-    completedCourses: 0, // Would need to be calculated
+    cgpa: calculatedCGPA,
+    attendanceRate: calculatedAttendance,
+    completedCourses: student.semesterResults?.length || 0,
     currentCourses: [],
     achievements: [],
     projects: [],
@@ -168,7 +237,7 @@ This is a public profile showcasing academic information and achievements.`,
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <GraduationCap className="w-6 h-6 text-primary" />
-            <span className="font-semibold text-sm">Sylhet Polytechnic Institute</span>
+            <span className="font-semibold text-sm">{instituteName}</span>
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
@@ -185,26 +254,39 @@ This is a public profile showcasing academic information and achievements.`,
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-card rounded-xl border border-border overflow-hidden shadow-card"
+          className="bg-card rounded-xl border border-border shadow-card"
         >
         {/* Cover Banner */}
-        <div className="h-28 sm:h-32 md:h-40 relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700" />
-          <div className="absolute inset-0 opacity-30 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjEpIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')]" />
+        <div className="h-32 sm:h-40 md:h-48 relative overflow-hidden rounded-t-xl">
+          <img 
+            src="/cover-image.jpg" 
+            alt="Institute Cover" 
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              // Fallback to gradient if image fails to load
+              const target = e.target as HTMLImageElement;
+              target.style.display = 'none';
+              if (target.nextElementSibling) {
+                (target.nextElementSibling as HTMLElement).style.display = 'block';
+              }
+            }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700" style={{ display: 'none' }} />
+          <div className="absolute inset-0 bg-black/20" />
         </div>
 
-        <div className="px-4 md:px-6 pb-5">
-          {/* Avatar - positioned to overlap banner */}
-          <div className="-mt-12 sm:-mt-14 md:-mt-16 mb-4">
+        <div className="px-4 md:px-6 pb-6">
+          {/* Avatar - positioned to overlap banner with proper spacing */}
+          <div className="-mt-16 sm:-mt-20 md:-mt-24 mb-4 relative z-10">
             {profilePicture ? (
               <img 
                 src={profilePicture} 
                 alt={transformedStudent.name}
-                className="w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 rounded-full object-cover border-4 border-card shadow-xl"
+                className="w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40 rounded-full object-cover border-4 border-card shadow-xl bg-card"
               />
             ) : (
-              <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-xl sm:text-2xl md:text-3xl font-bold text-white border-4 border-card shadow-xl">
-                {transformedStudent.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+              <div className="w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-2xl sm:text-3xl md:text-4xl font-bold text-white border-4 border-card shadow-xl">
+                {transformedStudent.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
               </div>
             )}
           </div>
@@ -218,10 +300,10 @@ This is a public profile showcasing academic information and achievements.`,
             
             <div className="flex flex-wrap items-center gap-2 text-xs md:text-sm text-muted-foreground">
               <Badge variant="secondary" className="text-[10px] sm:text-xs">{transformedStudent.department}</Badge>
-              <span className="hidden sm:inline">•</span>
+              <span>•</span>
               <span>Semester {transformedStudent.semester}</span>
-              <span className="hidden sm:inline">•</span>
-              <span className="hidden sm:inline">Roll: {transformedStudent.rollNumber}</span>
+              <span>•</span>
+              <span>Roll: {transformedStudent.rollNumber}</span>
             </div>
             
             <div className="flex items-center gap-1.5 text-xs sm:text-sm">
@@ -453,7 +535,7 @@ This is a public profile showcasing academic information and achievements.`,
 
       <footer className="border-t border-border py-4 mt-8">
         <div className="max-w-4xl mx-auto px-4 text-center text-xs text-muted-foreground">
-          © {new Date().getFullYear()} Sylhet Polytechnic Institute. All rights reserved.
+          © {new Date().getFullYear()} {instituteName}. All rights reserved.
         </div>
       </footer>
     </div>

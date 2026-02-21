@@ -22,6 +22,7 @@ interface StudentProfileHeaderProps {
   phone?: string;
   location?: string;
   studentId: string;
+  rollNumber?: string;
   status?: string;
   avatarUrl?: string;
   onEdit?: () => void;
@@ -38,6 +39,7 @@ export function StudentProfileHeader({
   phone,
   location,
   studentId,
+  rollNumber,
   status = 'active',
   avatarUrl,
   onEdit
@@ -49,7 +51,10 @@ export function StudentProfileHeader({
   // Use profile picture from hook if available, fallback to avatarUrl prop
   const displayAvatarUrl = profilePictureUrl || avatarUrl;
 
-  const publicProfileUrl = `${window.location.origin}/student/${studentId}`;
+  // Use roll number if available, otherwise fall back to student ID
+  const profileIdentifier = rollNumber || studentId;
+  const displayIdentifier = rollNumber || studentId;
+  const publicProfileUrl = `${window.location.origin}/student/${profileIdentifier}`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(publicProfileUrl);
@@ -185,7 +190,7 @@ export function StudentProfileHeader({
                 <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-white/15 flex items-center justify-center">
                   <Building className="w-3.5 h-3.5 md:w-4 md:h-4" />
                 </div>
-                <span className="truncate">{studentId}</span>
+                <span className="truncate">{displayIdentifier}</span>
               </div>
               <div className="flex items-center gap-2 text-white/80 text-xs md:text-sm">
                 <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-white/15 flex items-center justify-center">

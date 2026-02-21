@@ -37,6 +37,7 @@ import PasswordReset from "./pages/PasswordReset";
 import NotFound from "./pages/NotFound";
 import Complaints from "./pages/Complaints";
 import MotivationManagement from "./pages/MotivationManagement";
+import TeacherProfile from "./pages/TeacherProfile";
 
 const queryClient = new QueryClient();
 
@@ -70,6 +71,7 @@ const App = () => (
                   <Route path="/departments" element={<Departments />} />
                   <Route path="/departments/:id" element={<DepartmentView />} />
                   <Route path="/teachers" element={<Teachers />} />
+                  <Route path="/teachers/:id" element={<TeacherProfile />} />
                   <Route path="/signup-requests" element={<SignupRequests />} />
                   <Route path="/notices" element={<Notices />} />
                   <Route path="/class-routine" element={<ClassRoutine />} />

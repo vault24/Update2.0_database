@@ -11,6 +11,7 @@ class TeacherListSerializer(serializers.ModelSerializer):
     Lightweight serializer for list views
     """
     department = DepartmentSerializer(read_only=True)
+    departmentName = serializers.CharField(source='department.name', read_only=True)
     
     class Meta:
         model = Teacher
@@ -19,10 +20,12 @@ class TeacherListSerializer(serializers.ModelSerializer):
             'fullNameEnglish',
             'designation',
             'department',
+            'departmentName',
             'email',
             'mobileNumber',
             'employmentStatus',
-            'profilePhoto'
+            'profilePhoto',
+            'shifts'
         ]
 
 
@@ -52,6 +55,7 @@ class TeacherCreateSerializer(serializers.ModelSerializer):
             'subjects',
             'qualifications',
             'specializations',
+            'shifts',
             'email',
             'mobileNumber',
             'officeLocation',
@@ -88,6 +92,7 @@ class TeacherUpdateSerializer(serializers.ModelSerializer):
             'subjects',
             'qualifications',
             'specializations',
+            'shifts',
             'email',
             'mobileNumber',
             'officeLocation',

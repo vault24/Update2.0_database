@@ -188,6 +188,45 @@ class StudentViewSet(viewsets.ModelViewSet):
         serializer = StudentListSerializer(students, many=True)
         return Response(serializer.data)
     
+    @action(detail=False, methods=['get'])
+    def by_identifier(self, request, identifier=None):
+        """
+        Get student by ID or roll number (public endpoint)
+        GET /api/students/by-identifier/{id_or_roll}/
+        
+        This endpoint supports both:
+        - UUID (student ID)
+        - Roll number (currentRollNumber)
+        """
+        if not identifier:
+            return Response(
+                {'error': 'Identifier is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Try to find student by ID first (UUID format)
+        try:
+            from uuid import UUID
+            # Try to parse as UUID
+            UUID(identifier)
+            student = Student.objects.select_related('department').get(id=identifier)
+            serializer = StudentDetailSerializer(student)
+            return Response(serializer.data)
+        except (Student.DoesNotExist, ValueError):
+            # If not found by ID or not a valid UUID, try by roll number
+            try:
+                student = Student.objects.select_related('department').get(currentRollNumber=identifier)
+                serializer = StudentDetailSerializer(student)
+                return Response(serializer.data)
+            except Student.DoesNotExist:
+                return Response(
+                    {
+                        'error': 'Student not found',
+                        'details': f'No student found with ID or roll number: {identifier}'
+                    },
+                    status=status.HTTP_404_NOT_FOUND
+                )
+    
     @action(detail=True, methods=['post'])
     def upload_photo(self, request, pk=None):
         """
