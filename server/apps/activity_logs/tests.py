@@ -5,10 +5,14 @@ from django.test import TestCase
 from django.urls import reverse
 from rest_framework.test import APIClient
 from rest_framework import status
+from rest_framework.response import Response
+from django.test import RequestFactory
+import uuid
 from apps.authentication.models import User
 from apps.students.models import Student
 from apps.departments.models import Department
 from .models import ActivityLog
+from .middleware import ActivityLogMiddleware
 
 
 class ActivityLogModelTest(TestCase):
@@ -147,3 +151,50 @@ class ActivityLogViewSetTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response['Content-Type'], 'text/csv')
         self.assertIn('attachment', response['Content-Disposition'])
+
+
+class ActivityLogMiddlewareTest(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='middleware_user',
+            email='middleware@example.com',
+            password='testpass123',
+            role='registrar'
+        )
+        self.factory = RequestFactory()
+
+    def test_logs_create_action_for_successful_post(self):
+        def get_response(_request):
+            return Response({'id': 'dep-123'}, status=status.HTTP_201_CREATED)
+
+        middleware = ActivityLogMiddleware(get_response)
+        request = self.factory.post('/api/departments/', data={'name': 'CSE', 'code': 'CSE'})
+        request.user = self.user
+        request.data = {'name': 'CSE', 'code': 'CSE'}
+
+        middleware(request)
+
+        log = ActivityLog.objects.latest('timestamp')
+        self.assertEqual(log.action_type, 'create')
+        self.assertEqual(log.entity_type, 'Department')
+        self.assertEqual(log.entity_id, 'dep-123')
+        self.assertEqual(log.user, self.user)
+
+    def test_logs_approve_action_for_admission_approve_endpoint(self):
+        admission_id = str(uuid.uuid4())
+
+        def get_response(_request):
+            return Response({'message': 'ok'}, status=status.HTTP_200_OK)
+
+        middleware = ActivityLogMiddleware(get_response)
+        request = self.factory.post(f'/api/admissions/{admission_id}/approve/', data={})
+        request.user = self.user
+        request.data = {}
+
+        middleware(request)
+
+        log = ActivityLog.objects.latest('timestamp')
+        self.assertEqual(log.action_type, 'approve')
+        self.assertEqual(log.entity_type, 'Admission')
+        self.assertEqual(log.entity_id, admission_id)
+        self.assertEqual(log.user, self.user)

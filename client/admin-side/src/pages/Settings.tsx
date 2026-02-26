@@ -18,6 +18,7 @@ import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { settingsService, type SystemSettings } from '@/services/settingsService';
 import { getErrorMessage } from '@/lib/api';
@@ -48,18 +49,20 @@ export default function Settings() {
   const { theme, setTheme } = useTheme();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { user } = useAuth(); // Get user from AuthContext
   
   // Profile state
   const [profile, setProfile] = useState<AdminProfile>({
-    id: '1',
-    fullName: 'Admin User',
-    email: 'admin@sirajganjipi.edu.bd',
-    phone: '+880 1700-000000',
-    role: 'Super Admin',
-    lastLogin: '2024-01-15T10:30:00',
-    createdAt: '2023-01-01T00:00:00'
+    id: '',
+    fullName: '',
+    email: '',
+    phone: '',
+    role: '',
+    lastLogin: '',
+    createdAt: ''
   });
   const [editingProfile, setEditingProfile] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(true);
   
   // Password state
   const [passwords, setPasswords] = useState({
@@ -115,11 +118,101 @@ export default function Settings() {
   const [departmentsLoading, setDepartmentsLoading] = useState(false);
   const [departmentsSaving, setDepartmentsSaving] = useState(false);
 
-  // Fetch settings and departments on mount
+  // Fetch settings and departments on mount, and initialize profile from AuthContext
   useEffect(() => {
     fetchSettings();
     fetchDepartments();
-  }, []);
+    
+    // Initialize profile from AuthContext user
+    if (user) {
+      const firstName = user.first_name || '';
+      const lastName = user.last_name || '';
+      const fullName = `${firstName} ${lastName}`.trim() || user.username || 'User';
+      
+      // Map role to display name
+      let roleDisplay = 'Staff';
+      if (user.role === 'registrar') {
+        roleDisplay = 'Registrar';
+      } else if (user.role === 'institute_head') {
+        roleDisplay = 'Institute Head';
+      } else if (user.role === 'admin' || user.role === 'superadmin') {
+        roleDisplay = 'Admin';
+      }
+      
+      setProfile({
+        id: user.id || '',
+        fullName: fullName,
+        email: user.email || '',
+        phone: '', // Will be fetched from API
+        role: roleDisplay,
+        lastLogin: '',
+        createdAt: ''
+      });
+    }
+    
+    // Fetch additional profile data from API
+    fetchProfile();
+  }, [user]);
+
+  const fetchProfile = async () => {
+    try {
+      setProfileLoading(true);
+      const response = await apiClient.get<any>('auth/me/');
+      console.log('Profile API response:', response); // Debug log
+      
+      // The response has user data nested in a 'user' property
+      const userData = response.user || response;
+      
+      // Build full name from first_name and last_name
+      const firstName = userData.first_name || '';
+      const lastName = userData.last_name || '';
+      const fullName = `${firstName} ${lastName}`.trim() || userData.username || 'User';
+      
+      // Map role to display name
+      let roleDisplay = 'Staff';
+      if (userData.role === 'registrar') {
+        roleDisplay = 'Registrar';
+      } else if (userData.role === 'institute_head') {
+        roleDisplay = 'Institute Head';
+      } else if (userData.role === 'admin' || userData.role === 'superadmin') {
+        roleDisplay = userData.is_superuser ? 'Super Admin' : 'Admin';
+      } else if (userData.role === 'teacher') {
+        roleDisplay = 'Teacher';
+      } else if (userData.role === 'student' || userData.role === 'captain') {
+        roleDisplay = userData.role === 'captain' ? 'Captain' : 'Student';
+      }
+      
+      setProfile({
+        id: userData.id || '',
+        fullName: fullName,
+        email: userData.email || '',
+        phone: userData.mobile_number || '',
+        role: roleDisplay,
+        lastLogin: userData.last_login || '',
+        createdAt: userData.date_joined || ''
+      });
+      
+      console.log('Mapped profile:', {
+        id: userData.id,
+        fullName,
+        email: userData.email,
+        phone: userData.mobile_number,
+        role: roleDisplay
+      }); // Debug log
+    } catch (err) {
+      console.error('Failed to fetch profile:', err);
+      // Don't show error toast if we already have user data from AuthContext
+      if (!user) {
+        toast({
+          title: 'Error',
+          description: 'Failed to load profile data',
+          variant: 'destructive',
+        });
+      }
+    } finally {
+      setProfileLoading(false);
+    }
+  };
 
   const fetchSettings = async () => {
     try {
@@ -164,17 +257,32 @@ export default function Settings() {
   const handleSaveProfile = async () => {
     try {
       setSaving(true);
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Split full name into first and last name
+      const nameParts = (profile.fullName || '').trim().split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+      
+      await apiClient.put('auth/profile/', {
+        first_name: firstName,
+        last_name: lastName,
+        email: profile.email,
+        mobile_number: profile.phone,
+      });
+      
       setEditingProfile(false);
       toast({
         title: "Profile Updated",
         description: "Your profile has been updated successfully.",
       });
+      
+      // Refresh profile data
+      await fetchProfile();
     } catch (err) {
+      const errorMsg = getErrorMessage(err);
       toast({
         title: 'Error',
-        description: 'Failed to update profile',
+        description: errorMsg || 'Failed to update profile',
         variant: 'destructive',
       });
     } finally {
@@ -202,16 +310,21 @@ export default function Settings() {
     
     try {
       setSaving(true);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await apiClient.post('auth/change-password/', {
+        old_password: passwords.current,
+        new_password: passwords.new,
+      });
+      
       setPasswords({ current: '', new: '', confirm: '' });
       toast({
         title: "Password Changed",
         description: "Your password has been changed successfully.",
       });
     } catch (err) {
+      const errorMsg = getErrorMessage(err);
       toast({
         title: 'Error',
-        description: 'Failed to change password',
+        description: errorMsg || 'Failed to change password',
         variant: 'destructive',
       });
     } finally {
@@ -347,7 +460,7 @@ export default function Settings() {
   ];
 
   // Loading state
-  if (loading) {
+  if (loading || profileLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center space-y-4">
@@ -410,9 +523,9 @@ export default function Settings() {
                 <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center">
                   <div className="relative">
                     <Avatar className="w-24 h-24 border-4 border-primary/20">
-                      <AvatarImage src={profile.avatar} alt={profile.fullName} />
+                      <AvatarImage src={profile.avatar} alt={profile.fullName || 'User'} />
                       <AvatarFallback className="text-2xl bg-gradient-to-br from-primary to-primary/70 text-primary-foreground">
-                        {profile.fullName.split(' ').map(n => n[0]).join('').toUpperCase()}
+                        {(profile.fullName || 'U').split(' ').map(n => n[0]).join('').toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <Button
@@ -424,12 +537,12 @@ export default function Settings() {
                     </Button>
                   </div>
                   <div className="space-y-1">
-                    <h3 className="text-xl font-semibold">{profile.fullName}</h3>
+                    <h3 className="text-xl font-semibold">{profile.fullName || 'User'}</h3>
                     <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
-                      {profile.role}
+                      {profile.role || 'Admin'}
                     </Badge>
                     <p className="text-sm text-muted-foreground">
-                      Last login: {new Date(profile.lastLogin || '').toLocaleString()}
+                      Last login: {profile.lastLogin && profile.lastLogin !== 'null' ? new Date(profile.lastLogin).toLocaleString() : 'Never'}
                     </p>
                   </div>
                 </div>
@@ -442,7 +555,7 @@ export default function Settings() {
                     <Label htmlFor="fullName">Full Name</Label>
                     <Input
                       id="fullName"
-                      value={profile.fullName}
+                      value={profile.fullName || ''}
                       onChange={(e) => setProfile({ ...profile, fullName: e.target.value })}
                       disabled={!editingProfile}
                     />
@@ -454,7 +567,7 @@ export default function Settings() {
                       <Input
                         id="profileEmail"
                         type="email"
-                        value={profile.email}
+                        value={profile.email || ''}
                         onChange={(e) => setProfile({ ...profile, email: e.target.value })}
                         disabled={!editingProfile}
                         className="pl-10"
@@ -467,7 +580,7 @@ export default function Settings() {
                       <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
                         id="profilePhone"
-                        value={profile.phone}
+                        value={profile.phone || ''}
                         onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
                         disabled={!editingProfile}
                         className="pl-10"
@@ -478,7 +591,7 @@ export default function Settings() {
                     <Label htmlFor="role">Role</Label>
                     <Input
                       id="role"
-                      value={profile.role}
+                      value={profile.role || ''}
                       disabled
                       className="bg-muted"
                     />

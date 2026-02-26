@@ -67,6 +67,28 @@ export interface AdminDashboardData {
   recentApplications: number;
 }
 
+export interface DepartmentChartData {
+  name: string;
+  value: number;
+  color: string;
+}
+
+export interface AdmissionChartData {
+  name: string;
+  pending: number;
+  approved: number;
+}
+
+export interface AttendanceChartData {
+  semester: string;
+  attendance: number;
+}
+
+export interface GPAChartData {
+  year: string;
+  gpa: number;
+}
+
 // Service
 export const dashboardService = {
   /**
@@ -82,5 +104,49 @@ export const dashboardService = {
   getAdminDashboard: async (department?: string): Promise<AdminDashboardData> => {
     const params = department ? { department } : undefined;
     return await apiClient.get<AdminDashboardData>('dashboard/admin/', params);
+  },
+
+  /**
+   * Get department distribution chart data
+   */
+  getDepartmentDistribution: async (): Promise<DepartmentChartData[]> => {
+    const response = await apiClient.get<{ type: string; data: DepartmentChartData[] }>(
+      'dashboard/analytics/',
+      { type: 'department-distribution' }
+    );
+    return response.data;
+  },
+
+  /**
+   * Get admission trend chart data
+   */
+  getAdmissionTrend: async (): Promise<AdmissionChartData[]> => {
+    const response = await apiClient.get<{ type: string; data: AdmissionChartData[] }>(
+      'dashboard/analytics/',
+      { type: 'admissions-trend' }
+    );
+    return response.data;
+  },
+
+  /**
+   * Get attendance by semester chart data
+   */
+  getAttendanceBySemester: async (): Promise<AttendanceChartData[]> => {
+    const response = await apiClient.get<{ type: string; data: AttendanceChartData[] }>(
+      'dashboard/analytics/',
+      { type: 'attendance-by-semester' }
+    );
+    return response.data;
+  },
+
+  /**
+   * Get GPA trend chart data
+   */
+  getGPATrend: async (): Promise<GPAChartData[]> => {
+    const response = await apiClient.get<{ type: string; data: GPAChartData[] }>(
+      'dashboard/analytics/',
+      { type: 'gpa-trend' }
+    );
+    return response.data;
   },
 };

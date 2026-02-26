@@ -12,8 +12,10 @@ import { dashboardService, type DashboardStats } from '@/services/dashboardServi
 import { getErrorMessage } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function Dashboard() {
+  const { user } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -121,7 +123,7 @@ export default function Dashboard() {
       {/* Page Header */}
       <div>
         <h1 className="text-2xl md:text-3xl font-bold text-foreground">
-          Welcome back, <span className="gradient-text">Admin</span>
+          Welcome back, <span className="gradient-text">{user?.last_name || user?.first_name || 'Admin'}</span>
         </h1>
         <p className="text-muted-foreground mt-1">
           Here's what's happening at Sirajganj Polytechnic Institute today.

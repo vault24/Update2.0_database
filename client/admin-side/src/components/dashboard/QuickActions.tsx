@@ -1,13 +1,13 @@
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { UserPlus, Users, GraduationCap, Inbox, UserX } from 'lucide-react';
+import { Bell, Users, GraduationCap, Inbox, UserX, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const actions = [
   {
-    icon: UserPlus,
-    label: 'Add Student',
-    path: '/add-student',
+    icon: Plus,
+    label: 'Add Notice',
+    path: '/notices',
     color: 'bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground',
   },
   {

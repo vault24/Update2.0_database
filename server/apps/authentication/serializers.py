@@ -373,9 +373,10 @@ class UserSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name', 'role',
             'related_profile_id', 'student_id', 'admission_status', 'account_status',
-            'mobile_number', 'semester', 'student_status', 'is_alumni'
+            'mobile_number', 'semester', 'student_status', 'is_alumni',
+            'last_login', 'date_joined'
         ]
-        read_only_fields = ['id', 'username', 'role', 'student_id']
+        read_only_fields = ['id', 'username', 'role', 'student_id', 'last_login', 'date_joined']
     
     def get_semester(self, obj):
         """Get student's current semester"""
@@ -415,12 +416,22 @@ class UserSerializer(serializers.ModelSerializer):
         return False
     
     def to_representation(self, instance):
-        """Customize the representation to handle null related_profile_id"""
+        """Customize the representation based on user role"""
         data = super().to_representation(instance)
         
-        # If related_profile_id is null, use the user's ID as fallback
-        if not data.get('related_profile_id'):
-            data['related_profile_id'] = str(instance.id)
+        # Remove student-specific fields for non-student users
+        if instance.role not in ['student', 'captain', 'alumni']:
+            # Remove student-specific fields for admin, teacher, registrar, institute_head, etc.
+            data.pop('student_id', None)
+            data.pop('admission_status', None)
+            data.pop('semester', None)
+            data.pop('student_status', None)
+            data.pop('is_alumni', None)
+            data.pop('related_profile_id', None)
+        else:
+            # For students, if related_profile_id is null, use the user's ID as fallback
+            if not data.get('related_profile_id'):
+                data['related_profile_id'] = str(instance.id)
         
         return data
 

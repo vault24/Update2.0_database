@@ -16,7 +16,6 @@ import {
   FileEdit,
   BarChart3,
   Settings,
-  Activity,
   X,
   BookOpen,
   UserCheck,
@@ -57,7 +56,6 @@ const menuItems: MenuGroup[] = [
     items: [
       { icon: Users, label: 'Students List', path: '/students' },
       { icon: UserPlus, label: 'Add Student', path: '/add-student' },
-      { icon: UserX, label: 'Discontinued Students', path: '/discontinued-students' },
       { icon: GraduationCap, label: 'Admissions', path: '/admissions' },
       { icon: Award, label: 'Stipend Eligible', path: '/stipend-eligible' },
     ],
@@ -76,6 +74,7 @@ const menuItems: MenuGroup[] = [
     label: 'Profiles & Records',
     collapsible: true,
     items: [
+      { icon: UserX, label: 'Discontinued Students', path: '/discontinued-students' },
       { icon: Award, label: 'Alumni', path: '/alumni' },
       { icon: FileText, label: 'Documents', path: '/documents' },
     ],
@@ -88,22 +87,6 @@ const menuItems: MenuGroup[] = [
       { icon: FileEdit, label: 'Correction Requests', path: '/correction-requests' },
       { icon: UserCog, label: 'Signup Requests', path: '/signup-requests' },
       { icon: MessageSquareWarning, label: 'Complaints', path: '/complaints' },
-    ],
-  },
-  {
-    label: 'Communication',
-    collapsible: true,
-    items: [
-      { icon: Bell, label: 'Notices & Updates', path: '/notices' },
-    ],
-  },
-  {
-    label: 'System',
-    collapsible: true,
-    items: [
-      { icon: BarChart3, label: 'Analytics & Reports', path: '/analytics' },
-      { icon: Settings, label: 'Settings', path: '/settings' },
-      { icon: Activity, label: 'Activity Logs', path: '/activity-logs' },
     ],
   },
 ];

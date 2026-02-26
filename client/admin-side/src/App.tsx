@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AdminLayout } from "@/components/layout/AdminLayout";
@@ -23,9 +23,8 @@ import AlumniDetails from "./pages/AlumniDetails";
 import Documents from "./pages/Documents";
 import Applications from "./pages/Applications";
 import CorrectionRequests from "./pages/CorrectionRequests";
-import Analytics from "./pages/Analytics";
 import Settings from "./pages/Settings";
-import ActivityLogs from "./pages/ActivityLogs";
+import SystemActivityReports from "./pages/SystemActivityReports";
 import Departments from "./pages/Departments";
 import DepartmentView from "./pages/DepartmentView";
 import Teachers from "./pages/Teachers";
@@ -83,9 +82,9 @@ const App = () => (
                   <Route path="/applications" element={<Applications />} />
                   <Route path="/correction-requests" element={<CorrectionRequests />} />
                   <Route path="/complaints" element={<Complaints />} />
-                  <Route path="/analytics" element={<Analytics />} />
+                  <Route path="/analytics" element={<SystemActivityReports />} />
                   <Route path="/settings" element={<Settings />} />
-                  <Route path="/activity-logs" element={<ActivityLogs />} />
+                  <Route path="/activity-logs" element={<Navigate to="/analytics" replace />} />
                   <Route path="/motivation-management" element={<MotivationManagement />} />
                 </Route>
               </Route>

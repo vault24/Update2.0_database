@@ -159,6 +159,11 @@ def login_view(request):
         if serializer.is_valid():
             user = serializer.validated_data['user']
             
+            # Update last_login timestamp
+            from django.utils import timezone
+            user.last_login = timezone.now()
+            user.save(update_fields=['last_login'])
+            
             # Login user (creates session)
             login(request, user)
             
@@ -321,7 +326,8 @@ def update_profile_view(request):
     {
         "first_name": "string" (optional),
         "last_name": "string" (optional),
-        "email": "string" (optional)
+        "email": "string" (optional),
+        "mobile_number": "string" (optional)
     }
     
     Returns:
@@ -334,6 +340,7 @@ def update_profile_view(request):
     first_name = request.data.get('first_name')
     last_name = request.data.get('last_name')
     email = request.data.get('email')
+    mobile_number = request.data.get('mobile_number')
     
     # Update fields if provided
     if first_name is not None:
@@ -351,6 +358,9 @@ def update_profile_view(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         user.email = email
+    
+    if mobile_number is not None:
+        user.mobile_number = mobile_number.strip()
     
     try:
         user.save()

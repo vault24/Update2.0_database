@@ -100,7 +100,7 @@ class User(AbstractUser):
     )
     
     # Additional fields
-    mobile_number = models.CharField(max_length=11, blank=True)
+    mobile_number = models.CharField(max_length=20, blank=True)
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)

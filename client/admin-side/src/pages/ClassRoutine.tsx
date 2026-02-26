@@ -120,28 +120,10 @@ export default function ClassRoutine() {
       const teacherShifts = teacher.shifts || [];
       const hasShift = teacherShifts.includes(shiftLower);
       
-      // Debug logging
-      if (teacherShifts.length > 0) {
-        console.log(`Teacher ${teacher.fullNameEnglish}:`, {
-          shifts: teacherShifts,
-          lookingFor: shiftLower,
-          hasShift
-        });
-      }
-      
       return hasShift;
     });
     
     console.log(`Filtered teachers for ${shift}:`, filtered.length, 'out of', teachers.length);
-    
-    // If no teachers have shifts assigned yet, show all teachers as fallback
-    if (filtered.length === 0 && teachers.length > 0) {
-      const teachersWithShifts = teachers.filter(t => t.shifts && t.shifts.length > 0);
-      if (teachersWithShifts.length === 0) {
-        console.warn('No teachers have shifts assigned yet, showing all teachers');
-        return teachers;
-      }
-    }
     
     return filtered;
   };
