@@ -133,23 +133,28 @@ export default function AdmissionDetails() {
   };
 
   const fetchAdmissionDocuments = async () => {
-    if (!id) return;
+    if (!id || !admission) return;
     
     try {
       setDocumentsLoading(true);
       
-      // First, try to get documents by source_type='admission' and source_id=admission_id
+      // Use the UUID field from admission object for filtering
+      // The 'id' param is application_id (SIPI-xxxxx), but we need the UUID
+      const admissionUuid = admission.uuid || id;
+      
+      console.log(`🔍 Fetching documents for admission: id=${id}, uuid=${admissionUuid}`);
+      
+      // First, try to get documents by source_type='admission' and source_id=admission_uuid
       const response = await documentService.getDocuments({
         source_type: 'admission',
-        source_id: id, // This is the admission ID
+        source_id: admissionUuid, // Use UUID instead of application_id
         page_size: 100
       });
       
       // STRICT filtering to ensure we only get documents for this specific admission
-      // The backend filter might not be working correctly, so we do client-side filtering
       let admissionDocuments = (response.results || []).filter(doc => {
         const isAdmissionDoc = doc.source_type === 'admission';
-        const isCorrectAdmission = doc.source_id === id;
+        const isCorrectAdmission = doc.source_id === admissionUuid;
         
         console.log(`Document ${doc.fileName}: source_type=${doc.source_type}, source_id=${doc.source_id}, matches=${isAdmissionDoc && isCorrectAdmission}`);
         
@@ -170,7 +175,7 @@ export default function AdmissionDetails() {
         // Filter these results to only include documents that might be related to this admission
         admissionDocuments = (userResponse.results || []).filter(doc => {
           const isAdmissionDoc = doc.source_type === 'admission';
-          const isCorrectAdmission = doc.source_id === id;
+          const isCorrectAdmission = doc.source_id === admissionUuid;
           const isCorrectStudent = doc.student === admission.user?.id || doc.student === admission.user;
           
           console.log(`Alt Document ${doc.fileName}: source_type=${doc.source_type}, source_id=${doc.source_id}, student=${doc.student}, matches=${isAdmissionDoc && (isCorrectAdmission || isCorrectStudent)}`);
@@ -181,7 +186,7 @@ export default function AdmissionDetails() {
       
       setDocuments(admissionDocuments);
       
-      console.log(`✅ Filtered to ${admissionDocuments.length} documents for admission ${id}`);
+      console.log(`✅ Filtered to ${admissionDocuments.length} documents for admission ${id} (UUID: ${admissionUuid})`);
       if (admissionDocuments.length > 0) {
         console.log('✅ Document source_ids:', admissionDocuments.map(d => `${d.fileName} -> ${d.source_id}`));
       } else {
@@ -536,7 +541,7 @@ export default function AdmissionDetails() {
                     Showing {documents.length} document{documents.length !== 1 ? 's' : ''} uploaded for this admission
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Admission ID: {id}
+                    Application ID: {id} {admission.uuid && `(UUID: ${admission.uuid})`}
                   </p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -588,10 +593,15 @@ export default function AdmissionDetails() {
                 <FileText className="w-12 h-12 text-muted-foreground mb-2" />
                 <p className="text-muted-foreground">No documents found for this admission</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Only documents uploaded specifically for admission ID: {id} will appear here
+                  Application ID: {id}
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Check the browser console for debugging information
+                {admission.uuid && (
+                  <p className="text-xs text-muted-foreground">
+                    UUID: {admission.uuid}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground mt-2">
+                  Documents should be uploaded during the admission process
                 </p>
               </div>
             )}

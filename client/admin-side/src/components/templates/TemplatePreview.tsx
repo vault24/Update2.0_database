@@ -27,7 +27,6 @@ interface TemplatePreviewProps {
   templateContent: string;
   studentData: DocumentStudentData;
   customData?: Partial<DocumentStudentData>;
-  onPrint?: () => void;
   onDownload?: () => void;
   className?: string;
 }
@@ -36,7 +35,6 @@ export const TemplatePreview: React.FC<TemplatePreviewProps> = ({
   templateContent,
   studentData,
   customData = {},
-  onPrint,
   onDownload,
   className = ''
 }) => {
@@ -111,48 +109,19 @@ export const TemplatePreview: React.FC<TemplatePreviewProps> = ({
     setIsFullscreen(!isFullscreen);
   };
 
-  // Handle print
   const handlePrint = () => {
     if (!populatedContent) {
-      onPrint?.();
       return;
     }
 
     try {
-      // Prepare print view with only document content
-      const printContent = PDFExportService.preparePrintView(populatedContent);
-      
-      // Open print dialog in new window with proper sizing
-      const printWindow = window.open('', '_blank', 'width=1200,height=800,scrollbars=yes');
-      if (!printWindow) {
-        throw new Error('Unable to open print window. Please check your browser popup settings.');
-      }
-
-      printWindow.document.write(printContent);
-      printWindow.document.close();
-
-      // Wait for content to load before printing
-      printWindow.onload = () => {
-        setTimeout(() => {
-          printWindow.print();
-        }, 1000);
-      };
-      
-      // Fallback if onload doesn't fire
-      setTimeout(() => {
-        if (printWindow.document.readyState === 'complete') {
-          printWindow.print();
-        }
-      }, 1500);
+      PDFExportService.openPrintDialog(populatedContent);
     } catch (error) {
       console.error('Print error:', error);
-      // Fallback to iframe print if available
       if (iframeRef.current?.contentWindow) {
         iframeRef.current.contentWindow.print();
       }
     }
-    
-    onPrint?.();
   };
 
   const containerClasses = isFullscreen 
@@ -230,7 +199,7 @@ export const TemplatePreview: React.FC<TemplatePreviewProps> = ({
                   <Printer className="w-4 h-4" />
                   Print
                 </Button>
-                
+
                 {onDownload && (
                   <Button
                     variant="outline"

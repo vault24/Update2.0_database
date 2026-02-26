@@ -1,10 +1,12 @@
-import { Upload, File, X, CheckCircle, AlertCircle, Loader2, RefreshCw, Wifi, WifiOff } from 'lucide-react';
+import { Upload, File, X, CheckCircle, AlertCircle, Loader2, RefreshCw, Wifi, WifiOff, Eye, Download } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { useState, useEffect } from 'react';
 import { AdmissionFormState } from '../types';
+import { documentService, Document } from '@/services/documentService';
+import { admissionService } from '@/services/admissionService';
 
 interface Props {
   formData: AdmissionFormState;
@@ -18,10 +20,75 @@ interface FileUploadState {
   retryCount: number;
 }
 
+interface PreviousDocument {
+  id: string;
+  fileName: string;
+  fileSize: number;
+  fileType: string;
+  uploadDate: string;
+  file_url: string;
+  original_field_name?: string;
+}
+
 export function StepDocuments({ formData, onChange }: Props) {
   const [uploadStates, setUploadStates] = useState<Record<string, FileUploadState>>({});
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [globalUploadProgress, setGlobalUploadProgress] = useState(0);
+  const [previousDocuments, setPreviousDocuments] = useState<Record<string, PreviousDocument>>({});
+  const [loadingPreviousDocs, setLoadingPreviousDocs] = useState(true);
+
+  // Fetch previous documents on mount
+  useEffect(() => {
+    const fetchPreviousDocuments = async () => {
+      try {
+        setLoadingPreviousDocs(true);
+        
+        // Get the current user's admission
+        const admission = await admissionService.getMyAdmission();
+        
+        if (!admission) {
+          setLoadingPreviousDocs(false);
+          return;
+        }
+
+        // Use UUID if available, otherwise use id
+        const admissionUuid = admission.uuid || admission.id;
+        
+        // Fetch documents for this admission
+        const response = await documentService.getDocuments({
+          source_type: 'admission',
+          source_id: admissionUuid,
+          page_size: 100
+        });
+
+        // Map documents by their original field name
+        const docsMap: Record<string, PreviousDocument> = {};
+        (response.results || []).forEach((doc: Document) => {
+          if (doc.original_field_name) {
+            docsMap[doc.original_field_name] = {
+              id: doc.id,
+              fileName: doc.fileName,
+              fileSize: doc.fileSize,
+              fileType: doc.fileType,
+              uploadDate: doc.uploadDate,
+              file_url: doc.file_url,
+              original_field_name: doc.original_field_name
+            };
+          }
+        });
+
+        setPreviousDocuments(docsMap);
+        console.log('✅ Loaded previous documents:', Object.keys(docsMap));
+      } catch (error) {
+        console.error('Failed to fetch previous documents:', error);
+        // Don't show error toast, just log it
+      } finally {
+        setLoadingPreviousDocs(false);
+      }
+    };
+
+    fetchPreviousDocuments();
+  }, []);
 
   // Monitor network status
   useEffect(() => {
@@ -201,6 +268,33 @@ export function StepDocuments({ formData, onChange }: Props) {
     const isUploading = uploadState?.isUploading || false;
     const hasError = uploadState?.error;
     const progress = uploadState?.progress || 0;
+    const previousDoc = previousDocuments[fieldKey];
+    const hasPreviousDoc = !!previousDoc && !hasFile;
+
+    const handleViewDocument = async (doc: PreviousDocument) => {
+      try {
+        window.open(documentService.getDocumentPreviewUrl(doc.id), '_blank');
+      } catch (error) {
+        toast.error('Failed to open document');
+      }
+    };
+
+    const handleDownloadDocument = async (doc: PreviousDocument) => {
+      try {
+        const blob = await documentService.downloadDocument(doc.id);
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = doc.fileName;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        toast.success('Download started');
+      } catch (error) {
+        toast.error('Failed to download document');
+      }
+    };
 
     return (
       <div className="space-y-2">
@@ -220,6 +314,8 @@ export function StepDocuments({ formData, onChange }: Props) {
             ? 'border-blue-300 bg-blue-50'
             : hasFile 
             ? 'border-green-300 bg-green-50 hover:border-green-400 cursor-pointer' 
+            : hasPreviousDoc
+            ? 'border-purple-300 bg-purple-50 hover:border-purple-400 cursor-pointer'
             : 'border-border hover:border-primary/50 cursor-pointer'
         }`}>
           <input
@@ -303,6 +399,53 @@ export function StepDocuments({ formData, onChange }: Props) {
                 </Button>
               </div>
             </div>
+          ) : hasPreviousDoc ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-center">
+                <File className="w-8 h-8 text-purple-600" />
+              </div>
+              <div>
+                <p className="text-xs text-purple-600 font-medium mb-1">Previous Upload</p>
+                <p className="text-sm font-medium text-purple-800">{previousDoc.fileName}</p>
+                <p className="text-xs text-purple-600">
+                  {(previousDoc.fileSize / 1024 / 1024).toFixed(2)} MB • {previousDoc.fileType.toUpperCase()}
+                </p>
+                <p className="text-xs text-purple-500 mt-1">
+                  Uploaded: {new Date(previousDoc.uploadDate).toLocaleDateString()}
+                </p>
+              </div>
+              <div className="flex gap-2 justify-center flex-wrap">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleViewDocument(previousDoc)}
+                >
+                  <Eye className="w-4 h-4 mr-1" />
+                  View
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDownloadDocument(previousDoc)}
+                >
+                  <Download className="w-4 h-4 mr-1" />
+                  Download
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => document.getElementById(String(id))?.click()}
+                >
+                  Replace
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                This document will be used unless you upload a new one
+              </p>
+            </div>
           ) : (
             <label htmlFor={String(id)} className="cursor-pointer">
               <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
@@ -324,12 +467,18 @@ export function StepDocuments({ formData, onChange }: Props) {
         <div className="flex items-center justify-between mb-1">
           <h3 className="text-xl font-semibold">Documents Upload</h3>
           <div className="flex items-center gap-2">
-            {isOnline ? (
+            {loadingPreviousDocs && (
+              <div className="flex items-center gap-1 text-blue-600 text-sm">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Loading previous documents...</span>
+              </div>
+            )}
+            {!loadingPreviousDocs && isOnline ? (
               <div className="flex items-center gap-1 text-green-600 text-sm">
                 <Wifi className="w-4 h-4" />
                 <span>Online</span>
               </div>
-            ) : (
+            ) : !loadingPreviousDocs && (
               <div className="flex items-center gap-1 text-orange-600 text-sm">
                 <WifiOff className="w-4 h-4" />
                 <span>Offline</span>
@@ -341,6 +490,19 @@ export function StepDocuments({ formData, onChange }: Props) {
           Upload required documents (PDF, JPG, PNG)
           {!isOnline && ' • Files will be processed when connection is restored'}
         </p>
+        
+        {/* Show info about previous documents */}
+        {!loadingPreviousDocs && Object.keys(previousDocuments).length > 0 && (
+          <div className="mt-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
+            <div className="flex items-center gap-2 text-sm text-purple-800">
+              <File className="w-4 h-4" />
+              <span>
+                {Object.keys(previousDocuments).length} previous document(s) found. 
+                You can keep them or upload new ones.
+              </span>
+            </div>
+          </div>
+        )}
         
         {/* Global upload progress */}
         {Object.values(uploadStates).some(state => state.isUploading) && (
@@ -387,32 +549,63 @@ export function StepDocuments({ formData, onChange }: Props) {
           const requiredFields = ['photo', 'sscMarksheet', 'birthCertificateDoc', 'fatherNIDFront', 'fatherNIDBack', 'motherNIDFront', 'motherNIDBack'];
           const optionalFields = ['sscCertificate', 'studentNIDCopy', 'testimonial', 'medicalCertificate', 'quotaDocument', 'extraCertificates'];
           
+          // Count uploaded files (new uploads)
           const uploadedRequired = requiredFields.filter(field => formData[field as keyof AdmissionFormState]);
           const uploadedOptional = optionalFields.filter(field => formData[field as keyof AdmissionFormState]);
+          
+          // Count previous documents that will be used
+          const previousRequired = requiredFields.filter(field => 
+            !formData[field as keyof AdmissionFormState] && previousDocuments[field]
+          );
+          const previousOptional = optionalFields.filter(field => 
+            !formData[field as keyof AdmissionFormState] && previousDocuments[field]
+          );
+          
+          // Total available (new + previous)
+          const totalRequiredAvailable = uploadedRequired.length + previousRequired.length;
+          const totalOptionalAvailable = uploadedOptional.length + previousOptional.length;
           const totalUploaded = uploadedRequired.length + uploadedOptional.length;
+          const totalPrevious = previousRequired.length + previousOptional.length;
           
           return (
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <span>Required documents:</span>
-                <span className={uploadedRequired.length === requiredFields.length ? 'text-green-600 font-medium' : 'text-orange-600'}>
-                  {uploadedRequired.length}/{requiredFields.length}
+                <span className={totalRequiredAvailable === requiredFields.length ? 'text-green-600 font-medium' : 'text-orange-600'}>
+                  {totalRequiredAvailable}/{requiredFields.length}
+                  {previousRequired.length > 0 && (
+                    <span className="text-purple-600 ml-1">
+                      ({previousRequired.length} previous)
+                    </span>
+                  )}
                 </span>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span>Optional documents:</span>
                 <span className="text-muted-foreground">
-                  {uploadedOptional.length}/{optionalFields.length}
+                  {totalOptionalAvailable}/{optionalFields.length}
+                  {previousOptional.length > 0 && (
+                    <span className="text-purple-600 ml-1">
+                      ({previousOptional.length} previous)
+                    </span>
+                  )}
                 </span>
               </div>
               <div className="flex items-center justify-between text-sm font-medium pt-2 border-t">
-                <span>Total uploaded:</span>
+                <span>Total available:</span>
                 <span className="text-primary">
-                  {totalUploaded}/{requiredFields.length + optionalFields.length}
+                  {totalRequiredAvailable + totalOptionalAvailable}/{requiredFields.length + optionalFields.length}
                 </span>
               </div>
               
-              {uploadedRequired.length < requiredFields.length && (
+              {totalPrevious > 0 && (
+                <div className="flex items-center gap-2 text-sm text-purple-600 mt-3 p-2 bg-purple-50 rounded">
+                  <File className="w-4 h-4" />
+                  <span>{totalPrevious} document(s) from previous application will be reused</span>
+                </div>
+              )}
+              
+              {totalRequiredAvailable < requiredFields.length && (
                 <div className="flex items-center gap-2 text-sm text-orange-600 mt-3">
                   <AlertCircle className="w-4 h-4" />
                   <span>Please upload all required documents before submitting</span>

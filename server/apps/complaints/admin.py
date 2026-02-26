@@ -11,19 +11,38 @@ from .models import (
 
 @admin.register(ComplaintCategory)
 class ComplaintCategoryAdmin(admin.ModelAdmin):
-    list_display = ['name', 'description', 'is_active']
+    list_display = ['name', 'label', 'description', 'is_core', 'is_active', 'sort_order']
     list_filter = ['is_active']
-    search_fields = ['name', 'description']
-    ordering = ['name']
+    search_fields = ['name', 'label', 'description']
+    ordering = ['sort_order', 'name']
     
     fieldsets = (
         ('Category Information', {
-            'fields': ('name', 'description')
+            'fields': ('name', 'label', 'description', 'icon', 'color')
         }),
-        ('Status', {
-            'fields': ('is_active',)
+        ('Settings', {
+            'fields': ('is_active', 'sort_order')
         }),
     )
+    
+    def is_core(self, obj):
+        """Display if this is a core category"""
+        if obj.is_core_category():
+            return format_html('<span style="color: green; font-weight: bold;">✓ Core</span>')
+        return format_html('<span style="color: gray;">Custom</span>')
+    is_core.short_description = 'Type'
+    
+    def has_delete_permission(self, request, obj=None):
+        """Prevent deletion of core categories"""
+        if obj and obj.is_core_category():
+            return False
+        return super().has_delete_permission(request, obj)
+    
+    def get_readonly_fields(self, request, obj=None):
+        """Make core category fields read-only"""
+        if obj and obj.is_core_category():
+            return ['name', 'label', 'icon', 'color']
+        return []
 
 
 @admin.register(ComplaintSubcategory)

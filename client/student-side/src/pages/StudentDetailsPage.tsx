@@ -90,6 +90,9 @@ export default function StudentDetailsPage() {
         setLoading(true);
         setError(null);
         const data = await studentService.getStudent(id);
+        console.log('📊 Student data received:', data);
+        console.log('🎯 Current Roll Number:', data.currentRollNumber);
+        console.log('📝 SSC Roll Number:', (data as any).rollNumber);
         setStudent(data);
       } catch (err) {
         const errorMsg = getErrorMessage(err);
@@ -408,7 +411,7 @@ export default function StudentDetailsPage() {
               <InfoRow label="Highest Exam" value={(student as any).highestExam} />
               <InfoRow label="Board" value={(student as any).board} />
               <InfoRow label="Group" value={(student as any).group} />
-              <InfoRow label="Roll Number" value={(student as any).rollNumber} />
+              <InfoRow label="SSC Roll Number" value={(student as any).rollNumber} />
               <InfoRow label="Registration Number" value={(student as any).registrationNumber} />
               <InfoRow label="Passing Year" value={(student as any).passingYear?.toString()} />
               <InfoRow label="GPA" value={(student as any).gpa?.toString()} />
@@ -421,7 +424,7 @@ export default function StudentDetailsPage() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
           <CollapsibleSection title="Current Academic Information" icon={<BookOpen className="w-4 h-4" />}>
             <div className="space-y-1">
-              <InfoRow label="Roll Number" value={student.currentRollNumber} />
+              <InfoRow label="Current Roll Number" value={student.currentRollNumber} />
               <InfoRow label="Registration Number" value={student.currentRegistrationNumber} />
               <InfoRow label="Semester" value={`${student.semester}th`} />
               <InfoRow label="Department" value={typeof student.department === 'string' ? student.department : student.department.name} />

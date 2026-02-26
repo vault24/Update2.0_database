@@ -26,8 +26,10 @@ export interface Document {
   filePath: string;
   fileSize: number;
   uploadDate: string;
+  file_url?: string;
   source_type?: 'admission' | 'manual' | 'system';
   source_id?: string;
+  original_field_name?: string;
 }
 
 export interface MyDocumentsResponse {

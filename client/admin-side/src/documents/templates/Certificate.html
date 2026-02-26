@@ -17,13 +17,13 @@
         }
 
         body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #e9edf2;
             font-family: 'Open Sans', sans-serif;
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            padding: 20px;
+            padding: 24px;
         }
 
         /* Certificate Container */
@@ -34,27 +34,30 @@
             position: relative;
             box-shadow: 0 0 30px rgba(0,0,0,0.3);
             overflow: hidden;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
         }
 
         /* Decorative Border */
         .certificate-border {
             position: absolute;
-            top: 15mm;
-            left: 15mm;
-            right: 15mm;
-            bottom: 15mm;
+            top: 9mm;
+            left: 9mm;
+            right: 9mm;
+            bottom: 9mm;
             border: 3px solid #2c3e50;
-            border-radius: 10px;
+            border-radius: 6px;
         }
 
         .certificate-inner-border {
             position: absolute;
-            top: 5mm;
-            left: 5mm;
-            right: 5mm;
-            bottom: 5mm;
+            top: 3.5mm;
+            left: 3.5mm;
+            right: 3.5mm;
+            bottom: 3.5mm;
             border: 1px solid #34495e;
-            border-radius: 5px;
+            border-radius: 3px;
         }
 
         /* Background Pattern */
@@ -64,7 +67,7 @@
             left: 0;
             right: 0;
             bottom: 0;
-            opacity: 0.03;
+            opacity: 0.015;
             background-image: 
                 radial-gradient(circle at 25% 25%, #3498db 2px, transparent 2px),
                 radial-gradient(circle at 75% 75%, #e74c3c 2px, transparent 2px);
@@ -74,18 +77,18 @@
         /* Header Section */
         .certificate-header {
             text-align: center;
-            padding: 25mm 20mm 15mm 20mm;
+            padding: 18mm 20mm 8mm 20mm;
             position: relative;
             z-index: 2;
         }
 
         .institute-logo {
-            width: 80px;
-            height: 80px;
-            margin: 0 auto 15px auto;
+            width: 68px;
+            height: 68px;
+            margin: 0 auto 10px auto;
             border-radius: 50%;
             overflow: hidden;
-            border: 3px solid #2c3e50;
+            border: 2px solid #2c3e50;
         }
 
         .institute-logo img {
@@ -96,69 +99,72 @@
 
         .institute-name {
             font-family: 'Playfair Display', serif;
-            font-size: 28px;
+            font-size: 24px;
             font-weight: 900;
             color: #2c3e50;
             text-transform: uppercase;
-            letter-spacing: 2px;
-            margin-bottom: 8px;
+            letter-spacing: 1.4px;
+            margin-bottom: 6px;
         }
 
         .institute-subtitle {
-            font-size: 14px;
+            font-size: 13px;
             color: #7f8c8d;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
         }
 
         /* Certificate Title */
         .certificate-title {
             font-family: 'Playfair Display', serif;
-            font-size: 36px;
+            font-size: 31px;
             font-weight: 700;
-            color: #8e44ad;
+            color: #2c3e50;
             text-align: center;
-            margin-bottom: 30px;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+            margin-bottom: 12px;
+            letter-spacing: 0.8px;
         }
 
         /* Main Content */
         .certificate-content {
-            padding: 0 30mm;
+            padding: 0 26mm;
             text-align: center;
             position: relative;
             z-index: 2;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
         }
 
         .certificate-text {
-            font-size: 18px;
-            line-height: 1.8;
+            font-size: 17px;
+            line-height: 1.55;
             color: #2c3e50;
-            margin-bottom: 25px;
+            margin-bottom: 8px;
         }
 
         .student-name {
             font-family: 'Playfair Display', serif;
-            font-size: 32px;
+            font-size: 30px;
             font-weight: 700;
-            color: #e74c3c;
+            color: #1f3b5b;
             text-decoration: underline;
-            text-decoration-color: #3498db;
-            text-underline-offset: 8px;
-            margin: 20px 0;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+            text-decoration-color: #2c3e50;
+            text-underline-offset: 6px;
+            margin: 10px 0 12px;
         }
 
         .course-details {
-            font-size: 20px;
+            font-size: 18px;
             font-weight: 600;
-            color: #27ae60;
-            margin: 20px 0;
+            color: #2c3e50;
+            margin: 10px 0;
         }
 
         .achievement-details {
-            font-size: 16px;
+            font-size: 15px;
             color: #34495e;
-            margin: 15px 0;
+            margin: 6px 0;
             font-style: italic;
         }
 
@@ -167,9 +173,10 @@
             display: flex;
             justify-content: space-between;
             align-items: flex-end;
-            padding: 30mm 30mm 20mm 30mm;
+            padding: 10mm 30mm 0 30mm;
             position: relative;
             z-index: 2;
+            margin-top: auto;
         }
 
         .signature-block {
@@ -179,7 +186,7 @@
 
         .signature-line {
             border-top: 2px solid #2c3e50;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
             width: 180px;
             margin-left: auto;
             margin-right: auto;
@@ -199,26 +206,18 @@
 
         /* Date and Serial */
         .certificate-footer {
-            position: absolute;
-            bottom: 25mm;
-            left: 30mm;
-            right: 30mm;
+            padding: 5mm 30mm 12mm 30mm;
             display: flex;
             justify-content: space-between;
-            font-size: 14px;
-            color: #7f8c8d;
+            font-size: 13px;
+            color: #4f5b66;
             z-index: 2;
+            position: relative;
         }
 
         /* Decorative Elements */
         .decoration-left, .decoration-right {
-            position: absolute;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 60px;
-            height: 200px;
-            background: linear-gradient(45deg, #3498db, #9b59b6);
-            opacity: 0.1;
+            display: none;
         }
 
         .decoration-left {
@@ -233,20 +232,7 @@
 
         /* Seal/Stamp Area */
         .official-seal {
-            position: absolute;
-            bottom: 40mm;
-            right: 40mm;
-            width: 80px;
-            height: 80px;
-            border: 2px dashed #bdc3c7;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 10px;
-            color: #95a5a6;
-            text-align: center;
-            z-index: 2;
+            display: none;
         }
 
         /* Controls */
@@ -283,6 +269,12 @@
         }
 
         @media print {
+            html, body {
+                width: 297mm;
+                height: 210mm;
+                overflow: hidden;
+            }
+
             body {
                 background: white;
                 display: block;
@@ -292,9 +284,10 @@
 
             .certificate-container {
                 box-shadow: none;
-                margin: 0;
+                margin: 0 auto;
                 width: 297mm;
                 height: 210mm;
+                page-break-after: auto;
             }
 
             .controls {
@@ -310,15 +303,17 @@
         /* Responsive */
         @media screen and (max-width: 1200px) {
             .certificate-container {
-                transform: scale(0.7);
-                margin: 20px auto;
+                transform: scale(0.72);
+                transform-origin: top center;
+                margin: 20px auto 0;
             }
         }
 
         @media screen and (max-width: 800px) {
             .certificate-container {
-                transform: scale(0.5);
-                margin: 10px auto;
+                transform: scale(0.52);
+                transform-origin: top center;
+                margin: 10px auto 0;
             }
         }
     </style>
@@ -333,8 +328,6 @@
         <div class="bg-pattern"></div>
         <div class="certificate-border"></div>
         <div class="certificate-inner-border"></div>
-        <div class="decoration-left"></div>
-        <div class="decoration-right"></div>
 
         <!-- Header -->
         <div class="certificate-header">
@@ -406,10 +399,6 @@
             <div>Date of Issue: <span id="issueDate"></span></div>
         </div>
 
-        <!-- Official Seal -->
-        <div class="official-seal">
-            OFFICIAL<br>SEAL
-        </div>
     </div>
 
     <script>

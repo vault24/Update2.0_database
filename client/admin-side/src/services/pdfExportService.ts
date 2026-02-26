@@ -10,6 +10,7 @@ import { PDFOptions } from '@/types/template';
 export interface ExportService {
   generatePDF(htmlContent: string, options?: PDFOptions): Promise<Blob>;
   preparePrintView(htmlContent: string, orientation?: 'portrait' | 'landscape'): string;
+  prepareBatchPrintView(htmlContents: string[], orientation?: 'portrait' | 'landscape'): string;
   downloadFile(blob: Blob, filename: string): void;
 }
 
@@ -109,8 +110,14 @@ export class PDFExportService {
   /**
    * Prepare HTML content for print view
    */
-  static preparePrintView(htmlContent: string, orientation: 'portrait' | 'landscape' = 'portrait'): string {
-    // Add comprehensive print-specific styles
+  static preparePrintView(htmlContent: string, orientation?: 'portrait' | 'landscape'): string {
+    const hasA4TemplateLayout = /@page[\s\S]*size:\s*A4|width:\s*210mm|height:\s*297mm/i.test(htmlContent);
+    const templateLandscapeLayout =
+      /@page[\s\S]*size:\s*A4\s+landscape|width:\s*297mm|height:\s*210mm/i.test(htmlContent);
+    const effectiveOrientation: 'portrait' | 'landscape' =
+      orientation ?? (templateLandscapeLayout ? 'landscape' : 'portrait');
+
+    // Add print-specific styles without overriding template-native A4 layouts
     const printStyles = `
       <style>
         @media print {
@@ -136,14 +143,14 @@ export class PDFExportService {
           }
           
           body {
-            padding: 20mm;
+            padding: ${hasA4TemplateLayout ? '0' : '20mm'};
             box-sizing: border-box;
           }
           
           /* Page setup for A4 */
           @page {
-            size: A4 ${orientation};
-            margin: 20mm;
+            size: A4 ${effectiveOrientation};
+            margin: ${hasA4TemplateLayout ? '0' : '20mm'};
             orphans: 3;
             widows: 3;
           }
@@ -161,8 +168,8 @@ export class PDFExportService {
           }
           
           /* Print visibility controls */
-          .no-print, .no-print *, 
-          nav, .navbar, .sidebar, .header, .footer,
+          .no-print, .no-print *,
+          nav, .navbar, .sidebar,
           .btn, button, .controls, .toolbar, .menu,
           .pagination, .breadcrumb, .alert, .toast,
           input[type="button"], input[type="submit"], input[type="reset"] {
@@ -266,12 +273,6 @@ export class PDFExportService {
           a {
             color: #000 !important;
             text-decoration: underline;
-          }
-          
-          a[href]:after {
-            content: " (" attr(href) ")";
-            font-size: 9pt;
-            color: #666;
           }
           
           /* Form elements */
@@ -402,116 +403,86 @@ export class PDFExportService {
               overflow: visible;
             }
             body {
-              padding: 20mm;
+              padding: ${hasA4TemplateLayout ? '0' : '20mm'};
               box-sizing: border-box;
             }
             * {
               box-sizing: border-box;
-            }
-            
-            /* Print controls toolbar */
-            .print-controls {
-              position: fixed;
-              top: 10px;
-              right: 10px;
-              z-index: 10000;
-              background: white;
-              border: 2px solid #333;
-              border-radius: 8px;
-              padding: 12px;
-              box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-              display: flex;
-              gap: 8px;
-              align-items: center;
-            }
-            
-            .print-controls button {
-              padding: 8px 16px;
-              border: 1px solid #ccc;
-              border-radius: 4px;
-              background: #f5f5f5;
-              cursor: pointer;
-              font-size: 14px;
-              font-weight: 500;
-              transition: all 0.2s;
-            }
-            
-            .print-controls button:hover {
-              background: #e0e0e0;
-              border-color: #999;
-            }
-            
-            .print-controls button.active {
-              background: #007bff;
-              color: white;
-              border-color: #007bff;
-            }
-            
-            .print-controls .orientation-label {
-              font-weight: 600;
-              margin-right: 8px;
-              color: #333;
-            }
-            
-            @media print {
-              .print-controls {
-                display: none !important;
-              }
             }
           </style>
           ${links}
           ${styles}
           ${printStyles}
         </head>
-        <body style="margin: 0; padding: 20mm; width: 100%; min-height: 100%; overflow: visible;">
-          <div class="print-controls">
-            <span class="orientation-label">Orientation:</span>
-            <button id="btn-portrait" class="${orientation === 'portrait' ? 'active' : ''}" onclick="setOrientation('portrait')">
-              📄 Vertical (Portrait)
-            </button>
-            <button id="btn-landscape" class="${orientation === 'landscape' ? 'active' : ''}" onclick="setOrientation('landscape')">
-              📄 Horizontal (Landscape)
-            </button>
-            <button onclick="window.print()" style="background: #28a745; color: white; border-color: #28a745; margin-left: 8px;">
-              🖨️ Print
-            </button>
-          </div>
+        <body style="margin: 0; padding: ${hasA4TemplateLayout ? '0' : '20mm'}; width: 100%; min-height: 100%; overflow: visible;">
           ${bodyContent}
-          <script>
-            let currentOrientation = '${orientation}';
-            
-            function setOrientation(orient) {
-              currentOrientation = orient;
-              
-              // Update button states
-              document.getElementById('btn-portrait').classList.toggle('active', orient === 'portrait');
-              document.getElementById('btn-landscape').classList.toggle('active', orient === 'landscape');
-              
-              // Update @page rule
-              const style = document.createElement('style');
-              style.textContent = '@page { size: A4 ' + orient + '; margin: 20mm; } @media print { @page { size: A4 ' + orient + '; margin: 20mm; } }';
-              
-              // Remove old orientation style if exists
-              const oldStyle = document.getElementById('orientation-style');
-              if (oldStyle) {
-                oldStyle.remove();
-              }
-              
-              style.id = 'orientation-style';
-              document.head.appendChild(style);
-              
-              // Update body class for visual feedback
-              document.body.className = 'orientation-' + orient;
-            }
-            
-            // Apply initial orientation
-            if (currentOrientation === 'landscape') {
-              setOrientation('landscape');
-            }
-          </script>
         </body>
       </html>
     `;
+  }
+
+  /**
+   * Prepare multiple HTML documents for a single print session.
+   * Each document is rendered on its own page.
+   */
+  static prepareBatchPrintView(
+    htmlContents: string[],
+    orientation?: 'portrait' | 'landscape'
+  ): string {
+    if (!htmlContents || htmlContents.length === 0) {
+      throw new Error('At least one document is required for batch print');
+    }
+
+    const validContents = htmlContents.filter(content => content && content.trim() !== '');
+    if (validContents.length === 0) {
+      throw new Error('No valid document content found for batch print');
+    }
+
+    const processedDocs = validContents.map(content => this.processContentForPrint(content));
+
+    const allStyles = processedDocs
+      .map(doc => doc.styles)
+      .filter(Boolean)
+      .join('\n');
+    const allLinks = processedDocs
+      .map(doc => doc.links)
+      .filter(Boolean)
+      .join('\n');
+
+    const combinedBody = processedDocs
+      .map((doc, index) => {
+        const withPageBreakClass = index < processedDocs.length - 1
+          ? 'batch-print-document page-break-after'
+          : 'batch-print-document';
+        return `<section class="${withPageBreakClass}" data-batch-doc="${index + 1}">${doc.bodyContent}</section>`;
+      })
+      .join('\n');
+
+    const mergedTemplate = `
+      <!DOCTYPE html>
+      <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          ${allLinks}
+          ${allStyles}
+          <style>
+            .batch-print-document {
+              width: 100%;
+            }
+            .batch-print-document:last-child {
+              page-break-after: auto !important;
+              break-after: auto !important;
+            }
+          </style>
+        </head>
+        <body>
+          ${combinedBody}
+        </body>
+      </html>
+    `;
+
+    return this.preparePrintView(mergedTemplate, orientation);
   }
 
   /**
@@ -763,21 +734,77 @@ export class PDFExportService {
   static openPrintDialog(htmlContent: string, documentType?: string, orientation: 'portrait' | 'landscape' = 'portrait'): void {
     try {
       const printContent = this.preparePrintView(htmlContent, orientation);
-      
-      const printWindow = window.open('', '_blank', 'width=1200,height=800,scrollbars=yes');
-      if (!printWindow) {
-        throw new Error('Unable to open print window. Please check your browser popup settings.');
+
+      // Use a hidden iframe so only the browser's system print dialog appears.
+      const iframe = document.createElement('iframe');
+      iframe.setAttribute('aria-hidden', 'true');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      iframe.style.visibility = 'hidden';
+      document.body.appendChild(iframe);
+
+      const frameWindow = iframe.contentWindow;
+      const frameDocument = iframe.contentDocument || frameWindow?.document;
+
+      if (!frameWindow || !frameDocument) {
+        document.body.removeChild(iframe);
+        throw new Error('Unable to initialize print frame.');
       }
 
-      printWindow.document.write(printContent);
-      printWindow.document.close();
-
-      // Wait for content to load before printing
-      printWindow.onload = () => {
-        // Don't auto-print, let user choose orientation first
-        // User can click Print button in the print controls
+      let printTriggered = false;
+      const cleanup = () => {
+        window.setTimeout(() => {
+          try {
+            if (iframe.parentNode) {
+              iframe.parentNode.removeChild(iframe);
+            }
+          } catch {
+            // Ignore cleanup errors.
+          }
+        }, 300);
       };
 
+      const triggerPrintOnce = () => {
+        if (printTriggered) {
+          return;
+        }
+        printTriggered = true;
+        frameWindow.focus();
+        frameWindow.print();
+      };
+
+      frameWindow.onafterprint = cleanup;
+
+      frameDocument.open();
+      frameDocument.write(printContent);
+      frameDocument.close();
+
+      iframe.onload = () => {
+        // Allow layout/fonts to settle before opening system print dialog.
+        window.setTimeout(triggerPrintOnce, 250);
+      };
+
+      const readyStatePoll = window.setInterval(() => {
+        try {
+          if (frameDocument.readyState === 'complete') {
+            window.clearInterval(readyStatePoll);
+            triggerPrintOnce();
+          }
+        } catch {
+          // Ignore timing issues while frame is initializing.
+        }
+      }, 200);
+
+      window.setTimeout(() => {
+        window.clearInterval(readyStatePoll);
+        if (!printTriggered) {
+          triggerPrintOnce();
+        }
+      }, 6000);
     } catch (error) {
       throw new Error(`Print dialog failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -996,3 +1023,4 @@ export class PDFExportService {
     }
   }
 }
+

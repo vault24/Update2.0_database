@@ -21,9 +21,9 @@
             font-family: 'Tinos', 'Times New Roman', Times, serif;
             display: flex;
             justify-content: center;
-            align-items: flex-start;
+            align-items: center;
             min-height: 100vh;
-            padding: 20px;
+            padding: 24px;
         }
 
         /* Paper / Container */
@@ -53,10 +53,12 @@
             border-width: 4px;
             border-style: solid;
             height: 100%;
-            padding: 20px 30px;
+            padding: 28px 30px 20px;
             position: relative;
             outline: 2px solid #000000;
             outline-offset: 3px;
+            display: flex;
+            flex-direction: column;
         }
 
         /* Pattern decoration */
@@ -73,7 +75,7 @@
         /* Header Section */
         header {
             text-align: center;
-            margin-bottom: 5px;
+            margin-bottom: 10px;
             position: relative;
             z-index: 2;
         }
@@ -126,7 +128,7 @@
         .badge-container {
             display: flex;
             justify-content: center;
-            margin: 5px 0 15px 0;
+            margin: 10px 0 24px 0;
             position: relative;
             z-index: 2;
         }
@@ -149,7 +151,7 @@
             align-items: center;
             font-size: 16px;
             font-weight: bold;
-            margin-bottom: 10px;
+            margin-bottom: 20px;
             position: relative;
             z-index: 2;
         }
@@ -165,8 +167,8 @@
 
         /* Body Content */
         .content {
-            font-size: 17px;
-            line-height: 1.8;
+            font-size: 18px;
+            line-height: 1.75;
             text-align: justify;
             position: relative;
             z-index: 2;
@@ -274,19 +276,22 @@
         }
 
         @media print {
+            html, body {
+                width: 210mm;
+                height: 297mm;
+            }
             body { 
-                background: none; 
+                background: #fff !important;
                 display: block;
-                height: 100%;
                 margin: 0;
                 padding: 0;
             }
             .certificate-container {
                 box-shadow: none;
-                margin: 0;
+                margin: 0 auto;
                 width: 210mm;
                 height: 297mm;
-                page-break-after: always;
+                page-break-after: auto;
                 padding: 10mm;
             }
             .no-print {

@@ -130,10 +130,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Try to get the full name from the profile
           let fullName = response.user.username; // Default to username (email)
           
-          // If first_name and last_name are available, use them
-          if (response.user.first_name && response.user.last_name) {
-            fullName = `${response.user.first_name} ${response.user.last_name}`;
-          } else if (relatedProfileId && (response.user.role === 'student' || response.user.role === 'captain')) {
+          // Priority 1: If first_name and last_name are available in User model, use them
+          if (response.user.first_name || response.user.last_name) {
+            const firstName = response.user.first_name || '';
+            const lastName = response.user.last_name || '';
+            fullName = `${firstName} ${lastName}`.trim();
+          } 
+          // Priority 2: If no name in User model, try to fetch from profile
+          else if (relatedProfileId && (response.user.role === 'student' || response.user.role === 'captain')) {
             // For students/captains, try to fetch the profile to get fullNameEnglish
             try {
               const profileResponse = await api.get<any>(`/students/${relatedProfileId}/`);
@@ -205,10 +209,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Try to get the full name from the profile
       let fullName = response.user.username; // Default to username (email)
       
-      // If first_name and last_name are available, use them
-      if (response.user.first_name && response.user.last_name) {
-        fullName = `${response.user.first_name} ${response.user.last_name}`;
-      } else if (relatedProfileId && (response.user.role === 'student' || response.user.role === 'captain')) {
+      // Priority 1: If first_name and last_name are available in User model, use them
+      if (response.user.first_name || response.user.last_name) {
+        const firstName = response.user.first_name || '';
+        const lastName = response.user.last_name || '';
+        fullName = `${firstName} ${lastName}`.trim();
+      } 
+      // Priority 2: If no name in User model, try to fetch from profile
+      else if (relatedProfileId && (response.user.role === 'student' || response.user.role === 'captain')) {
         // For students/captains, try to fetch the profile to get fullNameEnglish
         try {
           const profileResponse = await api.get<any>(`/students/${relatedProfileId}/`);

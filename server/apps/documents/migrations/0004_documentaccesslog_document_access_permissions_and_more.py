@@ -121,7 +121,7 @@ class Migration(migrations.Migration):
         ),
         migrations.AddConstraint(
             model_name='document',
-            constraint=models.CheckConstraint(condition=models.Q(('fileSize__gte', 0)), name='positive_file_size'),
+            constraint=models.CheckConstraint(check=models.Q(('fileSize__gte', 0)), name='positive_file_size'),
         ),
         migrations.AddField(
             model_name='documentaccesslog',

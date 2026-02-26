@@ -42,8 +42,8 @@ export function StepAcademic({ formData, departments, onChange }: Props) {
             onChange={(e) => onChange('shift', e.target.value)}
           >
             <option value="">Select Shift</option>
-            <option value="1st">1st Shift</option>
-            <option value="2nd">2nd Shift</option>
+            <option value="Morning">Morning</option>
+            <option value="Day">Day</option>
           </select>
         </div>
       </div>
@@ -57,8 +57,13 @@ export function StepAcademic({ formData, departments, onChange }: Props) {
             onChange={(e) => onChange('session', e.target.value)}
           >
             <option value="">Select Session</option>
+            <option value="2025-26">2025-26</option>
             <option value="2024-25">2024-25</option>
             <option value="2023-24">2023-24</option>
+            <option value="2022-23">2022-23</option>
+            <option value="2021-22">2021-22</option>
+            <option value="2020-21">2020-21</option>
+            <option value="2019-20">2019-20</option>
           </select>
         </div>
         <div className="space-y-2">

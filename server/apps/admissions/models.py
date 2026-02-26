@@ -202,13 +202,16 @@ class Admission(models.Model):
                 }
             elif self.desired_department:
                 # Use admission data if no student profile exists yet
+                # Use the user's student_id (application ID) instead of admission UUID
+                student_id_for_folder = self.user.student_id if self.user.student_id else f'ADM-{str(self.id)[:8]}'
+                
                 student_data = {
                     'department_code': self.desired_department.code.lower().replace(' ', '-'),
                     'department_name': self.desired_department.name.lower().replace(' ', '-'),
                     'session': self.session,
                     'shift': self.desired_shift.lower().replace(' ', '-'),
                     'student_name': self.full_name_english.replace(' ', ''),
-                    'student_id': f'ADM-{str(self.id)[:8]}',  # Use admission ID as temporary student ID
+                    'student_id': student_id_for_folder,  # Use user's student_id (SIPI-xxxxx)
                 }
             
             for field_name, file_obj in document_files.items():

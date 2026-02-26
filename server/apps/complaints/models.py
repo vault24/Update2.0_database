@@ -8,6 +8,12 @@ import uuid
 
 class ComplaintCategory(models.Model):
     """Categories for organizing complaints"""
+    # Fixed UUIDs for core categories
+    ACADEMIC_UUID = uuid.UUID('11111111-1111-1111-1111-111111111111')
+    WEBSITE_UUID = uuid.UUID('22222222-2222-2222-2222-222222222222')
+    FACILITY_UUID = uuid.UUID('33333333-3333-3333-3333-333333333333')
+    CORE_CATEGORY_IDS = [ACADEMIC_UUID, WEBSITE_UUID, FACILITY_UUID]
+    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100, unique=True)
     label = models.CharField(max_length=100)
@@ -27,6 +33,16 @@ class ComplaintCategory(models.Model):
     
     def __str__(self):
         return self.label
+    
+    def is_core_category(self):
+        """Check if this is a core system category that cannot be deleted"""
+        return self.id in self.CORE_CATEGORY_IDS
+    
+    def delete(self, *args, **kwargs):
+        """Prevent deletion of core categories"""
+        if self.is_core_category():
+            raise ValueError(f"Cannot delete core category: {self.label}")
+        return super().delete(*args, **kwargs)
 
 
 class ComplaintSubcategory(models.Model):

@@ -52,6 +52,7 @@ class AdmissionDetailSerializer(serializers.ModelSerializer):
     user_email = serializers.EmailField(source='user.email', read_only=True)
     reviewed_by_username = serializers.SerializerMethodField()
     id = serializers.SerializerMethodField()
+    uuid = serializers.SerializerMethodField()
     
     class Meta:
         model = Admission
@@ -60,6 +61,10 @@ class AdmissionDetailSerializer(serializers.ModelSerializer):
     def get_id(self, obj):
         """Return application_id as id for frontend compatibility"""
         return obj.application_id or str(obj.id)
+    
+    def get_uuid(self, obj):
+        """Return the actual UUID for operations that require it"""
+        return str(obj.id)
     
     def get_department_name(self, obj):
         """Safely get department name"""

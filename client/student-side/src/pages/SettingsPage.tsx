@@ -110,6 +110,16 @@ export default function SettingsPage() {
   });
   const [savingAccount, setSavingAccount] = useState(false);
 
+  // Update accountData when user changes
+  useEffect(() => {
+    if (user) {
+      setAccountData({
+        email: user.email || '',
+        username: user.name || ''
+      });
+    }
+  }, [user]);
+
   // Role switch request
   const [roleRequestReason, setRoleRequestReason] = useState('');
   const [requestedRole, setRequestedRole] = useState<string>('');
@@ -236,13 +246,12 @@ export default function SettingsPage() {
         last_name: nameParts.slice(1).join(' ') || '',
       });
       
-      // Update the user context with new data
-      if (response.user) {
-        // Trigger a re-fetch of user data by reloading the page or updating context
-        window.location.reload();
-      }
+      toast.success('Account details updated successfully. Please refresh the page to see changes.');
       
-      toast.success('Account details updated successfully');
+      // Reload after a short delay to allow the toast to be seen
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
     } catch (error: any) {
       // Handle specific error messages from backend
       if (error?.email) {

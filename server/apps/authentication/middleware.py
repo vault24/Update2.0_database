@@ -74,14 +74,16 @@ class RoleBasedAccessMiddleware:
                     logger.info(f"Student my-admission access granted to {request.user.username}")
                     return self.get_response(request)
 
-                # Draft endpoints
+                # Draft endpoints and reapply
                 if request.path in [
                     '/api/admissions/save-draft/',
                     '/api/admissions/get-draft/',
                     '/api/admissions/clear-draft/',
                     '/api/admissions/upload-documents/',
+                    '/api/admissions/reapply/',
+                    '/api/admissions/check-existing/',
                 ]:
-                    logger.info(f"Student draft access granted to {request.user.username} on {request.method} {request.path}")
+                    logger.info(f"Student draft/reapply access granted to {request.user.username} on {request.method} {request.path}")
                     return self.get_response(request)
 
             # If none of the above conditions matched, deny access

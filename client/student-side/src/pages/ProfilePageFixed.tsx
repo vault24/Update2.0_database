@@ -53,28 +53,24 @@ export function ProfilePageFixed() {
   const [classRank, setClassRank] = useState<number | string>('-');
 
   const getPreferredRollNumber = (data: any, fallbackId?: string | null): string | null => {
-    const candidates = [
-      data?.currentRollNumber,
-      data?.current_roll_number,
-      data?.rollNumber,
-      data?.roll_number,
-    ];
-
     const clean = (value: unknown): string | null => {
       if (typeof value === 'string' && value.trim()) return value.trim();
       if (typeof value === 'number') return String(value);
       return null;
     };
 
+    // Use auth-provided student ID first (from /auth/me) so student-side
+    // profile shows the same primary identifier used across auth/admin flows.
     const normalizedFallback = clean(fallbackId);
+    if (normalizedFallback) return normalizedFallback;
+
+    const candidates = [
+      data?.rollNumber,
+      data?.roll_number,
+      data?.currentRollNumber,
+      data?.current_roll_number,
+    ];
     const normalizedCandidates = candidates.map(clean).filter(Boolean) as string[];
-
-    // If a roll candidate exists that differs from auth student ID, prefer it.
-    const nonIdCandidate = normalizedCandidates.find(
-      (candidate) => !normalizedFallback || candidate !== normalizedFallback
-    );
-    if (nonIdCandidate) return nonIdCandidate;
-
     return normalizedCandidates[0] || null;
   };
 

@@ -101,6 +101,10 @@ const BUILT_IN_TEMPLATES: DocumentTemplate[] = [
 export class TemplateService {
   private static templates: Map<string, DocumentTemplate> = new Map();
   private static initialized = false;
+  private static readonly TEMPLATE_ASSET_URLS = {
+    spiLogo: new URL('../documents/templates/spi.png', import.meta.url).href,
+    govLogo: new URL('../documents/templates/gov.svg', import.meta.url).href
+  };
 
   /**
    * Initialize template service with built-in templates
@@ -154,14 +158,27 @@ export class TemplateService {
         if (!fallbackResponse.ok) {
           throw new Error(`Failed to fetch template: ${fallbackResponse.statusText}`);
         }
-        return await fallbackResponse.text();
+        const fallbackContent = await fallbackResponse.text();
+        return this.resolveTemplateAssetPaths(fallbackContent);
       }
-      return await response.text();
+      const rawContent = await response.text();
+      return this.resolveTemplateAssetPaths(rawContent);
     } catch (error) {
       console.warn(`Failed to load template from ${path}:`, error);
       // Fallback: return a basic template structure
       return this.getDefaultTemplateContent(templateId);
     }
+  }
+
+  /**
+   * Resolve relative template asset paths for logos so they render in iframe/print documents.
+   */
+  private static resolveTemplateAssetPaths(content: string): string {
+    return content
+      .replace(/src=(['"])(?:\.\/)?spi\.png\1/gi, `src="${this.TEMPLATE_ASSET_URLS.spiLogo}"`)
+      .replace(/src=(['"])(?:\.\/)?gov\.svg\1/gi, `src="${this.TEMPLATE_ASSET_URLS.govLogo}"`)
+      .replace(/url\((['"]?)(?:\.\/)?spi\.png\1\)/gi, `url('${this.TEMPLATE_ASSET_URLS.spiLogo}')`)
+      .replace(/url\((['"]?)(?:\.\/)?gov\.svg\1\)/gi, `url('${this.TEMPLATE_ASSET_URLS.govLogo}')`);
   }
 
   /**

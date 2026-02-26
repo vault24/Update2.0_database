@@ -34,8 +34,22 @@ export function AdmissionPage() {
         >
           <AlertCircle className="w-5 h-5 text-warning flex-shrink-0" />
           <div>
-            <p className="font-medium text-sm">Complete Your Admission Form</p>
-            <p className="text-sm text-muted-foreground">Please fill out all required information to complete your admission process.</p>
+            <p className="font-medium text-sm">Application Under Review</p>
+            <p className="text-sm text-muted-foreground">Your admission application is currently being reviewed by the administration.</p>
+          </div>
+        </motion.div>
+      )}
+
+      {user?.admissionStatus === 'rejected' && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 flex items-center gap-3"
+        >
+          <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0" />
+          <div>
+            <p className="font-medium text-sm">Application Rejected</p>
+            <p className="text-sm text-muted-foreground">Your previous application was rejected. You can review the details and reapply below.</p>
           </div>
         </motion.div>
       )}

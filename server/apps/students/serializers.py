@@ -19,6 +19,7 @@ class StudentListSerializer(serializers.ModelSerializer):
     Lightweight serializer for list views
     """
     department = DepartmentListSerializer(read_only=True)
+    profilePhoto = serializers.SerializerMethodField()
     
     class Meta:
         model = Student
@@ -32,6 +33,25 @@ class StudentListSerializer(serializers.ModelSerializer):
             'status',
             'profilePhoto'
         ]
+    
+    def get_profilePhoto(self, obj):
+        """Return full URL for profile photo"""
+        if obj.profilePhoto:
+            # Check if it's already a full URL
+            if obj.profilePhoto.startswith('http://') or obj.profilePhoto.startswith('https://'):
+                return obj.profilePhoto
+            # Check if it already starts with /files/
+            if obj.profilePhoto.startswith('/files/'):
+                request = self.context.get('request')
+                if request:
+                    return request.build_absolute_uri(obj.profilePhoto)
+                return obj.profilePhoto
+            # It's a relative path, prepend /files/
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(f'/files/{obj.profilePhoto}')
+            return f'/files/{obj.profilePhoto}'
+        return None
 
 
 class StudentDetailSerializer(serializers.ModelSerializer):
@@ -39,10 +59,30 @@ class StudentDetailSerializer(serializers.ModelSerializer):
     Complete serializer with all fields and nested data
     """
     department = DepartmentListSerializer(read_only=True)
+    profilePhoto = serializers.SerializerMethodField()
     
     class Meta:
         model = Student
         fields = '__all__'
+    
+    def get_profilePhoto(self, obj):
+        """Return full URL for profile photo"""
+        if obj.profilePhoto:
+            # Check if it's already a full URL
+            if obj.profilePhoto.startswith('http://') or obj.profilePhoto.startswith('https://'):
+                return obj.profilePhoto
+            # Check if it already starts with /files/
+            if obj.profilePhoto.startswith('/files/'):
+                request = self.context.get('request')
+                if request:
+                    return request.build_absolute_uri(obj.profilePhoto)
+                return obj.profilePhoto
+            # It's a relative path, prepend /files/
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(f'/files/{obj.profilePhoto}')
+            return f'/files/{obj.profilePhoto}'
+        return None
 
 
 class StudentCreateSerializer(serializers.ModelSerializer):

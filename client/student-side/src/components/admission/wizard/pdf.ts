@@ -1,7 +1,31 @@
 import { AdmissionFormState } from './types';
 import { toast } from 'sonner';
 
-export function generateAdmissionPDF(formData: AdmissionFormState, applicationId: string) {
+interface Department {
+  id: string;
+  name: string;
+  code?: string;
+}
+
+export function generateAdmissionPDF(formData: AdmissionFormState, applicationId: string, departments?: Department[]) {
+  // Get department name from ID
+  const getDepartmentName = (deptId: string): string => {
+    if (!departments || departments.length === 0) return deptId;
+    const dept = departments.find(d => d.id === deptId);
+    return dept ? dept.name : deptId;
+  };
+
+  // Format text to capitalize first letter
+  const capitalize = (text: string): string => {
+    if (!text) return text;
+    return text.charAt(0).toUpperCase() + text.slice(1);
+  };
+
+  // Format shift display
+  const formatShift = (shift: string): string => {
+    if (!shift) return shift;
+    return shift.replace(/(\d+)(st|nd|rd|th)/, '$1$2 Shift');
+  };
   const printWindow = window.open('', '_blank');
   if (!printWindow) {
     toast.error('Please allow popups to download PDF');
@@ -155,7 +179,7 @@ export function generateAdmissionPDF(formData: AdmissionFormState, applicationId
             </div>
             <div class="field">
               <div class="field-label">Gender</div>
-              <div class="field-value">${formData.gender || 'N/A'}</div>
+              <div class="field-value">${capitalize(formData.gender) || 'N/A'}</div>
             </div>
             <div class="field">
               <div class="field-label">Blood Group</div>
@@ -163,7 +187,7 @@ export function generateAdmissionPDF(formData: AdmissionFormState, applicationId
             </div>
             <div class="field">
               <div class="field-label">Religion</div>
-              <div class="field-value">${formData.religion || 'N/A'}</div>
+              <div class="field-value">${capitalize(formData.religion) || 'N/A'}</div>
             </div>
             <div class="field">
               <div class="field-label">Nationality</div>
@@ -171,7 +195,7 @@ export function generateAdmissionPDF(formData: AdmissionFormState, applicationId
             </div>
             <div class="field">
               <div class="field-label">Marital Status</div>
-              <div class="field-value">${formData.maritalStatus || 'N/A'}</div>
+              <div class="field-value">${capitalize(formData.maritalStatus) || 'N/A'}</div>
             </div>
             <div class="field">
               <div class="field-label">NID Number</div>
@@ -323,11 +347,11 @@ export function generateAdmissionPDF(formData: AdmissionFormState, applicationId
           <div class="field-group">
             <div class="field">
               <div class="field-label">Department</div>
-              <div class="field-value">${formData.department || 'N/A'}</div>
+              <div class="field-value">${getDepartmentName(formData.department) || 'N/A'}</div>
             </div>
             <div class="field">
               <div class="field-label">Shift</div>
-              <div class="field-value">${formData.shift || 'N/A'}</div>
+              <div class="field-value">${formatShift(formData.shift) || 'N/A'}</div>
             </div>
             <div class="field">
               <div class="field-label">Session</div>
@@ -339,11 +363,11 @@ export function generateAdmissionPDF(formData: AdmissionFormState, applicationId
             </div>
             <div class="field">
               <div class="field-label">Admission Type</div>
-              <div class="field-value">${formData.admissionType || 'N/A'}</div>
+              <div class="field-value">${capitalize(formData.admissionType) || 'N/A'}</div>
             </div>
             <div class="field">
               <div class="field-label">Group</div>
-              <div class="field-value">${formData.group || 'N/A'}</div>
+              <div class="field-value">${capitalize(formData.group) || 'N/A'}</div>
             </div>
           </div>
         </div>

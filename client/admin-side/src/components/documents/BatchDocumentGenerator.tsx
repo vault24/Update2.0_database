@@ -1,10 +1,10 @@
 /**
  * Batch Document Generator Component
- * Handles batch generation of documents for multiple templates or students
+ * Handles batch generation of one template for multiple students
  */
 
 import React, { useState, useEffect } from 'react';
-import { DocumentTemplate, BatchGenerationRequest, GeneratedDocument } from '@/types/template';
+import { DocumentTemplate, GeneratedDocument } from '@/types/template';
 import { DocumentGenerator as DocumentGeneratorService } from '@/services/documentGenerator';
 import { DocumentStudentService, StudentSearchResult } from '@/services/documentStudentService';
 import { TemplateService } from '@/services/templateService';
@@ -16,11 +16,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { 
   Search, 
-  FileText, 
   Users, 
   Download, 
   CheckCircle, 
@@ -37,8 +35,6 @@ interface BatchDocumentGeneratorProps {
   className?: string;
 }
 
-type BatchMode = 'multiple-templates' | 'multiple-students';
-
 interface BatchProgress {
   completed: number;
   total: number;
@@ -52,16 +48,14 @@ export const BatchDocumentGenerator: React.FC<BatchDocumentGeneratorProps> = ({
   className = ''
 }) => {
   // State
-  const [batchMode, setBatchMode] = useState<BatchMode>('multiple-templates');
-  const [selectedTemplates, setSelectedTemplates] = useState<DocumentTemplate[]>([]);
   const [selectedStudents, setSelectedStudents] = useState<StudentSearchResult[]>([]);
-  const [selectedStudent, setSelectedStudent] = useState<StudentSearchResult | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<DocumentTemplate | null>(null);
   const [progress, setProgress] = useState<BatchProgress>({ completed: 0, total: 0, isRunning: false });
   const [results, setResults] = useState<{ successful: GeneratedDocument[]; failed: any[] } | null>(null);
   
   // Loading states
-  const [loading, setLoading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isDownloadingAll, setIsDownloadingAll] = useState(false);
   const [templatesLoading, setTemplatesLoading] = useState(true);
   const [studentSearchLoading, setStudentSearchLoading] = useState(false);
   
@@ -124,18 +118,6 @@ export const BatchDocumentGenerator: React.FC<BatchDocumentGeneratorProps> = ({
     }
   };
 
-  // Handle template selection
-  const handleTemplateToggle = (template: DocumentTemplate) => {
-    setSelectedTemplates(prev => {
-      const isSelected = prev.some(t => t.id === template.id);
-      if (isSelected) {
-        return prev.filter(t => t.id !== template.id);
-      } else {
-        return [...prev, template];
-      }
-    });
-  };
-
   // Handle student selection
   const handleStudentToggle = (student: StudentSearchResult) => {
     setSelectedStudents(prev => {
@@ -150,16 +132,7 @@ export const BatchDocumentGenerator: React.FC<BatchDocumentGeneratorProps> = ({
 
   // Start batch generation
   const startBatchGeneration = async () => {
-    if (batchMode === 'multiple-templates' && (!selectedStudent || selectedTemplates.length === 0)) {
-      toast({
-        title: 'Selection Required',
-        description: 'Please select a student and at least one template',
-        variant: 'destructive'
-      });
-      return;
-    }
-
-    if (batchMode === 'multiple-students' && (!selectedTemplate || selectedStudents.length === 0)) {
+    if (!selectedTemplate || selectedStudents.length === 0) {
       toast({
         title: 'Selection Required',
         description: 'Please select a template and at least one student',
@@ -169,59 +142,24 @@ export const BatchDocumentGenerator: React.FC<BatchDocumentGeneratorProps> = ({
     }
 
     try {
-      setLoading(true);
+      setIsGenerating(true);
       setError(null);
       setResults(null);
       setProgress({ completed: 0, total: 0, isRunning: true });
 
-      let batchResults;
-
-      if (batchMode === 'multiple-templates') {
-        // Generate multiple templates for one student
-        const request: BatchGenerationRequest = {
-          studentId: selectedStudent!.id,
-          templateIds: selectedTemplates.map(t => t.id),
-          outputFormat: 'html'
-        };
-
-        // Validate request
-        const validation = DocumentGeneratorService.validateBatchRequest(request);
-        if (!validation.isValid) {
-          throw new Error(`Batch validation failed: ${validation.errors.join(', ')}`);
+      const batchResults = await DocumentGeneratorService.batchGenerateForStudents(
+        selectedTemplate.id,
+        selectedStudents.map(s => s.id),
+        undefined,
+        (progressUpdate) => {
+          setProgress(prev => ({ ...prev, ...progressUpdate }));
         }
+      );
 
-        if (validation.warnings.length > 0) {
-          console.warn('Batch warnings:', validation.warnings);
-        }
-
-        batchResults = await DocumentGeneratorService.batchGenerateWithProgress(
-          request,
-          (progressUpdate) => {
-            setProgress(prev => ({ ...prev, ...progressUpdate }));
-          }
-        );
-
-        setResults({
-          successful: batchResults.successful,
-          failed: batchResults.failed
-        });
-
-      } else {
-        // Generate one template for multiple students
-        batchResults = await DocumentGeneratorService.batchGenerateForStudents(
-          selectedTemplate!.id,
-          selectedStudents.map(s => s.id),
-          undefined, // No custom data map for now
-          (progressUpdate) => {
-            setProgress(prev => ({ ...prev, ...progressUpdate }));
-          }
-        );
-
-        setResults({
-          successful: batchResults.successful,
-          failed: batchResults.failed
-        });
-      }
+      setResults({
+        successful: batchResults.successful,
+        failed: batchResults.failed
+      });
 
       setProgress(prev => ({ ...prev, isRunning: false }));
 
@@ -243,7 +181,7 @@ export const BatchDocumentGenerator: React.FC<BatchDocumentGeneratorProps> = ({
         variant: 'destructive'
       });
     } finally {
-      setLoading(false);
+      setIsGenerating(false);
     }
   };
 
@@ -252,7 +190,7 @@ export const BatchDocumentGenerator: React.FC<BatchDocumentGeneratorProps> = ({
     if (!results || results.successful.length === 0) return;
 
     try {
-      setLoading(true);
+      setIsDownloadingAll(true);
       
       const downloadResults = await DocumentGeneratorService.batchDownloadPDF(
         results.successful.map(doc => doc.id),
@@ -273,15 +211,13 @@ export const BatchDocumentGenerator: React.FC<BatchDocumentGeneratorProps> = ({
         variant: 'destructive'
       });
     } finally {
-      setLoading(false);
+      setIsDownloadingAll(false);
     }
   };
 
   // Reset batch generator
   const resetBatch = () => {
-    setSelectedTemplates([]);
     setSelectedStudents([]);
-    setSelectedStudent(null);
     setSelectedTemplate(null);
     setResults(null);
     setProgress({ completed: 0, total: 0, isRunning: false });
@@ -321,27 +257,6 @@ export const BatchDocumentGenerator: React.FC<BatchDocumentGeneratorProps> = ({
         </div>
       </div>
 
-      {/* Batch Mode Selection */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Batch Mode</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Tabs value={batchMode} onValueChange={(value) => setBatchMode(value as BatchMode)}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="multiple-templates">
-                <FileText className="w-4 h-4 mr-2" />
-                Multiple Templates
-              </TabsTrigger>
-              <TabsTrigger value="multiple-students">
-                <Users className="w-4 h-4 mr-2" />
-                Multiple Students
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </CardContent>
-      </Card>
-
       {/* Error Alert */}
       {error && (
         <Alert variant="destructive">
@@ -373,125 +288,18 @@ export const BatchDocumentGenerator: React.FC<BatchDocumentGeneratorProps> = ({
       )}
 
       {/* Batch Configuration */}
-      <Tabs value={batchMode} className="space-y-6">
-        {/* Multiple Templates Mode */}
-        <TabsContent value="multiple-templates" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Student Selection */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Select Student</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search by name or roll number..."
-                    value={studentSearchQuery}
-                    onChange={(e) => {
-                      setStudentSearchQuery(e.target.value);
-                      searchStudents(e.target.value);
-                    }}
-                    className="pl-10"
-                  />
-                </div>
+      <div className="space-y-4">
+        <Card className="border-primary/20 bg-primary/5">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-sm">
+              <Users className="w-4 h-4 text-primary" />
+              <span className="font-medium">Mode:</span>
+              <span>Multiple Students + One Template</span>
+            </div>
+          </CardContent>
+        </Card>
 
-                {selectedStudent && (
-                  <div className="p-3 border rounded-lg bg-muted/50">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="w-10 h-10">
-                        <AvatarImage src={selectedStudent.avatar} />
-                        <AvatarFallback>
-                          {selectedStudent.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <p className="font-medium">{selectedStudent.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          Roll: {selectedStudent.rollNumber} • {selectedStudent.department}
-                        </p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSelectedStudent(null)}
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {studentSearchLoading && (
-                  <div className="flex items-center justify-center py-4">
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                    <span>Searching...</span>
-                  </div>
-                )}
-
-                {studentSearchResults.length > 0 && !selectedStudent && (
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {studentSearchResults.map((student) => (
-                      <Card 
-                        key={student.id}
-                        className="cursor-pointer transition-all hover:bg-muted/50"
-                        onClick={() => setSelectedStudent(student)}
-                      >
-                        <CardContent className="p-3 flex items-center gap-3">
-                          <Avatar className="w-8 h-8">
-                            <AvatarImage src={student.avatar} />
-                            <AvatarFallback>
-                              {student.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1">
-                            <p className="font-medium text-sm">{student.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {student.rollNumber} • {student.department}
-                            </p>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Template Selection */}
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  Select Templates ({selectedTemplates.length} selected)
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {templates.map((template) => (
-                    <div 
-                      key={template.id}
-                      className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50"
-                    >
-                      <Checkbox
-                        checked={selectedTemplates.some(t => t.id === template.id)}
-                        onCheckedChange={() => handleTemplateToggle(template)}
-                      />
-                      <div className="flex-1">
-                        <p className="font-medium">{template.name}</p>
-                        <p className="text-sm text-muted-foreground">{template.description}</p>
-                        <Badge variant="outline" className="mt-1">{template.category}</Badge>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        {/* Multiple Students Mode */}
-        <TabsContent value="multiple-students" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Template Selection */}
             <Card>
               <CardHeader>
@@ -598,31 +406,36 @@ export const BatchDocumentGenerator: React.FC<BatchDocumentGeneratorProps> = ({
               </CardContent>
             </Card>
           </div>
-        </TabsContent>
-      </Tabs>
+      </div>
 
       {/* Action Buttons */}
-      <div className="flex items-center justify-between">
+      <div className="sticky bottom-0 z-20 rounded-lg border bg-background/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="text-sm text-muted-foreground">
-          {batchMode === 'multiple-templates' 
-            ? `${selectedTemplates.length} templates selected for ${selectedStudent?.name || 'no student'}`
-            : `${selectedStudents.length} students selected for ${selectedTemplate?.name || 'no template'}`
-          }
+          {`${selectedStudents.length} students selected for ${selectedTemplate?.name || 'no template'}`}
         </div>
         
-        <div className="flex items-center gap-2">
-          {results && (
-            <Button variant="outline" onClick={downloadAllDocuments} disabled={loading}>
+        <div className="flex flex-wrap items-center gap-2 md:justify-end">
+          <Button
+            variant="outline"
+            onClick={downloadAllDocuments}
+            disabled={!results || results.successful.length === 0 || isGenerating || isDownloadingAll || progress.isRunning}
+            className="w-full sm:w-auto"
+          >
+            {isDownloadingAll ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
               <Download className="w-4 h-4 mr-2" />
-              Download All PDFs
-            </Button>
-          )}
+            )}
+            Download All PDFs
+          </Button>
           
           <Button 
             onClick={startBatchGeneration} 
-            disabled={loading || progress.isRunning}
+            disabled={isGenerating || isDownloadingAll || progress.isRunning}
+            className="w-full sm:w-auto"
           >
-            {loading || progress.isRunning ? (
+            {isGenerating || progress.isRunning ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 Generating...
@@ -634,6 +447,7 @@ export const BatchDocumentGenerator: React.FC<BatchDocumentGeneratorProps> = ({
               </>
             )}
           </Button>
+        </div>
         </div>
       </div>
 

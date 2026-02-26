@@ -1549,17 +1549,18 @@ export default function Documents() {
 
       {/* Batch Document Generator Dialog */}
       <Dialog open={isBatchGeneratorOpen} onOpenChange={setIsBatchGeneratorOpen}>
-        <DialogContent className="max-w-7xl max-h-[90vh] overflow-hidden">
-          <DialogHeader>
+        <DialogContent className="max-w-7xl h-[92vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="px-6 pt-6 pb-4 flex-shrink-0 border-b">
             <DialogTitle>Batch Document Generator</DialogTitle>
             <DialogDescription>
               Generate multiple documents efficiently for multiple templates or students
             </DialogDescription>
           </DialogHeader>
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1 overflow-y-auto px-6 pb-6">
             <BatchDocumentGenerator
               onBatchComplete={handleBatchComplete}
               onClose={() => setIsBatchGeneratorOpen(false)}
+              className="pt-4"
             />
           </div>
         </DialogContent>
@@ -1600,26 +1601,7 @@ export default function Documents() {
                       onClick={() => {
                         if (quickGeneratedDocument?.htmlContent) {
                           try {
-                            const printContent = PDFExportService.preparePrintView(quickGeneratedDocument.htmlContent);
-                            const printWindow = window.open('', '_blank', 'width=1200,height=800,scrollbars=yes');
-                            if (printWindow) {
-                              printWindow.document.write(printContent);
-                              printWindow.document.close();
-                              
-                              // Wait for content to load before printing
-                              printWindow.onload = () => {
-                                setTimeout(() => {
-                                  printWindow.print();
-                                }, 1000);
-                              };
-                              
-                              // Fallback if onload doesn't fire
-                              setTimeout(() => {
-                                if (printWindow.document.readyState === 'complete') {
-                                  printWindow.print();
-                                }
-                              }, 1500);
-                            }
+                            PDFExportService.openPrintDialog(quickGeneratedDocument.htmlContent);
                           } catch (error) {
                             const errorMsg = getErrorMessage(error);
                             toast({

@@ -81,8 +81,8 @@ class AdmissionViewSet(viewsets.ModelViewSet):
     
     def get_permissions(self):
         """Set permissions based on action"""
-        if self.action in ['create', 'my_admission', 'save_draft', 'get_draft', 'clear_draft', 'upload_documents']:
-            # Students and captains can submit, view, manage drafts, and upload documents
+        if self.action in ['create', 'my_admission', 'save_draft', 'get_draft', 'clear_draft', 'upload_documents', 'reapply', 'check_existing']:
+            # Students and captains can submit, view, manage drafts, upload documents, and reapply
             return [permissions.IsAuthenticated()]
         else:
             # Admin actions require staff permissions
@@ -100,7 +100,24 @@ class AdmissionViewSet(viewsets.ModelViewSet):
         ).first()
         
         if existing_admission:
-            # Return existing admission instead of error
+            # If admission is rejected and status is pending (after reapply), allow update
+            if existing_admission.status == 'pending':
+                # Update the existing admission with new data
+                serializer = self.get_serializer(existing_admission, data=request.data, partial=False)
+                serializer.is_valid(raise_exception=True)
+                admission = serializer.save()
+                
+                # Update submission timestamp
+                admission.submitted_at = timezone.now()
+                admission.save()
+                
+                response_serializer = AdmissionDetailSerializer(admission)
+                return Response({
+                    'message': 'Application updated successfully',
+                    'admission': response_serializer.data
+                }, status=status.HTTP_200_OK)
+            
+            # For approved or already pending (not reapplied), return existing
             response_serializer = AdmissionDetailSerializer(existing_admission)
             return Response({
                 'message': 'Admission already submitted',
@@ -251,11 +268,36 @@ class AdmissionViewSet(viewsets.ModelViewSet):
         serializer = AdmissionApproveSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
-        # Generate roll number from SSC Board Roll (use student_id from user)
-        current_roll_number = admission.user.student_id if admission.user.student_id else f"SIPI-{admission.roll_number}"
+        # Generate college roll number
+        # Format: Department code + Year + Sequential number
+        # Example: CST-2024-001, CST-2024-002, etc.
+        from apps.students.models import Student
+        
+        # Get department code
+        dept_code = admission.desired_department.code if admission.desired_department else 'GEN'
+        
+        # Get year from session (e.g., "2024-25" -> "2024")
+        year = admission.session.split('-')[0] if admission.session else '2024'
+        
+        # Find the next sequential number for this department and year
+        existing_students = Student.objects.filter(
+            department=admission.desired_department,
+            session=admission.session
+        ).count()
+        
+        # Generate roll number with zero-padding
+        sequential_num = str(existing_students + 1).zfill(3)
+        current_roll_number = f"{dept_code}-{year}-{sequential_num}"
+        
+        # Ensure uniqueness (in case of race conditions)
+        counter = 1
+        original_roll = current_roll_number
+        while Student.objects.filter(currentRollNumber=current_roll_number).exists():
+            counter += 1
+            sequential_num = str(existing_students + counter).zfill(3)
+            current_roll_number = f"{dept_code}-{year}-{sequential_num}"
         
         # Create or update student profile
-        from apps.students.models import Student
         
         student_data = {
             # Personal Information
@@ -368,6 +410,41 @@ class AdmissionViewSet(viewsets.ModelViewSet):
             'admission': response_serializer.data
         }, status=status.HTTP_200_OK)
     
+    @action(detail=False, methods=['post'], url_path='reapply')
+    def reapply(self, request):
+        """
+        Allow student to reapply after rejection
+        POST /api/admissions/reapply/
+        
+        This resets the rejected admission to pending status and allows editing
+        """
+        try:
+            # Get the user's rejected admission
+            admission = Admission.objects.get(user=request.user, status='rejected')
+            
+            # Reset to pending status
+            admission.status = 'pending'
+            admission.reviewed_at = None
+            admission.reviewed_by = None
+            admission.review_notes = ''
+            admission.submitted_at = timezone.now()  # Update submission time
+            admission.save()
+            
+            # Update user's admission status
+            request.user.admission_status = 'pending'
+            request.user.save()
+            
+            return Response({
+                'message': 'You can now edit and resubmit your application',
+                'admission': AdmissionDetailSerializer(admission).data
+            }, status=status.HTTP_200_OK)
+            
+        except Admission.DoesNotExist:
+            return Response({
+                'error': 'No rejected admission found',
+                'details': 'You do not have a rejected admission to reapply'
+            }, status=status.HTTP_404_NOT_FOUND)
+    
     @action(detail=False, methods=['post'], url_path='upload-documents')
     def upload_documents(self, request):
         """
@@ -379,8 +456,13 @@ class AdmissionViewSet(viewsets.ModelViewSet):
         - admission_id: UUID of the admission
         - documents[fieldName]: File objects for each document field
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
         # Handle both request.data and request.POST for admission_id
         admission_id = request.data.get('admission_id') or request.POST.get('admission_id')
+        
+        logger.info(f"Upload documents called with admission_id: {admission_id}")
         
         if not admission_id:
             return Response({
@@ -389,8 +471,18 @@ class AdmissionViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            # Get the admission
-            admission = Admission.objects.get(id=admission_id)
+            # Get the admission - handle both UUID and application_id
+            try:
+                import uuid as uuid_module
+                # Try as UUID first
+                uuid_module.UUID(str(admission_id))
+                admission = Admission.objects.get(id=admission_id)
+            except (ValueError, TypeError):
+                # Not a valid UUID, try as application_id
+                logger.info(f"Not a UUID, trying as application_id: {admission_id}")
+                admission = Admission.objects.get(application_id=admission_id)
+            
+            logger.info(f"Found admission: {admission.id} for user: {request.user.username}")
             
             # Check permissions - user must own the admission or be admin
             if admission.user != request.user and not request.user.is_staff:
@@ -409,6 +501,8 @@ class AdmissionViewSet(viewsets.ModelViewSet):
                     field_name = key
                 
                 document_files[field_name] = file_obj
+            
+            logger.info(f"Received {len(document_files)} documents: {list(document_files.keys())}")
             
             if not document_files:
                 return Response({
@@ -432,9 +526,11 @@ class AdmissionViewSet(viewsets.ModelViewSet):
                 }, status=status.HTTP_400_BAD_REQUEST)
             
             # Process documents using the admission model method
+            logger.info(f"Processing documents for admission {admission.id}")
             success = admission.process_documents(document_files)
             
             if success:
+                logger.info(f"Documents processed successfully for admission {admission.id}")
                 # Return success response with updated admission
                 response_serializer = AdmissionDetailSerializer(admission)
                 return Response({
@@ -443,6 +539,7 @@ class AdmissionViewSet(viewsets.ModelViewSet):
                     'admission': response_serializer.data
                 }, status=status.HTTP_200_OK)
             else:
+                logger.error(f"Document processing failed: {admission.document_processing_errors}")
                 # Return error response with details
                 return Response({
                     'error': 'Document processing failed',
@@ -451,11 +548,13 @@ class AdmissionViewSet(viewsets.ModelViewSet):
                 }, status=status.HTTP_400_BAD_REQUEST)
                 
         except Admission.DoesNotExist:
+            logger.error(f"Admission not found with id/application_id: {admission_id}")
             return Response({
                 'error': 'Admission not found',
                 'details': 'The specified admission does not exist'
             }, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
+            logger.exception(f"Unexpected error in upload_documents: {str(e)}")
             return Response({
                 'error': 'Unexpected error',
                 'details': str(e)

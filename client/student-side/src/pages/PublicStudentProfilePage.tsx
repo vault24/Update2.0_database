@@ -27,10 +27,10 @@ export default function PublicStudentProfilePage() {
 
   const getPreferredRollNumber = (studentData: any): string | null => {
     const rollCandidates = [
-      studentData?.currentRollNumber,
-      studentData?.current_roll_number,
       studentData?.rollNumber,
       studentData?.roll_number,
+      studentData?.currentRollNumber,
+      studentData?.current_roll_number,
     ];
 
     for (const value of rollCandidates) {
@@ -64,11 +64,15 @@ export default function PublicStudentProfilePage() {
       // Fetch both student data and institute settings in parallel
       const [studentData, settings] = await Promise.all([
         studentService.getStudentByIdentifier(studentId),
-        settingsService.getSystemSettings().catch(() => null) // Don't fail if settings unavailable
+        settingsService.getSystemSettings().catch((err) => {
+          console.error('Failed to load institute settings:', err);
+          return null;
+        }) // Don't fail if settings unavailable
       ]);
 
       console.log('Student data received:', studentData);
       console.log('Current Roll Number:', studentData.currentRollNumber);
+      console.log('Institute settings received:', settings);
       
       setStudent(studentData);
       setInstituteSettings(settings);
@@ -126,7 +130,7 @@ export default function PublicStudentProfilePage() {
   }
 
   // Transform student data to match the expected format
-  const instituteName = instituteSettings?.institute_name || 'Sylhet Polytechnic Institute';
+  const instituteName = instituteSettings?.institute_name ;
   
   // Calculate CGPA from semester results
   const calculateCGPA = () => {

@@ -194,9 +194,10 @@ class StudentViewSet(viewsets.ModelViewSet):
         Get student by ID or roll number (public endpoint)
         GET /api/students/by-identifier/{id_or_roll}/
         
-        This endpoint supports both:
-        - UUID (student ID)
-        - Roll number (currentRollNumber)
+        This endpoint supports:
+        - UUID (student database ID)
+        - Roll number (currentRollNumber - college roll number)
+        - Application ID (user.student_id - like SIPI-202030)
         """
         if not identifier:
             return Response(
@@ -210,22 +211,62 @@ class StudentViewSet(viewsets.ModelViewSet):
             # Try to parse as UUID
             UUID(identifier)
             student = Student.objects.select_related('department').get(id=identifier)
-            serializer = StudentDetailSerializer(student)
+            serializer = StudentDetailSerializer(student, context={'request': request})
             return Response(serializer.data)
         except (Student.DoesNotExist, ValueError):
-            # If not found by ID or not a valid UUID, try by roll number
-            try:
-                student = Student.objects.select_related('department').get(currentRollNumber=identifier)
-                serializer = StudentDetailSerializer(student)
-                return Response(serializer.data)
-            except Student.DoesNotExist:
+            pass  # Continue to other search methods
+        
+        # Try by current roll number (college roll number)
+        try:
+            student = Student.objects.select_related('department').get(currentRollNumber=identifier)
+            serializer = StudentDetailSerializer(student, context={'request': request})
+            return Response(serializer.data)
+        except Student.DoesNotExist:
+            pass  # Continue to other search methods
+        
+        # Try by application ID (user.student_id like SIPI-202030)
+        try:
+            from apps.authentication.models import User
+            from django.db import models
+            
+            # Find user with this student_id
+            user = User.objects.get(student_id=identifier)
+            
+            # Try to find student by related_profile_id
+            if user.related_profile_id:
+                try:
+                    student = Student.objects.select_related('department').get(id=user.related_profile_id)
+                    serializer = StudentDetailSerializer(student, context={'request': request})
+                    return Response(serializer.data)
+                except Student.DoesNotExist:
+                    # related_profile_id exists but student not found
+                    return Response(
+                        {
+                            'error': 'Student profile not found',
+                            'details': f'User {identifier} has related_profile_id but student record is missing. Please contact administration.'
+                        },
+                        status=status.HTTP_404_NOT_FOUND
+                    )
+            else:
+                # User exists but related_profile_id is not set
                 return Response(
                     {
-                        'error': 'Student not found',
-                        'details': f'No student found with ID or roll number: {identifier}'
+                        'error': 'Student profile not linked',
+                        'details': f'User {identifier} exists but is not linked to a student profile. The admission may still be pending or the profile was not created properly.'
                     },
                     status=status.HTTP_404_NOT_FOUND
                 )
+        except User.DoesNotExist:
+            pass  # Continue to final error
+        
+        # If not found by any method, return error
+        return Response(
+            {
+                'error': 'Student not found',
+                'details': f'No student found with ID or roll number: {identifier}'
+            },
+            status=status.HTTP_404_NOT_FOUND
+        )
     
     @action(detail=True, methods=['post'])
     def upload_photo(self, request, pk=None):

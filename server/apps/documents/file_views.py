@@ -46,10 +46,22 @@ class SecureFileView(View):
             raise Http404("File not found")
         
         # Find associated document for access control
+        # Use filter().first() instead of get() to handle multiple documents with same path
+        # This can happen when:
+        # 1. A student reapplies and uploads the same document again
+        # 2. Documents are linked to different sources (admission vs student)
+        # 3. The same physical file is referenced by multiple document records
+        # We use the most recent document (by uploadDate) for access control
+        # TODO: Consider implementing file deduplication or unique constraints
         try:
-            document = Document.objects.get(filePath=file_path, status='active')
-        except Document.DoesNotExist:
-            # File exists but no document record - only allow admin access
+            document = Document.objects.filter(filePath=file_path, status='active').order_by('-uploadDate').first()
+            if not document:
+                # File exists but no document record - only allow admin access
+                if not request.user.is_authenticated or not request.user.is_staff:
+                    raise PermissionDenied("Access denied")
+        except Exception as e:
+            logger.error(f"Error querying document for {file_path}: {str(e)}")
+            # File exists but error querying - only allow admin access
             if not request.user.is_authenticated or not request.user.is_staff:
                 raise PermissionDenied("Access denied")
             document = None

@@ -73,6 +73,8 @@
     height: 210mm;
     padding: 8mm 10mm;
     box-sizing: border-box;
+    margin: 0 auto;
+    background: #fff;
   }
 
   /* Outer solid border - Professional design */
@@ -285,6 +287,12 @@
 
   /* Print optimization */
   @media print {
+    html, body {
+      width: 297mm;
+      height: 210mm;
+      background: #fff;
+    }
+
     body {
       margin: 0;
       padding: 0;
@@ -293,6 +301,10 @@
     .sheet {
       padding: 0;
       box-shadow: none;
+      width: 297mm;
+      height: 210mm;
+      margin: 0 auto;
+      page-break-after: auto;
     }
 
     .frame-outer {

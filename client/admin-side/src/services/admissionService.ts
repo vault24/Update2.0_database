@@ -9,6 +9,8 @@ import { API_ENDPOINTS } from '@/config/api';
 // Types
 export interface Admission {
   id: string;
+  uuid?: string; // The actual UUID for backend operations
+  application_id?: string; // The custom application ID (SIPI-xxxxx)
   // Personal Information
   full_name_bangla: string;
   full_name_english: string;

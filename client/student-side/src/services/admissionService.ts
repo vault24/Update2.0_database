@@ -61,6 +61,7 @@ export interface AdmissionFormData {
 
 export interface Admission {
   id: string;
+  uuid?: string; // The actual UUID for backend operations
   application_id?: string;
   full_name_english: string;
   full_name_bangla: string;
@@ -82,7 +83,30 @@ export interface Admission {
     username: string;
   };
   rejection_reason?: string;
+  review_notes?: string;
   alreadySubmitted?: boolean;
+  
+  // Additional fields for form conversion
+  father_name?: string;
+  father_nid?: string;
+  mother_name?: string;
+  mother_nid?: string;
+  date_of_birth?: string;
+  birth_certificate_no?: string;
+  gender?: string;
+  religion?: string;
+  blood_group?: string;
+  nationality?: string;
+  nid?: string;
+  marital_status?: string;
+  guardian_mobile?: string;
+  present_address?: any;
+  permanent_address?: any;
+  board?: string;
+  roll_number?: string;
+  passing_year?: number;
+  group?: string;
+  institution_name?: string;
 }
 
 export interface DraftData {
@@ -122,15 +146,13 @@ class AdmissionService {
     // First submit the admission application
     const admission = await this.submitApplication(data);
     
-    // If admission was already submitted, return it
-    if (admission.alreadySubmitted) {
-      return admission;
-    }
-    
-    // If there are documents to upload, upload them
+    // Upload documents regardless of whether it's a new or updated admission
+    // This ensures documents are uploaded even when reapplying
+    // Use the UUID field for document upload (not the application_id)
     if (documents && Object.keys(documents).length > 0) {
       try {
-        await this.uploadDocuments(admission.id, documents);
+        const admissionUuid = admission.uuid || admission.id;
+        await this.uploadDocuments(admissionUuid, documents);
       } catch (error) {
         console.error('Document upload failed after admission submission:', error);
         // Don't fail the entire submission if documents fail
@@ -289,6 +311,14 @@ class AdmissionService {
       }
       throw error;
     }
+  }
+
+  /**
+   * Allow student to reapply after rejection
+   * POST /api/admissions/reapply/
+   */
+  async reapply(): Promise<Admission> {
+    return await api.post<Admission>('/admissions/reapply/');
   }
 }
 

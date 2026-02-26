@@ -138,34 +138,28 @@ export default function StudentDetails() {
         console.log('=== FETCHING DOCUMENTS FOR STUDENT ===');
         console.log('Student ID:', id);
         console.log('Student Name:', student.fullNameEnglish);
+        console.log('Student Roll:', student.currentRollNumber);
         console.log('Student Email:', student.email);
         
-        // Fetch ALL documents
-        const allDocsResponse = await documentService.getDocuments({
-          page_size: 1000
-        });
+        let allStudentDocuments: Document[] = [];
         
-        console.log(`Total documents in system: ${allDocsResponse.count}`);
-        
-        // Log a sample document to see structure
-        if (allDocsResponse.results && allDocsResponse.results.length > 0) {
-          const sampleDoc = allDocsResponse.results[0];
-          console.log('Sample document structure:', {
-            id: sampleDoc.id,
-            fileName: sampleDoc.fileName,
-            student: sampleDoc.student,
-            studentName: sampleDoc.studentName,
-            studentRoll: sampleDoc.studentRoll,
-            source_type: sampleDoc.source_type,
-            source_id: sampleDoc.source_id,
-            category: sampleDoc.category
+        // Strategy 1: Fetch documents directly linked to student ID
+        try {
+          const directDocsResponse = await documentService.getDocuments({
+            student: id,
+            page_size: 100
           });
+          
+          if (directDocsResponse.results && directDocsResponse.results.length > 0) {
+            allStudentDocuments = [...directDocsResponse.results];
+            console.log(`✅ Found ${directDocsResponse.results.length} documents directly linked to student ID`);
+          }
+        } catch (err) {
+          console.warn('⚠️ Error fetching direct student documents:', err);
         }
         
+        // Strategy 2: Fetch admission documents
         // Try to find related admissions using student email
-        let matchedAdmissions: Admission[] = [];
-        let admissionIds: string[] = [];
-        
         if (student.email) {
           try {
             const admissionsResponse = await admissionService.getAdmissions({
@@ -173,62 +167,80 @@ export default function StudentDetails() {
               page_size: 50
             });
             
-            matchedAdmissions = (admissionsResponse.results || []).filter(admission => 
+            const matchedAdmissions = (admissionsResponse.results || []).filter(admission => 
               admission.email?.toLowerCase().trim() === student.email.toLowerCase().trim()
             );
             
-            admissionIds = matchedAdmissions.map(admission => admission.id);
+            console.log(`Found ${matchedAdmissions.length} matching admissions`);
             
-            console.log(`Matched admissions by email: ${matchedAdmissions.length}`, admissionIds);
+            // Fetch documents for each admission
+            for (const admission of matchedAdmissions) {
+              try {
+                // The 'id' from list view might be application_id, we need to fetch full details to get UUID
+                let admissionUuid = admission.uuid;
+                
+                // If uuid is not available, fetch the full admission details
+                if (!admissionUuid) {
+                  console.log(`Fetching full admission details for: ${admission.id}`);
+                  try {
+                    const fullAdmission = await admissionService.getAdmission(admission.id);
+                    admissionUuid = fullAdmission.uuid || fullAdmission.id;
+                    console.log(`Got UUID from full admission: ${admissionUuid}`);
+                  } catch (fetchErr) {
+                    console.warn(`Could not fetch full admission details for ${admission.id}:`, fetchErr);
+                    // Skip this admission if we can't get the UUID
+                    continue;
+                  }
+                }
+                
+                console.log(`Fetching documents for admission: ${admission.id} (UUID: ${admissionUuid})`);
+                
+                const admissionDocsResponse = await documentService.getDocuments({
+                  source_type: 'admission',
+                  source_id: admissionUuid,
+                  page_size: 100
+                });
+                
+                if (admissionDocsResponse.results && admissionDocsResponse.results.length > 0) {
+                  // Filter to ensure we only get documents for this specific admission
+                  const admissionDocs = admissionDocsResponse.results.filter(
+                    doc => doc.source_type === 'admission' && String(doc.source_id) === String(admissionUuid)
+                  );
+                  
+                  // Add only unique documents (avoid duplicates)
+                  const existingIds = new Set(allStudentDocuments.map(d => d.id));
+                  const uniqueAdmissionDocs = admissionDocs.filter(d => !existingIds.has(d.id));
+                  
+                  allStudentDocuments = [...allStudentDocuments, ...uniqueAdmissionDocs];
+                  console.log(`✅ Added ${uniqueAdmissionDocs.length} admission documents`);
+                }
+              } catch (admissionDocErr) {
+                console.warn(`⚠️ Error fetching documents for admission ${admission.id}:`, admissionDocErr);
+              }
+            }
           } catch (admissionErr) {
             console.warn('⚠️ Error fetching admissions by email:', admissionErr);
           }
         }
         
-        // Find documents that match this student
-        const studentDocuments = (allDocsResponse.results || []).filter(doc => {
-          const docStudentId = doc.student ? String(doc.student) : null;
-          const currentStudentId = String(id);
-          
-          // Strategy 1: Direct student ID match
-          const matchesStudentId = docStudentId === currentStudentId;
-          
-          // Strategy 2: Name match (exact, case-insensitive)
-          const matchesName = doc.studentName && student.fullNameEnglish && 
-                             doc.studentName.toLowerCase().trim() === student.fullNameEnglish.toLowerCase().trim();
-          
-          // Strategy 3: Roll number match
-          const matchesRoll = doc.studentRoll && student.currentRollNumber &&
-                             doc.studentRoll === student.currentRollNumber;
-          
-          // Strategy 4: Admission documents linked to related admission records
-          const isAdmissionDoc = doc.source_type === 'admission';
-          const matchesAdmissionId = isAdmissionDoc && !!doc.source_id && admissionIds.includes(String(doc.source_id));
-          
-          const isMatch = matchesStudentId || matchesName || matchesRoll || matchesAdmissionId;
-          
-          if (isMatch) {
-            console.log(`✅ MATCH: ${doc.fileName}`, {
-              fileName: doc.fileName,
-              docStudentId: docStudentId,
-              docStudentName: doc.studentName,
-              sourceType: doc.source_type,
-              sourceId: doc.source_id,
-              matchReason: matchesStudentId ? 'Student ID' : matchesName ? 'Name' : matchesRoll ? 'Roll' : 'Admission ID'
-            });
-          }
-          
-          return isMatch;
-        });
+        setDocuments(allStudentDocuments);
         
-        setDocuments(studentDocuments);
+        console.log(`✅ Total documents loaded: ${allStudentDocuments.length}`);
         
-        console.log(`✅ Found ${studentDocuments.length} documents for this student`);
-        
-        if (studentDocuments.length === 0) {
+        if (allStudentDocuments.length === 0) {
           console.warn('⚠️ NO DOCUMENTS FOUND');
-          console.log('This student might have documents from their admission that are not linked.');
-          console.log('Check the Admission Details page for this student to see their admission documents.');
+          console.log('Possible reasons:');
+          console.log('1. Documents not yet uploaded');
+          console.log('2. Documents linked to different student ID');
+          console.log('3. Admission documents not properly linked');
+        } else {
+          console.log('Document breakdown:');
+          const bySource = allStudentDocuments.reduce((acc, doc) => {
+            const source = doc.source_type || 'unknown';
+            acc[source] = (acc[source] || 0) + 1;
+            return acc;
+          }, {} as Record<string, number>);
+          console.log('By source type:', bySource);
         }
       } catch (err) {
         console.error('❌ Error fetching documents:', err);

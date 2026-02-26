@@ -44,15 +44,15 @@ class StructuredFileStorage:
     # Standardized document categories and their file naming
     DOCUMENT_CATEGORIES = {
         'photo': {'extensions': ['jpg', 'jpeg', 'png'], 'filename': 'photo'},
-        'birth_certificate': {'extensions': ['pdf'], 'filename': 'birth_certificate'},
+        'birth_certificate': {'extensions': ['pdf', 'jpg', 'jpeg', 'png'], 'filename': 'birth_certificate'},
         'nid': {'extensions': ['pdf', 'jpg', 'jpeg', 'png'], 'filename': 'nid'},
         'father_nid': {'extensions': ['pdf', 'jpg', 'jpeg', 'png'], 'filename': 'father_nid'},
         'mother_nid': {'extensions': ['pdf', 'jpg', 'jpeg', 'png'], 'filename': 'mother_nid'},
-        'ssc_marksheet': {'extensions': ['pdf'], 'filename': 'ssc_marksheet'},
-        'ssc_certificate': {'extensions': ['pdf'], 'filename': 'ssc_certificate'},
-        'transcript': {'extensions': ['pdf'], 'filename': 'transcript'},
-        'medical_certificate': {'extensions': ['pdf'], 'filename': 'medical_certificate'},
-        'quota_document': {'extensions': ['pdf'], 'filename': 'quota_document'},
+        'ssc_marksheet': {'extensions': ['pdf', 'jpg', 'jpeg', 'png'], 'filename': 'ssc_marksheet'},
+        'ssc_certificate': {'extensions': ['pdf', 'jpg', 'jpeg', 'png'], 'filename': 'ssc_certificate'},
+        'transcript': {'extensions': ['pdf', 'jpg', 'jpeg', 'png'], 'filename': 'transcript'},
+        'medical_certificate': {'extensions': ['pdf', 'jpg', 'jpeg', 'png'], 'filename': 'medical_certificate'},
+        'quota_document': {'extensions': ['pdf', 'jpg', 'jpeg', 'png'], 'filename': 'quota_document'},
         'other': {'extensions': ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'], 'filename': None},
     }
     

@@ -3,132 +3,271 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Certificate - Sirajganj Polytechnic Institute</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Times+New+Roman:wght@400;700&display=swap" rel="stylesheet">
+    <title>Bonafide Certificate - Sirajganj Polytechnic Institute</title>
     <style>
-        body {
-            font-family: 'Times New Roman', Times, serif;
-            background-color: #f3f4f6;
-            print-color-adjust: exact;
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
             -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
         }
-        .page-container {
+
+        body {
+            font-family: "Times New Roman", Times, serif;
+            background: #e8ebef;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 24px;
+        }
+
+        .page {
             width: 210mm;
-            min-height: 297mm;
-            background: white;
-            margin: 20px auto;
-            padding: 40px 50px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            position: relative;
+            height: 297mm;
+            background: #fff;
+            padding: 10mm;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
         }
-        @media print {
-            body {
-                background: none;
-                margin: 0;
-            }
-            .page-container {
-                width: 100%;
-                margin: 0;
-                box-shadow: none;
-                padding: 20px;
-            }
+
+        .frame {
+            width: 100%;
+            height: 100%;
+            border: 2px solid #1f2937;
+            padding: 4px;
         }
-        .logo-placeholder {
-            width: 100px;
-            height: 100px;
+
+        .inner {
+            width: 100%;
+            height: 100%;
+            border: 1px solid #1f2937;
+            padding: 10mm 12mm;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .doc-header {
+            display: grid;
+            grid-template-columns: 70px 1fr 70px;
+            align-items: start;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .logo-box {
+            width: 70px;
+            height: 70px;
             display: flex;
             align-items: center;
             justify-content: center;
         }
+
+        .logo-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .header-center {
+            text-align: center;
+        }
+
+        .gov {
+            font-size: 14px;
+            margin-bottom: 2px;
+        }
+
+        .office {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 2px;
+        }
+
+        .institute {
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+            margin-bottom: 2px;
+        }
+
+        .contact {
+            font-size: 12px;
+            line-height: 1.35;
+        }
+
+        .meta-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            font-weight: 700;
+            margin: 10px 0 18px;
+        }
+
+        .doc-title {
+            text-align: center;
+            font-size: 32px;
+            font-weight: 700;
+            text-transform: uppercase;
+            text-decoration: underline;
+            text-underline-offset: 5px;
+            margin-bottom: 22px;
+        }
+
+        .content {
+            font-size: 18px;
+            line-height: 1.72;
+            text-align: justify;
+        }
+
+        .content p {
+            margin-bottom: 12px;
+        }
+
+        .signatures {
+            margin-top: auto;
+            padding-top: 20mm;
+            display: flex;
+            justify-content: space-between;
+            gap: 20mm;
+        }
+
+        .signature {
+            width: 46%;
+            text-align: center;
+        }
+
+        .signature .line {
+            border-top: 1px solid #111;
+            margin-bottom: 6px;
+        }
+
+        .signature .title {
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .signature .sub {
+            font-size: 14px;
+            line-height: 1.35;
+        }
+
+        .controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+
+        .controls button {
+            border: none;
+            background: #1f2937;
+            color: #fff;
+            padding: 10px 16px;
+            border-radius: 6px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        @page {
+            size: A4;
+            margin: 0;
+        }
+
+        @media print {
+            html, body {
+                width: 210mm;
+                height: 297mm;
+                margin: 0;
+                padding: 0;
+                background: #fff;
+            }
+
+            body {
+                display: block;
+            }
+
+            .page {
+                width: 210mm;
+                height: 297mm;
+                margin: 0 auto;
+                padding: 10mm;
+                box-shadow: none;
+                page-break-after: auto;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+        }
     </style>
 </head>
-<body class="p-4">
-
-    <div class="page-container mx-auto">
-        
-        <!-- Header Section -->
-        <div class="flex justify-between items-start mb-8">
-            <!-- Left Logo: Bangladesh Govt -->
-            <div class="w-24 h-24 flex-shrink-0">
-                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Government_Seal_of_Bangladesh.svg/200px-Government_Seal_of_Bangladesh.svg.png" 
-                     alt="Bangladesh Government Logo" 
-                     class="w-full h-full object-contain"
-                     onerror="this.src='https://placehold.co/100x100?text=BD+Govt+Logo'">
-            </div>
-
-            <!-- Center Text -->
-            <div class="text-center flex-grow px-4 mt-2">
-                <h2 class="text-xl font-bold leading-tight">Government of the People's Republic of Bangladesh</h2>
-                <h3 class="text-lg font-bold mt-1">Office of the Principal</h3>
-                <h1 class="text-2xl font-bold mt-1">Sirajganj Polytechnic Institute, Sirajganj</h1>
-                <p class="text-lg mt-1">Institution Code: 25054, EIIN No-132927</p>
-            </div>
-
-            <!-- Right Logo: Institute -->
-            <div class="w-24 h-24 flex-shrink-0">
-                <img src="https://placehold.co/100x100/white/red?text=Institute\nLogo" 
-                     alt="Sirajganj Polytechnic Institute Logo" 
-                     class="w-full h-full object-contain border border-gray-100 rounded-full">
-            </div>
-        </div>
-
-        <!-- Contact Info -->
-        <div class="mb-12 text-base">
-            <p>Web: www.spisg.gov.bd</p>
-            <p>E-mail: principal.spi@gmail.com</p>
-        </div>
-
-        <!-- Title (CENTERED) -->
-        <div class="mb-8 text-center">
-            <h1 class="text-4xl font-bold text-black">Certificate</h1>
-        </div>
-
-        <!-- Body Content -->
-        <div class="text-xl text-justify leading-relaxed space-y-6">
-            <p>
-                This is to certify that <strong>{NAME}</strong>, son of <strong>{FATHER}</strong> and <strong>{Mother}</strong>, village <strong>{VILLAGE}</strong>, Post Office <strong>{POST OFFICE}</strong> Upazila <strong>{UPAZILA}</strong>, District <strong>Sirajganj</strong>, was a regular student of this institute in the <strong>2015–2016 session</strong> in the <strong>{TECHNOLOGY}</strong> department.
-            </p>
-
-            <p>
-                According to the institute records, his <strong>{Board Roll}</strong> and <strong>{Registration}</strong>.
-            </p>
-
-            <p>
-                He appeared in the <strong>Diploma-in-Engineering examination held in {SESSION}</strong> and successfully <strong>passed with a CGPA of {CGPA}</strong>.
-            </p>
-
-            <p>
-                To the best of our knowledge, during his period of study, <strong>he was not involved in any activities against the institute/state or in any unlawful activities.</strong>
-            </p>
-
-            <p>
-                I wish him every success in his future life.
-            </p>
-        </div>
-
-        <!-- Signatures Section -->
-        <div class="flex justify-between items-end mt-32 pt-10">
-            
-            <!-- Left Signature -->
-            <div class="text-center min-w-[200px]">
-                <p class="font-bold text-lg">(K. M. Firoz Hossain)</p>
-                <p class="text-lg">Registrar</p>
-                <p class="text-lg">Sirajganj Polytechnic Institute</p>
-                <p class="text-lg">Sirajganj</p>
-            </div>
-
-            <!-- Right Signature -->
-            <div class="text-center min-w-[200px]">
-                <p class="font-bold text-lg">(Md. Fozlul Haque)</p>
-                <p class="text-lg">Principal</p>
-                <p class="text-lg">Sirajganj Polytechnic Institute</p>
-                <p class="text-lg">Sirajganj</p>
-                <p class="text-lg">Phone: 02587752017</p>
-            </div>
-        </div>
-
+<body>
+    <div class="controls no-print">
+        <button onclick="window.print()">Print</button>
     </div>
 
+    <div class="page">
+        <div class="frame">
+            <div class="inner">
+                <header class="doc-header">
+                    <div class="logo-box">
+                        <img src="gov.svg" alt="Government Logo">
+                    </div>
+                    <div class="header-center">
+                        <div class="gov">Government of the People's Republic of Bangladesh</div>
+                        <div class="office">Office of the Principal</div>
+                        <div class="institute">Sirajganj Polytechnic Institute</div>
+                        <div class="contact">Institution Code: 25054, EIIN No-132927</div>
+                        <div class="contact">Web: www.spisg.gov.bd, E-mail: principal.spi@gmail.com</div>
+                    </div>
+                    <div class="logo-box">
+                        <img src="spi.png" alt="Institute Logo">
+                    </div>
+                </header>
+
+                <div class="meta-row">
+                    <span>Ref: {{SERIAL_NUMBER}}</span>
+                    <span>Date: {{ISSUE_DATE}}</span>
+                </div>
+
+                <h1 class="doc-title">Bonafide Certificate</h1>
+
+                <div class="content">
+                    <p>
+                        This is to certify that <strong>{{name}}</strong>, son/daughter of
+                        <strong>{{fatherName}}</strong> and <strong>{{motherName}}</strong>, is a bona fide
+                        student of <strong>{{department}}</strong> Technology at Sirajganj Polytechnic Institute.
+                    </p>
+                    <p>
+                        The student is enrolled under Session <strong>{{session}}</strong> with Roll No
+                        <strong>{{rollNumber}}</strong> and Registration No
+                        <strong>{{registrationNumber}}</strong>.
+                    </p>
+                    <p>
+                        According to institutional records, the student has maintained regular academic status
+                        and is currently in good standing in this institute.
+                    </p>
+                    <p>
+                        This certificate is issued upon request for official purposes.
+                    </p>
+                </div>
+
+                <div class="signatures">
+                    <div class="signature">
+                        <div class="line"></div>
+                        <div class="title">Registrar</div>
+                        <div class="sub">Sirajganj Polytechnic Institute</div>
+                    </div>
+                    <div class="signature">
+                        <div class="line"></div>
+                        <div class="title">Principal</div>
+                        <div class="sub">Sirajganj Polytechnic Institute</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

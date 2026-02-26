@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Clock, Eye, Loader2, CheckCircle, GraduationCap, Monitor, Building,
   Send, MessageSquare, Calendar, ChevronDown, ChevronUp, Search,
-  TrendingUp, FileText, Shield, Plus
+  TrendingUp, FileText, Shield, Plus, RefreshCw
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -145,9 +145,15 @@ export default function ComplaintsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const loadData = async () => {
-    setIsLoading(true);
+  const loadData = async (showRefreshIndicator = false) => {
+    if (showRefreshIndicator) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
     try {
       const [complaintsRes, categoriesRes, subcategoriesRes] = await Promise.all([
         fetchAll<ComplaintApi>('complaints/complaints/'),
@@ -158,15 +164,28 @@ export default function ComplaintsPage() {
       setComplaints(complaintsRes.map(mapComplaint));
       setCategories(categoriesRes);
       setSubcategories(subcategoriesRes);
+      setLastUpdated(new Date());
+      
+      if (showRefreshIndicator) {
+        toast.success('Complaints refreshed');
+      }
     } catch (error) {
       toast.error(getErrorMessage(error));
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   };
 
   useEffect(() => {
     loadData();
+    
+    // Auto-refresh every 30 seconds to check for status updates
+    const intervalId = setInterval(() => {
+      loadData(true);
+    }, 30000);
+    
+    return () => clearInterval(intervalId);
   }, []);
 
   const selectedCategory = useMemo(
@@ -266,13 +285,24 @@ export default function ComplaintsPage() {
             </div>
           </div>
 
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="lg" className="gap-2 shadow-lg">
-                <Plus className="w-5 h-5" />
-                New Report
-              </Button>
-            </DialogTrigger>
+          <div className="flex items-center gap-2">
+            <Button 
+              size="lg" 
+              variant="outline" 
+              className="gap-2"
+              onClick={() => loadData(true)}
+              disabled={isRefreshing}
+            >
+              <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </Button>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="lg" className="gap-2 shadow-lg">
+                  <Plus className="w-5 h-5" />
+                  New Report
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
@@ -286,31 +316,43 @@ export default function ComplaintsPage() {
               <div className="space-y-4 pt-4">
                 <div className="space-y-3">
                   <Label>Select Category *</Label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {categories.map((cat) => {
-                      const key = categoryKeyFromText(`${cat.name} ${cat.label}`);
-                      const config = categoryConfig[key];
-                      const Icon = config.icon;
-                      const isSelected = categoryId === cat.id;
+                  {categories.length === 0 ? (
+                    <div className="text-sm text-muted-foreground p-4 bg-muted/50 rounded-lg">
+                      Loading categories...
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-2">
+                      {categories.map((cat) => {
+                        const key = categoryKeyFromText(`${cat.name} ${cat.label}`);
+                        const config = categoryConfig[key];
+                        const Icon = config.icon;
+                        const isSelected = categoryId === cat.id;
 
-                      return (
-                        <button
-                          key={cat.id}
-                          type="button"
-                          onClick={() => { setCategoryId(cat.id); setSubcategoryId(''); }}
-                          className={cn(
-                            'p-3 rounded-xl border-2 transition-all text-center',
-                            isSelected ? 'border-primary bg-primary/5 shadow-md' : 'border-border hover:border-primary/50'
-                          )}
-                        >
-                          <div className={cn('w-10 h-10 rounded-lg mx-auto mb-2 flex items-center justify-center', config.bgColor)}>
-                            <Icon className="w-5 h-5" />
-                          </div>
-                          <span className="text-xs font-medium">{cat.label.split(' ')[0]}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                        return (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={(e) => { 
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setCategoryId(cat.id); 
+                              setSubcategoryId(''); 
+                              console.log('Category selected:', cat.id, cat.label);
+                            }}
+                            className={cn(
+                              'p-3 rounded-xl border-2 transition-all text-center cursor-pointer hover:scale-105',
+                              isSelected ? 'border-primary bg-primary/5 shadow-md' : 'border-border hover:border-primary/50 hover:bg-primary/5'
+                            )}
+                          >
+                            <div className={cn('w-10 h-10 rounded-lg mx-auto mb-2 flex items-center justify-center', config.bgColor)}>
+                              <Icon className="w-5 h-5" />
+                            </div>
+                            <span className="text-xs font-medium">{cat.label.split(' ')[0]}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 {selectedCategory && (
@@ -365,9 +407,17 @@ export default function ComplaintsPage() {
                 </Button>
               </div>
             </DialogContent>
-          </Dialog>
+            </Dialog>
+          </div>
         </div>
       </div>
+
+      {lastUpdated && (
+        <div className="text-xs text-muted-foreground text-center -mt-2">
+          Last updated: {format(lastUpdated, 'PPpp')}
+          {isRefreshing && <span className="ml-2 text-primary">• Refreshing...</span>}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="border-border/50">

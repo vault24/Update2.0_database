@@ -8,6 +8,7 @@ import { departmentService, type Department } from '@/services/departmentService
 import { getErrorMessage } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { AdmissionSuccess } from './AdmissionSuccess';
+import { AdmissionRejected } from './AdmissionRejected';
 import { steps } from './wizard/stepConfig';
 import { AdmissionFormState } from './wizard/types';
 import { defaultFormData } from './wizard/formDefaults';
@@ -23,12 +24,16 @@ import { CheckCircle } from 'lucide-react';
 
 const STORAGE_KEY = DRAFT_STORAGE_KEY;
 const SUBMISSION_STORAGE_KEY = 'admission_submission_state';
+const SUBMITTED_FORM_DATA_KEY = 'admission_submitted_form_data';
+const REAPPLY_EDITING_KEY = 'admission_reapply_editing';
 const DRAFT_DEBOUNCE_MS = 1000;
 const DRAFT_SAVE_RETRIES = 3;
 
 export function AdmissionWizard() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isRejected, setIsRejected] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploadingDocuments, setIsUploadingDocuments] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string>('');
@@ -68,7 +73,7 @@ export function AdmissionWizard() {
     }
   };
 
-  const persistSubmissionState = (id: string) => {
+  const persistSubmissionState = (id: string, formDataToSave: AdmissionFormState) => {
     if (!user?.id) return;
     
     const userSpecificKey = `${SUBMISSION_STORAGE_KEY}_${user.id}`;
@@ -76,6 +81,23 @@ export function AdmissionWizard() {
       isSubmitted: true,
       applicationId: id,
     }));
+    
+    // Also persist the form data for PDF generation
+    const formDataKey = `${SUBMITTED_FORM_DATA_KEY}_${user.id}`;
+    localStorage.setItem(formDataKey, JSON.stringify(formDataToSave));
+  };
+
+  const loadSubmittedFormData = (): AdmissionFormState | null => {
+    if (!user?.id) return null;
+    
+    try {
+      const formDataKey = `${SUBMITTED_FORM_DATA_KEY}_${user.id}`;
+      const saved = localStorage.getItem(formDataKey);
+      return saved ? JSON.parse(saved) as AdmissionFormState : null;
+    } catch (error) {
+      console.error('Unable to parse submitted form data', error);
+      return null;
+    }
   };
 
   const clearSubmissionState = () => {
@@ -83,6 +105,27 @@ export function AdmissionWizard() {
     
     const userSpecificKey = `${SUBMISSION_STORAGE_KEY}_${user.id}`;
     localStorage.removeItem(userSpecificKey);
+    
+    const formDataKey = `${SUBMITTED_FORM_DATA_KEY}_${user.id}`;
+    localStorage.removeItem(formDataKey);
+  };
+
+  const setReapplyEditingFlag = (isEditing: boolean) => {
+    if (!user?.id) return;
+    
+    const reapplyKey = `${REAPPLY_EDITING_KEY}_${user.id}`;
+    if (isEditing) {
+      localStorage.setItem(reapplyKey, 'true');
+    } else {
+      localStorage.removeItem(reapplyKey);
+    }
+  };
+
+  const isReapplyEditing = (): boolean => {
+    if (!user?.id) return false;
+    
+    const reapplyKey = `${REAPPLY_EDITING_KEY}_${user.id}`;
+    return localStorage.getItem(reapplyKey) === 'true';
   };
 
   const cleanupOldSubmissionStates = () => {
@@ -91,7 +134,7 @@ export function AdmissionWizard() {
       const keysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && key.startsWith(SUBMISSION_STORAGE_KEY) && !key.endsWith(`_${user?.id}`)) {
+        if (key && (key.startsWith(SUBMISSION_STORAGE_KEY) || key.startsWith(SUBMITTED_FORM_DATA_KEY) || key.startsWith(REAPPLY_EDITING_KEY)) && !key.endsWith(`_${user?.id}`)) {
           keysToRemove.push(key);
         }
       }
@@ -149,6 +192,12 @@ export function AdmissionWizard() {
       setIsSubmitted(true);
       setApplicationId(stored.applicationId || '');
       setCurrentStep(7);
+      
+      // Restore the submitted form data for PDF generation
+      const savedFormData = loadSubmittedFormData();
+      if (savedFormData) {
+        setFormData(savedFormData);
+      }
     }
   }, [user?.id]);
 
@@ -165,10 +214,71 @@ export function AdmissionWizard() {
         if (cancelled) return;
 
         if (existing.hasAdmission) {
+          // Check if admission is rejected - show rejection screen
+          if (existing.status === 'rejected') {
+            setIsRejected(true);
+            setIsSubmitted(false);
+            setApplicationId(existing.application_id || existing.admissionId || '');
+            
+            // Try to load the rejected admission data
+            try {
+              const rejectedAdmission = await admissionService.getMyAdmission();
+              if (rejectedAdmission) {
+                setRejectionReason(rejectedAdmission.review_notes || 'No reason provided');
+                // Convert admission data back to form format for editing
+                const formDataFromAdmission = convertAdmissionToFormData(rejectedAdmission);
+                setFormData(formDataFromAdmission);
+              }
+            } catch (error) {
+              console.error('Error loading rejected admission:', error);
+            }
+            
+            setInitialised(true);
+            setIsDraftLoading(false);
+            setIsCheckingExisting(false);
+            return;
+          }
+          
+          // For approved or pending, check if user is actively editing after reapply
+          if (existing.status === 'pending' && isReapplyEditing()) {
+            // User is editing a reapplied admission, don't show as submitted
+            setApplicationId(existing.application_id || existing.admissionId || '');
+            setIsSubmitted(false);
+            setIsRejected(false);
+            setCurrentStep(1); // Start from first step
+            
+            // Load the admission data for editing
+            try {
+              const pendingAdmission = await admissionService.getMyAdmission();
+              if (pendingAdmission) {
+                const formDataFromAdmission = convertAdmissionToFormData(pendingAdmission);
+                setFormData(formDataFromAdmission);
+              }
+            } catch (error) {
+              console.error('Error loading pending admission:', error);
+            }
+            
+            setInitialised(true);
+            setIsDraftLoading(false);
+            setIsCheckingExisting(false);
+            return;
+          }
+          
+          // For approved or fully submitted pending, show success/status page
           setApplicationId(existing.application_id || existing.admissionId || '');
           setIsSubmitted(true);
+          setIsRejected(false);
           setCurrentStep(7); // Move to success page
-          persistSubmissionState(existing.application_id || existing.admissionId || '');
+          
+          // Try to load saved form data for PDF generation
+          const savedFormData = loadSubmittedFormData();
+          if (savedFormData) {
+            setFormData(savedFormData);
+          } else {
+            // If no saved form data, persist empty state to avoid errors
+            persistSubmissionState(existing.application_id || existing.admissionId || '', defaultFormData);
+          }
+          
           await admissionService.clearDraft();
           if (user?.id) {
             localStorage.removeItem(`${STORAGE_KEY}_${user.id}`);
@@ -264,6 +374,78 @@ export function AdmissionWizard() {
 
   const [formData, setFormData] = useState<AdmissionFormState>(defaultFormData);
 
+  // Helper function to convert admission data back to form format
+  const convertAdmissionToFormData = (admission: any): AdmissionFormState => {
+    return {
+      fullNameBangla: admission.full_name_bangla || '',
+      fullNameEnglish: admission.full_name_english || '',
+      fatherName: admission.father_name || '',
+      fatherNID: admission.father_nid || '',
+      motherName: admission.mother_name || '',
+      motherNID: admission.mother_nid || '',
+      dateOfBirth: admission.date_of_birth || '',
+      gender: admission.gender?.toLowerCase() || '',
+      religion: admission.religion || '',
+      nationality: admission.nationality || 'Bangladeshi',
+      nid: admission.nid || '',
+      birthCertificate: admission.birth_certificate_no || '',
+      bloodGroup: admission.blood_group || '',
+      maritalStatus: admission.marital_status || '',
+      
+      mobile: admission.mobile_student || '',
+      email: admission.email || '',
+      guardianMobile: admission.guardian_mobile || '',
+      presentAddress: admission.present_address?.fullAddress || '',
+      presentDivision: admission.present_address?.division || '',
+      presentDistrict: admission.present_address?.district || '',
+      presentUpazila: admission.present_address?.upazila || '',
+      presentPoliceStation: admission.present_address?.policeStation || '',
+      presentPostOffice: admission.present_address?.postOffice || '',
+      presentMunicipalityUnion: admission.present_address?.municipality || '',
+      presentVillageNeighborhood: admission.present_address?.village || '',
+      presentWard: admission.present_address?.ward || '',
+      permanentAddress: admission.permanent_address?.fullAddress || '',
+      permanentDivision: admission.permanent_address?.division || '',
+      permanentDistrict: admission.permanent_address?.district || '',
+      permanentUpazila: admission.permanent_address?.upazila || '',
+      permanentPoliceStation: admission.permanent_address?.policeStation || '',
+      permanentPostOffice: admission.permanent_address?.postOffice || '',
+      permanentMunicipalityUnion: admission.permanent_address?.municipality || '',
+      permanentVillageNeighborhood: admission.permanent_address?.village || '',
+      permanentWard: admission.permanent_address?.ward || '',
+      sameAsPresent: false,
+      
+      sscBoard: admission.board || '',
+      sscRoll: admission.roll_number || '',
+      sscYear: admission.passing_year?.toString() || '',
+      sscGPA: admission.gpa?.toString() || '',
+      sscGroup: admission.group || '',
+      sscInstitution: admission.institution_name || '',
+      
+      department: admission.desired_department?.id || admission.desired_department || '',
+      shift: admission.desired_shift?.toLowerCase() || '',
+      session: admission.session || '',
+      semester: '1st',
+      admissionType: 'regular',
+      group: admission.group || '',
+      
+      photo: null,
+      signature: null,
+      sscMarksheet: null,
+      sscCertificate: null,
+      birthCertificateDoc: null,
+      studentNIDCopy: null,
+      fatherNIDFront: null,
+      fatherNIDBack: null,
+      motherNIDFront: null,
+      motherNIDBack: null,
+      testimonial: null,
+      medicalCertificate: null,
+      quotaDocument: null,
+      extraCertificates: null,
+    };
+  };
+
   const handleInputChange = (field: keyof AdmissionFormState, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
@@ -289,6 +471,15 @@ export function AdmissionWizard() {
 
   const saveDraftWithRetry = async (showToast: boolean = false) => {
     if (!initialised || isSubmitted) return;
+    
+    // Don't save drafts to server if there's an existing non-draft admission (e.g., after reapply)
+    // The user is editing their actual admission, not a draft
+    if (applicationId && !isRejected) {
+      // Still save locally for form persistence
+      saveLocalDraft(formData, currentStep);
+      return;
+    }
+    
     setIsDraftSaving(true);
     setDraftError(null);
 
@@ -539,8 +730,11 @@ export function AdmissionWizard() {
       setApplicationId(admission.id);
       setIsSubmitted(true);
       setCurrentStep(7); // Move to success page
-      persistSubmissionState(admission.id);
+      persistSubmissionState(admission.id, formData);
       setUsingLocalFallback(false);
+      
+      // Clear the reapply editing flag since submission is complete
+      setReapplyEditingFlag(false);
 
       const submissionToast = admission.alreadySubmitted ? toast.info : toast.success;
       submissionToast(
@@ -566,7 +760,7 @@ export function AdmissionWizard() {
           if (user?.id) {
             localStorage.removeItem(`${STORAGE_KEY}_${user.id}`);
           }
-          persistSubmissionState(existingAdmission.id);
+          persistSubmissionState(existingAdmission.id, formData);
           toast.info('Application already submitted', {
             description: 'Your admission application was already submitted. Here is your application ID.'
           });
@@ -585,7 +779,35 @@ export function AdmissionWizard() {
     }
   };
 
-  const generatePDF = () => generateAdmissionPDF(formData, applicationId);
+  const generatePDF = () => generateAdmissionPDF(formData, applicationId, departments);
+
+  const handleReapply = async () => {
+    try {
+      toast.info('Processing reapplication...', {
+        description: 'Resetting your application status'
+      });
+      
+      await admissionService.reapply();
+      
+      // Set the reapply editing flag
+      setReapplyEditingFlag(true);
+      
+      // Reset states to allow editing
+      setIsRejected(false);
+      setIsSubmitted(false);
+      setRejectionReason('');
+      setCurrentStep(1); // Start from first step for review
+      
+      toast.success('Ready to reapply!', {
+        description: 'You can now review and edit your application before resubmitting.'
+      });
+    } catch (error) {
+      toast.error('Failed to process reapplication', {
+        description: getErrorMessage(error)
+      });
+      console.error('Reapply error:', error);
+    }
+  };
 
   if (isDraftLoading && !initialised) {
     return (
@@ -602,6 +824,16 @@ export function AdmissionWizard() {
         applicationId={applicationId}
         onGeneratePdf={generatePDF}
         onGoDashboard={() => navigate('/dashboard')}
+      />
+    );
+  }
+
+  if (isRejected) {
+    return (
+      <AdmissionRejected
+        applicationId={applicationId}
+        rejectionReason={rejectionReason}
+        onReapply={handleReapply}
       />
     );
   }

@@ -1,11 +1,35 @@
 """
 Authentication Models
 """
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, UserManager as DjangoUserManager
 from django.db import models
 from django.utils import timezone
 from datetime import timedelta
 import uuid
+
+
+class UserManager(DjangoUserManager):
+    """
+    Enforce admin role constraints for Django `createsuperuser`.
+    """
+    def create_superuser(self, username, email=None, password=None, **extra_fields):
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', True)
+        extra_fields.setdefault('account_status', 'active')
+
+        role = extra_fields.get('role') or 'institute_head'
+        if role not in User.ADMIN_ROLES:
+            raise ValueError(
+                "Superuser role must be one of: institute_head, registrar."
+            )
+        extra_fields['role'] = role
+
+        if extra_fields.get('is_staff') is not True:
+            raise ValueError('Superuser must have is_staff=True.')
+        if extra_fields.get('is_superuser') is not True:
+            raise ValueError('Superuser must have is_superuser=True.')
+
+        return self.create_user(username, email, password, **extra_fields)
 
 
 class User(AbstractUser):
@@ -22,6 +46,7 @@ class User(AbstractUser):
         ('registrar', 'Registrar'),
         ('institute_head', 'Institute Head'),
     ]
+    ADMIN_ROLES = ('registrar', 'institute_head')
     
     # Account status choices
     ACCOUNT_STATUS_CHOICES = [
@@ -80,6 +105,7 @@ class User(AbstractUser):
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    objects = UserManager()
     
     class Meta:
         db_table = 'auth_user'
@@ -98,7 +124,7 @@ class User(AbstractUser):
     
     def is_admin(self):
         """Check if user has admin privileges"""
-        return self.role in ['registrar', 'institute_head']
+        return self.role in self.ADMIN_ROLES
     
     def is_teacher(self):
         """Check if user is a teacher"""
@@ -135,6 +161,17 @@ class User(AbstractUser):
             return 'Your account has been suspended. Please contact administration.'
         else:
             return 'You are not authorized to login at this time.'
+
+    def save(self, *args, **kwargs):
+        """
+        Keep superusers aligned with admin-side access requirements.
+        """
+        if self.is_superuser:
+            if self.role not in self.ADMIN_ROLES:
+                self.role = 'institute_head'
+            self.is_staff = True
+            self.account_status = 'active'
+        super().save(*args, **kwargs)
 
 
 class SignupRequest(models.Model):

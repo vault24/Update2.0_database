@@ -8,7 +8,6 @@ import { DocumentStudentData, DocumentTemplate, GeneratedDocument, DocumentPrevi
 import { DocumentGenerator as DocumentGeneratorService } from '@/services/documentGenerator';
 import { DocumentStudentService, StudentSearchResult } from '@/services/documentStudentService';
 import { TemplateService } from '@/services/templateService';
-import { PDFExportService } from '@/services/pdfExportService';
 import TemplateEngineComponent from '@/components/templates/TemplateEngine';
 import TemplatePreview from '@/components/templates/TemplatePreview';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,7 +24,6 @@ import {
   FileText, 
   User, 
   Download, 
-  Printer, 
   CheckCircle, 
   AlertTriangle, 
   Loader2,
@@ -363,61 +361,6 @@ export const DocumentGeneratorComponent: React.FC<DocumentGeneratorProps> = ({
     }
   };
 
-  // Handle print
-  const handlePrint = () => {
-    if (!generatedDocument || !selectedTemplate) {
-      toast({
-        title: 'Error',
-        description: 'No document available for printing',
-        variant: 'destructive'
-      });
-      return;
-    }
-
-    try {
-      // Prepare print view with only document content
-      const printContent = PDFExportService.preparePrintView(generatedDocument.htmlContent);
-      
-      // Open print dialog in new window with proper sizing
-      const printWindow = window.open('', '_blank', 'width=1200,height=800,scrollbars=yes');
-      if (!printWindow) {
-        throw new Error('Unable to open print window. Please check your browser popup settings.');
-      }
-
-      printWindow.document.write(printContent);
-      printWindow.document.close();
-
-      // Wait for content to load before printing
-      printWindow.onload = () => {
-        setTimeout(() => {
-          printWindow.print();
-        }, 1000);
-      };
-      
-      // Fallback if onload doesn't fire
-      setTimeout(() => {
-        if (printWindow.document.readyState === 'complete') {
-          printWindow.print();
-        }
-      }, 1500);
-
-      toast({
-        title: 'Print Dialog Opened',
-        description: 'Document prepared for printing',
-      });
-
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to prepare document for printing';
-      console.error('Print preparation error:', err);
-      
-      toast({
-        title: 'Error',
-        description: errorMessage,
-        variant: 'destructive'
-      });
-    }
-  };
-
   // Handle download PDF
   const handleDownload = async () => {
     if (!generatedDocument || !selectedStudent || !selectedTemplate) {
@@ -704,10 +647,6 @@ export const DocumentGeneratorComponent: React.FC<DocumentGeneratorProps> = ({
                   </CardTitle>
                   
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" onClick={handlePrint}>
-                      <Printer className="w-4 h-4 mr-2" />
-                      Print
-                    </Button>
                     <Button variant="outline" onClick={handleDownload}>
                       <Download className="w-4 h-4 mr-2" />
                       Download PDF

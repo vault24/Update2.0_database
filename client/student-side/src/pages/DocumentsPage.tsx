@@ -100,37 +100,62 @@ export function DocumentsPage() {
       console.log('Fetching documents for student:', user.relatedProfileId);
       console.log('User object:', user);
       
-      const response = await documentService.getMyDocuments(user.relatedProfileId);
-      console.log('Documents response:', response);
+      let mergedDocuments: Document[] = [];
       
-      let mergedDocuments = response.documents || [];
+      // Try to fetch student documents
+      try {
+        const response = await documentService.getMyDocuments(user.relatedProfileId);
+        console.log('Student documents response:', response);
+        mergedDocuments = response.documents || [];
+      } catch (studentDocsErr: any) {
+        console.warn('Could not fetch student documents:', studentDocsErr);
+        // Continue to try admission documents
+      }
       
-      // Also include admission documents (not directly linked to student)
+      // Also try to fetch admission documents
       try {
         const admission = await admissionService.getMyAdmission();
-        if (admission?.id) {
+        console.log('Admission data:', admission);
+        
+        if (admission) {
+          // Use UUID if available, otherwise use id
+          const admissionUuid = admission.uuid || admission.id;
+          console.log('Fetching admission documents with UUID:', admissionUuid);
+          
           const admissionDocsResponse = await documentService.getDocuments({
             source_type: 'admission',
-            source_id: admission.id,
+            source_id: admissionUuid,
             page_size: 100
           });
           
+          console.log('Admission documents response:', admissionDocsResponse);
+          
           const admissionDocs = (admissionDocsResponse.results || []).filter(
-            (doc) => doc.source_type === 'admission' && String(doc.source_id) === String(admission.id)
+            (doc) => doc.source_type === 'admission' && String(doc.source_id) === String(admissionUuid)
           );
+          
           if (admissionDocs.length > 0) {
             const existingIds = new Set(mergedDocuments.map(d => d.id));
             const uniqueAdmissionDocs = admissionDocs.filter(d => !existingIds.has(d.id));
             mergedDocuments = [...mergedDocuments, ...uniqueAdmissionDocs];
             
-            console.log('Admission documents merged:', uniqueAdmissionDocs.length);
+            console.log('✅ Admission documents merged:', uniqueAdmissionDocs.length);
+          } else {
+            console.log('ℹ️ No admission documents found');
           }
         }
-      } catch (admissionErr) {
+      } catch (admissionErr: any) {
         console.warn('Could not fetch admission documents:', admissionErr);
+        // This is not critical, continue with student documents only
       }
       
+      console.log('✅ Total documents loaded:', mergedDocuments.length);
       setDocuments(mergedDocuments);
+      
+      // If no documents found, don't show error, just empty state
+      if (mergedDocuments.length === 0) {
+        console.log('ℹ️ No documents available for this student');
+      }
     } catch (err: any) {
       const errorMsg = getErrorMessage(err);
       console.error('Documents fetch error:', err);

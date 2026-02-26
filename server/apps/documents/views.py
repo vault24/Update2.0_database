@@ -508,13 +508,38 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # Store full URL for cross-device access
-        student.profilePhoto = request.build_absolute_uri(document.file_url)
+        # Store the file path (relative path for flexibility)
+        # The serializer will convert it to full URL when needed
+        if document.file_url:
+            # Extract the relative path from file_url if it's a full URL
+            if document.file_url.startswith('/files/'):
+                student.profilePhoto = document.file_url
+            elif document.file_url.startswith('http'):
+                # Extract path after /files/
+                import re
+                match = re.search(r'/files/(.+)$', document.file_url)
+                if match:
+                    student.profilePhoto = f'/files/{match.group(1)}'
+                else:
+                    student.profilePhoto = document.file_url
+            else:
+                student.profilePhoto = f'/files/{document.file_url}'
+        elif document.filePath:
+            student.profilePhoto = f'/files/{document.filePath}'
+        else:
+            return Response(
+                {'error': 'Invalid document', 'details': 'Document has no file path'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
         student.save(update_fields=['profilePhoto'])
+
+        # Return the full URL in response
+        profile_photo_url = request.build_absolute_uri(student.profilePhoto) if student.profilePhoto else None
 
         return Response({
             'message': 'Profile photo updated',
-            'profilePhoto': student.profilePhoto
+            'profilePhoto': profile_photo_url
         })
     
     @action(detail=True, methods=['get'])
