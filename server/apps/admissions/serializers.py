@@ -102,6 +102,7 @@ class AdmissionCreateSerializer(serializers.ModelSerializer):
             'religion',
             'blood_group',
             'nationality',
+            'marital_status',
             # Contact Information
             'mobile_student',
             'guardian_mobile',

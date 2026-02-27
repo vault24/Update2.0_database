@@ -17,11 +17,12 @@ export function StepEducation({ formData, onChange }: Props) {
 
       <div className="grid md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>Board</Label>
+          <Label>Board <span className="text-red-500">*</span></Label>
           <select 
             className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm"
             value={formData.sscBoard}
             onChange={(e) => onChange('sscBoard', e.target.value)}
+            required
           >
             <option value="">Select Board</option>
             <option value="dhaka">Dhaka</option>
@@ -37,22 +38,24 @@ export function StepEducation({ formData, onChange }: Props) {
           </select>
         </div>
         <div className="space-y-2">
-          <Label>Roll Number</Label>
+          <Label>Roll Number <span className="text-red-500">*</span></Label>
           <Input 
             placeholder="Enter roll number"
             value={formData.sscRoll}
             onChange={(e) => onChange('sscRoll', e.target.value)}
+            required
           />
         </div>
       </div>
 
       <div className="grid md:grid-cols-3 gap-4">
         <div className="space-y-2">
-          <Label>Passing Year</Label>
+          <Label>Passing Year <span className="text-red-500">*</span></Label>
           <select 
             className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm"
             value={formData.sscYear}
             onChange={(e) => onChange('sscYear', e.target.value)}
+            required
           >
             <option value="">Select Year</option>
             {[2024, 2023, 2022, 2021, 2020, 2019].map(year => (
@@ -61,19 +64,21 @@ export function StepEducation({ formData, onChange }: Props) {
           </select>
         </div>
         <div className="space-y-2">
-          <Label>GPA</Label>
+          <Label>GPA <span className="text-red-500">*</span></Label>
           <Input 
             placeholder="e.g., 4.50"
             value={formData.sscGPA}
             onChange={(e) => onChange('sscGPA', e.target.value)}
+            required
           />
         </div>
         <div className="space-y-2">
-          <Label>Group</Label>
+          <Label>Group <span className="text-red-500">*</span></Label>
           <select 
             className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm"
             value={formData.sscGroup}
             onChange={(e) => onChange('sscGroup', e.target.value)}
+            required
           >
             <option value="">Select Group</option>
             <option value="science">Science</option>
@@ -85,11 +90,12 @@ export function StepEducation({ formData, onChange }: Props) {
       </div>
 
       <div className="space-y-2">
-        <Label>Institution Name</Label>
+        <Label>Institution Name <span className="text-red-500">*</span></Label>
         <Input 
           placeholder="Enter your school/institution name"
           value={formData.sscInstitution}
           onChange={(e) => onChange('sscInstitution', e.target.value)}
+          required
         />
       </div>
     </div>

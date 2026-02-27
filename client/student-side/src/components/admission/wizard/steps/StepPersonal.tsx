@@ -18,76 +18,84 @@ export function StepPersonal({ formData, onChange }: Props) {
 
       <div className="grid md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>Full Name (Bangla)</Label>
+          <Label>Full Name (Bangla) <span className="text-red-500">*</span></Label>
           <Input 
             placeholder="সম্পূর্ণ নাম লিখুন"
             value={formData.fullNameBangla}
             onChange={(e) => onChange('fullNameBangla', e.target.value)}
+            required
           />
         </div>
         <div className="space-y-2">
-          <Label>Full Name (English)</Label>
+          <Label>Full Name (English) <span className="text-red-500">*</span></Label>
           <Input 
             placeholder="Enter full name"
             value={formData.fullNameEnglish}
             onChange={(e) => onChange('fullNameEnglish', e.target.value)}
+            required
           />
         </div>
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>Father's Name</Label>
+          <Label>Father's Name <span className="text-red-500">*</span></Label>
           <Input 
             placeholder="Enter father's name"
             value={formData.fatherName}
             onChange={(e) => onChange('fatherName', e.target.value)}
+            required
           />
         </div>
         <div className="space-y-2">
-          <Label>Father's NID</Label>
+          <Label>Father's NID <span className="text-red-500">*</span></Label>
           <Input 
             placeholder="Enter NID number"
             value={formData.fatherNID}
             onChange={(e) => onChange('fatherNID', e.target.value)}
+            required
           />
         </div>
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>Mother's Name</Label>
+          <Label>Mother's Name <span className="text-red-500">*</span></Label>
           <Input 
             placeholder="Enter mother's name"
             value={formData.motherName}
             onChange={(e) => onChange('motherName', e.target.value)}
+            required
           />
         </div>
         <div className="space-y-2">
-          <Label>Mother's NID</Label>
+          <Label>Mother's NID <span className="text-red-500">*</span></Label>
           <Input 
             placeholder="Enter NID number"
             value={formData.motherNID}
             onChange={(e) => onChange('motherNID', e.target.value)}
+            required
           />
         </div>
       </div>
 
       <div className="grid md:grid-cols-3 gap-4">
         <div className="space-y-2">
-          <Label>Date of Birth</Label>
+          <Label>Date of Birth <span className="text-red-500">*</span></Label>
           <Input 
             type="date"
             value={formData.dateOfBirth}
             onChange={(e) => onChange('dateOfBirth', e.target.value)}
+            required
           />
         </div>
         <div className="space-y-2">
-          <Label>Gender</Label>
+          <Label>Gender <span className="text-red-500">*</span></Label>
           <select 
             className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm"
             value={formData.gender}
             onChange={(e) => onChange('gender', e.target.value)}
+            required
           >
             <option value="">Select Gender</option>
             <option value="male">Male</option>
@@ -124,22 +132,24 @@ export function StepPersonal({ formData, onChange }: Props) {
           />
         </div>
         <div className="space-y-2">
-          <Label>Birth Certificate No.</Label>
+          <Label>Birth Certificate No. <span className="text-red-500">*</span></Label>
           <Input 
             placeholder="Enter birth certificate number"
             value={formData.birthCertificate}
             onChange={(e) => onChange('birthCertificate', e.target.value)}
+            required
           />
         </div>
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>Religion</Label>
+          <Label>Religion <span className="text-red-500">*</span></Label>
           <select 
             className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm"
             value={formData.religion}
             onChange={(e) => onChange('religion', e.target.value)}
+            required
           >
             <option value="">Select Religion</option>
             <option value="islam">Islam</option>
@@ -150,21 +160,23 @@ export function StepPersonal({ formData, onChange }: Props) {
           </select>
         </div>
         <div className="space-y-2">
-          <Label>Nationality</Label>
+          <Label>Nationality <span className="text-red-500">*</span></Label>
           <Input 
             placeholder="Enter nationality"
             value={formData.nationality || 'Bangladeshi'}
             onChange={(e) => onChange('nationality', e.target.value)}
+            required
           />
         </div>
       </div>
 
       <div className="space-y-2">
-        <Label>Marital Status</Label>
+        <Label>Marital Status <span className="text-red-500">*</span></Label>
         <select 
           className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm"
           value={formData.maritalStatus}
           onChange={(e) => onChange('maritalStatus', e.target.value)}
+          required
         >
           <option value="">Select Marital Status</option>
           {maritalStatuses.map(ms => (

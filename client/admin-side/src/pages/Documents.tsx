@@ -43,7 +43,10 @@ const getFileIcon = (format: string) => {
 };
 
 export default function Documents() {
-  const [search, setSearch] = useState('');
+  const [studentFilter, setStudentFilter] = useState<Student | null>(null);
+  const [studentSearchQuery, setStudentSearchQuery] = useState('');
+  const [studentSearchResults, setStudentSearchResults] = useState<Student[]>([]);
+  const [isStudentSearching, setIsStudentSearching] = useState(false);
   const [typeFilter, setTypeFilter] = useState('All Types');
   const [sourceFilter, setSourceFilter] = useState('All Sources');
   const [isUploadOpen, setIsUploadOpen] = useState(false);
@@ -214,7 +217,50 @@ export default function Documents() {
   // Fetch documents
   useEffect(() => {
     fetchDocuments();
-  }, [search, typeFilter, sourceFilter]);
+  }, [typeFilter, sourceFilter, studentFilter]);
+
+  // Search students for filtering
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (studentSearchQuery.trim()) {
+        searchStudentsForFilter(studentSearchQuery);
+      } else {
+        setStudentSearchResults([]);
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [studentSearchQuery]);
+
+  const searchStudentsForFilter = async (query: string) => {
+    try {
+      setIsStudentSearching(true);
+      const students = await studentService.searchStudents(query);
+      setStudentSearchResults(students);
+    } catch (err) {
+      const errorMsg = getErrorMessage(err);
+      toast({
+        title: 'Error',
+        description: `Failed to search students: ${errorMsg}`,
+        variant: 'destructive',
+      });
+      setStudentSearchResults([]);
+    } finally {
+      setIsStudentSearching(false);
+    }
+  };
+
+  const handleStudentFilterSelect = (student: Student) => {
+    setStudentFilter(student);
+    setStudentSearchQuery('');
+    setStudentSearchResults([]);
+  };
+
+  const clearStudentFilter = () => {
+    setStudentFilter(null);
+    setStudentSearchQuery('');
+    setStudentSearchResults([]);
+  };
 
   // Load templates for quick generate + display
   useEffect(() => {
@@ -262,19 +308,14 @@ export default function Documents() {
         }
       }
       
-      const response = await documentService.getDocuments(filters);
-      
-      // Client-side search filtering
-      let filteredResults = response.results || [];
-      if (search) {
-        filteredResults = filteredResults.filter(d =>
-          d.fileName.toLowerCase().includes(search.toLowerCase()) ||
-          d.studentName?.toLowerCase().includes(search.toLowerCase()) ||
-          d.studentRoll?.includes(search)
-        );
+      // Add student filter if selected
+      if (studentFilter) {
+        filters.student = studentFilter.id;
       }
       
-      setDocuments(filteredResults);
+      const response = await documentService.getDocuments(filters);
+      
+      setDocuments(response.results || []);
       setTotalCount(response.count);
     } catch (err) {
       const errorMsg = getErrorMessage(err);
@@ -560,7 +601,7 @@ export default function Documents() {
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
               <Card className="glass-card">
                 <CardContent className="p-4 text-center">
-                  <p className="text-2xl font-bold text-accent-foreground">
+                  <p className="text-2xl font-bold text-foreground">
                     {((documents?.reduce((sum, d) => sum + d.fileSize, 0) || 0) / (1024 * 1024)).toFixed(1)} MB
                   </p>
                   <p className="text-xs text-muted-foreground">Total Size</p>
@@ -570,44 +611,106 @@ export default function Documents() {
           </div>
 
           {/* Search & Filters */}
-          <Card className="glass-card">
+          <Card className="glass-card relative z-20">
             <CardContent className="p-4">
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search by document name or student..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="pl-10"
-                  />
+              <div className="flex flex-col md:flex-row gap-4">
+                {/* Student Search/Filter - Left Side */}
+                <div className="flex-1 relative">
+                  {studentFilter ? (
+                    <div className="flex items-center gap-4 p-4 border-2 rounded-lg bg-primary/5 border-primary/20">
+                      <Avatar className="w-12 h-12">
+                        <AvatarFallback className="text-base font-semibold">
+                          {studentFilter.fullNameEnglish?.split(' ').map(n => n[0]).join('') || 'ST'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <p className="font-semibold text-base">{studentFilter.fullNameEnglish}</p>
+                        <p className="text-sm text-muted-foreground">Roll: {studentFilter.currentRollNumber}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className="text-sm px-3 py-1">
+                          {documents.length} {documents.length === 1 ? 'doc' : 'docs'}
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={clearStudentFilter}
+                          title="Clear filter"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground z-10" />
+                      <Input
+                        placeholder="Search student by name or roll number..."
+                        value={studentSearchQuery}
+                        onChange={(e) => setStudentSearchQuery(e.target.value)}
+                        className="pl-10 h-11"
+                      />
+                      {isStudentSearching && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 z-10">
+                          <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                        </div>
+                      )}
+                      {studentSearchResults.length > 0 && (
+                        <div className="absolute top-full left-0 right-0 mt-1 border rounded-lg bg-background shadow-xl max-h-60 overflow-y-auto z-50">
+                          {studentSearchResults.map((student) => (
+                            <div
+                              key={student.id}
+                              className="flex items-center gap-3 p-3 hover:bg-muted/50 cursor-pointer border-b last:border-0"
+                              onClick={() => handleStudentFilterSelect(student)}
+                            >
+                              <Avatar className="w-8 h-8">
+                                <AvatarFallback className="text-xs">
+                                  {student.fullNameEnglish?.split(' ').map(n => n[0]).join('') || 'ST'}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1">
+                                <p className="text-sm font-medium">{student.fullNameEnglish}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  Roll: {student.currentRollNumber} • {student.department?.name}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger className="w-full sm:w-[180px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {documentTypes.map(t => (
-                      <SelectItem key={t} value={t}>{t}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={sourceFilter} onValueChange={setSourceFilter}>
-                  <SelectTrigger className="w-full sm:w-[180px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sourceTypes.map(s => (
-                      <SelectItem key={s} value={s}>{s}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+
+                {/* Filters - Right Side */}
+                <div className="flex gap-2">
+                  <Select value={typeFilter} onValueChange={setTypeFilter}>
+                    <SelectTrigger className="w-[160px] h-11">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {documentTypes.map(t => (
+                        <SelectItem key={t} value={t}>{t}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={sourceFilter} onValueChange={setSourceFilter}>
+                    <SelectTrigger className="w-[160px] h-11">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sourceTypes.map(s => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </CardContent>
           </Card>
 
           {/* Documents Table */}
-          <Card className="glass-card relative">
+          <Card className="glass-card relative z-10">
             {loading && (
               <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-10 flex items-center justify-center">
                 <div className="text-center space-y-2">

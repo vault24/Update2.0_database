@@ -3,9 +3,11 @@ import { AdmissionFormState } from '../types';
 
 interface Props {
   formData: AdmissionFormState;
+  isDeclarationChecked: boolean;
+  onDeclarationChange: (checked: boolean) => void;
 }
 
-export function StepReview({ formData }: Props) {
+export function StepReview({ formData, isDeclarationChecked, onDeclarationChange }: Props) {
   return (
     <div className="space-y-6">
       <div>
@@ -60,9 +62,15 @@ export function StepReview({ formData }: Props) {
         </div>
       </div>
 
-      <div className="flex items-start gap-3 p-4 bg-warning/10 rounded-xl border border-warning/20">
-        <input type="checkbox" className="mt-1" id="confirm" />
-        <label htmlFor="confirm" className="text-sm">
+      <div className="flex items-start gap-4 p-6 bg-warning/10 rounded-xl border-2 border-warning/30">
+        <input 
+          type="checkbox" 
+          className="mt-1.5 w-6 h-6 rounded border-2 border-warning cursor-pointer accent-warning flex-shrink-0" 
+          id="confirm"
+          checked={isDeclarationChecked}
+          onChange={(e) => onDeclarationChange(e.target.checked)}
+        />
+        <label htmlFor="confirm" className="text-base md:text-lg font-medium leading-relaxed cursor-pointer">
           I hereby declare that all the information provided above is true and correct to the best of my knowledge. I understand that any false information may result in cancellation of my admission.
         </label>
       </div>

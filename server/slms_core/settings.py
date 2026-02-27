@@ -221,6 +221,10 @@ CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOWED_ORIGINS = [
+    # Production URLs
+    "http://13.250.99.61",        # student production
+    "http://13.250.99.61:8080",   # admin production
+    # Development URLs
     "http://localhost:3000",      # admin dev
     "http://localhost:5173",      # admin vite dev
     "http://localhost:8080",      # student dev
@@ -236,6 +240,10 @@ CORS_ALLOWED_ORIGINS = [
 # ✅ CSRF
 # --------------------------------------------------
 CSRF_TRUSTED_ORIGINS = [
+    # Production URLs
+    "http://13.250.99.61",        # student production
+    "http://13.250.99.61:8080",   # admin production
+    # Development URLs
     "http://localhost:3000",      # admin dev
     "http://localhost:5173",      # admin vite dev
     "http://localhost:8080",      # student dev

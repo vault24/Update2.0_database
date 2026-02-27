@@ -79,6 +79,7 @@ class Admission(models.Model):
     religion = models.CharField(max_length=50, blank=True)
     blood_group = models.CharField(max_length=5, blank=True)
     nationality = models.CharField(max_length=100, default='Bangladeshi', blank=True)
+    marital_status = models.CharField(max_length=20, blank=True, help_text='Marital status of the applicant')
     
     # Contact Information
     mobile_student = models.CharField(max_length=11, blank=True)
@@ -177,9 +178,13 @@ class Admission(models.Model):
         from utils.structured_file_storage import structured_storage
         from utils.file_storage import file_storage
         from django.core.exceptions import ValidationError
+        import logging
         
+        logger = logging.getLogger(__name__)
         errors = []
         processed_documents = []
+        
+        logger.info(f"Starting document processing for admission {self.id}, received {len(document_files)} files")
         
         try:
             # Try to get student data for structured storage
@@ -217,6 +222,8 @@ class Admission(models.Model):
             for field_name, file_obj in document_files.items():
                 if not file_obj:
                     continue
+                
+                logger.info(f"Processing document: {field_name}, size: {file_obj.size}, type: {file_obj.content_type}")
                     
                 try:
                     # Map field name to document category
@@ -243,10 +250,10 @@ class Admission(models.Model):
                         'sscCertificate': 'ssc_certificate',
                         'birthCertificateDoc': 'birth_certificate',
                         'studentNIDCopy': 'nid',
-                        'fatherNIDFront': 'father_nid',
-                        'fatherNIDBack': 'father_nid',
-                        'motherNIDFront': 'mother_nid',
-                        'motherNIDBack': 'mother_nid',
+                        'fatherNIDFront': 'father_nid_front',  # Changed to be unique
+                        'fatherNIDBack': 'father_nid_back',    # Changed to be unique
+                        'motherNIDFront': 'mother_nid_front',  # Changed to be unique
+                        'motherNIDBack': 'mother_nid_back',    # Changed to be unique
                         'testimonial': 'transcript',
                         'medicalCertificate': 'medical_certificate',
                         'quotaDocument': 'quota_document',
@@ -258,6 +265,7 @@ class Admission(models.Model):
                     
                     # Use structured storage if student data is available
                     if student_data:
+                        logger.info(f"Using structured storage for {field_name} with category {document_category}")
                         file_info = structured_storage.save_student_document(
                             uploaded_file=file_obj,
                             student_data=student_data,
@@ -265,6 +273,7 @@ class Admission(models.Model):
                             validate=True
                         )
                     else:
+                        logger.info(f"Using fallback storage for {field_name}")
                         # Fallback to old storage if no student data
                         file_info = file_storage.save_file(
                             uploaded_file=file_obj,
@@ -272,6 +281,8 @@ class Admission(models.Model):
                             subfolder=f'admission/{field_name}',
                             validate=True
                         )
+                    
+                    logger.info(f"File saved successfully: {file_info['file_path']}")
                     
                     # Create document record with enhanced fields
                     document = Document.objects.create(
@@ -298,6 +309,7 @@ class Admission(models.Model):
                         document_category=file_info.get('document_category', 'other'),
                     )
                     
+                    logger.info(f"Document record created: {document.id} for {field_name}")
                     processed_documents.append(document.id)
                     
                     # Update documents JSON field
@@ -306,14 +318,20 @@ class Admission(models.Model):
                     self.documents[field_name] = file_info['file_path']
                     
                 except ValidationError as e:
-                    errors.append(f"Validation error for {field_name}: {str(e)}")
+                    error_msg = f"Validation error for {field_name}: {str(e)}"
+                    logger.error(error_msg)
+                    errors.append(error_msg)
                 except Exception as e:
-                    errors.append(f"Error processing {field_name}: {str(e)}")
+                    error_msg = f"Error processing {field_name}: {str(e)}"
+                    logger.exception(error_msg)  # This will log the full traceback
+                    errors.append(error_msg)
             
             if errors:
+                logger.error(f"Document processing completed with errors: {errors}")
                 self.document_processing_errors = errors
                 self.documents_processed = False
             else:
+                logger.info(f"All {len(processed_documents)} documents processed successfully")
                 self.document_processing_errors = None
                 self.documents_processed = True
                 
@@ -321,7 +339,9 @@ class Admission(models.Model):
             return len(errors) == 0
             
         except Exception as e:
-            self.document_processing_errors = [f"General processing error: {str(e)}"]
+            error_msg = f"General processing error: {str(e)}"
+            logger.exception(error_msg)
+            self.document_processing_errors = [error_msg]
             self.documents_processed = False
             self.save()
             return False

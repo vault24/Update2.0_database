@@ -10,8 +10,8 @@ This guide will help you deploy your Student Learning Management System (SLMS) o
 - Single server deployment
 
 **Final URLs:**
-- Admin Frontend: http://47.128.236.25:8080
-- Student Frontend: http://47.128.236.25:80 (default port)
+- Admin Frontend: http://13.250.99.61:8080
+- Student Frontend: http://13.250.99.61:80 (default port)
 - Backend API: http://127.0.0.1:8000 (internal only, accessed via NGINX proxy)
 
 ## Prerequisites
@@ -26,7 +26,7 @@ Before starting, ensure you have:
 ### 1.1 Connect to Your Server
 
 ```bash
-ssh -i your-key.pem ubuntu@47.128.236.25
+ssh -i your-key.pem ubuntu@13.250.99.61
 ```
 
 ### 1.2 Update System Packages

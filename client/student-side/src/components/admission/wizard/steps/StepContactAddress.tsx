@@ -19,28 +19,31 @@ export function StepContactAddress({ formData, onChange }: Props) {
 
       <div className="grid md:grid-cols-3 gap-4">
         <div className="space-y-2">
-          <Label>Mobile Number</Label>
+          <Label>Mobile Number <span className="text-red-500">*</span></Label>
           <Input 
             placeholder="01XXXXXXXXX"
             value={formData.mobile}
             onChange={(e) => onChange('mobile', e.target.value)}
+            required
           />
         </div>
         <div className="space-y-2">
-          <Label>Email Address</Label>
+          <Label>Email Address <span className="text-red-500">*</span></Label>
           <Input 
             type="email"
             placeholder="your@email.com"
             value={formData.email}
             onChange={(e) => onChange('email', e.target.value)}
+            required
           />
         </div>
         <div className="space-y-2">
-          <Label>Guardian's Mobile</Label>
+          <Label>Guardian's Mobile <span className="text-red-500">*</span></Label>
           <Input 
             placeholder="01XXXXXXXXX"
             value={formData.guardianMobile}
             onChange={(e) => onChange('guardianMobile', e.target.value)}
+            required
           />
         </div>
       </div>
@@ -49,20 +52,22 @@ export function StepContactAddress({ formData, onChange }: Props) {
         <h4 className="font-medium mb-4">Present Address</h4>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>Address</Label>
+            <Label>Address <span className="text-red-500">*</span></Label>
             <Textarea 
               placeholder="Enter your present address"
               value={formData.presentAddress}
               onChange={(e) => onChange('presentAddress', e.target.value)}
+              required
             />
           </div>
           <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Division</Label>
+              <Label>Division <span className="text-red-500">*</span></Label>
               <select 
                 className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm"
                 value={formData.presentDivision}
                 onChange={(e) => onChange('presentDivision', e.target.value)}
+                required
               >
                 <option value="">Select Division</option>
                 {divisions.map(d => (
@@ -71,39 +76,43 @@ export function StepContactAddress({ formData, onChange }: Props) {
               </select>
             </div>
             <div className="space-y-2">
-              <Label>District</Label>
+              <Label>District <span className="text-red-500">*</span></Label>
               <Input 
                 placeholder="Enter district"
                 value={formData.presentDistrict}
                 onChange={(e) => onChange('presentDistrict', e.target.value)}
+                required
               />
             </div>
           </div>
           <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Upazila</Label>
+              <Label>Upazila <span className="text-red-500">*</span></Label>
               <Input 
                 placeholder="Enter upazila"
                 value={formData.presentUpazila}
                 onChange={(e) => onChange('presentUpazila', e.target.value)}
+                required
               />
             </div>
             <div className="space-y-2">
-              <Label>Police Station</Label>
+              <Label>Police Station <span className="text-red-500">*</span></Label>
               <Input 
                 placeholder="Enter police station"
                 value={formData.presentPoliceStation}
                 onChange={(e) => onChange('presentPoliceStation', e.target.value)}
+                required
               />
             </div>
           </div>
           <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Post Office</Label>
+              <Label>Post Office <span className="text-red-500">*</span></Label>
               <Input 
                 placeholder="Enter post office"
                 value={formData.presentPostOffice}
                 onChange={(e) => onChange('presentPostOffice', e.target.value)}
+                required
               />
             </div>
             <div className="space-y-2">
@@ -125,11 +134,12 @@ export function StepContactAddress({ formData, onChange }: Props) {
               />
             </div>
             <div className="space-y-2">
-              <Label>Ward</Label>
+              <Label>Ward Number <span className="text-red-500">*</span></Label>
               <Input 
                 placeholder="Enter ward"
                 value={formData.presentWard}
                 onChange={(e) => onChange('presentWard', e.target.value)}
+                required
               />
             </div>
           </div>
@@ -184,29 +194,32 @@ export function StepContactAddress({ formData, onChange }: Props) {
             </div>
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Upazila</Label>
+                <Label>Upazila <span className="text-red-500">*</span></Label>
                 <Input 
                   placeholder="Enter upazila"
                   value={formData.permanentUpazila}
                   onChange={(e) => onChange('permanentUpazila', e.target.value)}
+                  required
                 />
               </div>
               <div className="space-y-2">
-                <Label>Police Station</Label>
+                <Label>Police Station <span className="text-red-500">*</span></Label>
                 <Input 
                   placeholder="Enter police station"
                   value={formData.permanentPoliceStation}
                   onChange={(e) => onChange('permanentPoliceStation', e.target.value)}
+                  required
                 />
               </div>
             </div>
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Post Office</Label>
+                <Label>Post Office <span className="text-red-500">*</span></Label>
                 <Input 
                   placeholder="Enter post office"
                   value={formData.permanentPostOffice}
                   onChange={(e) => onChange('permanentPostOffice', e.target.value)}
+                  required
                 />
               </div>
               <div className="space-y-2">
@@ -228,11 +241,12 @@ export function StepContactAddress({ formData, onChange }: Props) {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Ward</Label>
+                <Label>Ward <span className="text-red-500">*</span></Label>
                 <Input 
                   placeholder="Enter ward"
                   value={formData.permanentWard}
                   onChange={(e) => onChange('permanentWard', e.target.value)}
+                  required
                 />
               </div>
             </div>

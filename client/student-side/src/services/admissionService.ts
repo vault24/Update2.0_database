@@ -181,11 +181,21 @@ class AdmissionService {
     // Add each document file to the form data
     Object.entries(documents).forEach(([fieldName, file]) => {
       if (file) {
+        console.log(`Adding document: ${fieldName}, size: ${file.size}, type: ${file.type}`);
         formData.append(`documents[${fieldName}]`, file);
       }
     });
     
-    await api.post('/admissions/upload-documents/', formData, true);
+    console.log(`Uploading ${Object.keys(documents).length} documents for admission ${admissionId}`);
+    
+    try {
+      const response = await api.post('/admissions/upload-documents/', formData, true);
+      console.log('Document upload response:', response);
+      return response;
+    } catch (error) {
+      console.error('Document upload error:', error);
+      throw error;
+    }
   }
 
   /**
@@ -210,6 +220,16 @@ class AdmissionService {
    * POST /api/admissions/save-draft/
    */
   async saveDraft(draftData: any, currentStep: number): Promise<DraftData> {
+    // Filter out File objects from draft data (they can't be serialized)
+    const serializableData = Object.entries(draftData).reduce((acc, [key, value]) => {
+      // Skip File objects - they will be uploaded separately on submission
+      if (value instanceof File || value instanceof FileList) {
+        return acc;
+      }
+      acc[key] = value;
+      return acc;
+    }, {} as any);
+    
     const persistLocally = (data: any) => {
       localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify({
         formData: data,
@@ -220,16 +240,16 @@ class AdmissionService {
 
     try {
       const response = await api.post<DraftData>('/admissions/save-draft/', {
-        draft_data: draftData,
+        draft_data: serializableData,
         current_step: currentStep
       });
       // Keep a local backup even when server save succeeds
-      persistLocally(draftData);
+      persistLocally(serializableData);
       return response;
     } catch (error) {
       console.error('Failed to save draft to server, using localStorage fallback:', error);
       // Fallback to localStorage only
-      persistLocally(draftData);
+      persistLocally(serializableData);
       throw error; // Re-throw to let caller know server save failed
     }
   }

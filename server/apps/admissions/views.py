@@ -32,7 +32,7 @@ class AdmissionViewSet(viewsets.ModelViewSet):
     queryset = Admission.objects.all()
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'desired_department', 'desired_shift', 'session']
-    search_fields = ['full_name_english', 'full_name_bangla', 'email', 'mobile_student']
+    search_fields = ['full_name_english', 'full_name_bangla', 'email', 'mobile_student', 'application_id']
     ordering_fields = ['submitted_at', 'full_name_english', 'gpa']
     ordering = ['-submitted_at']
     
@@ -536,6 +536,7 @@ class AdmissionViewSet(viewsets.ModelViewSet):
                 return Response({
                     'message': 'Documents uploaded successfully',
                     'documents_processed': True,
+                    'processed_count': len(document_files),
                     'admission': response_serializer.data
                 }, status=status.HTTP_200_OK)
             else:
@@ -544,7 +545,8 @@ class AdmissionViewSet(viewsets.ModelViewSet):
                 return Response({
                     'error': 'Document processing failed',
                     'details': admission.document_processing_errors,
-                    'documents_processed': False
+                    'documents_processed': False,
+                    'processed_count': 0
                 }, status=status.HTTP_400_BAD_REQUEST)
                 
         except Admission.DoesNotExist:

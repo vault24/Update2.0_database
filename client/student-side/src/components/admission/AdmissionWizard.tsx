@@ -46,6 +46,7 @@ export function AdmissionWizard() {
   const [initialised, setInitialised] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [isCheckingExisting, setIsCheckingExisting] = useState(true);
+  const [isDeclarationChecked, setIsDeclarationChecked] = useState(false);
   const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasShownDraftToastRef = useRef(false);
   const navigate = useNavigate();
@@ -373,9 +374,46 @@ export function AdmissionWizard() {
   }, [user]);
 
   const [formData, setFormData] = useState<AdmissionFormState>(defaultFormData);
+  // Store uploaded files separately to prevent them from being lost during draft saves
+  // File objects cannot be serialized to JSON, so we keep them in memory
+  const [uploadedFiles, setUploadedFiles] = useState<Record<string, File>>({});
+
+  // Helper function to merge uploaded files back into form data
+  const getCompleteFormData = (): AdmissionFormState => {
+    return {
+      ...formData,
+      ...uploadedFiles
+    } as AdmissionFormState;
+  };
 
   // Helper function to convert admission data back to form format
   const convertAdmissionToFormData = (admission: any): AdmissionFormState => {
+    // Helper to convert marital status to lowercase
+    const normalizeMaritalStatus = (status: string) => {
+      if (!status) return '';
+      // Handle various formats: "Single", "SINGLE", "single" -> "single"
+      const normalized = status.trim().toLowerCase();
+      console.log('Normalizing marital status:', status, '->', normalized);
+      return normalized;
+    };
+
+    // Helper to convert shift to match form options
+    const normalizeShift = (shift: string) => {
+      if (!shift) return '';
+      const normalized = shift.toLowerCase();
+      // Map common variations
+      if (normalized === 'morning' || normalized === '1st') return 'Morning';
+      if (normalized === 'day' || normalized === '2nd') return 'Day';
+      if (normalized === 'evening') return 'Evening';
+      // Return capitalized version
+      return shift.charAt(0).toUpperCase() + shift.slice(1).toLowerCase();
+    };
+
+    console.log('Converting admission to form data:', {
+      marital_status: admission.marital_status,
+      desired_shift: admission.desired_shift
+    });
+
     return {
       fullNameBangla: admission.full_name_bangla || '',
       fullNameEnglish: admission.full_name_english || '',
@@ -390,7 +428,7 @@ export function AdmissionWizard() {
       nid: admission.nid || '',
       birthCertificate: admission.birth_certificate_no || '',
       bloodGroup: admission.blood_group || '',
-      maritalStatus: admission.marital_status || '',
+      maritalStatus: normalizeMaritalStatus(admission.marital_status),
       
       mobile: admission.mobile_student || '',
       email: admission.email || '',
@@ -423,7 +461,7 @@ export function AdmissionWizard() {
       sscInstitution: admission.institution_name || '',
       
       department: admission.desired_department?.id || admission.desired_department || '',
-      shift: admission.desired_shift?.toLowerCase() || '',
+      shift: normalizeShift(admission.desired_shift),
       session: admission.session || '',
       semester: '1st',
       admissionType: 'regular',
@@ -447,7 +485,14 @@ export function AdmissionWizard() {
   };
 
   const handleInputChange = (field: keyof AdmissionFormState, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    // If it's a File object, store it separately
+    if (value instanceof File) {
+      setUploadedFiles(prev => ({ ...prev, [field]: value }));
+      // Also update formData for validation purposes
+      setFormData(prev => ({ ...prev, [field]: value }));
+    } else {
+      setFormData(prev => ({ ...prev, [field]: value }));
+    }
   };
 
   const validateStep = (step: number): number => {
@@ -554,7 +599,79 @@ export function AdmissionWizard() {
     saveDraftWithRetry(true);
   };
 
+  const validateCurrentStep = (): boolean => {
+    const completeFormData = getCompleteFormData();
+    
+    switch (currentStep) {
+      case 1: // Personal Information
+        return !!(
+          completeFormData.fullNameBangla &&
+          completeFormData.fullNameEnglish &&
+          completeFormData.fatherName &&
+          completeFormData.fatherNID &&
+          completeFormData.motherName &&
+          completeFormData.motherNID &&
+          completeFormData.dateOfBirth &&
+          completeFormData.gender &&
+          completeFormData.birthCertificate &&
+          completeFormData.religion &&
+          completeFormData.nationality &&
+          completeFormData.maritalStatus
+        );
+      case 2: // Contact & Address
+        return !!(
+          completeFormData.mobile &&
+          completeFormData.email &&
+          completeFormData.guardianMobile &&
+          completeFormData.presentAddress &&
+          completeFormData.presentDivision &&
+          completeFormData.presentDistrict &&
+          completeFormData.presentUpazila &&
+          completeFormData.presentPoliceStation &&
+          completeFormData.presentPostOffice &&
+          completeFormData.presentWard
+        );
+      case 3: // Education
+        return !!(
+          completeFormData.sscBoard &&
+          completeFormData.sscRoll &&
+          completeFormData.sscYear &&
+          completeFormData.sscGPA &&
+          completeFormData.sscGroup &&
+          completeFormData.sscInstitution
+        );
+      case 4: // Academic
+        return !!(
+          completeFormData.department &&
+          completeFormData.shift &&
+          completeFormData.session &&
+          completeFormData.semester &&
+          completeFormData.admissionType
+        );
+      case 5: // Documents
+        return !!(
+          completeFormData.photo &&
+          completeFormData.sscMarksheet &&
+          completeFormData.birthCertificateDoc &&
+          completeFormData.fatherNIDFront &&
+          completeFormData.fatherNIDBack &&
+          completeFormData.motherNIDFront &&
+          completeFormData.motherNIDBack
+        );
+      case 6: // Review
+        return true;
+      default:
+        return false;
+    }
+  };
+
   const handleNext = () => {
+    if (!validateCurrentStep()) {
+      toast.error('Please fill all required fields', {
+        description: 'All fields marked with * are required to proceed.'
+      });
+      return;
+    }
     if (currentStep < 6) setCurrentStep(prev => prev + 1);
   };
 
@@ -566,6 +683,9 @@ export function AdmissionWizard() {
     setIsSubmitting(true);
     
     try {
+      // Get complete form data including uploaded files
+      const completeFormData = getCompleteFormData();
+      
       // Capitalize gender (Male/Female)
       const capitalizeGender = (gender: string) => {
         if (!gender) return '';
@@ -609,41 +729,41 @@ export function AdmissionWizard() {
       // Map form data to API format
       const admissionData: AdmissionFormData = {
         // Personal Information
-        full_name_bangla: formData.fullNameBangla,
-        full_name_english: formData.fullNameEnglish,
-        father_name: formData.fatherName,
-        father_nid: formData.fatherNID,
-        mother_name: formData.motherName,
-        mother_nid: formData.motherNID,
-        date_of_birth: formData.dateOfBirth,
-        birth_certificate_no: formData.birthCertificate,
-        gender: capitalizeGender(formData.gender),
-        religion: formData.religion,
-        blood_group: formData.bloodGroup,
-        nationality: formData.nationality || 'Bangladeshi',
+        full_name_bangla: completeFormData.fullNameBangla,
+        full_name_english: completeFormData.fullNameEnglish,
+        father_name: completeFormData.fatherName,
+        father_nid: completeFormData.fatherNID,
+        mother_name: completeFormData.motherName,
+        mother_nid: completeFormData.motherNID,
+        date_of_birth: completeFormData.dateOfBirth,
+        birth_certificate_no: completeFormData.birthCertificate,
+        gender: capitalizeGender(completeFormData.gender),
+        religion: completeFormData.religion,
+        blood_group: completeFormData.bloodGroup,
+        nationality: completeFormData.nationality || 'Bangladeshi',
         
         // Contact Information
-        mobile_student: formData.mobile,
-        guardian_mobile: formData.guardianMobile,
-        email: formData.email,
-        emergency_contact: formData.guardianMobile, // Use guardian mobile as emergency contact
+        mobile_student: completeFormData.mobile,
+        guardian_mobile: completeFormData.guardianMobile,
+        email: completeFormData.email,
+        emergency_contact: completeFormData.guardianMobile, // Use guardian mobile as emergency contact
         present_address: presentAddressObj,
         permanent_address: permanentAddressObj,
         
         // Educational Background
         highest_exam: 'SSC',
-        board: formData.sscBoard,
-        group: formData.sscGroup,
-        roll_number: formData.sscRoll,
-        registration_number: formData.sscRoll, // Use roll as registration if not separate
-        passing_year: formData.sscYear,
-        gpa: formData.sscGPA,
-        institution_name: formData.sscInstitution,
+        board: completeFormData.sscBoard,
+        group: completeFormData.sscGroup,
+        roll_number: completeFormData.sscRoll,
+        registration_number: completeFormData.sscRoll, // Use roll as registration if not separate
+        passing_year: completeFormData.sscYear,
+        gpa: completeFormData.sscGPA,
+        institution_name: completeFormData.sscInstitution,
         
         // Admission Details
-        desired_department: formData.department,
-        desired_shift: capitalizeShift(formData.shift),
-        session: formData.session,
+        desired_department: completeFormData.department,
+        desired_shift: capitalizeShift(completeFormData.shift),
+        session: completeFormData.session,
       };
 
       // Collect documents from form data
@@ -668,11 +788,16 @@ export function AdmissionWizard() {
 
       // Add files to documents object if they exist
       Object.entries(documentFieldMapping).forEach(([formField, apiField]) => {
-        const file = formData[formField as keyof AdmissionFormState] as File | null;
+        const file = completeFormData[formField as keyof AdmissionFormState] as File | null;
         if (file) {
+          console.log(`Found document in form: ${formField} -> ${apiField}`, file.name, file.size);
           documents[apiField] = file;
+        } else {
+          console.log(`No document found for: ${formField}`);
         }
       });
+
+      console.log(`Total documents to upload: ${Object.keys(documents).length}`, Object.keys(documents));
 
       // Submit application with documents
       let admission;
@@ -944,57 +1069,39 @@ export function AdmissionWizard() {
             {currentStep === 3 && <StepEducation formData={formData} onChange={handleInputChange} />}
             {currentStep === 4 && <StepAcademic formData={formData} onChange={handleInputChange} departments={departments} />}
             {currentStep === 5 && <StepDocuments formData={formData} onChange={handleInputChange} />}
-            {currentStep === 6 && <StepReview formData={formData} />}
+            {currentStep === 6 && <StepReview formData={formData} isDeclarationChecked={isDeclarationChecked} onDeclarationChange={setIsDeclarationChecked} />}
           </motion.div>
         </AnimatePresence>
 
         {/* Navigation Buttons */}
         <div className="flex items-center justify-between mt-8 pt-6 border-t border-border">
           <Button
-            variant="outline"
             onClick={handlePrev}
             disabled={currentStep === 1 || isDraftLoading}
-            className="gap-2"
+            className="gap-3 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white font-semibold px-8 py-6 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 group"
           >
-            <ChevronLeft className="w-4 h-4" />
-            Previous
-          </Button>
-
-          <Button
-            variant="ghost"
-            className="gap-2"
-            onClick={handleSaveProgress}
-            disabled={isDraftSaving || isDraftLoading}
-          >
-            {isDraftSaving ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4" />
-                Save Progress
-              </>
-            )}
+            <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center transition-transform duration-300 group-hover:-translate-x-6">
+              <ChevronLeft className="w-5 h-5 text-gray-800" />
+            </div>
+            <span className="relative z-10">Previous</span>
           </Button>
 
           {currentStep < 6 ? (
             <Button
-              variant="gradient"
               onClick={handleNext}
-              className="gap-2"
-              disabled={isDraftLoading}
+              className="gap-3 bg-gradient-to-r from-pink-500 via-rose-500 to-orange-500 hover:from-pink-600 hover:via-rose-600 hover:to-orange-600 text-white font-semibold px-8 py-6 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 relative overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isDraftLoading || !validateCurrentStep()}
             >
-              Next
-              <ChevronRight className="w-4 h-4" />
+              <span className="relative z-10">Next</span>
+              <div className="relative z-10 w-8 h-8 bg-white rounded-full flex items-center justify-center transition-transform duration-300 group-hover:translate-x-6">
+                <ChevronRight className={`w-5 h-5 text-gray-800 transition-transform duration-300 ${!validateCurrentStep() ? '-rotate-90' : ''}`} />
+              </div>
             </Button>
           ) : (
             <Button 
-              variant="hero" 
               onClick={handleSubmit} 
-              className="gap-2"
-              disabled={isSubmitting || isDraftSaving}
+              className="gap-3 bg-gradient-to-r from-green-500 via-emerald-500 to-teal-500 hover:from-green-600 hover:via-emerald-600 hover:to-teal-600 text-white font-semibold px-8 py-6 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 group disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isSubmitting || isDraftSaving || !isDeclarationChecked}
             >
               {isSubmitting ? (
                 <>
@@ -1003,8 +1110,10 @@ export function AdmissionWizard() {
                 </>
               ) : (
                 <>
-                  <Send className="w-4 h-4" />
-                  Submit Application
+                  <span className="relative z-10">Submit Application</span>
+                  <div className="relative z-10 w-8 h-8 bg-white rounded-full flex items-center justify-center transition-transform duration-300 group-hover:translate-x-6">
+                    <Send className="w-5 h-5 text-gray-800" />
+                  </div>
                 </>
               )}
             </Button>

@@ -11,7 +11,8 @@ class DocumentSerializer(serializers.ModelSerializer):
     """
     Complete serializer for document data with enhanced fields
     """
-    studentName = serializers.CharField(source='student.fullNameEnglish', read_only=True)
+    studentName = serializers.SerializerMethodField()
+    studentRoll = serializers.SerializerMethodField()
     source_type_display = serializers.CharField(source='get_source_type_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     file_url = serializers.ReadOnlyField()
@@ -19,12 +20,29 @@ class DocumentSerializer(serializers.ModelSerializer):
     is_image = serializers.ReadOnlyField()
     is_pdf = serializers.ReadOnlyField()
     
+    def get_studentName(self, obj):
+        """Get student name from student relationship or owner_name field"""
+        if obj.student:
+            return obj.student.fullNameEnglish
+        elif obj.source_type == 'admission' and obj.owner_name:
+            return obj.owner_name.replace('_', ' ').title()
+        return None
+    
+    def get_studentRoll(self, obj):
+        """Get student roll from student relationship or owner_id field"""
+        if obj.student:
+            return obj.student.currentRollNumber
+        elif obj.source_type == 'admission' and obj.owner_id:
+            return obj.owner_id
+        return None
+    
     class Meta:
         model = Document
         fields = [
             'id',
             'student',
             'studentName',
+            'studentRoll',
             'fileName',
             'fileType',
             'category',

@@ -152,8 +152,9 @@ class ApiClient {
     let body: any;
 
     if (isFormData) {
+      // For FormData, don't set Content-Type (browser will set it with boundary)
+      // But still include CSRF token
       headers = {};
-      // Add CSRF token for FormData
       const csrfToken = this.getCsrfToken();
       if (csrfToken) {
         headers['X-CSRFToken'] = csrfToken;

@@ -63,6 +63,7 @@ const getStatusColor = (status: string) => {
 export default function Admissions() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [selectedDept, setSelectedDept] = useState('All');
   const [showFilters, setShowFilters] = useState(false);
@@ -73,9 +74,19 @@ export default function Admissions() {
   const [processing, setProcessing] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
 
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setCurrentPage(1); // Reset to first page on new search
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   useEffect(() => {
     fetchAdmissions();
-  }, [currentPage, selectedStatus, selectedDept]);
+  }, [currentPage, selectedStatus, selectedDept, debouncedSearch]);
 
   const fetchAdmissions = async () => {
     try {
@@ -84,7 +95,8 @@ export default function Admissions() {
         page: currentPage,
         page_size: pageSize,
         status: selectedStatus !== 'All' ? selectedStatus.toLowerCase() : undefined,
-        search: searchQuery || undefined,
+        desired_department: selectedDept !== 'All' ? selectedDept : undefined,
+        search: debouncedSearch || undefined,
       });
 
       const mapped = response.results.map((adm: Admission) => ({
@@ -112,14 +124,6 @@ export default function Admissions() {
       setLoading(false);
     }
   };
-
-  const filteredAdmissions = admissions.filter((admission) => {
-    const matchesSearch =
-      admission.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      admission.email.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesDept = selectedDept === 'All' || admission.department.includes(selectedDept);
-    return matchesSearch && matchesDept;
-  });
 
   const totalPages = Math.ceil(totalCount / pageSize);
 
@@ -266,7 +270,7 @@ export default function Admissions() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Search by name or email..."
+              placeholder="Search by name, email, phone, or Application ID..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -343,7 +347,7 @@ export default function Admissions() {
               </tr>
             </thead>
             <tbody>
-              {filteredAdmissions.map((admission, index) => (
+              {admissions.map((admission, index) => (
                 <motion.tr
                   key={admission.id}
                   initial={{ opacity: 0, y: 10 }}
@@ -429,7 +433,7 @@ export default function Admissions() {
         {/* Pagination */}
         <div className="p-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-4">
           <span className="text-sm text-muted-foreground">
-            Showing {filteredAdmissions.length} of {totalCount} admissions
+            Showing {admissions.length} of {totalCount} admissions
           </span>
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground">

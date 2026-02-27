@@ -19,7 +19,7 @@ export function StepAcademic({ formData, departments, onChange }: Props) {
 
       <div className="grid md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>Department</Label>
+          <Label>Department <span className="text-red-500">*</span></Label>
           <select 
             className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm"
             value={formData.department}
@@ -35,11 +35,12 @@ export function StepAcademic({ formData, departments, onChange }: Props) {
           </select>
         </div>
         <div className="space-y-2">
-          <Label>Shift</Label>
+          <Label>Shift <span className="text-red-500">*</span></Label>
           <select 
             className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm"
             value={formData.shift}
             onChange={(e) => onChange('shift', e.target.value)}
+            required
           >
             <option value="">Select Shift</option>
             <option value="Morning">Morning</option>
@@ -50,11 +51,12 @@ export function StepAcademic({ formData, departments, onChange }: Props) {
 
       <div className="grid md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>Session</Label>
+          <Label>Session <span className="text-red-500">*</span></Label>
           <select 
             className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm"
             value={formData.session}
             onChange={(e) => onChange('session', e.target.value)}
+            required
           >
             <option value="">Select Session</option>
             <option value="2025-26">2025-26</option>
@@ -67,11 +69,12 @@ export function StepAcademic({ formData, departments, onChange }: Props) {
           </select>
         </div>
         <div className="space-y-2">
-          <Label>Semester</Label>
+          <Label>Semester <span className="text-red-500">*</span></Label>
           <select 
             className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm"
             value={formData.semester}
             onChange={(e) => onChange('semester', e.target.value)}
+            required
           >
             <option value="">Select Semester</option>
             <option value="1st">1st Semester</option>
@@ -81,11 +84,12 @@ export function StepAcademic({ formData, departments, onChange }: Props) {
 
       <div className="grid md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>Admission Type</Label>
+          <Label>Admission Type <span className="text-red-500">*</span></Label>
           <select 
             className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm"
             value={formData.admissionType}
             onChange={(e) => onChange('admissionType', e.target.value)}
+            required
           >
             <option value="">Select Admission Type</option>
             <option value="regular">Regular</option>
