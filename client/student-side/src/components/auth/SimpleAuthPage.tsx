@@ -10,7 +10,7 @@ export function SimpleAuthPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login, demoLogin } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -28,11 +28,7 @@ export function SimpleAuthPage() {
     }
   };
 
-  const handleDemoLogin = () => {
-    demoLogin('student');
-    toast.success('Welcome! Logged in as student demo');
-    navigate('/dashboard');
-  };
+
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
@@ -72,26 +68,6 @@ export function SimpleAuthPage() {
               {isLoading ? 'Signing in...' : 'Sign In'}
             </Button>
           </form>
-
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">Or try demo</span>
-              </div>
-            </div>
-
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full mt-4"
-              onClick={handleDemoLogin}
-            >
-              Demo Login
-            </Button>
-          </div>
 
           <div className="mt-6 text-center">
             <a

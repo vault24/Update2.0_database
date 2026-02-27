@@ -73,7 +73,7 @@ nano .env  # Update SECRET_KEY, DB_PASSWORD, EMAIL settings
 # 3. Setup database
 sudo -u postgres psql
 CREATE DATABASE sipi_db;
-CREATE USER sipi_web WITH PASSWORD 'your_password';
+CREATE USER sipi_web WITH PASSWORD 'sipiadmin';
 GRANT ALL PRIVILEGES ON DATABASE sipi_db TO sipi_web;
 \q
 

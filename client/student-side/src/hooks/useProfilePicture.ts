@@ -24,8 +24,6 @@ export function useProfilePicture() {
     try {
       setLoading(true);
       
-      const demoRole = localStorage.getItem('demoRole');
-      
       // Always load from server to stay in sync across devices
       if (user?.relatedProfileId) {
         try {

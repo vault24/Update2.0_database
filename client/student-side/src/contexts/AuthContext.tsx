@@ -25,7 +25,6 @@ interface AuthContextType {
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   signup: (data: SignupData) => Promise<void>;
   logout: () => void;
-  demoLogin: (role: UserRole) => void;
   loading: boolean;
 }
 
@@ -44,58 +43,6 @@ interface SignupData {
   officeLocation?: string;
 }
 
-// Demo users for testing without backend
-const demoUsers: Record<UserRole, User> = {
-  student: {
-    id: 'demo-student-001',
-    name: 'Rakib Ahmed',
-    email: 'student@demo.com',
-    studentId: 'SPI-2024-0001',
-    admissionStatus: 'approved',
-    department: 'Computer Technology',
-    semester: 8, // Changed to 8 to test alumni profile functionality
-    role: 'student',
-    relatedProfileId: 'demo-student-001',
-    studentStatus: 'graduated',
-    isAlumni: true,
-  },
-  captain: {
-    id: 'demo-captain-001',
-    name: 'Fatima Khan',
-    email: 'captain@demo.com',
-    studentId: 'SPI-2024-0002',
-    admissionStatus: 'approved',
-    department: 'Computer Technology',
-    semester: 6, // Regular semester for captain
-    role: 'captain',
-    relatedProfileId: 'demo-captain-001',
-    studentStatus: 'active',
-    isAlumni: false,
-  },
-  teacher: {
-    id: 'demo-teacher-001',
-    name: 'Dr. Kamal Hossain',
-    email: 'teacher@demo.com',
-    studentId: 'T-001',
-    admissionStatus: 'approved',
-    department: 'Computer Technology',
-    role: 'teacher',
-    relatedProfileId: 'demo-teacher-001',
-    isAlumni: false,
-  },
-  alumni: {
-    id: 'demo-alumni-001',
-    name: 'Mohammad Rahim',
-    email: 'alumni@demo.com',
-    studentId: 'SPI-2020-0045',
-    admissionStatus: 'approved',
-    department: 'Computer Technology',
-    role: 'alumni',
-    relatedProfileId: 'demo-alumni-001',
-    isAlumni: true,
-  },
-};
-
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -104,14 +51,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const checkAuth = async () => {
-      // Check for demo user first
-      const demoRole = localStorage.getItem('demoRole') as UserRole | null;
-      if (demoRole && demoUsers[demoRole]) {
-        setUser(demoUsers[demoRole]);
-        setLoading(false);
-        return;
-      }
-
       const hasLoggedOut = localStorage.getItem('hasLoggedOut');
       if (hasLoggedOut === 'true') {
         setLoading(false);
@@ -185,16 +124,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkAuth();
   }, []);
 
-  const demoLogin = (role: UserRole) => {
-    localStorage.setItem('demoRole', role);
-    localStorage.removeItem('hasLoggedOut');
-    setUser(demoUsers[role]);
-  };
-
   const login = async (email: string, password: string, rememberMe: boolean = false) => {
     try {
       localStorage.removeItem('hasLoggedOut');
-      localStorage.removeItem('demoRole');
       
       await api.get<any>('/auth/csrf/');
       const response = await api.post<any>('/auth/login/', { username: email, password, remember_me: rememberMe });
@@ -289,7 +221,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signup = async (data: SignupData) => {
     try {
       localStorage.removeItem('hasLoggedOut');
-      localStorage.removeItem('demoRole');
       
       await api.get<any>('/auth/csrf/');
       
@@ -359,7 +290,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     localStorage.setItem('hasLoggedOut', 'true');
-    localStorage.removeItem('demoRole');
     
     setUser(null);
     localStorage.removeItem('userId');
@@ -378,7 +308,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login, 
       signup, 
       logout,
-      demoLogin,
       loading
     }}>
       {children}

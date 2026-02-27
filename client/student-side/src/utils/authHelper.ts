@@ -47,13 +47,6 @@ export async function ensureAuthentication(): Promise<boolean> {
       return true;
     }
     
-    // If not authenticated, check if we have demo mode
-    const demoRole = localStorage.getItem('demoRole');
-    if (demoRole) {
-      console.log('Using demo mode, authentication not required');
-      return true;
-    }
-    
     // For real users, they need to login
     console.warn('User not authenticated, login required');
     return false;
@@ -69,7 +62,6 @@ export async function ensureAuthentication(): Promise<boolean> {
  */
 export function debugAuthState() {
   console.log('=== Authentication Debug ===');
-  console.log('Demo role:', localStorage.getItem('demoRole'));
   console.log('User ID:', localStorage.getItem('userId'));
   console.log('Related Profile ID:', localStorage.getItem('relatedProfileId'));
   console.log('Has logged out:', localStorage.getItem('hasLoggedOut'));

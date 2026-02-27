@@ -21,11 +21,7 @@ const roleOptions: { value: UserRole; label: string; icon: React.ElementType; de
   { value: 'teacher', label: 'Teacher', icon: BookOpen, description: 'Teacher dashboard access' },
 ];
 
-const demoCredentials = [
-  { role: 'student' as UserRole, label: 'Student Demo', icon: GraduationCap, color: 'from-blue-500 to-cyan-500' },
-  { role: 'captain' as UserRole, label: 'Captain Demo', icon: Shield, color: 'from-amber-500 to-orange-500' },
-  { role: 'teacher' as UserRole, label: 'Teacher Demo', icon: BookOpen, color: 'from-emerald-500 to-teal-500' },
-];
+
 
 export function AuthPage() {
   const [mode, setMode] = useState<AuthMode>('login');
@@ -33,7 +29,7 @@ export function AuthPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedRole, setSelectedRole] = useState<UserRole>('student');
   const [rememberMe, setRememberMe] = useState(false);
-  const { login, signup, demoLogin } = useAuth();
+  const { login, signup } = useAuth();
   const navigate = useNavigate();
 
   // Fetch departments when teacher role is selected
@@ -69,13 +65,7 @@ export function AuthPage() {
   const [qualificationInput, setQualificationInput] = useState('');
   const [specializationInput, setSpecializationInput] = useState('');
 
-  const handleDemoLogin = (role: UserRole) => {
-    demoLogin(role);
-    toast.success(`Welcome! Logged in as ${role}`, {
-      description: 'This is a demo account with sample data',
-    });
-    navigate('/dashboard');
-  };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -291,60 +281,7 @@ export function AuthPage() {
               transition={{ duration: 0.5 }}
               className="w-full max-w-md"
             >
-              {/* Demo Login Section */}
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="mb-6"
-              >
-                <div className="text-center mb-4">
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Quick Demo Access</h3>
-                  <p className="text-xs text-muted-foreground/70">Try the portal without registration</p>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {demoCredentials.map((demo) => {
-                    const Icon = demo.icon;
-                    return (
-                      <motion.button
-                        key={demo.role}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => handleDemoLogin(demo.role)}
-                        className={cn(
-                          "relative p-3 rounded-xl border border-border bg-card shadow-card overflow-hidden group",
-                          "hover:shadow-elevated transition-all duration-300"
-                        )}
-                      >
-                        <div className={cn(
-                          "absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-br",
-                          demo.color
-                        )} />
-                        <div className="relative z-10 flex flex-col items-center gap-1.5">
-                          <div className={cn(
-                            "w-8 h-8 rounded-lg flex items-center justify-center transition-colors bg-gradient-to-br",
-                            demo.color,
-                            "text-white"
-                          )}>
-                            <Icon className="w-4 h-4" />
-                          </div>
-                          <span className="text-xs font-medium group-hover:text-white transition-colors">{demo.label}</span>
-                        </div>
-                      </motion.button>
-                    );
-                  })}
-                </div>
-              </motion.div>
 
-              {/* Divider */}
-              <div className="relative mb-6">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-border"></div>
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-3 text-muted-foreground">Or continue with</span>
-                </div>
-              </div>
 
               {/* Tab Switcher */}
               <div className="flex bg-muted rounded-xl p-1 mb-6">

@@ -46,58 +46,6 @@ export interface DocumentFilters {
   source_id?: string;
 }
 
-// Demo documents for testing
-const demoDocuments: Document[] = [
-  {
-    id: 'demo-doc-1',
-    student: 'demo-student-001',
-    studentName: 'Rakib Ahmed',
-    studentRoll: 'SPI-2024-0001',
-    fileName: 'Academic_Transcript.pdf',
-    fileType: 'pdf',
-    category: 'Certificate',
-    filePath: '/demo/academic_transcript.pdf',
-    fileSize: 245760,
-    uploadDate: '2024-01-15T10:30:00Z',
-  },
-  {
-    id: 'demo-doc-2',
-    student: 'demo-student-001',
-    studentName: 'Rakib Ahmed',
-    studentRoll: 'SPI-2024-0001',
-    fileName: 'Birth_Certificate.jpg',
-    fileType: 'jpg',
-    category: 'Birth Certificate',
-    filePath: '/demo/birth_certificate.jpg',
-    fileSize: 156432,
-    uploadDate: '2024-01-15T10:35:00Z',
-  },
-  {
-    id: 'demo-doc-3',
-    student: 'demo-student-001',
-    studentName: 'Rakib Ahmed',
-    studentRoll: 'SPI-2024-0001',
-    fileName: 'NID_Card.jpg',
-    fileType: 'jpg',
-    category: 'NID',
-    filePath: '/demo/nid_card.jpg',
-    fileSize: 198765,
-    uploadDate: '2024-01-15T10:40:00Z',
-  },
-  {
-    id: 'demo-doc-4',
-    student: 'demo-student-001',
-    studentName: 'Rakib Ahmed',
-    studentRoll: 'SPI-2024-0001',
-    fileName: 'Profile_Photo.jpg',
-    fileType: 'jpg',
-    category: 'Photo',
-    filePath: '/demo/profile_photo.jpg',
-    fileSize: 89432,
-    uploadDate: '2024-01-15T10:45:00Z',
-  },
-];
-
 // Service
 export const documentService = {
   /**
@@ -130,21 +78,6 @@ export const documentService = {
    * Get documents for a specific student
    */
   getMyDocuments: async (studentId: string, category?: DocumentCategory): Promise<MyDocumentsResponse> => {
-    // Check if we're in demo mode
-    const demoRole = localStorage.getItem('demoRole');
-    if (demoRole && studentId.startsWith('demo-')) {
-      // Return demo documents
-      let filteredDocs = demoDocuments.filter(doc => doc.student === studentId);
-      if (category) {
-        filteredDocs = filteredDocs.filter(doc => doc.category === category);
-      }
-      
-      return {
-        count: filteredDocs.length,
-        documents: filteredDocs,
-      };
-    }
-    
     // Real API call
     try {
       const params: any = { student: studentId };
@@ -167,7 +100,7 @@ export const documentService = {
       if (error.status_code === 401 || error.error?.includes('Authentication required')) {
         throw {
           error: 'Authentication required',
-          details: 'Please log in with a real account to access your documents. Demo mode has limited functionality.',
+          details: 'Please log in to access your documents.',
           status_code: 401,
         };
       }
@@ -197,20 +130,6 @@ export const documentService = {
    * Download document
    */
   downloadDocument: async (id: string): Promise<Blob> => {
-    // Check if we're in demo mode
-    const demoRole = localStorage.getItem('demoRole');
-    if (demoRole && id.startsWith('demo-')) {
-      // Create a demo file blob
-      const demoDoc = demoDocuments.find(doc => doc.id === id);
-      if (!demoDoc) {
-        throw new Error('Demo document not found');
-      }
-      
-      // Create a simple text file for demo
-      const content = `Demo Document: ${demoDoc.fileName}\n\nThis is a demonstration document.\nIn a real system, this would be the actual file content.\n\nDocument Details:\n- Category: ${demoDoc.category}\n- File Type: ${demoDoc.fileType}\n- Upload Date: ${demoDoc.uploadDate}`;
-      return new Blob([content], { type: 'text/plain' });
-    }
-    
     // Real API call
     const { API_BASE_URL } = await import('@/config/api');
     const url = `${API_BASE_URL}/documents/${id}/download/`;
@@ -224,7 +143,7 @@ export const documentService = {
 
     if (!response.ok) {
       if (response.status === 401) {
-        throw new Error('Authentication required. Please log in with a real account.');
+        throw new Error('Authentication required. Please log in.');
       }
       throw new Error('Failed to download document');
     }
@@ -236,13 +155,6 @@ export const documentService = {
    * Get document preview URL
    */
   getDocumentPreviewUrl: (id: string): string => {
-    // Check if we're in demo mode
-    const demoRole = localStorage.getItem('demoRole');
-    if (demoRole && id.startsWith('demo-')) {
-      // Return a placeholder for demo documents
-      return 'data:text/plain;base64,VGhpcyBpcyBhIGRlbW8gZG9jdW1lbnQgcHJldmlldw==';
-    }
-    
     // Real API URL
     return `http://localhost:8000/api/documents/${id}/preview/`;
   },
@@ -251,45 +163,6 @@ export const documentService = {
    * Preview document (for inline viewing)
    */
   previewDocument: async (id: string): Promise<Blob> => {
-    // Check if we're in demo mode
-    const demoRole = localStorage.getItem('demoRole');
-    if (demoRole && id.startsWith('demo-')) {
-      // Create a demo preview blob
-      const demoDoc = demoDocuments.find(doc => doc.id === id);
-      if (!demoDoc) {
-        throw new Error('Demo document not found');
-      }
-      
-      // Create appropriate demo content based on file type
-      if (demoDoc.fileType === 'pdf') {
-        return new Blob(['%PDF-1.4 Demo PDF Content'], { type: 'application/pdf' });
-      } else if (demoDoc.fileType === 'jpg' || demoDoc.fileType === 'png') {
-        // Create a simple colored rectangle as demo image
-        const canvas = document.createElement('canvas');
-        canvas.width = 400;
-        canvas.height = 300;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.fillStyle = '#f0f0f0';
-          ctx.fillRect(0, 0, 400, 300);
-          ctx.fillStyle = '#666';
-          ctx.font = '20px Arial';
-          ctx.textAlign = 'center';
-          ctx.fillText('Demo Image', 200, 150);
-          ctx.fillText(demoDoc.fileName, 200, 180);
-        }
-        
-        return new Promise((resolve) => {
-          canvas.toBlob((blob) => {
-            resolve(blob || new Blob());
-          }, `image/${demoDoc.fileType}`);
-        });
-      } else {
-        const content = `Demo Document Preview: ${demoDoc.fileName}`;
-        return new Blob([content], { type: 'text/plain' });
-      }
-    }
-    
     // Real API call
     const { API_BASE_URL } = await import('@/config/api');
     const url = `${API_BASE_URL}/documents/${id}/preview/`;
@@ -303,7 +176,7 @@ export const documentService = {
 
     if (!response.ok) {
       if (response.status === 401) {
-        throw new Error('Authentication required. Please log in with a real account.');
+        throw new Error('Authentication required. Please log in.');
       }
       throw new Error('Failed to preview document');
     }
@@ -315,13 +188,6 @@ export const documentService = {
    * Set document as profile picture (for Photo category documents)
    */
   setAsProfilePicture: async (documentId: string, studentId?: string): Promise<void> => {
-    // Check if we're in demo mode
-    const demoRole = localStorage.getItem('demoRole');
-    if (demoRole && documentId.startsWith('demo-')) {
-      // Demo mode: no server sync required
-      return;
-    }
-    
     // Persist to server so it works across devices
     const payload: Record<string, string> = {};
     if (studentId) {
@@ -334,14 +200,6 @@ export const documentService = {
    * Get profile picture URL
    */
   getProfilePictureUrl: (documentId?: string, studentId?: string): string | null => {
-    if (!documentId) {
-      // Check for stored profile picture
-      const demoRole = localStorage.getItem('demoRole');
-      if (demoRole) {
-        documentId = undefined;
-      }
-    }
-    
     if (!documentId) return null;
     
     return documentService.getDocumentPreviewUrl(documentId);

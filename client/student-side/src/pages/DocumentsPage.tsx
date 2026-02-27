@@ -165,9 +165,9 @@ export function DocumentsPage() {
         details: err.details
       });
       
-      // Handle authentication errors gracefully for demo users
-      if (err.status_code === 401 && localStorage.getItem('demoRole')) {
-        setError('Demo mode: Limited document functionality. Log in with a real account for full access.');
+      // Handle authentication errors gracefully
+      if (err.status_code === 401) {
+        setError('Authentication required. Please log in to access your documents.');
         setDocuments([]); // Show empty state instead of error
       } else if (err.status_code === 404) {
         setError('Document service is currently unavailable. Please try again later.');

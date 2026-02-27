@@ -20,7 +20,7 @@ DEBUG = config('DEBUG', default=True, cast=bool)
 
 ALLOWED_HOSTS = config(
     'ALLOWED_HOSTS',
-    default='localhost,127.0.0.1,testserver',
+    default='localhost,127.0.0.1,testserver,13.250.99.61,spiadmin.errorburner.site,spistudent.errorburner.site',
     cast=Csv()
 )
 
@@ -221,7 +221,10 @@ CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOWED_ORIGINS = [
-    # Production URLs
+    # Production URLs - Cloudflare Tunnel
+    "https://spiadmin.errorburner.site",   # admin production
+    "https://spistudent.errorburner.site", # student production
+    # Production URLs - Direct IP
     "http://13.250.99.61",        # student production
     "http://13.250.99.61:8080",   # admin production
     # Development URLs
@@ -240,7 +243,10 @@ CORS_ALLOWED_ORIGINS = [
 # ✅ CSRF
 # --------------------------------------------------
 CSRF_TRUSTED_ORIGINS = [
-    # Production URLs
+    # Production URLs - Cloudflare Tunnel
+    "https://spiadmin.errorburner.site",   # admin production
+    "https://spistudent.errorburner.site", # student production
+    # Production URLs - Direct IP
     "http://13.250.99.61",        # student production
     "http://13.250.99.61:8080",   # admin production
     # Development URLs
@@ -257,7 +263,7 @@ CSRF_TRUSTED_ORIGINS = [
 
 CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_SAMESITE = 'Lax'
-CSRF_COOKIE_SECURE = False   # True when HTTPS
+CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=False, cast=bool)  # True when HTTPS
 CSRF_USE_SESSIONS = False
 CSRF_COOKIE_NAME = 'csrftoken'
 
@@ -268,7 +274,7 @@ CSRF_FAILURE_VIEW = 'apps.authentication.csrf_handler.csrf_failure'
 # --------------------------------------------------
 SESSION_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SECURE = False  # True when HTTPS
+SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=False, cast=bool)  # True when HTTPS
 SESSION_COOKIE_AGE = 86400
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_COOKIE_NAME = 'sessionid'
