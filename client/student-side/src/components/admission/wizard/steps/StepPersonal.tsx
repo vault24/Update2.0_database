@@ -160,12 +160,11 @@ export function StepPersonal({ formData, onChange }: Props) {
           </select>
         </div>
         <div className="space-y-2">
-          <Label>Nationality <span className="text-red-500">*</span></Label>
+          <Label>Nationality</Label>
           <Input 
             placeholder="Enter nationality"
             value={formData.nationality || 'Bangladeshi'}
             onChange={(e) => onChange('nationality', e.target.value)}
-            required
           />
         </div>
       </div>

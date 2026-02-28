@@ -615,7 +615,6 @@ export function AdmissionWizard() {
           completeFormData.gender &&
           completeFormData.birthCertificate &&
           completeFormData.religion &&
-          completeFormData.nationality &&
           completeFormData.maritalStatus
         );
       case 2: // Contact & Address
