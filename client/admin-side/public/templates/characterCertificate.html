@@ -57,7 +57,10 @@
   
   html, body { 
     height: 100%;
-    width: 100%;
+    width: 297mm;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
   }
   
   body {
@@ -75,6 +78,7 @@
     box-sizing: border-box;
     margin: 0 auto;
     background: #fff;
+    overflow: hidden;
   }
 
   /* Outer solid border - Professional design */
@@ -212,14 +216,13 @@
     margin-top: 4mm;
     padding: 0 10mm;
     font-size: 15px;
-    line-height: 1.75;
+    line-height: 1.65;
     text-align: justify;
     font-family: 'Crimson Text', 'Georgia', serif;
     color: #1a1a1a;
     display: block;
     font-weight: 400;
     letter-spacing: 0.2px;
-    flex: 1 1 auto;
   }
 
   .body-text p {
@@ -247,8 +250,8 @@
 
   /* Signature row */
   .sign-row {
-    margin-top: auto;
-    padding: 4mm 30mm 0 30mm;
+    margin-top: 6mm;
+    padding: 0 30mm;
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
@@ -270,7 +273,7 @@
     font-style: italic;
     color: #1a1a1a;
     letter-spacing: 0.4px;
-    margin-bottom: 10mm;
+    margin-bottom: 8mm;
   }
 
   .sign-line {
