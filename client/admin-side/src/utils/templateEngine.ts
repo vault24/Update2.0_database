@@ -544,11 +544,20 @@ export class TemplateEngine {
       errors.push('Unmatched placeholder brackets {{ }} detected');
     }
     
-    const openSquare = (templateContent.match(/\[(?![^\]]*\])/g) || []).length;
-    const closeSquare = (templateContent.match(/\]/g) || []).length;
+    // For square brackets, only check for placeholder patterns like [Field Name]
+    // Ignore brackets in CSS, HTML attributes, and JavaScript
+    // Remove style tags, script tags, and HTML attributes before checking
+    let contentToCheck = templateContent
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '') // Remove style blocks
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') // Remove script blocks
+      .replace(/<[^>]+>/g, ''); // Remove HTML tags and their attributes
+    
+    // Now count square brackets in the remaining content (text only)
+    const openSquare = (contentToCheck.match(/\[/g) || []).length;
+    const closeSquare = (contentToCheck.match(/\]/g) || []).length;
     
     if (openSquare !== closeSquare) {
-      errors.push('Unmatched square brackets [ ] detected');
+      errors.push('Unmatched square brackets [ ] detected in template placeholders');
     }
     
     return errors;
