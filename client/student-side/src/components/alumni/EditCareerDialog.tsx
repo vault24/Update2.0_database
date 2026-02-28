@@ -17,6 +17,12 @@ interface EditCareerDialogProps {
   onSave: (career: Omit<CareerEntry, 'id'> | CareerEntry) => void;
 }
 
+const toMonthInputValue = (value?: string) => {
+  if (!value) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value.slice(0, 7);
+  return value;
+};
+
 export function EditCareerDialog({ open, onOpenChange, career, onSave }: EditCareerDialogProps) {
   const [formData, setFormData] = useState<Omit<CareerEntry, 'id'>>({
     type: 'job',
@@ -46,8 +52,8 @@ export function EditCareerDialog({ open, onOpenChange, career, onSave }: EditCar
           position: career.position,
           company: career.company,
           location: career.location,
-          startDate: career.startDate,
-          endDate: career.endDate || '',
+          startDate: toMonthInputValue(career.startDate),
+          endDate: toMonthInputValue(career.endDate),
           current: career.current,
           description: career.description,
           achievements: career.achievements || [],
@@ -101,6 +107,10 @@ export function EditCareerDialog({ open, onOpenChange, career, onSave }: EditCar
   };
 
   const handleSave = () => {
+    if (!formData.position.trim() || !formData.company.trim() || !formData.startDate) {
+      return;
+    }
+
     if (career) {
       onSave({ ...formData, id: career.id });
     } else {
@@ -110,6 +120,7 @@ export function EditCareerDialog({ open, onOpenChange, career, onSave }: EditCar
   };
 
   const isEditing = !!career;
+  const isFormValid = !!formData.position.trim() && !!formData.company.trim() && !!formData.startDate;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -140,21 +151,23 @@ export function EditCareerDialog({ open, onOpenChange, career, onSave }: EditCar
 
           {/* Position/Title */}
           <div className="space-y-2">
-            <Label>{formData.type === 'higherStudies' ? 'Degree/Program' : 'Position/Title'}</Label>
+            <Label>{formData.type === 'higherStudies' ? 'Degree/Program' : 'Position/Title'} *</Label>
             <Input
               value={formData.position}
               onChange={(e) => setFormData(prev => ({ ...prev, position: e.target.value }))}
               placeholder={formData.type === 'higherStudies' ? 'e.g., BSc in Computer Science' : 'e.g., Software Engineer'}
+              required
             />
           </div>
 
           {/* Company/Institution */}
           <div className="space-y-2">
-            <Label>{formData.type === 'higherStudies' ? 'Institution' : 'Company/Organization'}</Label>
+            <Label>{formData.type === 'higherStudies' ? 'Institution' : 'Company/Organization'} *</Label>
             <Input
               value={formData.company}
               onChange={(e) => setFormData(prev => ({ ...prev, company: e.target.value }))}
               placeholder={formData.type === 'higherStudies' ? 'e.g., National University' : 'e.g., Tech Solutions Ltd.'}
+              required
             />
           </div>
 
@@ -171,11 +184,12 @@ export function EditCareerDialog({ open, onOpenChange, career, onSave }: EditCar
           {/* Dates */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Start Date</Label>
+              <Label>Start Date *</Label>
               <Input
                 type="month"
                 value={formData.startDate}
                 onChange={(e) => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
+                required
               />
             </div>
             <div className="space-y-2">
@@ -253,7 +267,7 @@ export function EditCareerDialog({ open, onOpenChange, career, onSave }: EditCar
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSave}>
+          <Button onClick={handleSave} disabled={!isFormValid}>
             {isEditing ? 'Save Changes' : 'Add Entry'}
           </Button>
         </DialogFooter>

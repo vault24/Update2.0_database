@@ -18,7 +18,6 @@ import { EditAlumniProfileDialog } from '@/components/alumni/EditAlumniProfileDi
 import { 
   alumniService, 
   AlumniProfile, 
-  demoAlumniProfile,
   CareerEntry,
   Skill,
   CareerHighlight,
@@ -56,19 +55,8 @@ export default function AlumniProfilePage() {
     setError(null);
     
     try {
-      // In demo mode, use demo data
-      if (user?.id && String(user.id).startsWith('demo-')) {
-        setAlumni({
-          ...demoAlumniProfile,
-          id: String(user.id),
-          name: user.name,
-          email: user.email,
-        });
-      } else {
-        // Fetch current user's alumni profile
-        const data = await alumniService.getProfile();
-        setAlumni(data);
-      }
+      const data = await alumniService.getProfile();
+      setAlumni(data);
     } catch (err: any) {
       console.error('Failed to fetch alumni data:', err);
       
@@ -138,9 +126,10 @@ export default function AlumniProfilePage() {
         });
         toast.success('Career entry added');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to save career:', err);
-      toast.error('Failed to save career entry');
+      const errorMessage = err.message || 'Failed to save career entry';
+      toast.error(errorMessage);
     }
   };
 

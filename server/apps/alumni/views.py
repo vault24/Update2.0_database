@@ -640,7 +640,11 @@ class AlumniViewSet(viewsets.ModelViewSet):
             student, alumni = self._get_student_alumni(request)
             
             serializer = AddCareerPositionSerializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
+            if not serializer.is_valid():
+                return Response(
+                    serializer.errors,
+                    status=status.HTTP_400_BAD_REQUEST
+                )
             
             # Add career position
             position_data = serializer.validated_data

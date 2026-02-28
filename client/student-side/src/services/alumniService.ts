@@ -83,125 +83,42 @@ export interface AlumniProfile {
   portfolio?: string;
 }
 
-// Demo data for testing
-export const demoAlumniProfile: AlumniProfile = {
-  id: 'demo-alumni-001',
-  name: 'Mohammad Rahim',
-  roll: 'SPI-2020-0045',
-  department: 'Computer Technology',
-  graduationYear: '2024',
-  email: 'rahim.alumni@example.com',
-  phone: '+880 1712-345678',
-  currentJob: 'Senior Software Engineer',
-  company: 'Tech Solutions Ltd.',
-  location: 'Dhaka, Bangladesh',
-  gpa: 3.85,
-  avatar: '',
-  category: 'employed',
-  supportStatus: 'noSupportNeeded',
-  bio: 'Passionate software engineer with expertise in full-stack development. Graduated from Sirajganj Polytechnic Institute with honors. Currently working on innovative solutions in the fintech sector.',
-  linkedin: 'https://linkedin.com/in/mohammad-rahim',
-  portfolio: 'https://rahim-portfolio.dev',
-  careers: [
-    {
-      id: '1',
-      type: 'job',
-      position: 'Senior Software Engineer',
-      company: 'Tech Solutions Ltd.',
-      location: 'Dhaka',
-      startDate: '2024-06',
-      current: true,
-      description: 'Leading development of enterprise applications using React and Node.js',
-      achievements: ['Led team of 5 developers', 'Reduced load time by 40%', 'Implemented CI/CD pipeline'],
-      salary: '80,000 BDT',
-    },
-    {
-      id: '2',
-      type: 'job',
-      position: 'Junior Developer',
-      company: 'StartUp Hub',
-      location: 'Dhaka',
-      startDate: '2023-01',
-      endDate: '2024-05',
-      current: false,
-      description: 'Worked on various web applications and mobile apps',
-      achievements: ['Built 3 production apps', 'Mentored 2 interns'],
-    },
-    {
-      id: '3',
-      type: 'higherStudies',
-      position: 'BSc in Computer Science',
-      company: 'National University',
-      location: 'Dhaka',
-      startDate: '2024-09',
-      current: true,
-      description: 'Pursuing bachelor degree while working',
-      degree: 'BSc',
-      field: 'Computer Science',
-      institution: 'National University',
-    },
-  ],
-  skills: [
-    { id: '1', name: 'React.js', category: 'technical', proficiency: 90 },
-    { id: '2', name: 'Node.js', category: 'technical', proficiency: 85 },
-    { id: '3', name: 'TypeScript', category: 'technical', proficiency: 80 },
-    { id: '4', name: 'Python', category: 'technical', proficiency: 75 },
-    { id: '5', name: 'Team Leadership', category: 'soft', proficiency: 85 },
-    { id: '6', name: 'Communication', category: 'soft', proficiency: 90 },
-    { id: '7', name: 'English', category: 'language', proficiency: 80 },
-    { id: '8', name: 'Bengali', category: 'language', proficiency: 100 },
-  ],
-  highlights: [
-    {
-      id: '1',
-      title: 'Best Graduate Award',
-      description: 'Received the best graduate award from the department',
-      date: '2024-03',
-      type: 'award',
-    },
-    {
-      id: '2',
-      title: 'First Job Placement',
-      description: 'Secured first job within 1 month of graduation',
-      date: '2024-04',
-      type: 'milestone',
-    },
-    {
-      id: '3',
-      title: 'E-commerce Platform Launch',
-      description: 'Led the development and successful launch of a major e-commerce platform',
-      date: '2024-08',
-      type: 'project',
-    },
-  ],
-  courses: [
-    {
-      id: '1',
-      name: 'AWS Solutions Architect',
-      provider: 'Amazon Web Services',
-      status: 'completed' as CourseStatus,
-      completionDate: '2024-06',
-      certificateId: 'AWS-SAA-123456',
-      certificateUrl: 'https://aws.amazon.com/verify/cert',
-      description: 'Cloud architecture fundamentals and best practices',
-    },
-    {
-      id: '2',
-      name: 'React Advanced Patterns',
-      provider: 'Frontend Masters',
-      status: 'completed' as CourseStatus,
-      completionDate: '2024-03',
-      description: 'Advanced React patterns including hooks, context, and performance optimization',
-    },
-    {
-      id: '3',
-      name: 'Machine Learning Specialization',
-      provider: 'Coursera',
-      status: 'in_progress' as CourseStatus,
-      description: 'Comprehensive ML course covering supervised and unsupervised learning',
-    },
-  ],
-};
+function toApiDate(value?: string | null): string | null {
+  const trimmed = (value || '').trim();
+  if (!trimmed) return null;
+  if (/^\d{4}-\d{2}$/.test(trimmed)) return `${trimmed}-01`;
+  return trimmed;
+}
+
+function toMonthValue(value?: string | null): string {
+  const trimmed = (value || '').trim();
+  if (!trimmed) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed.slice(0, 7);
+  return trimmed;
+}
+
+function toNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function getStudentCgpa(student: any): number {
+  const semesterResults = Array.isArray(student?.semesterResults) ? student.semesterResults : [];
+  if (semesterResults.length > 0) {
+    const sortedResults = [...semesterResults].sort(
+      (a: any, b: any) => Number(a?.semester || 0) - Number(b?.semester || 0),
+    );
+    const latestResult = sortedResults[sortedResults.length - 1] || {};
+    const cgpaFromResult = toNumber(latestResult.cgpa ?? latestResult.gpa);
+    if (cgpaFromResult !== null) return cgpaFromResult;
+  }
+
+  return toNumber(student?.gpa) ?? 0;
+}
 
 // API functions
 export const alumniService = {
@@ -248,44 +165,70 @@ export const alumniService = {
 
   addCareer: async (career: Omit<CareerEntry, 'id'>): Promise<CareerEntry> => {
     try {
+      const startDate = toApiDate(career.startDate) || career.startDate;
+      const endDate = career.current ? null : toApiDate(career.endDate);
+
       // Transform frontend career data to backend format
       const backendData = {
         positionType: career.type,
         organizationName: career.company,
         positionTitle: career.position,
-        startDate: career.startDate,
-        endDate: career.endDate,
+        startDate,
+        endDate,
         isCurrent: career.current,
-        description: career.description,
-        location: career.location,
-        salary: career.salary,
-        degree: career.degree,
-        field: career.field,
-        institution: career.institution,
-        businessName: career.businessName,
-        businessType: career.businessType,
-        otherType: career.otherType,
+        description: career.description || '',
+        location: career.location || '',
+        salary: career.salary || '',
+        degree: career.degree || '',
+        field: career.field || '',
+        institution: career.institution || '',
+        businessName: career.businessName || '',
+        businessType: career.businessType || '',
+        otherType: career.otherType || '',
       };
       
       const response = await apiClient.post<any>('/alumni/add_my_career/', backendData);
       const transformed = transformBackendToFrontend(response);
       
-      // Return the newly added career
-      return transformed.careers[transformed.careers.length - 1];
-    } catch (error) {
+      const newlyAddedCareer = transformed.careers.find((item) =>
+        item.type === career.type &&
+        item.position === career.position &&
+        item.company === career.company &&
+        item.startDate === toMonthValue(startDate) &&
+        (item.endDate || '') === toMonthValue(endDate || ''),
+      );
+
+      return newlyAddedCareer || transformed.careers[0];
+    } catch (error: any) {
       console.error('Error adding career:', error);
+      // Better error handling for validation errors
+      if (error.response?.data) {
+        const errorData = error.response.data;
+        if (typeof errorData === 'object') {
+          const errorMessages = Object.entries(errorData)
+            .map(([field, messages]) => {
+              const msgArray = Array.isArray(messages) ? messages : [messages];
+              return `${field}: ${msgArray.join(', ')}`;
+            })
+            .join('; ');
+          throw new Error(errorMessages || 'Failed to add career');
+        }
+      }
       throw error;
     }
   },
 
   updateCareer: async (career: CareerEntry): Promise<CareerEntry> => {
     try {
+      const startDate = toApiDate(career.startDate) || career.startDate;
+      const endDate = career.current ? null : toApiDate(career.endDate);
+
       const backendData = {
         positionType: career.type,
         organizationName: career.company,
         positionTitle: career.position,
-        startDate: career.startDate,
-        endDate: career.endDate,
+        startDate,
+        endDate,
         isCurrent: career.current,
         description: career.description,
         location: career.location,
@@ -447,8 +390,8 @@ function transformBackendToFrontend(backendData: any): AlumniProfile {
     position: career.positionTitle || '',
     company: career.organizationName || '',
     location: career.location || '',
-    startDate: career.startDate || '',
-    endDate: career.endDate,
+    startDate: toMonthValue(career.startDate),
+    endDate: toMonthValue(career.endDate),
     current: career.isCurrent || false,
     description: career.description || '',
     achievements: [], // Not stored in backend yet
@@ -511,10 +454,10 @@ function transformBackendToFrontend(backendData: any): AlumniProfile {
     graduationYear: backendData.graduationYear?.toString() || '',
     email: student.email || '',
     phone: student.mobileStudent || student.mobile_student || '',
-    currentJob: currentPosition.positionTitle || '',
-    company: currentPosition.organizationName || '',
+    currentJob: currentPosition.positionTitle || currentPosition.position || '',
+    company: currentPosition.organizationName || currentPosition.company || '',
     location: location,
-    gpa: typeof student.gpa === 'number' ? student.gpa : parseFloat(student.gpa) || 0,
+    gpa: getStudentCgpa(student),
     avatar: student.profilePhoto || student.profile_photo || '',
     category: backendData.alumniType || 'recent',
     supportStatus: supportStatusMap[backendData.currentSupportCategory] || 'noSupportNeeded',
