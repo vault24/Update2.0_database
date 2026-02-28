@@ -102,8 +102,8 @@ export class TemplateService {
   private static templates: Map<string, DocumentTemplate> = new Map();
   private static initialized = false;
   private static readonly TEMPLATE_ASSET_URLS = {
-    spiLogo: new URL('../documents/templates/spi.png', import.meta.url).href,
-    govLogo: new URL('../documents/templates/gov.svg', import.meta.url).href
+    spiLogo: '/templates/spi.png',
+    govLogo: '/templates/gov.svg'
   };
 
   /**
@@ -134,14 +134,14 @@ export class TemplateService {
    */
   private static async loadTemplateContent(templateId: string): Promise<string> {
     const templatePaths: Record<string, string> = {
-      'eligibility-statement': '/src/documents/templates/EligibilityStatement.html',
-      'id-card': '/src/documents/templates/IdCard.html',
-      'testimonial': '/src/documents/templates/Testimonial.html',
-      'completion-certificate': '/src/documents/templates/Certificate.html',
-      'character-certificate': '/src/documents/templates/characterCertificate.html',
-      'transcript': '/src/documents/templates/CourseCompletionCertificate.html',
-      'clearance-certificate': '/src/documents/templates/Prottayon.html',
-      'bonafide-certificate': '/src/documents/templates/Sallu_certificate.html'
+      'eligibility-statement': '/templates/EligibilityStatement.html',
+      'id-card': '/templates/IdCard.html',
+      'testimonial': '/templates/Testimonial.html',
+      'completion-certificate': '/templates/Certificate.html',
+      'character-certificate': '/templates/characterCertificate.html',
+      'transcript': '/templates/CourseCompletionCertificate.html',
+      'clearance-certificate': '/templates/Prottayon.html',
+      'bonafide-certificate': '/templates/Sallu_certificate.html'
     };
 
     const path = templatePaths[templateId];
@@ -150,16 +150,10 @@ export class TemplateService {
     }
 
     try {
-      // Use Vite's import mechanism for static assets
-      const response = await fetch(path + '?raw');
+      // Fetch from public folder
+      const response = await fetch(path);
       if (!response.ok) {
-        // Fallback to regular fetch
-        const fallbackResponse = await fetch(path);
-        if (!fallbackResponse.ok) {
-          throw new Error(`Failed to fetch template: ${fallbackResponse.statusText}`);
-        }
-        const fallbackContent = await fallbackResponse.text();
-        return this.resolveTemplateAssetPaths(fallbackContent);
+        throw new Error(`Failed to fetch template: ${response.statusText}`);
       }
       const rawContent = await response.text();
       return this.resolveTemplateAssetPaths(rawContent);
@@ -172,13 +166,17 @@ export class TemplateService {
 
   /**
    * Resolve relative template asset paths for logos so they render in iframe/print documents.
+   * Convert relative paths to absolute URLs.
    */
   private static resolveTemplateAssetPaths(content: string): string {
+    const spiLogoUrl = this.TEMPLATE_ASSET_URLS.spiLogo;
+    const govLogoUrl = this.TEMPLATE_ASSET_URLS.govLogo;
+    
     return content
-      .replace(/src=(['"])(?:\.\/)?spi\.png\1/gi, `src="${this.TEMPLATE_ASSET_URLS.spiLogo}"`)
-      .replace(/src=(['"])(?:\.\/)?gov\.svg\1/gi, `src="${this.TEMPLATE_ASSET_URLS.govLogo}"`)
-      .replace(/url\((['"]?)(?:\.\/)?spi\.png\1\)/gi, `url('${this.TEMPLATE_ASSET_URLS.spiLogo}')`)
-      .replace(/url\((['"]?)(?:\.\/)?gov\.svg\1\)/gi, `url('${this.TEMPLATE_ASSET_URLS.govLogo}')`);
+      .replace(/src=(['"])(?:\.\/)?spi\.png\1/gi, `src="${spiLogoUrl}"`)
+      .replace(/src=(['"])(?:\.\/)?gov\.svg\1/gi, `src="${govLogoUrl}"`)
+      .replace(/url\((['"]?)(?:\.\/)?spi\.png\1\)/gi, `url('${spiLogoUrl}')`)
+      .replace(/url\((['"]?)(?:\.\/)?gov\.svg\1\)/gi, `url('${govLogoUrl}')`);
   }
 
   /**

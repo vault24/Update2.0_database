@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Course Completion Certificate - Single File</title>
+    
+    <style>
+        /* General Setup */
+        body {
+            font-family: 'Times New Roman', serif;
+            background-color: #f4f4f4;
+            display: flex;
+            justify-content: center;
+            padding: 30px;
+        }
+
+        /* Certificate Paper Styling */
+        .certificate-container {
+            width: 900px; /* A standard paper width for display */
+            padding: 40px;
+            background-color: white;
+            /* Simple placeholder border: replace with CSS 'border-image' for the ornate pattern */
+            border: 15px solid #000; 
+            position: relative;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        /* --- Watermark/Seal --- */
+        .seal-placeholder {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 350px;
+            height: 350px;
+            /* Use your actual seal image path here */
+            /* background: url('path/to/your/seal_watermark.png') no-repeat center center; */ 
+            background-size: contain;
+            opacity: 0.1; /* Light watermark effect */
+            z-index: 0;
+        }
+        
+        /* --- Header Styling --- */
+        .certificate-header {
+            text-align: center;
+            position: relative;
+            margin-bottom: 25px;
+            overflow: hidden; /* Clear floats */
+        }
+
+        .header-left {
+            position: absolute;
+            top: 0;
+            left: 0;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .header-right {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 80px; /* Space for logo */
+            height: 80px;
+            /* Add your institute's logo image here */
+        }
+
+        .header-center {
+            padding-top: 15px;
+        }
+
+        .govt-line {
+            margin: 0;
+            font-size: 14px;
+        }
+
+        .certificate-header h1 {
+            margin: 5px 0 10px 0;
+            font-size: 26px;
+            letter-spacing: 1px;
+            font-weight: 900;
+        }
+
+        .certificate-title-box {
+            display: inline-block;
+            border: 3px solid #000;
+            padding: 5px 25px;
+            margin-top: 5px;
+        }
+
+        .certificate-title-box h2 {
+            margin: 0;
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        /* --- Body Styling --- */
+        .certificate-body {
+            line-height: 1.8;
+            font-size: 17px;
+            padding: 0 10px;
+            position: relative;
+            z-index: 1; /* Keep text above the watermark */
+        }
+
+        .certificate-body p {
+            margin-top: 10px;
+        }
+
+        /* Data Fields - Crucial for mimicking the lines */
+        .data-fill-long, .data-fill-med, .data-fill-short, .data-fill-tiny {
+            /* Mimic the dotted lines using a repeated background image */
+            background: linear-gradient(to right, black 33%, rgba(255, 255, 255, 0) 0%);
+            background-position: bottom;
+            background-size: 6px 1px; /* Dotted line thickness and spacing */
+            background-repeat: repeat-x;
+            padding-bottom: 2px;
+            display: inline-block;
+            min-height: 20px; /* Ensure line visibility */
+            font-weight: bold; /* Make the student data stand out */
+            color: #333;
+            padding-left: 5px;
+            padding-right: 5px;
+            text-transform: capitalize;
+        }
+
+        /* Adjusting the lengths based on context */
+        .data-fill-long { width: 60%; }
+        .data-fill-med { width: 30%; }
+        .data-fill-short { width: 15%; }
+        .data-fill-tiny { width: 8%; }
+
+
+        /* Grid for names/roll numbers */
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr; /* Two columns */
+            gap: 15px 20px;
+            margin-top: 20px;
+            line-height: 2; /* Increased line-height for better spacing */
+        }
+
+        .info-item {
+            white-space: nowrap; /* Prevents the label and span from wrapping */
+        }
+
+        .info-item label {
+            font-weight: normal;
+        }
+
+        .discipline-text, .success-wish {
+            margin-top: 35px;
+            font-style: italic;
+        }
+
+        /* --- Footer Styling --- */
+        .certificate-footer {
+            display: flex;
+            justify-content: space-between;
+            padding: 40px 10px 0 10px;
+            margin-top: 60px;
+            z-index: 1;
+            position: relative;
+        }
+
+        .signature-block {
+            width: 30%;
+            border-top: 1px solid #000; 
+            padding-top: 5px;
+            text-align: left;
+            font-size: 15px;
+        }
+
+        .signature-block p {
+            margin: 0;
+        }
+
+        .signature-block .title {
+            font-weight: bold;
+            font-size: 17px;
+        }
+
+        .principal-block {
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+    <div class="certificate-container">
+        <div class="seal-placeholder"></div>
+
+        <header class="certificate-header">
+            <div class="header-left">
+                <p>Serial No - <span class="data-serial"> [563] </span></p>
+            </div>
+            <div class="header-right">
+                [attachment_0](attachment)
+            </div>
+
+            <div class="header-center">
+                <p class="govt-line">Government of the People's Republic of Bangladesh</p>
+                <h1>SIRAJGANJ POLYTECHNIC INSTITUTE, SIRAJGANJ</h1>
+                <div class="certificate-title-box">
+                    <h2>Course Completion Certificate</h2>
+                </div>
+            </div>
+        </header>
+
+        <main class="certificate-body">
+            <p>This is to certify that Md./Mst.<span class="data-fill-long"> [Student Name] </span></p>
+
+            <div class="info-grid">
+                <div class="info-item">
+                    <label>Father's Name</label>
+                    <span class="data-fill-long"> [Father's Name] </span>
+                </div>
+                <div class="info-item">
+                    <label>Mother's Name</label>
+                    <span class="data-fill-long"> [Mother's Name] </span>
+                </div>
+                <div class="info-item">
+                    <label>Bearing Registration No</label>
+                    <span class="data-fill-short"> [Reg. No] </span>
+                </div>
+                <div class="info-item">
+                    <label>Board Roll No</label>
+                    <span class="data-fill-short"> [Roll No] </span>
+                </div>
+            </div>
+
+            <p class="paragraph-spacing">was a student of <span class="data-fill-med"> [Technology Name] </span> Technology in this Institution from the academic session <span class="data-fill-tiny"> [Start Year] </span> to <span class="data-fill-tiny"> [End Year] </span>. He/She has completed the **Diploma-in-Engineering** course in the month of <span class="data-fill-med"> [Month of Completion] </span> 20<span class="data-fill-tiny"> [Year] </span>.</p>
+            
+            <p class="paragraph-spacing discipline-text">During his/her study in this Institution there is nothing on record against his/her **character or discipline**.</p>
+            <p class="paragraph-spacing success-wish">I wish him/her every success in life.</p>
+        </main>
+
+        <footer class="certificate-footer">
+            <div class="signature-block">
+                <p class="title">Registrar</p>
+                <p class="date">Dated <span class="data-fill-tiny"> [Date] </span></p>
+            </div>
+            <div class="signature-block principal-block">
+                <p class="title">Principal</p>
+                <p>Sirajganj Polytechnic Institute</p>
+                <p>Sirajganj</p>
+            </div>
+        </footer>
+    </div>
+</body>
+</html>

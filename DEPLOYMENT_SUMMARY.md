@@ -1,5 +1,13 @@
 # Deployment Summary - SLMS Project
 
+## Important Notes
+
+### Document Generation Fix
+If document preview shows blank pages in production, ensure:
+1. Run `npm run prebuild` or `npm run build` (prebuild runs automatically)
+2. Verify `dist/templates/` folder contains all HTML templates and assets
+3. See `DOCUMENT_GENERATION_FIX.md` for detailed troubleshooting
+
 ## Server Configuration
 
 **Production Server**: 13.250.99.61
