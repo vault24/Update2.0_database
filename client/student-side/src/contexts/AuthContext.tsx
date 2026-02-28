@@ -76,25 +76,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             fullName = `${firstName} ${lastName}`.trim();
           } 
           // Priority 2: If no name in User model, try to fetch from profile
-          else if (relatedProfileId && (response.user.role === 'student' || response.user.role === 'captain')) {
-            // For students/captains, try to fetch the profile to get fullNameEnglish
-            try {
-              const profileResponse = await api.get<any>(`/students/${relatedProfileId}/`);
-              if (profileResponse.full_name_english) {
-                fullName = profileResponse.full_name_english;
+          else if (relatedProfileId) {
+            if (response.user.role === 'student' || response.user.role === 'captain') {
+              // For students/captains, try to fetch the profile to get fullNameEnglish
+              try {
+                const profileResponse = await api.get<any>(`/students/${relatedProfileId}/`);
+                if (profileResponse.full_name_english) {
+                  fullName = profileResponse.full_name_english;
+                }
+              } catch (profileError) {
+                console.error('Failed to fetch student profile for name:', profileError);
               }
-            } catch (profileError) {
-              console.error('Failed to fetch student profile for name:', profileError);
-            }
-          } else if (relatedProfileId && response.user.role === 'teacher') {
-            // For teachers, try to fetch the teacher profile
-            try {
-              const profileResponse = await api.get<any>(`/teachers/${relatedProfileId}/`);
-              if (profileResponse.full_name_english) {
-                fullName = profileResponse.full_name_english;
+            } else if (response.user.role === 'teacher') {
+              // For teachers, try to fetch the teacher profile
+              try {
+                const profileResponse = await api.get<any>(`/teachers/${relatedProfileId}/`);
+                if (profileResponse.full_name_english) {
+                  fullName = profileResponse.full_name_english;
+                }
+              } catch (profileError) {
+                console.error('Failed to fetch teacher profile for name:', profileError);
               }
-            } catch (profileError) {
-              console.error('Failed to fetch teacher profile for name:', profileError);
             }
           }
           
@@ -148,25 +150,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         fullName = `${firstName} ${lastName}`.trim();
       } 
       // Priority 2: If no name in User model, try to fetch from profile
-      else if (relatedProfileId && (response.user.role === 'student' || response.user.role === 'captain')) {
-        // For students/captains, try to fetch the profile to get fullNameEnglish
-        try {
-          const profileResponse = await api.get<any>(`/students/${relatedProfileId}/`);
-          if (profileResponse.full_name_english) {
-            fullName = profileResponse.full_name_english;
+      else if (relatedProfileId) {
+        if (response.user.role === 'student' || response.user.role === 'captain') {
+          // For students/captains, try to fetch the profile to get fullNameEnglish
+          try {
+            const profileResponse = await api.get<any>(`/students/${relatedProfileId}/`);
+            if (profileResponse.full_name_english) {
+              fullName = profileResponse.full_name_english;
+            }
+          } catch (profileError) {
+            console.error('Failed to fetch student profile for name:', profileError);
           }
-        } catch (profileError) {
-          console.error('Failed to fetch student profile for name:', profileError);
-        }
-      } else if (relatedProfileId && response.user.role === 'teacher') {
-        // For teachers, try to fetch the teacher profile
-        try {
-          const profileResponse = await api.get<any>(`/teachers/${relatedProfileId}/`);
-          if (profileResponse.full_name_english) {
-            fullName = profileResponse.full_name_english;
+        } else if (response.user.role === 'teacher') {
+          // For teachers, try to fetch the teacher profile
+          try {
+            const profileResponse = await api.get<any>(`/teachers/${relatedProfileId}/`);
+            if (profileResponse.full_name_english) {
+              fullName = profileResponse.full_name_english;
+            }
+          } catch (profileError) {
+            console.error('Failed to fetch teacher profile for name:', profileError);
           }
-        } catch (profileError) {
-          console.error('Failed to fetch teacher profile for name:', profileError);
         }
       }
       

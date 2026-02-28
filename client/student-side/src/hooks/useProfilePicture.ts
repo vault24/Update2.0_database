@@ -15,12 +15,21 @@ export function useProfilePicture() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (user?.relatedProfileId) {
+    if (user?.relatedProfileId && user?.role !== 'teacher') {
       loadProfilePicture();
+    } else {
+      setLoading(false);
     }
-  }, [user?.relatedProfileId]);
+  }, [user?.relatedProfileId, user?.role]);
 
   const loadProfilePicture = async () => {
+    // Skip for teachers - they don't have student profiles
+    if (user?.role === 'teacher') {
+      setLoading(false);
+      setProfilePictureUrl(null);
+      return;
+    }
+
     try {
       setLoading(true);
       
@@ -67,6 +76,11 @@ export function useProfilePicture() {
   };
 
   const updateProfilePicture = async (documentId: string) => {
+    // Skip for teachers
+    if (user?.role === 'teacher') {
+      return false;
+    }
+
     try {
       await documentService.setAsProfilePicture(documentId, user?.relatedProfileId);
       if (user?.relatedProfileId) {
