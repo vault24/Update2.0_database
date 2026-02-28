@@ -7,6 +7,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.db import models
+from .models import SignupRequest
 
 User = get_user_model()
 
@@ -253,14 +254,53 @@ class SignupRequestSerializer(serializers.Serializer):
         return signup_request
 
 
-class SignupRequestListSerializer(serializers.Serializer):
+class SignupRequestListSerializer(serializers.ModelSerializer):
     """Serializer for listing signup requests"""
-    pass
+    class Meta:
+        model = SignupRequest
+        fields = [
+            'id',
+            'username',
+            'email',
+            'first_name',
+            'last_name',
+            'requested_role',
+            'mobile_number',
+            'status',
+            'created_at',
+            'reviewed_at',
+            'reviewed_by',
+        ]
+        read_only_fields = ['id', 'created_at', 'reviewed_at', 'reviewed_by']
 
 
-class SignupRequestDetailSerializer(serializers.Serializer):
+class SignupRequestDetailSerializer(serializers.ModelSerializer):
     """Serializer for signup request details"""
-    pass
+    reviewed_by_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = SignupRequest
+        fields = [
+            'id',
+            'username',
+            'email',
+            'first_name',
+            'last_name',
+            'requested_role',
+            'mobile_number',
+            'status',
+            'rejection_reason',
+            'created_at',
+            'reviewed_at',
+            'reviewed_by',
+            'reviewed_by_name',
+        ]
+        read_only_fields = ['id', 'created_at', 'reviewed_at', 'reviewed_by']
+    
+    def get_reviewed_by_name(self, obj):
+        if obj.reviewed_by:
+            return f"{obj.reviewed_by.first_name} {obj.reviewed_by.last_name}"
+        return None
 
 
 class ApproveSignupRequestSerializer(serializers.Serializer):

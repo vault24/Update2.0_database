@@ -94,7 +94,9 @@ export default function SignupRequests() {
       }
 
       const response = await signupRequestService.getSignupRequests(filters);
-      const requestsData = response.results || response.signup_requests || [];
+      console.log('API Response:', response);
+      const requestsData = response.signup_requests || response.results || [];
+      console.log('Requests Data:', requestsData);
       setRequests(requestsData);
       setFilteredRequests(requestsData);
       setTotalCount(response.count);
@@ -400,16 +402,16 @@ export default function SignupRequests() {
               {filteredRequests.map((request) => (
                 <TableRow key={request.id}>
                   <TableCell className="font-medium">
-                    {request.first_name} {request.last_name}
+                    {request.first_name || ''} {request.last_name || ''}
                   </TableCell>
-                  <TableCell>{request.email}</TableCell>
-                  <TableCell>{request.username}</TableCell>
+                  <TableCell>{request.email || 'N/A'}</TableCell>
+                  <TableCell>{request.username || 'N/A'}</TableCell>
                   <TableCell className="capitalize">
-                    {request.requested_role.replace('_', ' ')}
+                    {request.requested_role?.replace('_', ' ') || 'N/A'}
                   </TableCell>
                   <TableCell>{getStatusBadge(request.status)}</TableCell>
                   <TableCell className="text-muted-foreground text-sm">
-                    {formatDate(request.created_at)}
+                    {request.created_at ? formatDate(request.created_at) : 'N/A'}
                   </TableCell>
                   <TableCell className="text-right">
                     {request.status === 'pending' && (
