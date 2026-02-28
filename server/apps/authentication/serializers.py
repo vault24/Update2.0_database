@@ -201,6 +201,56 @@ class SignupRequestSerializer(serializers.Serializer):
     requested_role = serializers.CharField()
     password = serializers.CharField()
     password_confirm = serializers.CharField()
+    
+    def validate(self, data):
+        """Validate the signup request data"""
+        # Check if passwords match
+        if data.get('password') != data.get('password_confirm'):
+            raise serializers.ValidationError({"password_confirm": "Passwords do not match"})
+        
+        # Check if username already exists
+        if User.objects.filter(username=data.get('username')).exists():
+            raise serializers.ValidationError({"username": "Username already exists"})
+        
+        # Check if email already exists
+        if User.objects.filter(email=data.get('email')).exists():
+            raise serializers.ValidationError({"email": "Email already exists"})
+        
+        # Check if there's already a pending request with this username or email
+        from .models import SignupRequest
+        if SignupRequest.objects.filter(username=data.get('username'), status='pending').exists():
+            raise serializers.ValidationError({"username": "A signup request with this username is already pending"})
+        
+        if SignupRequest.objects.filter(email=data.get('email'), status='pending').exists():
+            raise serializers.ValidationError({"email": "A signup request with this email is already pending"})
+        
+        return data
+    
+    def create(self, validated_data):
+        """Create a new signup request"""
+        from .models import SignupRequest
+        from django.contrib.auth.hashers import make_password
+        
+        # Remove password_confirm as it's not needed in the model
+        validated_data.pop('password_confirm', None)
+        
+        # Hash the password
+        password = validated_data.pop('password')
+        password_hash = make_password(password)
+        
+        # Create the signup request
+        signup_request = SignupRequest.objects.create(
+            username=validated_data['username'],
+            email=validated_data['email'],
+            first_name=validated_data['first_name'],
+            last_name=validated_data['last_name'],
+            mobile_number=validated_data.get('mobile_number', ''),
+            requested_role=validated_data['requested_role'],
+            password_hash=password_hash,
+            status='pending'
+        )
+        
+        return signup_request
 
 
 class SignupRequestListSerializer(serializers.Serializer):
