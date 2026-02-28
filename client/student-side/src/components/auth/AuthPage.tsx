@@ -242,7 +242,7 @@ export function AuthPage() {
                   <Sparkles className="w-5 h-5 text-warning" />
                 </div>
                 <div>
-                  <p className="font-semibold text-sm">New Session 2024</p>
+                  <p className="font-semibold text-sm">New Session 2026</p>
                   <p className="text-xs text-white/70">Admissions Open</p>
                 </div>
               </div>
