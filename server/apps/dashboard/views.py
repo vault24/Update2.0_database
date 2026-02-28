@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.db.models import Count, Q, Avg
+from django.contrib.auth import get_user_model
 from apps.students.models import Student
 from apps.alumni.models import Alumni
 from apps.applications.models import Application
@@ -14,7 +15,9 @@ from apps.departments.models import Department
 from apps.attendance.models import AttendanceRecord
 from apps.marks.models import MarksRecord
 from apps.class_routines.models import ClassRoutine
+from uuid import UUID
 
+User = get_user_model()
 
 class DashboardStatsView(APIView):
     """
@@ -454,17 +457,56 @@ class TeacherDashboardView(APIView):
     GET /api/dashboard/teacher/?teacher={teacher_id}
     """
     
+    def _resolve_teacher_profile_id(self, request, raw_teacher_id):
+        """
+        Resolve teacher profile UUID from:
+        1) authenticated teacher session,
+        2) direct teacher UUID query param,
+        3) legacy numeric auth user ID query param.
+        """
+        if request.user.is_authenticated and request.user.role == 'teacher':
+            if request.user.related_profile_id:
+                return str(request.user.related_profile_id)
+            teacher_by_email = Teacher.objects.filter(email=request.user.email).only('id').first()
+            if teacher_by_email:
+                return str(teacher_by_email.id)
+
+        if not raw_teacher_id:
+            return None
+
+        # Direct teacher UUID
+        try:
+            return str(UUID(str(raw_teacher_id)))
+        except (TypeError, ValueError):
+            pass
+
+        # Legacy fallback: numeric auth user id -> related teacher profile UUID
+        if str(raw_teacher_id).isdigit():
+            teacher_user = User.objects.filter(
+                id=int(raw_teacher_id),
+                role='teacher'
+            ).only('related_profile_id', 'email').first()
+            if teacher_user:
+                if teacher_user.related_profile_id:
+                    return str(teacher_user.related_profile_id)
+                teacher_by_email = Teacher.objects.filter(email=teacher_user.email).only('id').first()
+                if teacher_by_email:
+                    return str(teacher_by_email.id)
+
+        return None
+
     def get(self, request):
         """Get teacher dashboard data"""
         teacher_id = request.query_params.get('teacher')
-        if not teacher_id:
+        resolved_teacher_id = self._resolve_teacher_profile_id(request, teacher_id)
+        if not resolved_teacher_id:
             return Response(
-                {'error': 'Teacher ID required'},
+                {'error': 'Valid teacher ID required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
         try:
-            teacher = Teacher.objects.get(id=teacher_id)
+            teacher = Teacher.objects.get(id=resolved_teacher_id)
             
             # Assigned classes
             assigned_classes = ClassRoutine.objects.filter(teacher=teacher)

@@ -509,9 +509,15 @@ class UserSerializer(serializers.ModelSerializer):
         """Customize the representation based on user role"""
         data = super().to_representation(instance)
         
-        # Remove student-specific fields for non-student users
-        if instance.role not in ['student', 'captain', 'alumni']:
-            # Remove student-specific fields for admin, teacher, registrar, institute_head, etc.
+        # Keep related_profile_id for teachers; remove student-only fields.
+        if instance.role == 'teacher':
+            data.pop('student_id', None)
+            data.pop('admission_status', None)
+            data.pop('semester', None)
+            data.pop('student_status', None)
+            data.pop('is_alumni', None)
+        # Remove student-specific fields for other non-student users.
+        elif instance.role not in ['student', 'captain', 'alumni']:
             data.pop('student_id', None)
             data.pop('admission_status', None)
             data.pop('semester', None)

@@ -138,6 +138,16 @@ class TeacherDashboardViewTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('teacher', response.data)
         self.assertIn('assignedClasses', response.data)
+
+    def test_get_teacher_dashboard_with_legacy_user_id_param(self):
+        self.user.related_profile_id = self.teacher.id
+        self.user.save(update_fields=['related_profile_id'])
+
+        url = reverse('dashboard-teacher')
+        response = self.client.get(url, {'teacher': str(self.user.id)})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('teacher', response.data)
+        self.assertIn('assignedClasses', response.data)
     
     def test_teacher_dashboard_without_id(self):
         url = reverse('dashboard-teacher')
