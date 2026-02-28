@@ -139,6 +139,7 @@ class TeacherSignupRequestViewSet(viewsets.ModelViewSet):
             'officeLocation': signup_request.office_location or '',
             'employmentStatus': 'active',
             'joiningDate': serializer.validated_data['joining_date'],
+            'user': signup_request.user,
         }
         
         try:
@@ -157,7 +158,7 @@ class TeacherSignupRequestViewSet(viewsets.ModelViewSet):
                 # Update user account status and link to teacher profile
                 signup_request.user.account_status = 'active'
                 signup_request.user.related_profile_id = teacher.id
-                signup_request.user.save()
+                signup_request.user.save(update_fields=['account_status', 'related_profile_id'])
             
             # Return updated request
             response_serializer = TeacherSignupRequestDetailSerializer(signup_request)

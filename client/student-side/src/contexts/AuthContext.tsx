@@ -63,6 +63,49 @@ const resolveRelatedProfileId = (userData: any): string | undefined => {
   return userData?.id ? String(userData.id) : undefined;
 };
 
+const resolveTeacherProfileIdByEmail = async (email?: string): Promise<string | undefined> => {
+  if (!email) {
+    return undefined;
+  }
+
+  try {
+    const response = await api.get<any>('/teachers/', { search: email, page_size: 100 });
+    const teachers = Array.isArray(response)
+      ? response
+      : Array.isArray(response?.results)
+      ? response.results
+      : [];
+
+    if (!teachers.length) {
+      return undefined;
+    }
+
+    const exactEmailMatch = teachers.find(
+      (teacher: any) =>
+        typeof teacher?.email === 'string' &&
+        teacher.email.toLowerCase() === email.toLowerCase()
+    );
+
+    const selectedTeacher = exactEmailMatch || (teachers.length === 1 ? teachers[0] : undefined);
+    return selectedTeacher?.id ? String(selectedTeacher.id) : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const resolveRelatedProfileIdWithFallback = async (userData: any): Promise<string | undefined> => {
+  const relatedProfileId = resolveRelatedProfileId(userData);
+  if (relatedProfileId) {
+    return relatedProfileId;
+  }
+
+  if (userData?.role === 'teacher') {
+    return await resolveTeacherProfileIdByEmail(userData?.email);
+  }
+
+  return undefined;
+};
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -82,7 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           localStorage.setItem('userId', response.user.id);
           
           // Ensure relatedProfileId is properly set
-          const relatedProfileId = resolveRelatedProfileId(response.user);
+          const relatedProfileId = await resolveRelatedProfileIdWithFallback(response.user);
           
           // Try to get the full name from the profile
           let fullName = response.user.username; // Default to username (email)
@@ -160,7 +203,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       
       // Ensure relatedProfileId is properly set
-      const relatedProfileId = resolveRelatedProfileId(response.user);
+      const relatedProfileId = await resolveRelatedProfileIdWithFallback(response.user);
       
       // Try to get the full name from the profile
       let fullName = response.user.username; // Default to username (email)
@@ -294,7 +337,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem('userId', response.user.id);
         
         // Ensure relatedProfileId is properly set
-        const relatedProfileId = resolveRelatedProfileId(response.user);
+        const relatedProfileId = await resolveRelatedProfileIdWithFallback(response.user);
         
         setUser({
           id: response.user.id,
