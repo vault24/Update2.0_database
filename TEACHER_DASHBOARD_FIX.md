@@ -66,8 +66,31 @@ After these changes, teachers should be able to:
 - ✅ Access teacher-specific features
 - ✅ Not trigger student-specific API calls
 
+## Additional Issue Found
+After deploying the frontend fix, a backend issue was discovered:
+- **Error:** `GET /api/dashboard/teacher/?teacher=6 500 (Internal Server Error)` with message `"6" is not a valid UUID`
+- **Root Cause:** The frontend is sending an integer ID (6) instead of a UUID for the teacher parameter
+- **Reason:** This is caused by cached/stale authentication data in the browser from an old session
+
+### Solution
+**For Users:**
+1. Clear browser cache and localStorage
+2. Log out completely from the student-side portal
+3. Log back in with teacher credentials
+4. The new login will fetch the correct UUID for `relatedProfileId`
+
+**For Developers:**
+Run the management command to ensure all teacher users have their `related_profile_id` set:
+```bash
+cd server
+python manage.py fix_user_related_profiles
+```
+
+This command links User accounts to their Teacher profiles by matching email addresses.
+
 ## Impact
 - No impact on student or captain accounts
 - Teachers can now use the student-side portal without errors
 - Reduced unnecessary API calls for teacher accounts
 - Improved error handling and user experience
+- Users with stale sessions need to log out and log back in
