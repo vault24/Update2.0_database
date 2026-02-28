@@ -25,10 +25,19 @@ export function PendingSignupRequests() {
         page_size: 5,
       });
       // Backend returns { signup_requests: [...], count: X }
-      setRequests(response.results || response.signup_requests || []);
+      const requestsData = response.results || response.signup_requests || [];
+      // Filter out any invalid requests
+      const validRequests = requestsData.filter((req: SignupRequest) => 
+        req && req.id && req.first_name && req.last_name && req.email
+      );
+      setRequests(validRequests);
       setPendingCount(response.count || 0);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch pending signup requests:', error);
+      // If 403, user doesn't have permission - just show empty state
+      if (error?.response?.status === 403) {
+        console.log('User does not have permission to view signup requests');
+      }
       setRequests([]);
       setPendingCount(0);
     } finally {
@@ -111,11 +120,11 @@ export function PendingSignupRequests() {
                   <p className="text-xs text-muted-foreground truncate">{request.email}</p>
                   <div className="flex items-center gap-2 mt-1">
                     <Badge variant="outline" className="text-xs capitalize">
-                      {request.requested_role.replace('_', ' ')}
+                      {request.requested_role?.replace('_', ' ') || 'N/A'}
                     </Badge>
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
                       <Clock className="w-3 h-3" />
-                      {formatDate(request.created_at)}
+                      {request.created_at ? formatDate(request.created_at) : 'N/A'}
                     </span>
                   </div>
                 </div>
