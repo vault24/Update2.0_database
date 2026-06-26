@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Eye, EyeOff, Mail, Lock, User, Phone, GraduationCap, Sparkles, Users, BookOpen, Briefcase, Building2, Award, MapPin, Zap, ArrowRight, Shield } from 'lucide-react';
+import {
+  Eye, EyeOff, Mail, Lock, User, Phone, GraduationCap,
+  BookOpen, BarChart3, Users, Building2, Briefcase, Award,
+  MapPin, ChevronLeft, Globe, ChevronDown, Lightbulb, TrendingUp
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,86 +13,512 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { cn } from '@/lib/utils';
 import { departmentService, type Department } from '@/services/departmentService';
 
 type AuthMode = 'login' | 'signup';
+type MobileView = 'splash' | 'form';
 
-const roleOptions: { value: UserRole; label: string; icon: React.ElementType; description: string }[] = [
-  { value: 'student', label: 'Student', icon: GraduationCap, description: 'Regular student access' },
-  { value: 'captain', label: 'Captain', icon: Users, description: 'Class captain with extra features' },
-  { value: 'teacher', label: 'Teacher', icon: BookOpen, description: 'Teacher dashboard access' },
+const roleOptions: { value: UserRole; label: string; icon: React.ElementType }[] = [
+  { value: 'student', label: 'Student', icon: GraduationCap },
+  { value: 'captain', label: 'Captain', icon: Users },
+  { value: 'teacher', label: 'Teacher', icon: BookOpen },
 ];
 
+const features = [
+  { icon: BookOpen,   title: 'Smart Learning',  desc: 'Access course materials and study resources anytime.' },
+  { icon: BarChart3,  title: 'Track Progress',   desc: 'Monitor your grades and academic performance.' },
+  { icon: Users,      title: 'Stay Connected',   desc: 'Communicate with teachers and classmates.' },
+];
 
+const splideSlides = [
+  {
+    title: 'Everything at Your Fingertips',
+    desc: 'Stay updated with class schedules, assignments, announcements, and important notifications—all in one place.',
+    image: '/student-illustration.png',
+  },
+  {
+    title: 'Learn. Practice. Succeed.',
+    desc: 'Access study materials, track your academic progress, and improve your performance every day.',
+    image: '/student-illustration2.png',
+  },
+  {
+    title: 'Your Journey Starts Here',
+    desc: 'Build your skills, achieve your goals, and move confidently toward a successful academic future.',
+    image: '/student-illustration3.png',
+  },
+];
 
+/* ─── Google SVG ─────────────────────────────────────────────────── */
+function GoogleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-5 h-5" xmlns="http://www.w3.org/2000/svg">
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+    </svg>
+  );
+}
+
+/* ─── Microsoft SVG ──────────────────────────────────────────────── */
+function MicrosoftIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-5 h-5" xmlns="http://www.w3.org/2000/svg">
+      <rect x="1"  y="1"  width="10" height="10" fill="#F25022"/>
+      <rect x="13" y="1"  width="10" height="10" fill="#7FBA00"/>
+      <rect x="1"  y="13" width="10" height="10" fill="#00A4EF"/>
+      <rect x="13" y="13" width="10" height="10" fill="#FFB900"/>
+    </svg>
+  );
+}
+
+/* ─── SPI Logo header (mobile login/signup header) ─────────────── */
+function HexCapLogo() {
+  return (
+    <div className="flex flex-col items-center mb-4 gap-2">
+      <div className="w-16 h-16 rounded-2xl overflow-hidden bg-white shadow-md border border-gray-100 flex items-center justify-center p-1.5">
+        <img
+          src="/spi-logo.png"
+          alt="SPI Logo"
+          className="w-full h-full object-contain"
+        />
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   MOBILE SPLASH SCREEN
+   ════════════════════════════════════════════════════════════════════ */
+function MobileSplash({ onStart, onLogin }: { onStart: () => void; onLogin: () => void }) {
+  const [slide, setSlide] = useState(0);
+
+  useEffect(() => {
+    const t = setInterval(() => setSlide(s => (s + 1) % splideSlides.length), 3000);
+    return () => clearInterval(t);
+  }, []);
+
+  return (
+    <div className="min-h-screen flex flex-col" style={{ background: '#ffffff' }}>
+
+      {/* ── Top illustration area — clean white, no gradient blob ── */}
+      <div className="flex-[1.1] relative flex flex-col items-center justify-center px-8 pt-12 pb-6 overflow-hidden">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={slide}
+            initial={{ opacity: 0, y: 18, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -12, scale: 0.97 }}
+            transition={{ duration: 0.4, ease: 'easeOut' }}
+            className="relative z-10 w-full flex items-center justify-center"
+            style={{ maxWidth: '320px' }}
+          >
+            <img
+              src={splideSlides[slide].image}
+              alt={splideSlides[slide].title}
+              className="w-full h-auto object-contain"
+              style={{ maxHeight: '300px' }}
+            />
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      {/* ── Bottom content area ── */}
+      <div className="px-8 pt-2 pb-10 flex flex-col items-center bg-white">
+
+        {/* Slide text */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={slide}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.32 }}
+            className="text-center mb-6 w-full"
+          >
+            <h2 className="text-[22px] font-bold text-gray-900 mb-2.5 leading-snug">
+              {splideSlides[slide].title}
+            </h2>
+            <p className="text-sm text-gray-500 leading-relaxed px-2">
+              {splideSlides[slide].desc}
+            </p>
+          </motion.div>
+        </AnimatePresence>
+
+        {/* Dots */}
+        <div className="flex items-center gap-2 mb-7">
+          {splideSlides.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setSlide(i)}
+              className={cn(
+                'transition-all duration-300 rounded-full',
+                i === slide ? 'w-6 h-2.5 bg-blue-600' : 'w-2.5 h-2.5 bg-blue-100'
+              )}
+            />
+          ))}
+        </div>
+
+        {/* Get Started button */}
+        <motion.button
+          whileTap={{ scale: 0.97 }}
+          whileHover={{ scale: 1.01 }}
+          onClick={onStart}
+          className="w-full rounded-2xl text-white font-semibold text-base mb-4"
+          style={{
+            background: 'linear-gradient(135deg,#3b6cf7,#2152e3)',
+            height: '52px',
+            boxShadow: '0 6px 24px rgba(59,108,247,0.35)',
+          }}
+        >
+          Get Started
+        </motion.button>
+
+        {/* Login link */}
+        <p className="text-sm text-gray-500">
+          Already have an account?{' '}
+          <button
+            onClick={onLogin}
+            className="text-blue-600 font-semibold hover:underline"
+          >
+            Login
+          </button>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   MOBILE AUTH FORM  (login + signup)
+   ════════════════════════════════════════════════════════════════════ */
+function MobileAuthForm({
+  mode, setMode, onBack,
+  formData, setFormData,
+  showPassword, setShowPassword,
+  rememberMe, setRememberMe,
+  isLoading, handleSubmit,
+  selectedRole, setSelectedRole,
+  departments,
+  qualificationInput, setQualificationInput,
+  navigate,
+}: {
+  mode: AuthMode; setMode: (m: AuthMode) => void; onBack: () => void;
+  formData: any; setFormData: (d: any) => void;
+  showPassword: boolean; setShowPassword: (v: boolean) => void;
+  rememberMe: boolean; setRememberMe: (v: boolean) => void;
+  isLoading: boolean; handleSubmit: (e: React.FormEvent) => void;
+  selectedRole: UserRole; setSelectedRole: (r: UserRole) => void;
+  departments: Department[];
+  qualificationInput: string; setQualificationInput: (v: string) => void;
+  navigate: (path: string) => void;
+}) {
+  return (
+    <div className="min-h-screen flex flex-col" style={{ background: '#f7f9fd' }}>
+
+      {/* ── Header card: dot-grid texture + logo, gives the screen a "student ID card" identity ── */}
+      <div className="relative overflow-hidden pt-10 pb-7 px-6"
+        style={{ background: 'linear-gradient(160deg,#eef3fc 0%,#f7f9fd 100%)' }}>
+
+        {/* Dot-grid texture */}
+        <div className="absolute inset-0 pointer-events-none opacity-[0.5]"
+          style={{
+            backgroundImage: 'radial-gradient(circle, #c7d7f5 1px, transparent 1px)',
+            backgroundSize: '16px 16px',
+            maskImage: 'linear-gradient(to bottom, black 0%, transparent 90%)',
+            WebkitMaskImage: 'linear-gradient(to bottom, black 0%, transparent 90%)',
+          }} />
+
+        {/* Amber accent blob — small, top-right, echoes the splash screen's "Keep Learning" star */}
+        <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full pointer-events-none"
+          style={{ background: 'radial-gradient(circle, rgba(245,158,11,0.16) 0%, transparent 70%)' }} />
+
+        {/* Back button */}
+        <button type="button" onClick={onBack}
+          className="absolute top-4 left-4 z-20 w-9 h-9 rounded-full bg-white/80 backdrop-blur flex items-center justify-center shadow-sm text-gray-500 hover:text-gray-700 transition-colors">
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+
+        <div className="relative z-10">
+          <HexCapLogo />
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-6 pt-6 pb-8 relative z-10 rounded-t-[28px] -mt-3 bg-white shadow-[0_-4px_24px_rgba(15,23,42,0.04)]">
+
+        {/* Tab bar — connected pill track */}
+        <div className="flex mb-6 bg-gray-100 rounded-2xl p-1 relative">
+          {(['login', 'signup'] as const).map((tab) => (
+            <button key={tab} onClick={() => setMode(tab)}
+              className={cn(
+                'flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 relative z-10',
+                mode === tab ? 'text-blue-600' : 'text-gray-400'
+              )}>
+              {tab === 'login' ? 'Login' : 'Sign Up'}
+            </button>
+          ))}
+          <motion.div
+            className="absolute top-1 bottom-1 rounded-xl bg-white shadow-sm"
+            style={{ width: 'calc(50% - 4px)' }}
+            animate={{ left: mode === 'login' ? '4px' : 'calc(50% + 0px)' }}
+            transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+          />
+        </div>
+
+        <AnimatePresence mode="wait">
+          <motion.div key={mode}
+            initial={{ opacity: 0, x: mode === 'login' ? -20 : 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: mode === 'login' ? 20 : -20 }}
+            transition={{ duration: 0.3 }}>
+
+            {/* Login header */}
+            {mode === 'login' && (
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Welcome back! 👋</h2>
+                <p className="text-sm text-gray-400 mt-1">Log in to pick up where you left off</p>
+              </div>
+            )}
+
+            {/* Signup header */}
+            {mode === 'signup' && (
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Create your account</h2>
+                <p className="text-sm text-gray-400 mt-1">Join your classmates on the portal</p>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-3.5">
+
+              {/* ── SIGNUP FIELDS ── */}
+              {mode === 'signup' && (
+                <>
+                  <Label className="text-xs font-semibold text-gray-500 -mb-1 block">I am a...</Label>
+                  <div className="grid grid-cols-3 gap-2 mb-1">
+                    {roleOptions.map((opt) => {
+                      const Icon = opt.icon;
+                      const sel = selectedRole === opt.value;
+                      return (
+                        <button key={opt.value} type="button" onClick={() => setSelectedRole(opt.value)}
+                          className={cn('flex flex-col items-center gap-1.5 py-3 rounded-xl border-2 transition-all',
+                            sel ? 'border-amber-400 bg-amber-50' : 'border-gray-200 bg-white')}>
+                          <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center transition-colors',
+                            sel ? 'bg-amber-400 text-white' : 'bg-gray-100 text-gray-400')}>
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          <span className={cn('text-xs font-medium', sel ? 'text-amber-700' : 'text-gray-500')}>{opt.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Full Name */}
+                  <div className="relative">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input placeholder="Full Name" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors"
+                      value={formData.fullName} onChange={(e) => setFormData({ ...formData, fullName: e.target.value })} required />
+                  </div>
+
+                  {/* Mobile */}
+                  <div className="relative">
+                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input type="tel" placeholder="Mobile Number" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors"
+                      value={formData.mobile} onChange={(e) => setFormData({ ...formData, mobile: e.target.value })} required />
+                  </div>
+
+                  {/* SSC Roll */}
+                  {(selectedRole === 'student' || selectedRole === 'captain') && (
+                    <div className="relative">
+                      <GraduationCap className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Input placeholder="SSC Board Roll" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors"
+                        value={formData.sscBoardRoll} onChange={(e) => setFormData({ ...formData, sscBoardRoll: e.target.value })} required />
+                    </div>
+                  )}
+
+                  {/* Email */}
+                  <div className="relative">
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input type="email" placeholder="Email Address" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors"
+                      value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required />
+                  </div>
+
+                  {/* Teacher fields */}
+                  {selectedRole === 'teacher' && (
+                    <>
+                      <div className="relative">
+                        <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input placeholder="Full Name (Bangla)" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors"
+                          value={formData.fullNameBangla} onChange={(e) => setFormData({ ...formData, fullNameBangla: e.target.value })} required />
+                      </div>
+                      <div className="relative">
+                        <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input placeholder="Designation" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors"
+                          value={formData.designation} onChange={(e) => setFormData({ ...formData, designation: e.target.value })} required />
+                      </div>
+                      <div className="relative">
+                        <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
+                        <Select value={formData.department} onValueChange={(v) => setFormData({ ...formData, department: v })}>
+                          <SelectTrigger className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors">
+                            <SelectValue placeholder="Select department" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <Award className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <Input placeholder="Qualification (press Enter)" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors"
+                            value={qualificationInput} onChange={(e) => setQualificationInput(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' && qualificationInput.trim()) { e.preventDefault(); setFormData({ ...formData, qualifications: [...formData.qualifications, qualificationInput.trim()] }); setQualificationInput(''); }}} />
+                        </div>
+                        <Button type="button" variant="outline" className="h-12 px-3 rounded-xl"
+                          onClick={() => { if (qualificationInput.trim()) { setFormData({ ...formData, qualifications: [...formData.qualifications, qualificationInput.trim()] }); setQualificationInput(''); }}}>Add</Button>
+                      </div>
+                      {formData.qualifications.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {formData.qualifications.map((q: string, i: number) => (
+                            <span key={i} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-600 rounded-md text-xs">
+                              {q}<button type="button" onClick={() => setFormData({ ...formData, qualifications: formData.qualifications.filter((_: string, idx: number) => idx !== i) })} className="hover:text-red-500">×</button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <div className="relative">
+                        <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input placeholder="Office Location" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors"
+                          value={formData.officeLocation} onChange={(e) => setFormData({ ...formData, officeLocation: e.target.value })} />
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+
+              {/* ── LOGIN FIELDS ── */}
+              {mode === 'login' && (
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input placeholder="Email Address" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors"
+                    value={formData.studentId} onChange={(e) => setFormData({ ...formData, studentId: e.target.value })} required />
+                </div>
+              )}
+
+              {/* Password */}
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input type={showPassword ? 'text' : 'password'} placeholder="Password"
+                  className="pl-11 pr-12 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors"
+                  value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required />
+                <button type="button" onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+
+              {/* Remember / Forgot */}
+              {mode === 'login' && (
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox id="mob-remember" checked={rememberMe} onCheckedChange={(v) => setRememberMe(v as boolean)}
+                      className="rounded data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600" />
+                    <span className="text-xs text-gray-500">Remember me</span>
+                  </label>
+                  <button type="button" onClick={() => navigate('/password-reset')}
+                    className="text-xs font-semibold text-blue-600">Forgot Password?</button>
+                </div>
+              )}
+
+              {/* Submit */}
+              <motion.div whileTap={{ scale: 0.97 }}>
+                <Button type="submit" disabled={isLoading}
+                  className="w-full rounded-2xl font-semibold text-base shadow-lg shadow-blue-500/25 gap-2"
+                  style={{ background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', height: '52px' }}>
+                  {isLoading
+                    ? <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-5 h-5 border-2 border-white border-t-transparent rounded-full" />
+                    : <><Lock className="w-4 h-4" />{mode === 'login' ? 'Login' : 'Create Account'}</>}
+                </Button>
+              </motion.div>
+
+              {/* Social (login only) */}
+              {mode === 'login' && (
+                <>
+                  <div className="flex items-center gap-3 my-1">
+                    <div className="flex-1 h-px bg-gray-200" />
+                    <span className="text-xs text-gray-400">or continue with</span>
+                    <div className="flex-1 h-px bg-gray-200" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button type="button"
+                      className="h-12 rounded-2xl border border-gray-200 bg-white flex items-center justify-center shadow-sm hover:bg-gray-50 transition-colors">
+                      <GoogleIcon />
+                    </button>
+                    <button type="button"
+                      className="h-12 rounded-2xl border border-gray-200 bg-white flex items-center justify-center shadow-sm hover:bg-gray-50 transition-colors">
+                      <MicrosoftIcon />
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* Switch mode */}
+              <p className="text-center text-sm text-gray-500 pt-1">
+                {mode === 'login'
+                  ? <> Don't have an account?{' '}<button type="button" onClick={() => setMode('signup')} className="text-blue-600 font-semibold">Sign Up</button></>
+                  : <> Already have an account?{' '}<button type="button" onClick={() => setMode('login')} className="text-blue-600 font-semibold">Login</button></>}
+              </p>
+            </form>
+          </motion.div>
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   MAIN EXPORT
+   ════════════════════════════════════════════════════════════════════ */
 export function AuthPage() {
   const [mode, setMode] = useState<AuthMode>('login');
+  const [mobileView, setMobileView] = useState<MobileView>('splash');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedRole, setSelectedRole] = useState<UserRole>('student');
   const [rememberMe, setRememberMe] = useState(false);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [qualificationInput, setQualificationInput] = useState('');
   const { login, signup } = useAuth();
   const navigate = useNavigate();
 
-  // Fetch departments when teacher role is selected
-  useEffect(() => {
-    if (selectedRole === 'teacher' && mode === 'signup') {
-      const fetchDepartments = async () => {
-        try {
-          const depts = await departmentService.getAll();
-          setDepartments(depts);
-        } catch (error) {
-          console.error('Failed to fetch departments:', error);
-        }
-      };
-      fetchDepartments();
-    }
-  }, [selectedRole, mode]);
-
   const [formData, setFormData] = useState({
-    studentId: '',
-    email: '',
-    password: '',
-    fullName: '',
-    mobile: '',
-    sscBoardRoll: '', // New field for SSC Board Roll
-    fullNameBangla: '',
-    designation: '',
-    department: '',
+    studentId: '', email: '', password: '', fullName: '',
+    mobile: '', sscBoardRoll: '', fullNameBangla: '',
+    designation: '', department: '',
     qualifications: [] as string[],
     specializations: [] as string[],
     officeLocation: '',
   });
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [qualificationInput, setQualificationInput] = useState('');
-  const [specializationInput, setSpecializationInput] = useState('');
 
-
+  useEffect(() => {
+    if (selectedRole === 'teacher' && mode === 'signup') {
+      departmentService.getAll().then(setDepartments).catch(() => {});
+    }
+  }, [selectedRole, mode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-
     try {
       if (mode === 'login') {
         await login(formData.email || formData.studentId, formData.password, rememberMe);
         toast.success('Welcome back!');
       } else {
         const signupData: any = {
-          fullName: formData.fullName,
-          email: formData.email,
-          mobile: formData.mobile,
-          password: formData.password,
-          role: selectedRole,
+          fullName: formData.fullName, email: formData.email,
+          mobile: formData.mobile, password: formData.password, role: selectedRole,
         };
-
-        // Add SSC Board Roll for students
-        if (selectedRole === 'student' || selectedRole === 'captain') {
-          signupData.sscBoardRoll = formData.sscBoardRoll;
-        }
-
+        if (selectedRole === 'student' || selectedRole === 'captain') signupData.sscBoardRoll = formData.sscBoardRoll;
         if (selectedRole === 'teacher') {
           signupData.fullNameBangla = formData.fullNameBangla;
           signupData.designation = formData.designation;
@@ -97,615 +527,353 @@ export function AuthPage() {
           signupData.specializations = formData.specializations;
           signupData.officeLocation = formData.officeLocation;
         }
-
         await signup(signupData);
-        
-        if (selectedRole === 'teacher') {
-          toast.success('Registration submitted! Please wait for admin approval.');
-        } else {
-          toast.success('Account created successfully!');
-        }
+        toast.success(selectedRole === 'teacher'
+          ? 'Registration submitted! Please wait for admin approval.'
+          : 'Account created successfully!');
       }
-      
       navigate('/dashboard');
-    } catch (error) {
+    } catch {
       toast.error('Something went wrong. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
+  const sharedFormProps = {
+    mode, setMode,
+    onBack: () => setMobileView('splash'),
+    formData, setFormData,
+    showPassword, setShowPassword,
+    rememberMe, setRememberMe,
+    isLoading, handleSubmit,
+    selectedRole, setSelectedRole,
+    departments,
+    qualificationInput, setQualificationInput,
+    navigate,
+  };
+
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row bg-background">
-      {/* Left Panel - Branding (Hidden on mobile, shown on lg+) */}
-      <motion.div 
-        initial={{ opacity: 0, x: -50 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.6 }}
-        className="hidden lg:flex lg:w-1/2 gradient-hero relative overflow-hidden"
-      >
-        {/* Animated mesh background */}
-        <div className="absolute inset-0">
-          <motion.div
-            animate={{ 
-              scale: [1, 1.3, 1],
-              rotate: [0, 180, 360],
-            }}
-            transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
-            className="absolute -top-1/3 -left-1/3 w-2/3 h-2/3 bg-white/5 rounded-full blur-3xl"
+    <>
+      {/* ══════════ MOBILE  (< lg) ══════════ */}
+      <div className="lg:hidden">
+        <AnimatePresence mode="wait">
+          {mobileView === 'splash' ? (
+            <motion.div key="splash"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, x: -60 }}
+              transition={{ duration: 0.35 }}>
+              <MobileSplash
+                onStart={() => { setMode('signup'); setMobileView('form'); }}
+                onLogin={() => { setMode('login'); setMobileView('form'); }}
+              />
+            </motion.div>
+          ) : (
+            <motion.div key="form"
+              initial={{ opacity: 0, x: 60 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 60 }}
+              transition={{ duration: 0.35 }}>
+              <MobileAuthForm {...sharedFormProps} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* ══════════ DESKTOP (lg+) ══════════ */}
+      <div className="hidden lg:flex min-h-screen relative flex-col items-center justify-center overflow-hidden">
+
+        {/* Background photo — actual campus image */}
+        <div className="absolute inset-0 z-0">
+          <img
+            src="/cover-image.jpg"
+            alt="Sirajganj Polytechnic Institute campus"
+            className="w-full h-full object-cover"
           />
-          <motion.div
-            animate={{ 
-              scale: [1.2, 1, 1.2],
-              rotate: [180, 0, 180],
-            }}
-            transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
-            className="absolute -bottom-1/3 -right-1/3 w-3/4 h-3/4 bg-white/8 rounded-full blur-3xl"
-          />
-          <motion.div
-            animate={{ 
-              x: [0, 50, 0],
-              y: [0, -30, 0],
-            }}
-            transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1/2 h-1/2 bg-white/5 rounded-full blur-2xl"
-          />
+          {/* Blue tint + darken so the glass card and white text stay readable */}
+          <div className="absolute inset-0"
+            style={{ background: 'linear-gradient(160deg, rgba(30,58,138,0.55) 0%, rgba(37,99,235,0.4) 45%, rgba(13,33,84,0.6) 100%)' }} />
         </div>
 
-        {/* Content */}
-        <div className="relative z-10 flex flex-col justify-center p-12 xl:p-16 text-white w-full">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3, duration: 0.6 }}
-            className="max-w-lg"
-          >
-            <div className="flex items-center gap-4 mb-10">
-              <div className="w-16 h-16 rounded-2xl bg-white/15 backdrop-blur-xl flex items-center justify-center overflow-hidden p-2.5 shadow-lg">
-                <img 
-                  src="/spi-logo.png" 
-                  alt="SPI Logo" 
-                  className="w-full h-full object-contain"
-                />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold">Sirajganj Polytechnic</h2>
-                <p className="text-sm text-white/70">Institute</p>
-              </div>
-            </div>
+        {/* Floating dot/shape decorations — faint, don't compete with the photo */}
+        <div className="absolute inset-0 z-[1] pointer-events-none overflow-hidden">
+          <div className="absolute top-[8%] left-[12%] w-2 h-2 rounded-full bg-white/40" />
+          <div className="absolute top-[20%] right-[18%] w-2.5 h-2.5 rounded-full bg-white/30" />
+          <div className="absolute top-[15%] right-[8%] w-1.5 h-1.5 rounded-full bg-amber-300/60" />
+          <div className="absolute bottom-[22%] left-[8%] w-2 h-2 rounded-full bg-white/30" />
+          <div className="absolute bottom-[15%] right-[20%] w-2 h-2 rounded-full bg-amber-300/50" />
+          <div className="absolute top-1/2 left-[6%] w-7 h-7 rounded-full border border-white/30" />
+          <div className="absolute top-[18%] right-1/3 w-5 h-5 rounded-full border border-amber-300/40" />
+        </div>
 
-            <h1 className="text-4xl xl:text-5xl font-display font-bold mb-6 leading-tight">
-              Your Academic<br />
-              <span className="text-white/90">Journey Starts Here</span>
-            </h1>
+        {/* ── Top-left: brand wordmark ── */}
+        <div className="absolute top-6 left-6 z-20 flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl overflow-hidden bg-white shadow-lg border border-white/40 flex items-center justify-center p-1.5">
+            <img src="/spi-logo.png" alt="SPI Logo" className="w-full h-full object-contain" />
+          </div>
+          <div>
+            <p className="text-white font-bold text-base leading-tight">Student Portal</p>
+            <p className="text-blue-100/80 text-xs leading-tight">Learn. Grow. Achieve.</p>
+          </div>
+        </div>
 
-            <p className="text-lg text-white/80 mb-10 leading-relaxed">
-              Access class routines, track attendance, view marks, and stay connected with your academic community.
-            </p>
+        {/* ── Top-right: language pill (static placeholder until i18n is wired up) ── */}
+        <button type="button"
+          className="absolute top-6 right-6 z-20 flex items-center gap-1.5 bg-white/15 backdrop-blur-md border border-white/25 text-white text-sm font-medium px-4 py-2 rounded-full hover:bg-white/25 transition-colors">
+          <Globe className="w-4 h-4" />
+          EN
+          <ChevronDown className="w-3.5 h-3.5 opacity-70" />
+        </button>
 
-            {/* Feature highlights */}
-            <div className="space-y-4 mb-10">
-              {[
-                { icon: Zap, text: 'Real-time class updates & notifications' },
-                { icon: BookOpen, text: 'Complete academic management' },
-                { icon: Users, text: 'Connect with teachers & classmates' },
-              ].map((feature, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.5 + i * 0.1 }}
-                  className="flex items-center gap-3"
-                >
-                  <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
-                    <feature.icon className="w-5 h-5" />
+        {/* ── Bottom-left: quote badge ── */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}
+          className="absolute bottom-7 left-7 z-20 hidden xl:flex items-start gap-3 bg-white/12 backdrop-blur-md border border-white/20 rounded-2xl px-4 py-3.5 max-w-[270px]">
+          <div className="flex-shrink-0 w-9 h-9 rounded-full bg-blue-500/80 flex items-center justify-center">
+            <Lightbulb className="w-4 h-4 text-amber-300" />
+          </div>
+          <div>
+            <p className="text-white text-sm font-medium leading-snug">Education is the most powerful weapon.</p>
+            <p className="text-blue-100/70 text-xs mt-1">— Nelson Mandela</p>
+          </div>
+        </motion.div>
+
+        {/* ── Bottom-right: "Keep Learning" badge — echoes splash slide 3 copy ── */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }}
+          className="absolute bottom-7 right-7 z-20 hidden xl:flex items-center gap-3 bg-white/12 backdrop-blur-md border border-white/20 rounded-2xl px-4 py-3.5">
+          <div className="flex-shrink-0 w-9 h-9 rounded-full bg-blue-500/80 flex items-center justify-center">
+            <BookOpen className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <p className="text-white text-sm font-semibold leading-snug">Keep Learning,</p>
+            <p className="text-white text-sm font-semibold leading-snug">Keep Growing</p>
+          </div>
+          <TrendingUp className="w-5 h-5 text-amber-300 ml-1" />
+        </motion.div>
+
+        {/* ── Center: frosted glass auth card ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 24, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.55, ease: 'easeOut' }}
+          className="relative z-10 w-full max-w-[480px] mx-6 rounded-[28px] overflow-hidden"
+          style={{
+            background: 'rgba(255,255,255,0.92)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            boxShadow: '0 24px 70px rgba(10,22,60,0.35)',
+          }}
+        >
+          <div className="max-h-[88vh] overflow-y-auto px-9 pt-9 pb-8">
+
+            {/* Cap badge + heading — login only */}
+            {mode === 'login' && (
+              <>
+                <div className="flex justify-center mb-4">
+                  <div className="w-16 h-16 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center">
+                    <GraduationCap className="w-8 h-8 text-blue-600" />
                   </div>
-                  <span className="text-white/90">{feature.text}</span>
-                </motion.div>
+                </div>
+                <div className="text-center mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900">Welcome Back! 👋</h2>
+                  <p className="text-sm text-gray-500 mt-1.5">Log in to continue your learning journey</p>
+                </div>
+              </>
+            )}
+
+            {/* Heading — signup only */}
+            {mode === 'signup' && (
+              <div className="text-center mb-6 pt-2">
+                <h2 className="text-2xl font-bold text-gray-900">Create your account</h2>
+                <p className="text-sm text-gray-500 mt-1.5">Join your classmates on the portal</p>
+              </div>
+            )}
+
+            {/* Tab bar */}
+            <div className="flex border-b border-gray-100 mb-6">
+              {(['login', 'signup'] as const).map((tab) => (
+                <button key={tab} onClick={() => setMode(tab)}
+                  className={cn('flex-1 pb-3 text-base font-semibold transition-all duration-300 relative',
+                    mode === tab ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600')}>
+                  {tab === 'login' ? 'Login' : 'Sign Up'}
+                  {mode === tab && (
+                    <motion.div layoutId="desktopTabLine"
+                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full"
+                      transition={{ type: 'spring', stiffness: 400, damping: 30 }} />
+                  )}
+                </button>
               ))}
             </div>
 
-            <div className="flex items-center gap-4">
-              <div className="flex -space-x-3">
-                {['R', 'F', 'K', 'A'].map((letter, i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ opacity: 0, scale: 0.5 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.8 + i * 0.1 }}
-                    className="w-10 h-10 rounded-full bg-white/20 border-2 border-white/40 flex items-center justify-center text-sm font-semibold backdrop-blur-sm"
-                  >
-                    {letter}
-                  </motion.div>
-                ))}
-              </div>
-              <p className="text-sm text-white/80">
-                <span className="font-semibold text-white">2,500+</span> Students enrolled
-              </p>
-            </div>
-          </motion.div>
+            <AnimatePresence mode="wait">
+              <motion.div key={mode}
+                initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }}>
 
-          {/* Floating notification card */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1 }}
-            className="absolute bottom-12 right-12 xl:right-16"
-          >
-            <motion.div
-              animate={{ y: [0, -10, 0] }}
-              transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-              className="glass-card p-4 rounded-2xl backdrop-blur-xl border border-white/20 shadow-xl"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-warning/20 flex items-center justify-center">
-                  <Sparkles className="w-5 h-5 text-warning" />
-                </div>
-                <div>
-                  <p className="font-semibold text-sm">New Session 2026</p>
-                  <p className="text-xs text-white/70">Admissions Open</p>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        </div>
-      </motion.div>
+                <form onSubmit={handleSubmit} className="space-y-4">
 
-      {/* Right Panel - Auth Forms */}
-      <div className="flex-1 flex flex-col min-h-screen lg:min-h-auto">
-        {/* Mobile Header */}
-        <div className="lg:hidden px-4 py-4 flex items-center justify-between border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-20">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden">
-              <img src="/spi-logo.png" alt="SPI Logo" className="w-full h-full object-contain" />
-            </div>
-            <div>
-              <h2 className="font-bold text-sm">Sirajganj Polytechnic</h2>
-              <p className="text-xs text-muted-foreground">Student Portal</p>
-            </div>
-          </div>
-          <ThemeToggle />
-        </div>
-
-        {/* Desktop Theme Toggle */}
-        <div className="hidden lg:block absolute top-4 right-4 z-10">
-          <ThemeToggle />
-        </div>
-
-        {/* Scrollable Content Area */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-full p-4 md:p-8 lg:p-12">
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="w-full max-w-md"
-            >
-
-
-              {/* Tab Switcher */}
-              <div className="flex bg-muted rounded-xl p-1 mb-6">
-                {(['login', 'signup'] as const).map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setMode(tab)}
-                    className={cn(
-                      "flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all duration-300 relative touch-button",
-                      mode === tab
-                        ? 'text-primary-foreground'
-                        : 'text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    {mode === tab && (
-                      <motion.div
-                        layoutId="activeTab"
-                        className="absolute inset-0 gradient-primary rounded-lg shadow-md"
-                        transition={{ type: "spring", duration: 0.5 }}
-                      />
-                    )}
-                    <span className="relative z-10">
-                      {tab === 'login' ? 'Sign In' : 'Create Account'}
-                    </span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Form */}
-              <AnimatePresence mode="wait">
-                <motion.form
-                  key={mode}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  transition={{ duration: 0.3 }}
-                  onSubmit={handleSubmit}
-                  className="space-y-4"
-                >
+                  {/* ── SIGNUP FIELDS ── */}
                   {mode === 'signup' && (
                     <>
-                      {/* Role Selection */}
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium">Select Your Role</Label>
+                      <div>
+                        <Label className="text-xs font-semibold text-gray-600 mb-2 block">Select Your Role</Label>
                         <div className="grid grid-cols-3 gap-2">
-                          {roleOptions.map((option) => {
-                            const Icon = option.icon;
-                            const isSelected = selectedRole === option.value;
+                          {roleOptions.map((opt) => {
+                            const Icon = opt.icon;
+                            const sel = selectedRole === opt.value;
                             return (
-                              <button
-                                key={option.value}
-                                type="button"
-                                onClick={() => setSelectedRole(option.value)}
-                                className={cn(
-                                  "relative flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all duration-300 touch-button",
-                                  isSelected
-                                    ? "border-primary bg-primary/10"
-                                    : "border-border bg-card hover:border-primary/50"
-                                )}
-                              >
-                                <div className={cn(
-                                  "w-9 h-9 rounded-lg flex items-center justify-center transition-colors",
-                                  isSelected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                                )}>
+                              <button key={opt.value} type="button" onClick={() => setSelectedRole(opt.value)}
+                                className={cn('flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border-2 transition-all duration-200',
+                                  sel ? 'border-amber-400 bg-amber-50' : 'border-gray-200 bg-white hover:border-amber-200')}>
+                                <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center transition-colors',
+                                  sel ? 'bg-amber-400 text-white' : 'bg-gray-100 text-gray-500')}>
                                   <Icon className="w-4 h-4" />
                                 </div>
-                                <span className={cn(
-                                  "text-xs font-medium transition-colors",
-                                  isSelected ? "text-primary" : "text-foreground"
-                                )}>
-                                  {option.label}
-                                </span>
+                                <span className={cn('text-xs font-medium', sel ? 'text-amber-700' : 'text-gray-600')}>{opt.label}</span>
                               </button>
                             );
                           })}
                         </div>
                       </div>
-
-                      <div className="space-y-1.5">
-                        <Label htmlFor="fullName" className="text-sm font-medium">Full Name</Label>
-                        <div className="relative">
-                          <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                          <Input
-                            id="fullName"
-                            type="text"
-                            placeholder="Enter your full name"
-                            className="pl-10 h-11"
-                            value={formData.fullName}
-                            onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                            required
-                          />
-                        </div>
-                      </div>
-                    </>
-                  )}
-
-                  {mode === 'login' && (
-                    <div className="space-y-1.5">
-                      <Label htmlFor="studentId" className="text-sm font-medium">ID or Email</Label>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                          id="studentId"
-                          type="text"
-                          placeholder="SPI-2024-XXXX or email"
-                          className="pl-10 h-11"
-                          value={formData.studentId}
-                          onChange={(e) => setFormData({ ...formData, studentId: e.target.value })}
-                          required
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {mode === 'signup' && (
-                    <>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="mobile" className="text-sm font-medium">Mobile Number</Label>
-                        <div className="relative">
-                          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                          <Input
-                            id="mobile"
-                            type="tel"
-                            placeholder="01XXXXXXXXX"
-                            className="pl-10 h-11"
-                            value={formData.mobile}
-                            onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
-                            required
-                          />
-                        </div>
-                      </div>
-
-                      {/* SSC Board Roll for Students and Captains */}
+                      <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Full Name</Label>
+                        <div className="relative"><User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <Input placeholder="Enter your full name" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors"
+                            value={formData.fullName} onChange={(e) => setFormData({ ...formData, fullName: e.target.value })} required /></div></div>
+                      <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Mobile Number</Label>
+                        <div className="relative"><Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <Input type="tel" placeholder="01XXXXXXXXX" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors"
+                            value={formData.mobile} onChange={(e) => setFormData({ ...formData, mobile: e.target.value })} required /></div></div>
                       {(selectedRole === 'student' || selectedRole === 'captain') && (
-                        <div className="space-y-1.5">
-                          <Label htmlFor="sscBoardRoll" className="text-sm font-medium">
-                            SSC Board Roll <span className="text-destructive">*</span>
-                          </Label>
-                          <div className="relative">
-                            <GraduationCap className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                            <Input
-                              id="sscBoardRoll"
-                              type="text"
-                              placeholder="Enter your SSC Board Roll (e.g., 679377)"
-                              className="pl-10 h-11"
-                              value={formData.sscBoardRoll}
-                              onChange={(e) => setFormData({ ...formData, sscBoardRoll: e.target.value })}
-                              required
-                            />
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            Your Student ID will be: SIPI-{formData.sscBoardRoll || 'XXXXXX'}
-                          </p>
-                        </div>
+                        <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">SSC Board Roll <span className="text-red-500">*</span></Label>
+                          <div className="relative"><GraduationCap className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <Input placeholder="e.g., 679377" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors"
+                              value={formData.sscBoardRoll} onChange={(e) => setFormData({ ...formData, sscBoardRoll: e.target.value })} required /></div>
+                          <p className="text-xs text-gray-400 mt-1">Student ID will be: SIPI-{formData.sscBoardRoll || 'XXXXXX'}</p></div>
                       )}
-
-                      <div className="space-y-1.5">
-                        <Label htmlFor="email" className="text-sm font-medium">Email Address</Label>
-                        <div className="relative">
-                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                          <Input
-                            id="email"
-                            type="email"
-                            placeholder="your.email@example.com"
-                            className="pl-10 h-11"
-                            value={formData.email}
-                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                            required
-                          />
-                        </div>
-                      </div>
-
-                      {/* Teacher-specific fields */}
-                      {selectedRole === 'teacher' && (
-                        <>
-                          <div className="space-y-1.5">
-                            <Label htmlFor="fullNameBangla" className="text-sm font-medium">
-                              Full Name (Bangla) <span className="text-destructive">*</span>
-                            </Label>
-                            <div className="relative">
-                              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                              <Input
-                                id="fullNameBangla"
-                                type="text"
-                                placeholder="আপনার পূর্ণ নাম"
-                                className="pl-10 h-11"
-                                value={formData.fullNameBangla}
-                                onChange={(e) => setFormData({ ...formData, fullNameBangla: e.target.value })}
-                                required
-                              />
-                            </div>
-                          </div>
-
-                          <div className="space-y-1.5">
-                            <Label htmlFor="designation" className="text-sm font-medium">
-                              Designation <span className="text-destructive">*</span>
-                            </Label>
-                            <div className="relative">
-                              <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                              <Input
-                                id="designation"
-                                type="text"
-                                placeholder="e.g., Assistant Professor"
-                                className="pl-10 h-11"
-                                value={formData.designation}
-                                onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
-                                required
-                              />
-                            </div>
-                          </div>
-
-                          <div className="space-y-1.5">
-                            <Label htmlFor="department" className="text-sm font-medium">
-                              Department <span className="text-destructive">*</span>
-                            </Label>
-                            <div className="relative">
-                              <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground z-10" />
-                              <Select
-                                value={formData.department}
-                                onValueChange={(value) => setFormData({ ...formData, department: value })}
-                              >
-                                <SelectTrigger className="pl-10 h-11">
-                                  <SelectValue placeholder="Select department" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {departments.map((dept) => (
-                                    <SelectItem key={dept.id} value={dept.id}>
-                                      {dept.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </div>
-
-                          <div className="space-y-1.5">
-                            <Label htmlFor="qualifications" className="text-sm font-medium">Qualifications</Label>
-                            <div className="flex gap-2">
-                              <div className="relative flex-1">
-                                <Award className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                                <Input
-                                  id="qualifications"
-                                  type="text"
-                                  placeholder="e.g., M.Sc. in CS"
-                                  className="pl-10 h-11"
-                                  value={qualificationInput}
-                                  onChange={(e) => setQualificationInput(e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter' && qualificationInput.trim()) {
-                                      e.preventDefault();
-                                      setFormData({
-                                        ...formData,
-                                        qualifications: [...formData.qualifications, qualificationInput.trim()],
-                                      });
-                                      setQualificationInput('');
-                                    }
-                                  }}
-                                />
-                              </div>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                className="h-11 px-4"
-                                onClick={() => {
-                                  if (qualificationInput.trim()) {
-                                    setFormData({
-                                      ...formData,
-                                      qualifications: [...formData.qualifications, qualificationInput.trim()],
-                                    });
-                                    setQualificationInput('');
-                                  }
-                                }}
-                              >
-                                Add
-                              </Button>
-                            </div>
-                            {formData.qualifications.length > 0 && (
-                              <div className="flex flex-wrap gap-1.5 mt-2">
-                                {formData.qualifications.map((qual, index) => (
-                                  <span
-                                    key={index}
-                                    className="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-md text-xs"
-                                  >
-                                    {qual}
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setFormData({
-                                          ...formData,
-                                          qualifications: formData.qualifications.filter((_, i) => i !== index),
-                                        });
-                                      }}
-                                      className="hover:text-destructive"
-                                    >
-                                      ×
-                                    </button>
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="space-y-1.5">
-                            <Label htmlFor="officeLocation" className="text-sm font-medium">Office Location</Label>
-                            <div className="relative">
-                              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                              <Input
-                                id="officeLocation"
-                                type="text"
-                                placeholder="e.g., Room 201, Building A"
-                                className="pl-10 h-11"
-                                value={formData.officeLocation}
-                                onChange={(e) => setFormData({ ...formData, officeLocation: e.target.value })}
-                              />
-                            </div>
-                          </div>
-                        </>
-                      )}
+                      <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Email Address</Label>
+                        <div className="relative"><Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <Input type="email" placeholder="your.email@example.com" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors"
+                            value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required /></div></div>
                     </>
                   )}
 
-                  <div className="space-y-1.5">
-                    <Label htmlFor="password" className="text-sm font-medium">Password</Label>
+                  {/* ── TEACHER FIELDS (desktop) ── */}
+                  {mode === 'signup' && selectedRole === 'teacher' && (
+                    <>
+                      <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Full Name (Bangla) <span className="text-red-500">*</span></Label>
+                        <div className="relative"><User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <Input placeholder="আপনার পূর্ণ নাম" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors"
+                            value={formData.fullNameBangla} onChange={(e) => setFormData({ ...formData, fullNameBangla: e.target.value })} required /></div></div>
+                      <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Designation <span className="text-red-500">*</span></Label>
+                        <div className="relative"><Briefcase className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <Input placeholder="e.g., Assistant Professor" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors"
+                            value={formData.designation} onChange={(e) => setFormData({ ...formData, designation: e.target.value })} required /></div></div>
+                      <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Department <span className="text-red-500">*</span></Label>
+                        <div className="relative"><Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
+                          <Select value={formData.department} onValueChange={(v) => setFormData({ ...formData, department: v })}>
+                            <SelectTrigger className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors"><SelectValue placeholder="Select department" /></SelectTrigger>
+                            <SelectContent>{departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
+                          </Select></div></div>
+                      <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Qualifications</Label>
+                        <div className="flex gap-2">
+                          <div className="relative flex-1"><Award className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <Input placeholder="e.g., M.Sc. in CS" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors"
+                              value={qualificationInput} onChange={(e) => setQualificationInput(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === 'Enter' && qualificationInput.trim()) { e.preventDefault(); setFormData({ ...formData, qualifications: [...formData.qualifications, qualificationInput.trim()] }); setQualificationInput(''); }}} /></div>
+                          <Button type="button" variant="outline" className="h-12 px-4 rounded-xl border-gray-200"
+                            onClick={() => { if (qualificationInput.trim()) { setFormData({ ...formData, qualifications: [...formData.qualifications, qualificationInput.trim()] }); setQualificationInput(''); }}}>Add</Button>
+                        </div>
+                        {formData.qualifications.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {formData.qualifications.map((q: string, i: number) => (
+                              <span key={i} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-600 rounded-md text-xs">
+                                {q}<button type="button" onClick={() => setFormData({ ...formData, qualifications: formData.qualifications.filter((_: string, idx: number) => idx !== i) })} className="hover:text-red-500">×</button>
+                              </span>))}
+                          </div>)}</div>
+                      <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Office Location</Label>
+                        <div className="relative"><MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <Input placeholder="e.g., Room 201, Building A" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors"
+                            value={formData.officeLocation} onChange={(e) => setFormData({ ...formData, officeLocation: e.target.value })} /></div></div>
+                    </>
+                  )}
+
+                  {/* ── LOGIN ID FIELD ── */}
+                  {mode === 'login' && (
+                    <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Email or Student ID</Label>
+                      <div className="relative"><Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input placeholder="Enter your email or student ID" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors"
+                          value={formData.studentId} onChange={(e) => setFormData({ ...formData, studentId: e.target.value })} required /></div></div>
+                  )}
+
+                  {/* Password */}
+                  <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Password</Label>
                     <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        id="password"
-                        type={showPassword ? 'text' : 'password'}
-                        placeholder="Enter your password"
-                        className="pl-10 pr-10 h-11"
-                        value={formData.password}
-                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
-                      >
+                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Input type={showPassword ? 'text' : 'password'} placeholder="Enter your password"
+                        className="pl-10 pr-11 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors"
+                        value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required />
+                      <button type="button" onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5">
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
-                    </div>
-                  </div>
+                    </div></div>
 
+                  {/* Remember / Forgot */}
                   {mode === 'login' && (
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <Checkbox 
-                          id="remember-me" 
-                          checked={rememberMe}
-                          onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-                        />
-                        <Label htmlFor="remember-me" className="text-xs text-muted-foreground cursor-pointer">
-                          Remember me
-                        </Label>
-                      </div>
-                      <button 
-                        type="button" 
-                        onClick={() => navigate('/password-reset')}
-                        className="text-xs text-primary hover:underline font-medium"
-                      >
-                        Forgot password?
-                      </button>
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <Checkbox id="desktop-remember" checked={rememberMe} onCheckedChange={(v) => setRememberMe(v as boolean)}
+                          className="rounded data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600" />
+                        <span className="text-xs text-gray-500">Remember me</span>
+                      </label>
+                      <button type="button" onClick={() => navigate('/password-reset')}
+                        className="text-xs font-semibold text-blue-600 hover:underline">Forgot Password?</button>
                     </div>
                   )}
 
-                  <Button
-                    type="submit"
-                    size="lg"
-                    className="w-full h-12 gradient-primary text-white font-medium shadow-lg hover:shadow-xl transition-all duration-300 touch-button group"
-                    disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <motion.div
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                        className="w-5 h-5 border-2 border-white border-t-transparent rounded-full"
-                      />
-                    ) : (
-                      <span className="flex items-center gap-2">
-                        {mode === 'login' ? 'Sign In' : 'Create Account'}
-                        <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                      </span>
-                    )}
-                  </Button>
+                  {/* Submit */}
+                  <motion.div whileTap={{ scale: 0.98 }} whileHover={{ scale: 1.01 }}>
+                    <Button type="submit" disabled={isLoading}
+                      className="w-full rounded-2xl text-base font-semibold shadow-lg shadow-blue-500/30 gap-2"
+                      style={{ background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', height: '52px' }}>
+                      {isLoading
+                        ? <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-5 h-5 border-2 border-white border-t-transparent rounded-full" />
+                        : <><Lock className="w-4 h-4" />{mode === 'login' ? 'Login' : 'Create Account'}</>}
+                    </Button>
+                  </motion.div>
 
-                  <p className="text-center text-sm text-muted-foreground pt-2">
-                    {mode === 'login' ? (
-                      <>
-                        Don't have an account?{' '}
-                        <button
-                          type="button"
-                          onClick={() => setMode('signup')}
-                          className="text-primary font-medium hover:underline"
-                        >
-                          Sign up
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        Already have an account?{' '}
-                        <button
-                          type="button"
-                          onClick={() => setMode('login')}
-                          className="text-primary font-medium hover:underline"
-                        >
-                          Sign in
-                        </button>
-                      </>
-                    )}
+                  {/* Social — login only */}
+                  {mode === 'login' && (
+                    <>
+                      <div className="flex items-center gap-3 my-1">
+                        <div className="flex-1 h-px bg-gray-200" />
+                        <span className="text-xs text-gray-400 font-medium">or continue with</span>
+                        <div className="flex-1 h-px bg-gray-200" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <motion.button type="button" whileTap={{ scale: 0.98 }} whileHover={{ scale: 1.01 }}
+                          className="h-12 rounded-2xl border border-gray-200 bg-white flex items-center justify-center gap-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm">
+                          <GoogleIcon />Google
+                        </motion.button>
+                        <motion.button type="button" whileTap={{ scale: 0.98 }} whileHover={{ scale: 1.01 }}
+                          className="h-12 rounded-2xl border border-gray-200 bg-white flex items-center justify-center gap-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm">
+                          <MicrosoftIcon />Microsoft
+                        </motion.button>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Switch mode */}
+                  <p className="text-center text-sm text-gray-500 pt-1">
+                    {mode === 'login'
+                      ? <> Don't have an account?{' '}<button type="button" onClick={() => setMode('signup')} className="text-blue-600 font-semibold hover:underline">Sign Up</button></>
+                      : <> Already have an account?{' '}<button type="button" onClick={() => setMode('login')} className="text-blue-600 font-semibold hover:underline">Login</button></>}
                   </p>
-                </motion.form>
-              </AnimatePresence>
-            </motion.div>
+                </form>
+              </motion.div>
+            </AnimatePresence>
           </div>
-        </div>
+        </motion.div>
+        {/* ── END center card ── */}
 
-        {/* Mobile Footer */}
-        <div className="lg:hidden px-4 py-3 border-t border-border bg-card/50 backdrop-blur-sm safe-area-inset">
-          <p className="text-center text-xs text-muted-foreground">
-            © 2024 Sirajganj Polytechnic Institute
-          </p>
-        </div>
+        <p className="relative z-10 mt-6 text-xs text-white/70">© 2024 Student Portal. All rights reserved.</p>
       </div>
-    </div>
+    </>
   );
 }
