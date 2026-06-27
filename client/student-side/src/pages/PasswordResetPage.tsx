@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import { BookOpen, TrendingUp, Lightbulb, Globe, ChevronDown } from 'lucide-react';
 import { ForgotPasswordForm } from '@/components/auth/ForgotPasswordForm';
 import { OTPVerificationForm } from '@/components/auth/OTPVerificationForm';
 import { NewPasswordForm } from '@/components/auth/NewPasswordForm';
@@ -81,80 +82,185 @@ function PasswordResetPage() {
   const stepLabels = ['Email', 'Verify OTP', 'New Password'];
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#eaf0fb' }}>
+    <>
+      {/* ══════════ MOBILE (< lg) ══════════ */}
+      <div className="lg:hidden min-h-screen flex flex-col" style={{ background: '#eaf0fb' }}>
 
-      {/* ── decorative blobs ── */}
-      <div className="fixed top-0 right-0 w-72 h-72 rounded-full pointer-events-none -z-0"
-        style={{ background: 'radial-gradient(circle,#c7d9f8 0%,transparent 70%)', opacity: 0.5 }} />
-      <div className="fixed bottom-0 left-0 w-56 h-56 rounded-full pointer-events-none -z-0"
-        style={{ background: 'radial-gradient(circle,#bcd3f7 0%,transparent 70%)', opacity: 0.4 }} />
+        {/* decorative blobs */}
+        <div className="fixed top-0 right-0 w-72 h-72 rounded-full pointer-events-none -z-0"
+          style={{ background: 'radial-gradient(circle,#c7d9f8 0%,transparent 70%)', opacity: 0.5 }} />
+        <div className="fixed bottom-0 left-0 w-56 h-56 rounded-full pointer-events-none -z-0"
+          style={{ background: 'radial-gradient(circle,#bcd3f7 0%,transparent 70%)', opacity: 0.4 }} />
 
-      {/* ── content ── */}
-      <div className="flex-1 flex flex-col items-center justify-start px-5 pt-10 pb-8 relative z-10">
+        <div className="flex-1 flex flex-col items-center justify-start px-5 pt-10 pb-8 relative z-10">
+          {/* Logo */}
+          <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }} className="flex flex-col items-center mb-7">
+            <div className="w-16 h-16 rounded-2xl overflow-hidden bg-white shadow-md border border-gray-100 flex items-center justify-center p-1.5 mb-3">
+              <img src="/spi-logo.png" alt="SPI Logo" className="w-full h-full object-contain" />
+            </div>
+            <p className="text-xs text-gray-400 font-medium tracking-wide uppercase">
+              Sirajganj Polytechnic Institute
+            </p>
+          </motion.div>
 
-        {/* Logo */}
-        <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }} className="flex flex-col items-center mb-7">
-          <div className="w-16 h-16 rounded-2xl overflow-hidden bg-white shadow-md border border-gray-100 flex items-center justify-center p-1.5 mb-3">
+          {/* Progress bar */}
+          {state.step !== 'success' && <ProgressBar stepIndex={stepIndex} stepLabels={stepLabels} />}
+
+          {/* Card */}
+          <StepCard state={state}
+            onEmailSubmit={handleEmailSubmit} onOTPSubmit={handleOTPSubmit}
+            onPasswordSubmit={handlePasswordSubmit} onResend={handleResendOTP} onBack={handleBack} />
+
+          <p className="mt-6 text-xs text-gray-400">© 2024 Student Portal. All rights reserved.</p>
+        </div>
+      </div>
+
+      {/* ══════════ DESKTOP (lg+) ══════════ */}
+      <div className="hidden lg:flex min-h-screen relative flex-col items-center justify-center overflow-hidden">
+
+        {/* Same campus photo background as login page */}
+        <div className="absolute inset-0 z-0">
+          <img src="/cover-image.jpg" alt="Campus"
+            className="w-full h-full object-cover" />
+          <div className="absolute inset-0"
+            style={{ background: 'linear-gradient(160deg,rgba(30,58,138,0.55) 0%,rgba(37,99,235,0.4) 45%,rgba(13,33,84,0.6) 100%)' }} />
+        </div>
+
+        {/* Dot decorations */}
+        <div className="absolute inset-0 z-[1] pointer-events-none overflow-hidden">
+          <div className="absolute top-[8%] left-[12%] w-2 h-2 rounded-full bg-white/40" />
+          <div className="absolute top-[20%] right-[18%] w-2.5 h-2.5 rounded-full bg-white/30" />
+          <div className="absolute top-[15%] right-[8%] w-1.5 h-1.5 rounded-full bg-amber-300/60" />
+          <div className="absolute bottom-[22%] left-[8%] w-2 h-2 rounded-full bg-white/30" />
+          <div className="absolute bottom-[15%] right-[20%] w-2 h-2 rounded-full bg-amber-300/50" />
+          <div className="absolute top-1/2 left-[6%] w-7 h-7 rounded-full border border-white/30" />
+          <div className="absolute top-[18%] right-1/3 w-5 h-5 rounded-full border border-amber-300/40" />
+        </div>
+
+        {/* Top-left brand */}
+        <div className="absolute top-6 left-6 z-20 flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl overflow-hidden bg-white shadow-lg border border-white/40 flex items-center justify-center p-1.5">
             <img src="/spi-logo.png" alt="SPI Logo" className="w-full h-full object-contain" />
           </div>
-          <p className="text-xs text-gray-400 font-medium tracking-wide uppercase">
-            Sirajganj Polytechnic Institute
-          </p>
+          <div>
+            <p className="text-white font-bold text-base leading-tight">Student Portal</p>
+            <p className="text-blue-100/80 text-xs leading-tight">Learn. Grow. Achieve.</p>
+          </div>
+        </div>
+
+        {/* Top-right language pill */}
+        <button type="button"
+          className="absolute top-6 right-6 z-20 flex items-center gap-1.5 bg-white/15 backdrop-blur-md border border-white/25 text-white text-sm font-medium px-4 py-2 rounded-full hover:bg-white/25 transition-colors">
+          <Globe className="w-4 h-4" />EN<ChevronDown className="w-3.5 h-3.5 opacity-70" />
+        </button>
+
+        {/* Bottom-left quote */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}
+          className="absolute bottom-7 left-7 z-20 hidden xl:flex items-start gap-3 bg-white/12 backdrop-blur-md border border-white/20 rounded-2xl px-4 py-3.5 max-w-[270px]">
+          <div className="flex-shrink-0 w-9 h-9 rounded-full bg-blue-500/80 flex items-center justify-center">
+            <Lightbulb className="w-4 h-4 text-amber-300" />
+          </div>
+          <div>
+            <p className="text-white text-sm font-medium leading-snug">Education is the most powerful weapon.</p>
+            <p className="text-blue-100/70 text-xs mt-1">— Nelson Mandela</p>
+          </div>
         </motion.div>
 
-        {/* Progress bar — hidden on success */}
-        {state.step !== 'success' && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            className="w-full max-w-sm mb-6">
-            <div className="flex justify-between mb-2">
-              {stepLabels.map((label, i) => (
-                <span key={label}
-                  className={`text-xs font-semibold transition-colors ${i <= stepIndex ? 'text-blue-600' : 'text-gray-400'}`}>
-                  {label}
-                </span>
-              ))}
-            </div>
-            <div className="h-1.5 bg-blue-100 rounded-full overflow-hidden">
-              <motion.div className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"
-                initial={{ width: '0%' }}
-                animate={{ width: `${((stepIndex) / 2) * 100}%` }}
-                transition={{ duration: 0.4 }} />
-            </div>
-          </motion.div>
-        )}
-
-        {/* Card */}
-        <motion.div initial={{ opacity: 0, y: 20, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.5 }}
-          className="w-full max-w-sm bg-white rounded-3xl shadow-xl overflow-hidden">
-          <AnimatePresence mode="wait">
-            <motion.div key={state.step}
-              initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.3 }}
-              className="p-7">
-              {state.step === 'email' && (
-                <ForgotPasswordForm onSubmit={handleEmailSubmit} onBack={handleBack}
-                  loading={state.loading} error={state.error || undefined} />
-              )}
-              {state.step === 'otp' && (
-                <OTPVerificationForm email={state.email} onSubmit={handleOTPSubmit}
-                  onBack={handleBack} onResend={handleResendOTP}
-                  loading={state.loading} error={state.error || undefined} />
-              )}
-              {state.step === 'password' && (
-                <NewPasswordForm email={state.email} otp={state.otp}
-                  onSubmit={handlePasswordSubmit} onBack={handleBack}
-                  loading={state.loading} error={state.error || undefined} />
-              )}
-              {state.step === 'success' && <SuccessView />}
-            </motion.div>
-          </AnimatePresence>
+        {/* Bottom-right badge */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }}
+          className="absolute bottom-7 right-7 z-20 hidden xl:flex items-center gap-3 bg-white/12 backdrop-blur-md border border-white/20 rounded-2xl px-4 py-3.5">
+          <div className="flex-shrink-0 w-9 h-9 rounded-full bg-blue-500/80 flex items-center justify-center">
+            <BookOpen className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <p className="text-white text-sm font-semibold">Keep Learning,</p>
+            <p className="text-white text-sm font-semibold">Keep Growing</p>
+          </div>
+          <TrendingUp className="w-5 h-5 text-amber-300 ml-1" />
         </motion.div>
 
-        <p className="mt-6 text-xs text-gray-400">© 2024 Student Portal. All rights reserved.</p>
+        {/* Frosted glass card — same style as login */}
+        <motion.div initial={{ opacity: 0, y: 24, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.55, ease: 'easeOut' }}
+          className="relative z-10 w-full max-w-[440px] mx-6 rounded-[28px] overflow-hidden"
+          style={{
+            background: 'rgba(255,255,255,0.92)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            boxShadow: '0 24px 70px rgba(10,22,60,0.35)',
+          }}>
+          <div className="max-h-[85vh] overflow-y-auto p-8">
+
+            {/* Progress bar */}
+            {state.step !== 'success' && <ProgressBar stepIndex={stepIndex} stepLabels={stepLabels} />}
+
+            {/* Step content */}
+            <StepCard state={state}
+              onEmailSubmit={handleEmailSubmit} onOTPSubmit={handleOTPSubmit}
+              onPasswordSubmit={handlePasswordSubmit} onResend={handleResendOTP} onBack={handleBack} />
+          </div>
+        </motion.div>
+
+        <p className="absolute bottom-2 left-1/2 -translate-x-1/2 text-white/40 text-xs z-20">
+          © 2024 Student Portal. All rights reserved.
+        </p>
       </div>
-    </div>
+    </>
+  );
+}
+
+function ProgressBar({ stepIndex, stepLabels }: { stepIndex: number; stepLabels: string[] }) {
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full mb-6">
+      <div className="flex justify-between mb-2">
+        {stepLabels.map((label, i) => (
+          <span key={label}
+            className={`text-xs font-semibold transition-colors ${i <= stepIndex ? 'text-blue-600' : 'text-gray-400'}`}>
+            {label}
+          </span>
+        ))}
+      </div>
+      <div className="h-1.5 bg-blue-100 rounded-full overflow-hidden">
+        <motion.div className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"
+          initial={{ width: '0%' }}
+          animate={{ width: `${(stepIndex / 2) * 100}%` }}
+          transition={{ duration: 0.4 }} />
+      </div>
+    </motion.div>
+  );
+}
+
+function StepCard({ state, onEmailSubmit, onOTPSubmit, onPasswordSubmit, onResend, onBack }: {
+  state: PasswordResetState;
+  onEmailSubmit: (email: string) => Promise<void>;
+  onOTPSubmit: (otp: string) => Promise<void>;
+  onPasswordSubmit: (pw: string, cpw: string) => Promise<void>;
+  onResend: () => Promise<void>;
+  onBack: () => void;
+}) {
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div key={state.step}
+        initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.3 }}>
+        {state.step === 'email' && (
+          <ForgotPasswordForm onSubmit={onEmailSubmit} onBack={onBack}
+            loading={state.loading} error={state.error || undefined} />
+        )}
+        {state.step === 'otp' && (
+          <OTPVerificationForm email={state.email} onSubmit={onOTPSubmit}
+            onBack={onBack} onResend={onResend}
+            loading={state.loading} error={state.error || undefined} />
+        )}
+        {state.step === 'password' && (
+          <NewPasswordForm email={state.email} otp={state.otp}
+            onSubmit={onPasswordSubmit} onBack={onBack}
+            loading={state.loading} error={state.error || undefined} />
+        )}
+        {state.step === 'success' && <SuccessView />}
+      </motion.div>
+    </AnimatePresence>
   );
 }
 

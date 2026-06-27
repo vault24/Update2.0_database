@@ -681,12 +681,12 @@ export function AuthPage() {
         >
           <div className="max-h-[88vh] overflow-y-auto px-9 pt-9 pb-8">
 
-            {/* Cap badge + heading — login only */}
+            {/* Logo + heading — login only */}
             {mode === 'login' && (
               <>
                 <div className="flex justify-center mb-4">
-                  <div className="w-16 h-16 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center">
-                    <GraduationCap className="w-8 h-8 text-blue-600" />
+                  <div className="w-16 h-16 rounded-2xl overflow-hidden bg-white shadow-md border border-gray-100 flex items-center justify-center p-1.5">
+                    <img src="/spi-logo.png" alt="SPI Logo" className="w-full h-full object-contain" />
                   </div>
                 </div>
                 <div className="text-center mb-6">

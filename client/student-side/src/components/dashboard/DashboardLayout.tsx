@@ -142,35 +142,6 @@ export function DashboardLayout() {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Allegation Alert Indicator */}
-            {highestSeverity && studentAllegations.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className={`relative flex items-center gap-2 px-3 py-2 animate-pulse ${severityColors.text}`}
-                onClick={() => navigate('/dashboard/my-allegations')}
-                title="View your allegations"
-              >
-                <motion.div
-                  animate={{ 
-                    scale: [1, 1.2, 1],
-                    opacity: [1, 0.7, 1]
-                  }}
-                  transition={{ 
-                    duration: 1.5, 
-                    repeat: Infinity,
-                    ease: "easeInOut"
-                  }}
-                  className="relative"
-                >
-                  <ShieldAlert className="w-5 h-5" />
-                  <span className={`absolute -top-1 -right-1 w-2 h-2 rounded-full ${severityColors.bg} animate-ping`} />
-                </motion.div>
-                <span className="hidden sm:inline text-sm font-medium">
-                  {studentAllegations.length} Alert{studentAllegations.length > 1 ? 's' : ''}
-                </span>
-              </Button>
-            )}
 
             <Button 
               variant="ghost" 
@@ -191,10 +162,8 @@ export function DashboardLayout() {
             {/* Profile Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className={`relative flex items-center gap-2 px-2 ${highestSeverity ? 'ring-2 ring-offset-2 ring-offset-background ' + severityColors.border : ''}`}>
-                  <div className={highestSeverity ? 'ring-2 ring-offset-2 ring-offset-background ' + severityColors.border + ' rounded-full' : ''}>
-                    <ProfileAvatar size="sm" />
-                  </div>
+                <Button variant="ghost" className="relative flex items-center gap-2 px-2">
+                  <ProfileAvatar size="sm" />
                   <ChevronDown className="w-4 h-4 text-muted-foreground hidden sm:block" />
                 </Button>
               </DropdownMenuTrigger>
@@ -202,9 +171,7 @@ export function DashboardLayout() {
                 {/* Profile Header */}
                 <div className="px-3 py-3 border-b border-border">
                   <div className="flex items-center gap-3">
-                    <div className={highestSeverity ? 'ring-2 ring-offset-2 ring-offset-background ' + severityColors.border + ' rounded-full' : ''}>
-                      <ProfileAvatar size="md" />
-                    </div>
+                    <ProfileAvatar size="md" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{user?.name || 'User'}</p>
                       <p className="text-xs text-muted-foreground truncate">{user?.studentId || user?.email}</p>

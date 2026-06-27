@@ -190,20 +190,6 @@ export function Dashboard() {
     return () => clearInterval(timer);
   }, []);
 
-  // Check if user needs to complete admission
-  useEffect(() => {
-    if (!authLoading && user) {
-      // Redirect to admission if user is student/captain and hasn't completed admission
-      if (
-        (user.role === 'student' || user.role === 'captain') &&
-        (user.admissionStatus === 'not_started' || user.admissionStatus === 'pending')
-      ) {
-        navigate('/dashboard/admission'); // Use absolute path
-        return;
-      }
-    }
-  }, [authLoading, user, navigate]);
-
   // Build schedule from routine data
   const buildSchedule = (routines: ClassRoutine[]) => {
     // Validate and normalize routine data
@@ -283,15 +269,12 @@ export function Dashboard() {
   const fetchDashboardData = async () => {
     // Get profile ID from user or localStorage
     const profileId = user?.relatedProfileId || localStorage.getItem('relatedProfileId');
-    
-    if (!profileId) {
-      if (user?.role === 'teacher') {
-        setError('Teacher profile not found. Please contact administrator.');
-      } else {
-        setError('Student profile not found. Please complete your admission.');
-      }
+
+    // If no valid UUID profile ID, don't attempt API call — show banner instead
+    const isValidUUID = profileId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profileId);
+    if (!isValidUUID) {
       setLoading(false);
-      return;
+      return; // dashboard will show admission banner
     }
 
     try {
@@ -300,15 +283,20 @@ export function Dashboard() {
 
       // Fetch appropriate dashboard data based on user role
       if (user?.role === 'teacher') {
-        const data = await dashboardService.getTeacherStats(profileId);
+        const data = await dashboardService.getTeacherStats(profileId!);
         setDashboardData(data);
       } else {
-        const data = await dashboardService.getStudentStats(profileId);
+        const data = await dashboardService.getStudentStats(profileId!);
         setDashboardData(data);
       }
     } catch (err) {
       const errorMsg = getErrorMessage(err);
       console.error('Dashboard fetch error:', err);
+      // If the error is a UUID validation error (admission not set up), silently skip
+      if (typeof errorMsg === 'string' && errorMsg.toLowerCase().includes('valid uuid')) {
+        setLoading(false);
+        return;
+      }
       setError(errorMsg);
 
       // Don't show toast on initial load, only on retry
@@ -342,6 +330,12 @@ export function Dashboard() {
           }
           
           if (user.relatedProfileId) {
+            // Only fetch if it's a valid UUID (not an integer from pre-admission state)
+            const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.relatedProfileId);
+            if (!isValidUUID) {
+              setProfileLoaded(true);
+              return;
+            }
             const student = await studentService.getStudent(user.relatedProfileId);
             const deptId = typeof student.department === 'string' ? student.department : student.department?.id;
             setProfileDepartment(deptId);
@@ -374,17 +368,12 @@ export function Dashboard() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      // Check if user has relatedProfileId or can get it from localStorage
       const profileId = user.relatedProfileId || localStorage.getItem('relatedProfileId');
-      if (profileId) {
+      const isValidUUID = profileId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profileId);
+      if (isValidUUID) {
         fetchDashboardData();
       } else {
-        if (user.role === 'teacher') {
-          setError('Teacher profile not found. Please contact administrator.');
-        } else {
-          setError('Student profile not found. Please complete your admission.');
-        }
-        setLoading(false);
+        setLoading(false); // show dashboard shell with admission banner
       }
     } else if (!authLoading && !user) {
       setError('User not authenticated');
@@ -404,7 +393,7 @@ export function Dashboard() {
     );
   }
 
-  // Error state
+  // Error state — only for real errors (not admission-related)
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -418,18 +407,14 @@ export function Dashboard() {
     );
   }
 
-  // Empty state
-  if (!dashboardData) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center space-y-4">
-          <p className="text-muted-foreground">No dashboard data available</p>
-        </div>
-      </div>
-    );
-  }
+  // Admission-not-complete state — show full dashboard shell with a banner
+  const admissionIncomplete =
+    !dashboardData &&
+    !error &&
+    (user?.role === 'student' || user?.role === 'captain') &&
+    (user?.admissionStatus === 'not_started' || user?.admissionStatus === 'pending' || !user?.relatedProfileId);
 
-  // Generate stats based on user role
+  // Generate stats based on user role — use placeholders when no data
   const stats = user?.role === 'teacher' && 'teacher' in (dashboardData || {})
     ? [
         {
@@ -461,25 +446,25 @@ export function Dashboard() {
         {
           icon: BookOpen,
           label: 'Classes Taken',
-          value: (dashboardData as StudentDashboardData)?.attendance?.totalClasses?.toString() || '0',
+          value: admissionIncomplete ? '—' : ((dashboardData as StudentDashboardData)?.attendance?.totalClasses?.toString() || '0'),
           color: 'from-violet-500 to-purple-600',
         },
         {
           icon: BarChart3,
           label: 'Attendance',
-          value: `${(dashboardData as StudentDashboardData)?.attendance?.percentage || 0}%`,
+          value: admissionIncomplete ? '—' : `${(dashboardData as StudentDashboardData)?.attendance?.percentage || 0}%`,
           color: 'from-emerald-500 to-teal-600',
         },
         {
           icon: Award,
           label: 'Applications',
-          value: (dashboardData as StudentDashboardData)?.applications?.pending?.toString() || '0',
+          value: admissionIncomplete ? '—' : ((dashboardData as StudentDashboardData)?.applications?.pending?.toString() || '0'),
           color: 'from-orange-500 to-amber-600',
         },
         {
           icon: Users,
           label: 'Semester',
-          value: (dashboardData as StudentDashboardData)?.student?.semester?.toString() || '0',
+          value: admissionIncomplete ? '—' : ((dashboardData as StudentDashboardData)?.student?.semester?.toString() || '0'),
           color: 'from-pink-500 to-rose-600',
         },
       ];
@@ -544,15 +529,43 @@ export function Dashboard() {
   }
 
   // Student Dashboard Layout - Premium Design
-  const studentData = dashboardData as StudentDashboardData;
+  const studentData = admissionIncomplete ? null : (dashboardData as StudentDashboardData);
   const attendancePercentage = studentData?.attendance?.percentage || 0;
   const semester = studentData?.student?.semester || 1;
   const department = studentData?.student?.department || 'Department';
 
+  /* ── admission banner component ── */
+  const AdmissionBanner = () => (
+    <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 px-5 py-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+      <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-amber-400 flex items-center justify-center">
+        <AlertCircle className="w-5 h-5 text-white" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-amber-900 text-sm">
+          {user?.admissionStatus === 'pending'
+            ? 'Admission Under Review'
+            : 'Admission Not Completed'}
+        </p>
+        <p className="text-amber-700 text-xs mt-0.5 leading-relaxed">
+          {user?.admissionStatus === 'pending'
+            ? 'Your admission application is being reviewed by the administration. Data will appear once approved.'
+            : 'Complete your admission form to unlock attendance, marks, class schedule and all academic data.'}
+        </p>
+      </div>
+      <Button size="sm" className="flex-shrink-0 bg-amber-500 hover:bg-amber-600 text-white border-0 rounded-xl"
+        onClick={() => window.location.href = '/dashboard/admission'}>
+        {user?.admissionStatus === 'pending' ? 'View Status' : 'Complete Admission'}
+      </Button>
+    </div>
+  );
+
   return (
     <div className="space-y-5 md:space-y-6 max-w-full overflow-x-hidden pb-8">
+      {/* Admission banner — shown when admission incomplete */}
+      {admissionIncomplete && <AdmissionBanner />}
+
       {/* Premium Welcome Card */}
-      <PremiumWelcomeCard 
+      <PremiumWelcomeCard
         attendancePercentage={attendancePercentage}
         semester={semester}
         department={department}
