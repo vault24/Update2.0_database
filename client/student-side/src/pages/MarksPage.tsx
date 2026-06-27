@@ -10,6 +10,7 @@ import { marksService, type MarksRecord } from '@/services/marksService';
 import { studentService } from '@/services/studentService';
 import { getErrorMessage } from '@/lib/api';
 import { toast } from 'sonner';
+import { AdmissionBanner, useAdmissionIncomplete, useValidProfileId } from '@/components/auth/AdmissionGuard';
 import { useAuth } from '@/contexts/AuthContext';
 
 const semesters = ['1st Semester', '2nd Semester', '3rd Semester', '4th Semester'];
@@ -38,6 +39,8 @@ const getPercentageColor = (percentage: number) => {
 
 export default function MarksPage() {
   const { user, loading: authLoading } = useAuth();
+  const admissionIncomplete = useAdmissionIncomplete();
+  const validProfileId = useValidProfileId();
   const [selectedSemester, setSelectedSemester] = useState(0);
   const [marksData, setMarksData] = useState<SubjectMark[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,17 +48,17 @@ export default function MarksPage() {
   const [semesterResult, setSemesterResult] = useState<any>(null);
 
   useEffect(() => {
-    if (!authLoading && user?.relatedProfileId) {
-      fetchMarks();
-    } else if (!authLoading && !user?.relatedProfileId) {
-      setError('User not authenticated or student profile not found');
-      setLoading(false);
+    if (!authLoading) {
+      if (validProfileId) {
+        fetchMarks();
+      } else {
+        setLoading(false);
+      }
     }
-  }, [selectedSemester, authLoading, user?.relatedProfileId]);
+  }, [selectedSemester, authLoading, validProfileId]);
 
   const fetchMarks = async () => {
-    if (!user?.relatedProfileId) {
-      setError('User not authenticated or student profile not found');
+    if (!validProfileId) {
       setLoading(false);
       return;
     }
@@ -70,7 +73,7 @@ export default function MarksPage() {
       // Fetch from both sources in parallel
       const [marksResponse, studentData] = await Promise.all([
         marksService.getMyMarks({
-          student: user.relatedProfileId,
+          student: validProfileId!,
           semester: semesterNum,
           page_size: 100,
           ordering: 'subject_code'
@@ -78,7 +81,7 @@ export default function MarksPage() {
           console.error('Error fetching marks:', err);
           return { results: [] };
         }),
-        studentService.getStudent(user.relatedProfileId).catch((err) => {
+        studentService.getStudent(validProfileId!).catch((err) => {
           console.error('Error fetching student data:', err);
           return null;
         })
@@ -235,6 +238,46 @@ export default function MarksPage() {
           <Button onClick={fetchMarks}>
             Try Again
           </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Admission not complete — show page shell with banner
+  if (admissionIncomplete) {
+    return (
+      <div className="space-y-4 md:space-y-6 max-w-full overflow-x-hidden">
+        <AdmissionBanner />
+        <div className="opacity-40 pointer-events-none select-none space-y-4 md:space-y-6">
+          {/* Placeholder header */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4">
+            <div>
+              <h1 className="text-xl md:text-2xl lg:text-3xl font-display font-bold">Academic Marks</h1>
+              <p className="text-xs md:text-sm text-muted-foreground mt-0.5 md:mt-1">View your grades and academic performance</p>
+            </div>
+          </div>
+          {/* Placeholder stat cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3 lg:gap-4">
+            {['GPA', 'Average', 'Highest', 'Subjects'].map((label) => (
+              <div key={label} className="bg-card rounded-lg md:rounded-xl lg:rounded-2xl border border-border p-3 lg:p-5 shadow-card">
+                <p className="text-xs text-muted-foreground">{label}</p>
+                <p className="text-2xl font-bold text-muted-foreground">—</p>
+              </div>
+            ))}
+          </div>
+          {/* Placeholder table */}
+          <div className="bg-card rounded-lg md:rounded-xl lg:rounded-2xl border border-border shadow-card overflow-hidden">
+            <div className="p-4 border-b border-border">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-primary" />
+                Internal Assessment & Final Results
+              </h3>
+            </div>
+            <div className="p-8 text-center text-muted-foreground">
+              <BookOpen className="w-10 h-10 mx-auto mb-2 opacity-40" />
+              <p>Complete admission to view your marks</p>
+            </div>
+          </div>
         </div>
       </div>
     );

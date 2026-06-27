@@ -20,9 +20,12 @@ import { admissionService } from '@/services/admissionService';
 import { getErrorMessage } from '@/lib/api';
 import { toast } from 'sonner';
 import { debugAuthState, ensureAuthentication } from '@/utils/authHelper';
+import { AdmissionBanner, useAdmissionIncomplete, useValidProfileId } from '@/components/auth/AdmissionGuard';
 
 export function DocumentsPage() {
   const { user } = useAuth();
+  const admissionIncomplete = useAdmissionIncomplete();
+  const validProfileId = useValidProfileId();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -74,7 +77,11 @@ export function DocumentsPage() {
   }, [selectedDoc, isViewOpen]);
 
   useEffect(() => {
-    if (user?.relatedProfileId) {
+    if (admissionIncomplete) {
+      setLoading(false);
+      return;
+    }
+    if (validProfileId) {
       // Debug authentication state
       debugAuthState();
       
@@ -87,24 +94,26 @@ export function DocumentsPage() {
           setLoading(false);
         }
       });
+    } else {
+      setLoading(false);
     }
-  }, [user?.relatedProfileId]);
+  }, [validProfileId, admissionIncomplete]);
 
   const fetchDocuments = async () => {
-    if (!user?.relatedProfileId) return;
+    if (!validProfileId) return;
     
     try {
       setLoading(true);
       setError(null);
       
-      console.log('Fetching documents for student:', user.relatedProfileId);
+      console.log('Fetching documents for student:', validProfileId);
       console.log('User object:', user);
       
       let mergedDocuments: Document[] = [];
       
       // Try to fetch student documents
       try {
-        const response = await documentService.getMyDocuments(user.relatedProfileId);
+        const response = await documentService.getMyDocuments(validProfileId);
         console.log('Student documents response:', response);
         mergedDocuments = response.documents || [];
       } catch (studentDocsErr: any) {
@@ -244,6 +253,33 @@ export function DocumentsPage() {
         <div className="text-center space-y-4">
           <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
           <p className="text-muted-foreground">Loading documents...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Admission not complete — show page shell with banner
+  if (admissionIncomplete) {
+    return (
+      <div className="space-y-4 md:space-y-6 max-w-full overflow-x-hidden">
+        <AdmissionBanner />
+        <div className="opacity-40 pointer-events-none select-none space-y-4 md:space-y-6">
+          <div className="bg-card rounded-lg md:rounded-xl lg:rounded-2xl border border-border p-4 md:p-6 shadow-card">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl gradient-accent flex items-center justify-center">
+                <FolderOpen className="w-6 h-6 text-primary-foreground" />
+              </div>
+              <div>
+                <h1 className="text-xl md:text-2xl font-display font-bold">My Documents</h1>
+                <p className="text-sm text-muted-foreground">Access and download your academic documents</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-card rounded-lg md:rounded-xl lg:rounded-2xl border border-border p-8 md:p-12 shadow-card text-center">
+            <FolderOpen className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Documents Locked</h3>
+            <p className="text-muted-foreground">Complete your admission to access your documents.</p>
+          </div>
         </div>
       </div>
     );

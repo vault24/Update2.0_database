@@ -17,6 +17,7 @@ import { TeacherScheduleWidget } from '@/components/dashboard/TeacherScheduleWid
 import { TeacherStatsGrid } from '@/components/dashboard/TeacherStatsGrid';
 import { TeacherActivityFeed } from '@/components/dashboard/TeacherActivityFeed';
 import { BarChart3, Users, BookOpen, Award, Loader2, AlertCircle } from 'lucide-react';
+import { AdmissionBanner, useAdmissionIncomplete, useValidProfileId } from '@/components/auth/AdmissionGuard';
 import { dashboardService, type StudentDashboardData, type TeacherDashboardData } from '@/services/dashboardService';
 import { routineService, type ClassRoutine, type DayOfWeek } from '@/services/routineService';
 import { studentService } from '@/services/studentService';
@@ -24,7 +25,6 @@ import { getErrorMessage } from '@/lib/api';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
 
 const days: DayOfWeek[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
 
@@ -41,7 +41,7 @@ type DisplayClassPeriod = {
 
 export function Dashboard() {
   const { user, loading: authLoading } = useAuth();
-  const navigate = useNavigate();
+  const admissionIncomplete = useAdmissionIncomplete();
   const [dashboardData, setDashboardData] = useState<StudentDashboardData | TeacherDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -408,11 +408,6 @@ export function Dashboard() {
   }
 
   // Admission-not-complete state — show full dashboard shell with a banner
-  const admissionIncomplete =
-    !dashboardData &&
-    !error &&
-    (user?.role === 'student' || user?.role === 'captain') &&
-    (user?.admissionStatus === 'not_started' || user?.admissionStatus === 'pending' || !user?.relatedProfileId);
 
   // Generate stats based on user role — use placeholders when no data
   const stats = user?.role === 'teacher' && 'teacher' in (dashboardData || {})
@@ -534,31 +529,6 @@ export function Dashboard() {
   const semester = studentData?.student?.semester || 1;
   const department = studentData?.student?.department || 'Department';
 
-  /* ── admission banner component ── */
-  const AdmissionBanner = () => (
-    <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 px-5 py-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
-      <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-amber-400 flex items-center justify-center">
-        <AlertCircle className="w-5 h-5 text-white" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="font-semibold text-amber-900 text-sm">
-          {user?.admissionStatus === 'pending'
-            ? 'Admission Under Review'
-            : 'Admission Not Completed'}
-        </p>
-        <p className="text-amber-700 text-xs mt-0.5 leading-relaxed">
-          {user?.admissionStatus === 'pending'
-            ? 'Your admission application is being reviewed by the administration. Data will appear once approved.'
-            : 'Complete your admission form to unlock attendance, marks, class schedule and all academic data.'}
-        </p>
-      </div>
-      <Button size="sm" className="flex-shrink-0 bg-amber-500 hover:bg-amber-600 text-white border-0 rounded-xl"
-        onClick={() => window.location.href = '/dashboard/admission'}>
-        {user?.admissionStatus === 'pending' ? 'View Status' : 'Complete Admission'}
-      </Button>
-    </div>
-  );
-
   return (
     <div className="space-y-5 md:space-y-6 max-w-full overflow-x-hidden pb-8">
       {/* Admission banner — shown when admission incomplete */}
@@ -586,6 +556,9 @@ export function Dashboard() {
       {/* Premium Stats Grid */}
       <PremiumStatsGrid stats={stats} />
 
+      {/* Quick Actions */}
+      <PremiumQuickActions />
+
       {/* Two Column Layout - Study Streak & Academic Progress */}
       <div className="grid md:grid-cols-2 gap-4 md:gap-6">
         <StudyStreak />
@@ -593,9 +566,6 @@ export function Dashboard() {
           currentSemester={semester}
         />
       </div>
-
-      {/* Quick Actions */}
-      <PremiumQuickActions />
 
       {/* Main Content Grid */}
       <div className="grid lg:grid-cols-3 gap-4 md:gap-6">

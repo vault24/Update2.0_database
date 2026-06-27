@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { attendanceService, type AttendanceRecord } from '@/services/attendanceService';
 import { studentService } from '@/services/studentService';
+import { AdmissionBanner, useAdmissionIncomplete, useValidProfileId } from '@/components/auth/AdmissionGuard';
 import { getErrorMessage } from '@/lib/api';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
@@ -43,6 +44,8 @@ interface DayAttendance {
 export default function AttendancePage() {
   const { user, loading: authLoading } = useAuth();
   const isMobile = useIsMobile();
+  const admissionIncomplete = useAdmissionIncomplete();
+  const validProfileId = useValidProfileId();
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
@@ -53,14 +56,18 @@ export default function AttendancePage() {
   const [selectedDay, setSelectedDay] = useState<CalendarDay | null>(null);
 
   useEffect(() => {
-    if (!authLoading && user?.relatedProfileId) {
-      fetchAttendance();
+    if (!authLoading) {
+      if (validProfileId) {
+        fetchAttendance();
+      } else {
+        // Admission not complete — don't fetch, just stop loading
+        setLoading(false);
+      }
     }
-  }, [authLoading, user?.relatedProfileId, selectedMonth, selectedYear]);
+  }, [authLoading, validProfileId, selectedMonth, selectedYear]);
 
   const fetchAttendance = async () => {
-    if (!user?.relatedProfileId) {
-      setError('User not authenticated or student profile not found');
+    if (!validProfileId) {
       setLoading(false);
       return;
     }
@@ -69,7 +76,7 @@ export default function AttendancePage() {
       setLoading(true);
       setError(null);
 
-      const studentDataPromise = studentService.getStudent(user.relatedProfileId).catch(() => null);
+      const studentDataPromise = studentService.getStudent(validProfileId!).catch(() => null);
 
       // Fetch all paginated attendance pages so totals do not freeze at page-size limit.
       const allAttendance: AttendanceRecord[] = [];
@@ -78,7 +85,7 @@ export default function AttendancePage() {
 
       while (hasMore) {
         const attendanceResponse = await attendanceService.getMyAttendance({
-          student: user.relatedProfileId,
+          student: validProfileId!,
           page_size: 200,
           page,
           ordering: '-date',
@@ -246,6 +253,51 @@ export default function AttendancePage() {
         <div className="text-center space-y-4">
           <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
           <p className="text-muted-foreground">Loading attendance...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // When admission is incomplete, show page shell with banner and blurred content
+  if (admissionIncomplete) {
+    return (
+      <div className="space-y-5 md:space-y-6 max-w-full overflow-x-hidden pb-6">
+        <AdmissionBanner />
+        <div className="opacity-40 pointer-events-none select-none space-y-5 md:space-y-6">
+          {/* Page Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-display font-bold flex items-center gap-2">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <ClipboardCheck className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                </div>
+                Attendance
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1">Track your class attendance</p>
+            </div>
+          </div>
+          {/* Placeholder stats */}
+          <div className="bg-card rounded-2xl border border-border p-4 sm:p-6 shadow-card">
+            <div className="flex flex-col sm:flex-row items-center gap-5 sm:gap-8">
+              <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex-shrink-0">
+                <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="42" fill="none" stroke="hsl(var(--secondary))" strokeWidth="8" />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-2xl sm:text-3xl font-bold text-muted-foreground">—</span>
+                  <span className="text-[10px] sm:text-xs text-muted-foreground">Overall</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3 sm:gap-5 flex-1 w-full">
+                {['Present', 'Absent', 'Total'].map((label) => (
+                  <div key={label} className="text-center p-3 rounded-xl bg-secondary/30 border border-border">
+                    <p className="text-xl sm:text-2xl font-bold text-muted-foreground">—</p>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">{label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );

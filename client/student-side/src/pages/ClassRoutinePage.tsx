@@ -28,6 +28,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { SwipeableDays } from '@/components/routine/SwipeableDays';
 import { CurrentClassStatus } from '@/components/routine/CurrentClassStatus';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { AdmissionBanner, useAdmissionIncomplete, useValidProfileId } from '@/components/auth/AdmissionGuard';
 
 const days: DayOfWeek[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
 const dayAbbreviations: Record<DayOfWeek, string> = {
@@ -70,6 +71,7 @@ const getSubjectIcon = (subject: string, classType?: 'Theory' | 'Lab') => {
 export default function ClassRoutinePage() {
   const { user, loading: authLoading } = useAuth();
   const isMobile = useIsMobile();
+  const admissionIncomplete = useAdmissionIncomplete();
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
   // Set default view based on screen size
@@ -326,6 +328,12 @@ export default function ClassRoutinePage() {
 
   useEffect(() => {
     if (!authLoading && user) {
+      // Students with incomplete admission: skip profile/routine fetch
+      if (admissionIncomplete && user.role !== 'teacher') {
+        setLoading(false);
+        setProfileLoaded(true);
+        return;
+      }
       const ensureProfile = async () => {
         try {
           if (user.role === 'teacher') {
@@ -483,6 +491,41 @@ export default function ClassRoutinePage() {
   const upcomingClass = getUpcomingClass();
   const isInBreak = isBreakTime();
   const classesCompleted = areClassesCompleted();
+
+  // Admission incomplete — show page shell with banner (students only)
+  if (admissionIncomplete && user?.role !== 'teacher') {
+    return (
+      <div className="space-y-4 pb-6 max-w-full overflow-x-hidden">
+        <AdmissionBanner />
+        <div className="opacity-40 pointer-events-none select-none space-y-4">
+          {/* Placeholder Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-xl font-bold">Class Routine</h1>
+              <p className="text-xs text-muted-foreground">Your weekly schedule</p>
+            </div>
+          </div>
+          {/* Placeholder stats */}
+          <div className="grid grid-cols-3 gap-2">
+            {['Classes', 'Labs', 'Theory'].map((label) => (
+              <div key={label} className="bg-card rounded-xl border border-border p-3 text-center">
+                <div className="w-8 h-8 mx-auto rounded-lg bg-muted flex items-center justify-center mb-1.5">
+                  <BookOpen className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <p className="text-lg font-bold text-muted-foreground">—</p>
+                <p className="text-[10px] text-muted-foreground">{label}</p>
+              </div>
+            ))}
+          </div>
+          {/* Placeholder schedule area */}
+          <div className="bg-card rounded-xl md:rounded-2xl border border-border p-8 text-center">
+            <Calendar className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+            <p className="font-medium text-muted-foreground">Complete admission to see your class schedule</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Loading
   if (loading || isRetrying) {

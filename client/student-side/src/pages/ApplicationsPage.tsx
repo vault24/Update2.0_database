@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import applicationService, { Application } from '@/services/applicationService';
 import { useAuth } from '@/contexts/AuthContext';
 import { studentService } from '@/services/studentService';
+import { AdmissionBanner, useAdmissionIncomplete, useValidProfileId } from '@/components/auth/AdmissionGuard';
 
 const applicationTypes = [
   { id: 'Testimonial', label: 'Testimonial', icon: FileText, description: 'Request character certificate' },
@@ -25,6 +26,8 @@ const applicationTypes = [
 
 export function ApplicationsPage() {
   const { user, loading: authLoading } = useAuth();
+  const admissionIncomplete = useAdmissionIncomplete();
+  const validProfileId = useValidProfileId();
   const [showNewForm, setShowNewForm] = useState(false);
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [subject, setSubject] = useState('');
@@ -37,17 +40,22 @@ export function ApplicationsPage() {
   // Fetch student profile to get rollNumber and registrationNumber
   useEffect(() => {
     const fetchStudentProfile = async () => {
-      if (!authLoading && user?.relatedProfileId) {
-        try {
-          const data = await studentService.getMe(user.relatedProfileId);
-          setStudentData(data);
-        } catch (error) {
-          console.error('Error fetching student profile:', error);
+      if (!authLoading) {
+        if (validProfileId) {
+          try {
+            const data = await studentService.getMe(validProfileId);
+            setStudentData(data);
+          } catch (error) {
+            console.error('Error fetching student profile:', error);
+          }
+        } else {
+          // Admission incomplete — stop loading
+          setLoading(false);
         }
       }
     };
     fetchStudentProfile();
-  }, [authLoading, user?.relatedProfileId]);
+  }, [authLoading, validProfileId, admissionIncomplete]);
 
   const fetchApplications = async () => {
     if (!studentData?.currentRollNumber) {
@@ -139,10 +147,13 @@ export function ApplicationsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Admission banner — shown when admission incomplete */}
+      {admissionIncomplete && <AdmissionBanner />}
+
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col md:flex-row md:items-center md:justify-between gap-4"
+        className={`flex flex-col md:flex-row md:items-center md:justify-between gap-4${admissionIncomplete ? ' opacity-40 pointer-events-none select-none' : ''}`}
       >
         <div>
           <h1 className="text-2xl font-display font-bold">Applications</h1>
@@ -155,7 +166,7 @@ export function ApplicationsPage() {
       </motion.div>
 
       {/* New Application Form */}
-      {showNewForm && (
+      {!admissionIncomplete && showNewForm && (
         <motion.div
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: 'auto' }}
@@ -239,7 +250,7 @@ export function ApplicationsPage() {
       )}
 
       {/* Filter Bar */}
-      <div className="flex flex-col md:flex-row gap-3">
+      <div className={`flex flex-col md:flex-row gap-3${admissionIncomplete ? ' opacity-40 pointer-events-none select-none' : ''}`}>
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input placeholder="Search applications..." className="pl-10" />
@@ -251,7 +262,15 @@ export function ApplicationsPage() {
       </div>
 
       {/* Applications List */}
-      {loading ? (
+      {admissionIncomplete ? (
+        <div className="opacity-40 pointer-events-none select-none">
+          <div className="text-center py-12">
+            <FileText className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="font-semibold mb-1">Applications Locked</h3>
+            <p className="text-sm text-muted-foreground">Complete your admission to submit and view applications</p>
+          </div>
+        </div>
+      ) : loading ? (
         <div className="text-center py-12">
           <p className="text-muted-foreground">Loading applications...</p>
         </div>

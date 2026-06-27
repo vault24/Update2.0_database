@@ -25,12 +25,6 @@ const roleOptions: { value: UserRole; label: string; icon: React.ElementType }[]
   { value: 'teacher', label: 'Teacher', icon: BookOpen },
 ];
 
-const features = [
-  { icon: BookOpen,   title: 'Smart Learning',  desc: 'Access course materials and study resources anytime.' },
-  { icon: BarChart3,  title: 'Track Progress',   desc: 'Monitor your grades and academic performance.' },
-  { icon: Users,      title: 'Stay Connected',   desc: 'Communicate with teachers and classmates.' },
-];
-
 const splideSlides = [
   {
     title: 'Everything at Your Fingertips',
@@ -51,6 +45,60 @@ const splideSlides = [
     bg: '#f9fafe',
   },
 ];
+
+/** Background images for the desktop login page slider */
+const bgImages = ['/cover-image.jpg', '/cover-image1.jpg'];
+
+/* ─── Desktop background slider ────────────────────────────────── */
+function BackgroundSlider() {
+  const [current, setCurrent] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrent((prev) => (prev + 1) % bgImages.length);
+    }, 5000); // slide every 5 seconds
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="absolute inset-0 z-0 overflow-hidden">
+      <AnimatePresence mode="sync">
+        <motion.img
+          key={current}
+          src={bgImages[current]}
+          alt="Campus background"
+          className="absolute inset-0 w-full h-full object-cover"
+          initial={{ opacity: 0, scale: 1.04 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 1.02 }}
+          transition={{ duration: 1.2, ease: 'easeInOut' }}
+        />
+      </AnimatePresence>
+
+      {/* Blue tint overlay — reduced opacity so campus photos show through more */}
+      <div
+        className="absolute inset-0"
+        style={{ background: 'linear-gradient(160deg, rgba(30,58,138,0.45) 0%, rgba(37,99,235,0.3) 45%, rgba(13,33,84,0.4) 100%)' }}
+      />
+
+      {/* Slide indicator dots — bottom-center */}
+      <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2">
+        {bgImages.map((_, i) => (
+          <button
+            key={i}
+            onClick={() => setCurrent(i)}
+            className={cn(
+              'transition-all duration-400 rounded-full',
+              i === current
+                ? 'w-6 h-2.5 bg-white'
+                : 'w-2.5 h-2.5 bg-white/40 hover:bg-white/60'
+            )}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 /* ─── Google SVG ─────────────────────────────────────────────────── */
 function GoogleIcon() {
@@ -599,17 +647,8 @@ export function AuthPage() {
       {/* ══════════ DESKTOP (lg+) ══════════ */}
       <div className="hidden lg:flex min-h-screen relative flex-col items-center justify-center overflow-hidden">
 
-        {/* Background photo — actual campus image */}
-        <div className="absolute inset-0 z-0">
-          <img
-            src="/cover-image.jpg"
-            alt="Sirajganj Polytechnic Institute campus"
-            className="w-full h-full object-cover"
-          />
-          {/* Blue tint + darken so the glass card and white text stay readable */}
-          <div className="absolute inset-0"
-            style={{ background: 'linear-gradient(160deg, rgba(30,58,138,0.55) 0%, rgba(37,99,235,0.4) 45%, rgba(13,33,84,0.6) 100%)' }} />
-        </div>
+        {/* Background slider — cycles through campus photos */}
+        <BackgroundSlider />
 
         {/* Floating dot/shape decorations — faint, don't compete with the photo */}
         <div className="absolute inset-0 z-[1] pointer-events-none overflow-hidden">
@@ -891,7 +930,7 @@ export function AuthPage() {
         </motion.div>
         {/* ── END center card ── */}
 
-        <p className="relative z-10 mt-6 text-xs text-white/70">© 2024 Student Portal. All rights reserved.</p>
+        <p className="relative z-10 mt-6 text-xs text-white/70">© 2026 Student Portal. All rights reserved.</p>
       </div>
     </>
   );
