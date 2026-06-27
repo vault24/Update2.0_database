@@ -1,13 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Shield, ArrowLeft, ArrowRight, RefreshCw } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Shield, ArrowLeft, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
-interface OTPVerificationFormProps {
+interface Props {
   email: string;
   onSubmit: (otp: string) => Promise<void>;
   onBack: () => void;
@@ -16,52 +13,33 @@ interface OTPVerificationFormProps {
   error?: string;
 }
 
-export function OTPVerificationForm({ 
-  email, 
-  onSubmit, 
-  onBack, 
-  onResend, 
-  loading, 
-  error 
-}: OTPVerificationFormProps) {
+export function OTPVerificationForm({ email, onSubmit, onBack, onResend, loading, error }: Props) {
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
-  const [timeRemaining, setTimeRemaining] = useState(600); // 10 minutes
+  const [timeRemaining, setTimeRemaining] = useState(600);
   const [canResend, setCanResend] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => {
+    inputRefs.current[0]?.focus();
     const timer = setInterval(() => {
-      setTimeRemaining((prev) => {
-        if (prev <= 1) {
-          setCanResend(true);
-          return 0;
-        }
+      setTimeRemaining(prev => {
+        if (prev <= 1) { setCanResend(true); return 0; }
         return prev - 1;
       });
     }, 1000);
-
     return () => clearInterval(timer);
   }, []);
 
-  const formatTime = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-  };
+  const formatTime = (s: number) =>
+    `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
 
-  const handleOtpChange = (index: number, value: string) => {
-    if (value.length > 1) return;
-    if (!/^\d*$/.test(value)) return;
-
-    const newOtp = [...otp];
-    newOtp[index] = value;
-    setOtp(newOtp);
-
-    // Auto-focus next input
-    if (value && index < 5) {
-      inputRefs.current[index + 1]?.focus();
-    }
+  const handleChange = (index: number, value: string) => {
+    if (!/^\d?$/.test(value)) return;
+    const next = [...otp];
+    next[index] = value;
+    setOtp(next);
+    if (value && index < 5) inputRefs.current[index + 1]?.focus();
   };
 
   const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
@@ -72,169 +50,119 @@ export function OTPVerificationForm({
 
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
-    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
-    const newOtp = [...otp];
-    
-    for (let i = 0; i < pastedData.length && i < 6; i++) {
-      newOtp[i] = pastedData[i];
-    }
-    
-    setOtp(newOtp);
-    
-    // Focus the next empty input or the last input
-    const nextEmptyIndex = newOtp.findIndex(digit => !digit);
-    const focusIndex = nextEmptyIndex === -1 ? 5 : nextEmptyIndex;
-    inputRefs.current[focusIndex]?.focus();
+    const digits = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    const next = [...otp];
+    for (let i = 0; i < digits.length; i++) next[i] = digits[i];
+    setOtp(next);
+    const focus = next.findIndex(d => !d);
+    inputRefs.current[focus === -1 ? 5 : focus]?.focus();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    const otpString = otp.join('');
-    if (otpString.length !== 6) {
-      toast.error('Please enter the complete 6-digit OTP');
-      return;
-    }
-
-    try {
-      await onSubmit(otpString);
-    } catch (error) {
-      toast.error('Invalid OTP. Please try again.');
-    }
+    const code = otp.join('');
+    if (code.length !== 6) { toast.error('Please enter the complete 6-digit OTP'); return; }
+    try { await onSubmit(code); } catch { /* error via prop */ }
   };
 
   const handleResend = async () => {
     if (!canResend || resendLoading) return;
-    
     setResendLoading(true);
     try {
       await onResend();
-      setTimeRemaining(600);
-      setCanResend(false);
-      setOtp(['', '', '', '', '', '']);
+      setTimeRemaining(600); setCanResend(false); setOtp(['', '', '', '', '', '']);
+      inputRefs.current[0]?.focus();
       toast.success('New OTP sent to your email');
-    } catch (error) {
-      toast.error('Failed to resend OTP. Please try again.');
-    } finally {
-      setResendLoading(false);
-    }
+    } catch { toast.error('Failed to resend OTP. Please try again.'); }
+    finally { setResendLoading(false); }
   };
 
+  const filled = otp.join('').length === 6;
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="space-y-6"
-    >
-      <div className="text-center">
-        <div className="w-16 h-16 mx-auto rounded-full bg-primary/10 flex items-center justify-center mb-4">
-          <Shield className="w-8 h-8 text-primary" />
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col items-center text-center gap-3">
+        <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
+          style={{ background: 'linear-gradient(135deg,#3b6cf7,#2152e3)' }}>
+          <Shield className="w-7 h-7 text-white" />
         </div>
-        <h2 className="text-2xl font-bold mb-2">Enter OTP Code</h2>
-        <p className="text-sm text-muted-foreground">
-          We've sent a 6-digit code to{' '}
-          <span className="font-medium text-foreground">{email}</span>
-        </p>
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">Enter OTP Code</h2>
+          <p className="text-sm text-gray-500 mt-1 leading-relaxed">
+            We sent a 6-digit code to<br />
+            <span className="font-semibold text-gray-700">{email}</span>
+          </p>
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="space-y-2">
-          <Label className="text-sm font-medium text-center block">
-            Enter 6-digit OTP
-          </Label>
-          <div className="flex gap-2 justify-center">
-            {otp.map((digit, index) => (
-              <Input
-                key={index}
-                ref={(el) => (inputRefs.current[index] = el)}
-                type="text"
-                inputMode="numeric"
-                maxLength={1}
-                value={digit}
-                onChange={(e) => handleOtpChange(index, e.target.value)}
-                onKeyDown={(e) => handleKeyDown(index, e)}
-                onPaste={handlePaste}
-                className={cn(
-                  "w-12 h-12 text-center text-lg font-semibold",
-                  "focus:ring-2 focus:ring-primary focus:border-primary"
-                )}
-                disabled={loading}
-              />
-            ))}
-          </div>
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {/* OTP boxes */}
+        <div className="flex gap-2 justify-center">
+          {otp.map((digit, i) => (
+            <input key={i}
+              ref={el => { inputRefs.current[i] = el; }}
+              type="text" inputMode="numeric" maxLength={1} value={digit}
+              onChange={e => handleChange(i, e.target.value)}
+              onKeyDown={e => handleKeyDown(i, e)}
+              onPaste={handlePaste}
+              disabled={loading}
+              className={cn(
+                'w-11 h-12 text-center text-lg font-bold rounded-xl border-2 transition-all duration-200 text-gray-900',
+                'focus:outline-none bg-gray-50',
+                digit
+                  ? 'border-blue-500 bg-blue-50 text-blue-700'
+                  : 'border-gray-200 focus:border-blue-400 focus:bg-white'
+              )}
+            />
+          ))}
         </div>
 
-        <div className="text-center space-y-2">
+        {/* Timer */}
+        <div className="text-center">
           {timeRemaining > 0 ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-gray-500">
               Code expires in{' '}
-              <span className="font-medium text-foreground">
-                {formatTime(timeRemaining)}
-              </span>
+              <span className="font-semibold text-blue-600">{formatTime(timeRemaining)}</span>
             </p>
           ) : (
-            <p className="text-sm text-destructive">
-              OTP has expired. Please request a new one.
-            </p>
+            <p className="text-sm text-red-500 font-medium">OTP expired. Please request a new one.</p>
           )}
-          
-          <div className="flex items-center justify-center gap-1">
-            <span className="text-sm text-muted-foreground">Didn't receive the code?</span>
-            <Button
-              type="button"
-              variant="link"
-              size="sm"
-              onClick={handleResend}
+          <div className="flex items-center justify-center gap-1 mt-1">
+            <span className="text-xs text-gray-400">Didn't receive it?</span>
+            <button type="button" onClick={handleResend}
               disabled={!canResend || resendLoading}
-              className="p-0 h-auto font-medium"
-            >
-              {resendLoading ? (
-                <RefreshCw className="w-4 h-4 animate-spin mr-1" />
-              ) : null}
+              className={cn('text-xs font-semibold ml-1 flex items-center gap-1',
+                canResend ? 'text-blue-600 hover:underline' : 'text-gray-300 cursor-not-allowed')}>
+              {resendLoading && <RefreshCw className="w-3 h-3 animate-spin" />}
               Resend
-            </Button>
+            </button>
           </div>
         </div>
 
+        {/* Error */}
         {error && (
-          <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
-            <p className="text-sm text-destructive text-center">{error}</p>
+          <div className="p-3 rounded-xl bg-red-50 border border-red-200">
+            <p className="text-sm text-red-600 text-center">{error}</p>
           </div>
         )}
 
-        <div className="space-y-3">
-          <Button
-            type="submit"
-            size="lg"
-            className="w-full h-12 gradient-primary text-white font-medium shadow-lg hover:shadow-xl transition-all duration-300 group"
-            disabled={loading || otp.join('').length !== 6}
-          >
-            {loading ? (
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                className="w-5 h-5 border-2 border-white border-t-transparent rounded-full"
-              />
-            ) : (
-              <span className="flex items-center gap-2">
-                Verify OTP
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </span>
-            )}
-          </Button>
+        {/* Verify button */}
+        <motion.button type="submit" disabled={loading || !filled} whileTap={{ scale: 0.97 }}
+          className="w-full h-12 rounded-2xl text-white font-semibold text-sm flex items-center justify-center gap-2 shadow-lg disabled:opacity-50"
+          style={{ background: 'linear-gradient(135deg,#3b6cf7,#2152e3)', boxShadow: '0 6px 20px rgba(59,108,247,0.3)' }}>
+          {loading
+            ? <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                className="w-5 h-5 border-2 border-white border-t-transparent rounded-full" />
+            : 'Verify OTP'}
+        </motion.button>
 
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onBack}
-            className="w-full"
-            disabled={loading}
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back
-          </Button>
-        </div>
+        {/* Back */}
+        <button type="button" onClick={onBack}
+          className="w-full h-11 rounded-2xl border-2 border-gray-200 text-gray-600 font-semibold text-sm flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors">
+          <ArrowLeft className="w-4 h-4" /> Back
+        </button>
       </form>
-    </motion.div>
+    </div>
   );
 }

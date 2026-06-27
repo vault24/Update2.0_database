@@ -36,16 +36,19 @@ const splideSlides = [
     title: 'Everything at Your Fingertips',
     desc: 'Stay updated with class schedules, assignments, announcements, and important notifications—all in one place.',
     image: '/student-illustration.png',
+    bg: '#ffffff',
   },
   {
     title: 'Learn. Practice. Succeed.',
     desc: 'Access study materials, track your academic progress, and improve your performance every day.',
     image: '/student-illustration2.png',
+    bg: '#ffffff',
   },
   {
     title: 'Your Journey Starts Here',
     desc: 'Build your skills, achieve your goals, and move confidently toward a successful academic future.',
     image: '/student-illustration3.png',
+    bg: '#f9fafe',
   },
 ];
 
@@ -100,32 +103,48 @@ function MobileSplash({ onStart, onLogin }: { onStart: () => void; onLogin: () =
   }, []);
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#ffffff' }}>
+    <motion.div
+      className="min-h-screen flex flex-col"
+      animate={{ backgroundColor: splideSlides[slide].bg }}
+      transition={{ duration: 0.35, ease: 'easeOut' }}
+    >
 
-      {/* ── Top illustration area — clean white, no gradient blob ── */}
-      <div className="flex-[1.1] relative flex flex-col items-center justify-center px-8 pt-12 pb-6 overflow-hidden">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={slide}
-            initial={{ opacity: 0, y: 18, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -12, scale: 0.97 }}
-            transition={{ duration: 0.4, ease: 'easeOut' }}
-            className="relative z-10 w-full flex items-center justify-center"
-            style={{ maxWidth: '320px' }}
-          >
-            <img
-              src={splideSlides[slide].image}
-              alt={splideSlides[slide].title}
-              className="w-full h-auto object-contain"
-              style={{ maxHeight: '300px' }}
-            />
-          </motion.div>
-        </AnimatePresence>
+      {/* ── Top illustration area — fixed-size stage so it never resizes/jumps between slides ── */}
+      <div className="flex-[0.7] relative flex flex-col items-center justify-center px-6 pt-6 pb-3 overflow-hidden">
+        <div
+          className="relative flex items-center justify-center"
+          style={{
+            width: '100%',
+            maxWidth: '320px',
+            height: '260px',
+          }}
+        >
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={slide}
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.97 }}
+              transition={{ duration: 0.35, ease: 'easeOut' }}
+              className="absolute inset-0 flex items-center justify-center p-5"
+            >
+              <img
+                src={splideSlides[slide].image}
+                alt={splideSlides[slide].title}
+                className="w-full h-full object-contain"
+                draggable={false}
+              />
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </div>
 
       {/* ── Bottom content area ── */}
-      <div className="px-8 pt-2 pb-10 flex flex-col items-center bg-white">
+      <motion.div
+        className="px-8 pt-1 pb-8 flex flex-col items-center"
+        animate={{ backgroundColor: splideSlides[slide].bg }}
+        transition={{ duration: 0.35, ease: 'easeOut' }}
+      >
 
         {/* Slide text */}
         <AnimatePresence mode="wait">
@@ -135,9 +154,9 @@ function MobileSplash({ onStart, onLogin }: { onStart: () => void; onLogin: () =
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.32 }}
-            className="text-center mb-6 w-full"
+            className="text-center mb-4 w-full"
           >
-            <h2 className="text-[22px] font-bold text-gray-900 mb-2.5 leading-snug">
+            <h2 className="text-xl font-bold text-gray-900 mb-2 leading-snug">
               {splideSlides[slide].title}
             </h2>
             <p className="text-sm text-gray-500 leading-relaxed px-2">
@@ -147,7 +166,7 @@ function MobileSplash({ onStart, onLogin }: { onStart: () => void; onLogin: () =
         </AnimatePresence>
 
         {/* Dots */}
-        <div className="flex items-center gap-2 mb-7">
+        <div className="flex items-center gap-2 mb-5">
           {splideSlides.map((_, i) => (
             <button
               key={i}
@@ -185,8 +204,8 @@ function MobileSplash({ onStart, onLogin }: { onStart: () => void; onLogin: () =
             Login
           </button>
         </p>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -316,14 +335,14 @@ function MobileAuthForm({
                   {/* Full Name */}
                   <div className="relative">
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <Input placeholder="Full Name" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors"
+                    <Input placeholder="Full Name" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400"
                       value={formData.fullName} onChange={(e) => setFormData({ ...formData, fullName: e.target.value })} required />
                   </div>
 
                   {/* Mobile */}
                   <div className="relative">
                     <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <Input type="tel" placeholder="Mobile Number" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors"
+                    <Input type="tel" placeholder="Mobile Number" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400"
                       value={formData.mobile} onChange={(e) => setFormData({ ...formData, mobile: e.target.value })} required />
                   </div>
 
@@ -331,7 +350,7 @@ function MobileAuthForm({
                   {(selectedRole === 'student' || selectedRole === 'captain') && (
                     <div className="relative">
                       <GraduationCap className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <Input placeholder="SSC Board Roll" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors"
+                      <Input placeholder="SSC Board Roll" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400"
                         value={formData.sscBoardRoll} onChange={(e) => setFormData({ ...formData, sscBoardRoll: e.target.value })} required />
                     </div>
                   )}
@@ -339,7 +358,7 @@ function MobileAuthForm({
                   {/* Email */}
                   <div className="relative">
                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <Input type="email" placeholder="Email Address" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors"
+                    <Input type="email" placeholder="Email Address" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400"
                       value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required />
                   </div>
 
@@ -348,18 +367,18 @@ function MobileAuthForm({
                     <>
                       <div className="relative">
                         <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <Input placeholder="Full Name (Bangla)" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors"
+                        <Input placeholder="Full Name (Bangla)" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400"
                           value={formData.fullNameBangla} onChange={(e) => setFormData({ ...formData, fullNameBangla: e.target.value })} required />
                       </div>
                       <div className="relative">
                         <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <Input placeholder="Designation" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors"
+                        <Input placeholder="Designation" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400"
                           value={formData.designation} onChange={(e) => setFormData({ ...formData, designation: e.target.value })} required />
                       </div>
                       <div className="relative">
                         <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
                         <Select value={formData.department} onValueChange={(v) => setFormData({ ...formData, department: v })}>
-                          <SelectTrigger className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors">
+                          <SelectTrigger className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400">
                             <SelectValue placeholder="Select department" />
                           </SelectTrigger>
                           <SelectContent>
@@ -370,7 +389,7 @@ function MobileAuthForm({
                       <div className="flex gap-2">
                         <div className="relative flex-1">
                           <Award className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <Input placeholder="Qualification (press Enter)" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors"
+                          <Input placeholder="Qualification (press Enter)" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400"
                             value={qualificationInput} onChange={(e) => setQualificationInput(e.target.value)}
                             onKeyDown={(e) => { if (e.key === 'Enter' && qualificationInput.trim()) { e.preventDefault(); setFormData({ ...formData, qualifications: [...formData.qualifications, qualificationInput.trim()] }); setQualificationInput(''); }}} />
                         </div>
@@ -388,7 +407,7 @@ function MobileAuthForm({
                       )}
                       <div className="relative">
                         <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <Input placeholder="Office Location" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors"
+                        <Input placeholder="Office Location" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400"
                           value={formData.officeLocation} onChange={(e) => setFormData({ ...formData, officeLocation: e.target.value })} />
                       </div>
                     </>
@@ -400,7 +419,7 @@ function MobileAuthForm({
               {mode === 'login' && (
                 <div className="relative">
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <Input placeholder="Email Address" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors"
+                  <Input placeholder="Email Address" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400"
                     value={formData.studentId} onChange={(e) => setFormData({ ...formData, studentId: e.target.value })} required />
                 </div>
               )}
@@ -409,7 +428,7 @@ function MobileAuthForm({
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <Input type={showPassword ? 'text' : 'password'} placeholder="Password"
-                  className="pl-11 pr-12 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors"
+                  className="pl-11 pr-12 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400"
                   value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required />
                 <button type="button" onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
