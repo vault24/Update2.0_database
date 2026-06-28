@@ -6,6 +6,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.db import IntegrityError
 from django.db.models import Count, Q
 from django.utils import timezone
+from django.conf import settings
 from .models import AttendanceRecord
 from .serializers import (
     AttendanceRecordSerializer, 
@@ -244,7 +245,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 traceback.print_exc()
                 errors.append({
                     'student': str(record_data.get('student', '')),
-                    'error': str(e)
+                    'error': str(e) if settings.DEBUG else None
                 })
         
         # Send notifications to students

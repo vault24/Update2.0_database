@@ -9,6 +9,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import OrderingFilter
 from django.db.models import Q
 from django.db import transaction
+from django.conf import settings
 
 from .models import ClassRoutine
 from .serializers import (
@@ -335,7 +336,7 @@ class ClassRoutineViewSet(viewsets.ModelViewSet):
                 errors.append({
                     'operation_index': i,
                     'operation': operation,
-                    'error': str(e),
+                    'error': str(e) if settings.DEBUG else None,
                     'id': str(routine_id) if routine_id else None
                 })
         

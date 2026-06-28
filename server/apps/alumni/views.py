@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Count
+from django.conf import settings
 from .models import Alumni
 from .serializers import (
     AlumniSerializer,
@@ -539,7 +540,7 @@ class AlumniViewSet(viewsets.ModelViewSet):
             return Response(
                 {
                     'error': 'Error retrieving profile',
-                    'details': str(e)
+                    'details': str(e) if settings.DEBUG else None
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
@@ -625,7 +626,7 @@ class AlumniViewSet(viewsets.ModelViewSet):
             return Response(
                 {
                     'error': 'Error updating profile',
-                    'details': str(e)
+                    'details': str(e) if settings.DEBUG else None
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
@@ -664,7 +665,7 @@ class AlumniViewSet(viewsets.ModelViewSet):
             
         except ValueError as e:
             return Response(
-                {'error': str(e)},
+                {'error': str(e) if settings.DEBUG else None},
                 status=status.HTTP_404_NOT_FOUND
             )
         except Alumni.DoesNotExist:
@@ -699,7 +700,7 @@ class AlumniViewSet(viewsets.ModelViewSet):
             
         except ValueError as e:
             return Response(
-                {'error': str(e)},
+                {'error': str(e) if settings.DEBUG else None},
                 status=status.HTTP_404_NOT_FOUND
             )
         except Alumni.DoesNotExist:
@@ -732,7 +733,7 @@ class AlumniViewSet(viewsets.ModelViewSet):
             
         except ValueError as e:
             return Response(
-                {'error': str(e)},
+                {'error': str(e) if settings.DEBUG else None},
                 status=status.HTTP_404_NOT_FOUND
             )
         except Alumni.DoesNotExist:
@@ -770,7 +771,7 @@ class AlumniViewSet(viewsets.ModelViewSet):
             
         except ValueError as e:
             return Response(
-                {'error': str(e)},
+                {'error': str(e) if settings.DEBUG else None},
                 status=status.HTTP_404_NOT_FOUND
             )
         except Alumni.DoesNotExist:
@@ -805,7 +806,7 @@ class AlumniViewSet(viewsets.ModelViewSet):
             
         except ValueError as e:
             return Response(
-                {'error': str(e)},
+                {'error': str(e) if settings.DEBUG else None},
                 status=status.HTTP_404_NOT_FOUND
             )
         except Alumni.DoesNotExist:
@@ -843,7 +844,7 @@ class AlumniViewSet(viewsets.ModelViewSet):
             
         except ValueError as e:
             return Response(
-                {'error': str(e)},
+                {'error': str(e) if settings.DEBUG else None},
                 status=status.HTTP_404_NOT_FOUND
             )
         except Alumni.DoesNotExist:
@@ -883,7 +884,7 @@ class AlumniViewSet(viewsets.ModelViewSet):
             
         except ValueError as e:
             return Response(
-                {'error': str(e)},
+                {'error': str(e) if settings.DEBUG else None},
                 status=status.HTTP_404_NOT_FOUND
             )
         except Alumni.DoesNotExist:
@@ -918,7 +919,7 @@ class AlumniViewSet(viewsets.ModelViewSet):
             
         except ValueError as e:
             return Response(
-                {'error': str(e)},
+                {'error': str(e) if settings.DEBUG else None},
                 status=status.HTTP_404_NOT_FOUND
             )
         except Alumni.DoesNotExist:
@@ -951,7 +952,7 @@ class AlumniViewSet(viewsets.ModelViewSet):
             
         except ValueError as e:
             return Response(
-                {'error': str(e)},
+                {'error': str(e) if settings.DEBUG else None},
                 status=status.HTTP_404_NOT_FOUND
             )
         except Alumni.DoesNotExist:
@@ -991,7 +992,7 @@ class AlumniViewSet(viewsets.ModelViewSet):
             
         except ValueError as e:
             return Response(
-                {'error': str(e)},
+                {'error': str(e) if settings.DEBUG else None},
                 status=status.HTTP_404_NOT_FOUND
             )
         except Alumni.DoesNotExist:
@@ -1026,7 +1027,7 @@ class AlumniViewSet(viewsets.ModelViewSet):
             
         except ValueError as e:
             return Response(
-                {'error': str(e)},
+                {'error': str(e) if settings.DEBUG else None},
                 status=status.HTTP_404_NOT_FOUND
             )
         except Alumni.DoesNotExist:
@@ -1059,7 +1060,7 @@ class AlumniViewSet(viewsets.ModelViewSet):
             
         except ValueError as e:
             return Response(
-                {'error': str(e)},
+                {'error': str(e) if settings.DEBUG else None},
                 status=status.HTTP_404_NOT_FOUND
             )
         except Alumni.DoesNotExist:

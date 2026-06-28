@@ -153,29 +153,26 @@ class LoginSerializer(serializers.Serializer):
             raise serializers.ValidationError('Username and password are required')
         
         # Try to authenticate user
-        from django.contrib.auth import authenticate, get_user_model
+        from django.contrib.auth import get_user_model
+        from django.db.models import Q
         User = get_user_model()
-        
-        # Try to find user by email or username
-        user = None
-        try:
-            # First try by email
-            if '@' in username:
-                user = User.objects.get(email=username)
-            else:
-                # Then try by username
-                user = User.objects.get(username=username)
-        except User.DoesNotExist:
+
+        # Find all candidate accounts matching the username or email. There may
+        # be more than one user sharing an email (data is not strictly unique),
+        # so we authenticate against each candidate instead of assuming one.
+        candidates = list(
+            User.objects.filter(Q(username=username) | Q(email__iexact=username))
+        )
+
+        user = next((u for u in candidates if u.check_password(password)), None)
+
+        if user is None:
             raise serializers.ValidationError('Invalid credentials')
-        
-        # Check if user can login
+
+        # Check if the matched user can login
         if not user.can_login():
             raise serializers.ValidationError(user.get_login_error_message())
-        
-        # Verify password
-        if not user.check_password(password):
-            raise serializers.ValidationError('Invalid credentials')
-        
+
         attrs['user'] = user
         return attrs
 

@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from django.utils import timezone
+from django.conf import settings
 from django.db import transaction
 from .models import TeacherSignupRequest, TeacherRequest
 
@@ -185,7 +186,7 @@ class TeacherSignupRequestViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({
                 'error': 'Failed to create teacher profile',
-                'details': str(e)
+                'details': str(e) if settings.DEBUG else None
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['post'])
@@ -253,7 +254,7 @@ class TeacherSignupRequestViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({
                 'error': 'Failed to reject teacher signup request',
-                'details': str(e)
+                'details': str(e) if settings.DEBUG else None
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 

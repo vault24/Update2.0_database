@@ -10,6 +10,34 @@ import logging
 from .models import OTPToken, PasswordResetAttempt
 User = get_user_model()
 logger = logging.getLogger(__name__)
+
+
+def get_user_by_email(email, roles=None):
+    """
+    Resilient user lookup by email.
+
+    The User table does not enforce unique emails, so `User.objects.get(email=...)`
+    can raise MultipleObjectsReturned (e.g. the same person has a student *and* an
+    admin account). This returns a single best-match user (optionally scoped to
+    the given roles) and raises User.DoesNotExist when there is no match — so
+    callers using `except User.DoesNotExist` keep working.
+    """
+    qs = User.objects.filter(email__iexact=(email or '').strip())
+    if roles:
+        scoped = qs.filter(role__in=roles)
+        if scoped.exists():
+            qs = scoped
+    user = qs.order_by('-is_active', '-last_login', '-date_joined').first()
+    if user is None:
+        raise User.DoesNotExist
+    return user
+
+
+# Roles used to disambiguate password-reset lookups per portal.
+STUDENT_RESET_ROLES = ['student', 'captain']
+ADMIN_RESET_ROLES = ['registrar', 'department_head', 'institute_head', 'teacher']
+
+
 class EmailService:
     @staticmethod
     def send_otp_email(user, otp):
@@ -79,8 +107,12 @@ class OTPService:
         each wrong guess increments the counter on the latest token.
         """
         try:
-            user = User.objects.get(email=email)
-            otp_token = OTPToken.objects.filter(user=user, is_used=False).order_by('-created_at').first()
+            # Look up the token by the owner's email directly. This avoids
+            # User.objects.get() (which can fail when an email is shared) and
+            # naturally picks the most recent reset request for that email.
+            otp_token = OTPToken.objects.filter(
+                user__email__iexact=(email or '').strip(), is_used=False
+            ).order_by('-created_at').first()
             if not otp_token:
                 return False, "Invalid OTP code"
             if otp_token.is_expired():
@@ -99,14 +131,14 @@ class OTPService:
         OTPToken.objects.filter(user=user, is_used=False).update(is_used=True)
     @staticmethod
     def mark_otp_as_used(email, token):
-        try:
-            user = User.objects.get(email=email)
-            otp_token = OTPToken.objects.filter(user=user, token=token, is_used=False).order_by('-created_at').first()
-            if otp_token:
-                otp_token.mark_as_used()
-                return True
-        except User.DoesNotExist:
-            pass
+        otp_token = OTPToken.objects.filter(
+            user__email__iexact=(email or '').strip(),
+            token=str(token).strip(),
+            is_used=False,
+        ).order_by('-created_at').first()
+        if otp_token:
+            otp_token.mark_as_used()
+            return True
         return False
 class RateLimitService:
     @staticmethod

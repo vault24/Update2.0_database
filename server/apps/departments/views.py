@@ -5,6 +5,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import ProtectedError
+from django.conf import settings
 from .models import Department
 from .serializers import DepartmentSerializer, DepartmentListSerializer
 
@@ -39,7 +40,7 @@ class DepartmentViewSet(viewsets.ModelViewSet):
             logger = logging.getLogger(__name__)
             logger.error(f"Error creating department: {str(e)}", exc_info=True)
             return Response(
-                {'error': 'Failed to create department', 'detail': str(e)},
+                {'error': 'Failed to create department', 'detail': str(e) if settings.DEBUG else None},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -52,7 +53,7 @@ class DepartmentViewSet(viewsets.ModelViewSet):
             logger = logging.getLogger(__name__)
             logger.error(f"Error updating department: {str(e)}", exc_info=True)
             return Response(
-                {'error': 'Failed to update department', 'detail': str(e)},
+                {'error': 'Failed to update department', 'detail': str(e) if settings.DEBUG else None},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -123,7 +124,7 @@ class DepartmentViewSet(viewsets.ModelViewSet):
             return Response(
                 {
                     'error': 'Failed to delete department',
-                    'detail': str(e)
+                    'detail': str(e) if settings.DEBUG else None
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

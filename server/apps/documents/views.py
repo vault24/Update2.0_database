@@ -11,6 +11,7 @@ from django.http import FileResponse, Http404
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
+from django.conf import settings
 import os
 import logging
 
@@ -158,7 +159,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 
         except ValidationError as e:
             return Response(
-                {'error': 'Validation failed', 'details': str(e)},
+                {'error': 'Validation failed', 'details': str(e) if settings.DEBUG else None},
                 status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
@@ -216,7 +217,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 error_message=str(e)
             )
             return Response(
-                {'error': 'Deletion failed', 'details': str(e)},
+                {'error': 'Deletion failed', 'details': str(e) if settings.DEBUG else None},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
@@ -325,7 +326,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 error_message=str(e)
             )
             return Response(
-                {'error': 'Download failed', 'details': str(e)},
+                {'error': 'Download failed', 'details': str(e) if settings.DEBUG else None},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
@@ -438,7 +439,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 error_message=str(e)
             )
             return Response(
-                {'error': 'Preview failed', 'details': str(e)},
+                {'error': 'Preview failed', 'details': str(e) if settings.DEBUG else None},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -748,7 +749,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"Batch upload transaction failed: {str(e)}")
             return Response(
-                {'error': 'Batch upload failed', 'details': str(e)},
+                {'error': 'Batch upload failed', 'details': str(e) if settings.DEBUG else None},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         
@@ -870,7 +871,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"Error fetching student documents: {str(e)}")
             return Response(
-                {'error': 'Failed to fetch documents', 'details': str(e)},
+                {'error': 'Failed to fetch documents', 'details': str(e) if settings.DEBUG else None},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 

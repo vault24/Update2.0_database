@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from django.utils import timezone
+from django.conf import settings
 from apps.authentication.permissions import IsAdminRole
 from .models import Admission
 from .serializers import (
@@ -386,7 +387,7 @@ class AdmissionViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({
                 'error': 'Failed to create student profile',
-                'details': str(e)
+                'details': str(e) if settings.DEBUG else None
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['post'])
@@ -597,5 +598,5 @@ class AdmissionViewSet(viewsets.ModelViewSet):
             logger.exception(f"Unexpected error in upload_documents: {str(e)}")
             return Response({
                 'error': 'Unexpected error',
-                'details': str(e)
+                'details': str(e) if settings.DEBUG else None
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

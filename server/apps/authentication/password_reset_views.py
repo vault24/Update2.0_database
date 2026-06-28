@@ -20,7 +20,10 @@ from .serializers import (
     OTPVerificationResponseSerializer,
     PasswordResetConfirmResponseSerializer
 )
-from .services import OTPService, EmailService, RateLimitService, SecurityService
+from .services import (
+    OTPService, EmailService, RateLimitService, SecurityService,
+    get_user_by_email, STUDENT_RESET_ROLES, ADMIN_RESET_ROLES,
+)
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -58,7 +61,7 @@ def student_password_reset_request(request):
     
     try:
         # Check if user exists and is a student
-        user = User.objects.get(email=email)
+        user = get_user_by_email(email, roles=STUDENT_RESET_ROLES)
         
         if not user.is_student_or_captain():
             # Log security event but return generic message
@@ -130,7 +133,7 @@ def student_otp_verification(request):
     
     try:
         # Verify user exists and is a student
-        user = User.objects.get(email=email)
+        user = get_user_by_email(email, roles=STUDENT_RESET_ROLES)
         
         if not user.is_student_or_captain():
             logger.warning(f"OTP verification attempted for non-student user: {email} from {ip_address}")
@@ -197,7 +200,7 @@ def student_password_reset_confirm(request):
     
     try:
         # Verify user exists and is a student
-        user = User.objects.get(email=email)
+        user = get_user_by_email(email, roles=STUDENT_RESET_ROLES)
         
         if not user.is_student_or_captain():
             logger.warning(f"Password reset confirmation attempted for non-student user: {email} from {ip_address}")
@@ -290,7 +293,7 @@ def admin_password_reset_request(request):
     
     try:
         # Check if user exists and is an admin
-        user = User.objects.get(email=email)
+        user = get_user_by_email(email, roles=ADMIN_RESET_ROLES)
         
         if not user.is_admin() and not user.is_teacher():
             # Log security event but return generic message
@@ -362,7 +365,7 @@ def admin_otp_verification(request):
     
     try:
         # Verify user exists and is an admin
-        user = User.objects.get(email=email)
+        user = get_user_by_email(email, roles=ADMIN_RESET_ROLES)
         
         if not user.is_admin() and not user.is_teacher():
             logger.warning(f"Admin OTP verification attempted for non-admin user: {email} from {ip_address}")
@@ -426,7 +429,7 @@ def admin_password_reset_confirm(request):
     
     try:
         # Verify user exists and is an admin
-        user = User.objects.get(email=email)
+        user = get_user_by_email(email, roles=ADMIN_RESET_ROLES)
         
         if not user.is_admin() and not user.is_teacher():
             logger.warning(f"Admin password reset confirmation attempted for non-admin user: {email} from {ip_address}")

@@ -6,6 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
 from django.db.models import Sum, Count
+from django.conf import settings
 from .search import DocumentSearch
 from utils.duplicate_detector import duplicate_detector
 
@@ -92,7 +93,7 @@ def get_stats(self, request):
         dup_stats = duplicate_detector.get_duplicate_stats()
         stats['duplicates'] = dup_stats
     except Exception as e:
-        stats['duplicates'] = {'error': str(e)}
+        stats['duplicates'] = {'error': str(e) if settings.DEBUG else None}
     
     return Response(stats)
 

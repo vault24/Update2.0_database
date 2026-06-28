@@ -16,6 +16,7 @@ from apps.attendance.models import AttendanceRecord
 from apps.marks.models import MarksRecord
 from apps.class_routines.models import ClassRoutine
 from uuid import UUID
+from django.conf import settings
 
 User = get_user_model()
 
@@ -146,7 +147,7 @@ class DashboardStatsView(APIView):
             import traceback
             traceback.print_exc()
             return Response(
-                {'error': str(e)},
+                {'error': str(e) if settings.DEBUG else None},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -199,7 +200,7 @@ class AdminDashboardView(APIView):
             return Response(data, status=status.HTTP_200_OK)
         except Exception as e:
             return Response(
-                {'error': str(e)},
+                {'error': str(e) if settings.DEBUG else None},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -445,7 +446,7 @@ class StudentDashboardView(APIView):
             import traceback
             traceback.print_exc()
             return Response(
-                {'error': str(e)},
+                {'error': str(e) if settings.DEBUG else None},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -551,7 +552,7 @@ class TeacherDashboardView(APIView):
             )
         except Exception as e:
             return Response(
-                {'error': str(e)},
+                {'error': str(e) if settings.DEBUG else None},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -745,6 +746,6 @@ class AnalyticsView(APIView):
             import traceback
             traceback.print_exc()
             return Response(
-                {'error': str(e)},
+                {'error': str(e) if settings.DEBUG else None},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

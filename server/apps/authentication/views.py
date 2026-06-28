@@ -51,7 +51,7 @@ def csrf_token_view(request):
         return Response(
             {
                 'error': 'Failed to get CSRF token',
-                'details': str(e),
+                'details': str(e) if settings.DEBUG else None,
                 'traceback': traceback.format_exc() if settings.DEBUG else None
             },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -141,7 +141,7 @@ def register_view(request):
             return Response(
                 {
                     'error': 'Registration failed',
-                    'details': str(e)
+                    'details': str(e) if settings.DEBUG else None
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
@@ -212,7 +212,7 @@ def login_view(request):
         return Response(
             {
                 'error': 'Login failed',
-                'details': str(e),
+                'details': str(e) if settings.DEBUG else None,
                 'traceback': traceback.format_exc() if settings.DEBUG else None
             },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -277,7 +277,7 @@ def me_view(request):
         return Response(
             {
                 'error': 'Failed to get user profile',
-                'details': str(e),
+                'details': str(e) if settings.DEBUG else None,
                 'traceback': traceback.format_exc() if settings.DEBUG else None
             },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -477,7 +477,7 @@ def create_signup_request_view(request):
         return Response(
             {
                 'error': 'Failed to create signup request',
-                'details': str(e),
+                'details': str(e) if settings.DEBUG else None,
                 'traceback': traceback.format_exc() if settings.DEBUG else None
             },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -794,7 +794,7 @@ def check_signup_request_status_view(request, username):
         return Response(
             {
                 'error': 'Failed to check signup request status',
-                'details': str(e),
+                'details': str(e) if settings.DEBUG else None,
                 'traceback': traceback.format_exc() if settings.DEBUG else None
             },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR

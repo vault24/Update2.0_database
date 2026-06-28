@@ -6,6 +6,7 @@ from django.db.models import Count, Q, Case, When, IntegerField, Prefetch
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
 from django.core.cache import cache
+from django.conf import settings
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from django.views.decorators.vary import vary_on_headers
@@ -425,7 +426,7 @@ def notice_engagement_summary(request):
         
     except Exception as e:
         return Response(
-            {'error': 'Failed to calculate engagement summary', 'details': str(e)},
+            {'error': 'Failed to calculate engagement summary', 'details': str(e) if settings.DEBUG else None},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
@@ -487,6 +488,6 @@ def bulk_mark_as_read(request):
         
     except Exception as e:
         return Response(
-            {'error': 'Failed to mark notices as read', 'details': str(e)},
+            {'error': 'Failed to mark notices as read', 'details': str(e) if settings.DEBUG else None},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )

@@ -6,6 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q
+from django.conf import settings
 from .models import Student
 from .serializers import (
     StudentListSerializer,
@@ -326,7 +327,7 @@ class StudentViewSet(viewsets.ModelViewSet):
             
         except Exception as e:
             return Response(
-                {'error': 'Failed to upload photo', 'details': str(e)},
+                {'error': 'Failed to upload photo', 'details': str(e) if settings.DEBUG else None},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
@@ -409,7 +410,7 @@ class StudentViewSet(viewsets.ModelViewSet):
             
         except Exception as e:
             return Response(
-                {'error': 'Failed to create alumni record', 'details': str(e)},
+                {'error': 'Failed to create alumni record', 'details': str(e) if settings.DEBUG else None},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
