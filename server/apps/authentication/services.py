@@ -13,24 +13,48 @@ logger = logging.getLogger(__name__)
 class EmailService:
     @staticmethod
     def send_otp_email(user, otp):
+        """Send a branded password-reset OTP email (works for both portals)."""
         try:
-            subject = 'Password Reset OTP - SIPI Management System'
-            html_message = f'''
-            <h2>Password Reset OTP</h2>
-            <p>Hello {user.first_name or user.username},</p>
-            <p>Your OTP code is: <strong>{otp}</strong></p>
-            <p>This code expires in 10 minutes.</p>
-            '''
-            return send_mail(subject, strip_tags(html_message), settings.DEFAULT_FROM_EMAIL, [user.email], html_message=html_message, fail_silently=False)
+            from apps.notifications.email_service import send_branded_email
+            expiry = getattr(settings, 'OTP_EXPIRY_MINUTES', 10)
+            return send_branded_email(
+                'Password Reset Code - SIPI',
+                user.email,
+                heading='Your Password Reset Code',
+                greeting=f"Hello {user.first_name or user.username},",
+                intro='Use the verification code below to reset your password.',
+                highlight=otp,
+                body_lines=[
+                    f'This code will expire in {expiry} minutes.',
+                    "If you didn't request a password reset, you can safely ignore this email.",
+                ],
+                accent_label='Security',
+                accent_color='#d97706',
+                accent_soft='#fffbeb',
+                async_send=False,  # password reset should confirm delivery synchronously
+            )
         except Exception as e:
             logger.error(f"Error sending OTP email: {e}")
             return False
+
     @staticmethod
     def send_password_reset_confirmation(user):
+        """Confirm a successful password reset (security notification)."""
         try:
-            subject = 'Password Reset Successful - SIPI Management System'
-            html_message = f'<h2>Password Reset Successful</h2><p>Hello {user.first_name or user.username}, your password has been reset successfully.</p>'
-            return send_mail(subject, strip_tags(html_message), settings.DEFAULT_FROM_EMAIL, [user.email], html_message=html_message, fail_silently=False)
+            from apps.notifications.email_service import send_branded_email
+            return send_branded_email(
+                'Password Reset Successful - SIPI',
+                user.email,
+                heading='Password Reset Successful',
+                greeting=f"Hello {user.first_name or user.username},",
+                intro='Your password has been reset successfully. You can now sign in with your new password.',
+                body_lines=[
+                    "If you did not perform this change, please contact the administration immediately.",
+                ],
+                accent_label='Security',
+                accent_color='#16a34a',
+                accent_soft='#ecfdf5',
+            )
         except Exception as e:
             logger.error(f"Error sending confirmation email: {e}")
             return False
@@ -46,20 +70,28 @@ class OTPService:
         return OTPToken.objects.create(user=user, token=otp, expires_at=expires_at, max_attempts=getattr(settings, 'OTP_MAX_ATTEMPTS', 3))
     @staticmethod
     def verify_otp(email, token):
+        """
+        Validate an OTP against the user's latest unused token.
+
+        Only *failed* attempts are counted toward the attempt limit (so a correct
+        code can be checked at the verify step and again at the confirm step
+        without locking the user out). Brute-force protection is preserved because
+        each wrong guess increments the counter on the latest token.
+        """
         try:
             user = User.objects.get(email=email)
-            otp_token = OTPToken.objects.filter(user=user, token=token, is_used=False).order_by('-created_at').first()
+            otp_token = OTPToken.objects.filter(user=user, is_used=False).order_by('-created_at').first()
             if not otp_token:
                 return False, "Invalid OTP code"
             if otp_token.is_expired():
                 return False, "OTP has expired"
             if otp_token.attempts >= otp_token.max_attempts:
                 return False, "Maximum verification attempts exceeded"
-            otp_token.increment_attempts()
-            if otp_token.is_valid():
-                return True, "OTP verified successfully"
-            else:
+            if otp_token.token != str(token).strip():
+                # Wrong code: count this as a failed attempt
+                otp_token.increment_attempts()
                 return False, "Invalid OTP code"
+            return True, "OTP verified successfully"
         except User.DoesNotExist:
             return False, "Invalid OTP code"
     @staticmethod

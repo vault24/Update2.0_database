@@ -1,0 +1,66 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>{{ subject|default:brand_name }}</title>
+</head>
+<body style="margin:0; padding:0; background-color:#eef2f7; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%;">
+  <!-- Preheader (hidden preview text) -->
+  <div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:#eef2f7;">
+    {{ preheader|default:heading }}
+  </div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#eef2f7; padding:24px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px; width:100%; background-color:#ffffff; border-radius:14px; overflow:hidden; box-shadow:0 2px 8px rgba(16,24,40,0.06); font-family:'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+
+          <!-- Header -->
+          <tr>
+            <td style="background:linear-gradient(135deg,#1d4ed8 0%,#1e3a8a 100%); padding:28px 32px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="vertical-align:middle;">
+                    <span style="display:inline-block; width:44px; height:44px; line-height:44px; text-align:center; background-color:rgba(255,255,255,0.18); border-radius:10px; color:#ffffff; font-size:20px; font-weight:700;">🎓</span>
+                  </td>
+                  <td style="vertical-align:middle; padding-left:14px;">
+                    <div style="color:#ffffff; font-size:18px; font-weight:700; letter-spacing:0.2px;">{{ brand_name|default:"SIPI" }}</div>
+                    <div style="color:#c7d2fe; font-size:12px;">{{ brand_tagline|default:"Sirajganj Polytechnic Institute" }}</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Accent bar -->
+          {% if accent_label %}
+          <tr><td style="background-color:{{ accent_color|default:'#2563eb' }}; height:4px; line-height:4px; font-size:0;">&nbsp;</td></tr>
+          {% endif %}
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:32px;">
+              {% block content %}{% endblock %}
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:22px 32px; background-color:#f8fafc; border-top:1px solid #e6ebf2;">
+              <p style="margin:0 0 6px; color:#64748b; font-size:12px; line-height:18px;">
+                {{ footer_note|default:"This is an automated message from the SIPI Management System. Please do not reply to this email." }}
+              </p>
+              <p style="margin:0; color:#94a3b8; font-size:12px;">
+                &copy; {{ year }} Sirajganj Polytechnic Institute. All rights reserved.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

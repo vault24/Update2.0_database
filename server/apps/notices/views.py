@@ -81,8 +81,8 @@ class AdminNoticeListCreateView(generics.ListCreateAPIView):
     
     def perform_create(self, serializer):
         """Set the created_by field to the current user and invalidate caches"""
-        serializer.save(created_by=self.request.user)
-        
+        notice = serializer.save(created_by=self.request.user)
+
         # Invalidate all user unread count caches when a new notice is created
         from django.core.cache.utils import make_template_fragment_key
         User = get_user_model()
@@ -90,6 +90,15 @@ class AdminNoticeListCreateView(generics.ListCreateAPIView):
         for user_id in user_ids:
             cache_key = f'user_unread_count_{user_id}'
             cache.delete(cache_key)
+
+        # Email + in-app notification to all notice recipients (only when published)
+        try:
+            if getattr(notice, 'is_published', True):
+                from apps.notifications.dispatch import notify_new_notice
+                notify_new_notice(notice)
+        except Exception as notify_err:
+            import logging
+            logging.getLogger(__name__).error("Notice notification failed: %s", notify_err)
 
 
 class AdminNoticeDetailView(generics.RetrieveUpdateDestroyAPIView):

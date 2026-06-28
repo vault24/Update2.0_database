@@ -1,0 +1,60 @@
+{% extends "emails/base_email.html" %}
+
+{% block content %}
+  {% if accent_label %}
+  <p style="margin:0 0 16px; display:inline-block; padding:5px 12px; background-color:{{ accent_soft|default:'#eff6ff' }}; color:{{ accent_color|default:'#2563eb' }}; border-radius:999px; font-size:12px; font-weight:600; letter-spacing:0.3px; text-transform:uppercase;">
+    {{ accent_label }}
+  </p>
+  {% endif %}
+
+  <h1 style="margin:0 0 14px; color:#0f172a; font-size:22px; line-height:30px; font-weight:700;">
+    {{ heading }}
+  </h1>
+
+  {% if greeting %}
+  <p style="margin:0 0 14px; color:#334155; font-size:15px; line-height:24px;">{{ greeting }}</p>
+  {% endif %}
+
+  {% if intro %}
+  <p style="margin:0 0 16px; color:#334155; font-size:15px; line-height:24px;">{{ intro }}</p>
+  {% endif %}
+
+  {% for line in body_lines %}
+  <p style="margin:0 0 16px; color:#334155; font-size:15px; line-height:24px;">{{ line }}</p>
+  {% endfor %}
+
+  {% if details %}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 20px; border:1px solid #e6ebf2; border-radius:10px; overflow:hidden;">
+    {% for item in details %}
+    <tr>
+      <td style="padding:11px 16px; background-color:{% cycle '#f8fafc' '#ffffff' %}; color:#64748b; font-size:13px; font-weight:600; width:42%; border-bottom:1px solid #eef2f7;">{{ item.label }}</td>
+      <td style="padding:11px 16px; background-color:{% cycle '#f8fafc' '#ffffff' %}; color:#0f172a; font-size:13px; border-bottom:1px solid #eef2f7;">{{ item.value }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  {% if highlight %}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
+    <tr>
+      <td style="padding:16px 18px; background-color:{{ accent_soft|default:'#eff6ff' }}; border-left:4px solid {{ accent_color|default:'#2563eb' }}; border-radius:8px; color:#1e293b; font-size:18px; font-weight:700; letter-spacing:2px;">
+        {{ highlight }}
+      </td>
+    </tr>
+  </table>
+  {% endif %}
+
+  {% if cta_url and cta_label %}
+  <table role="presentation" cellpadding="0" cellspacing="0" style="margin:6px 0 12px;">
+    <tr>
+      <td style="border-radius:8px; background:linear-gradient(135deg,#2563eb 0%,#1d4ed8 100%);">
+        <a href="{{ cta_url }}" target="_blank" style="display:inline-block; padding:12px 26px; color:#ffffff; font-size:14px; font-weight:600; text-decoration:none; border-radius:8px;">{{ cta_label }}</a>
+      </td>
+    </tr>
+  </table>
+  {% endif %}
+
+  {% if closing %}
+  <p style="margin:18px 0 0; color:#334155; font-size:15px; line-height:24px;">{{ closing }}</p>
+  {% endif %}
+{% endblock %}

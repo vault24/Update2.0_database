@@ -357,7 +357,23 @@ class AdmissionViewSet(viewsets.ModelViewSet):
             admission.user.admission_status = 'approved'
             admission.user.related_profile_id = student.id
             admission.user.save()
-            
+
+            # Confirmation email + in-app notification with admission details
+            try:
+                from apps.notifications.dispatch import notify_admission_complete
+                notify_admission_complete(
+                    admission.user,
+                    details=[
+                        {'label': 'Name', 'value': admission.full_name_english},
+                        {'label': 'Roll Number', 'value': current_roll_number},
+                        {'label': 'Department', 'value': str(getattr(admission, 'desired_department', '') or '')},
+                        {'label': 'Session', 'value': getattr(admission, 'session', '') or ''},
+                    ],
+                )
+            except Exception as notify_err:
+                import logging
+                logging.getLogger(__name__).error("Admission completion notification failed: %s", notify_err)
+
             # Return updated admission
             response_serializer = AdmissionDetailSerializer(admission)
             return Response({
@@ -404,7 +420,25 @@ class AdmissionViewSet(viewsets.ModelViewSet):
         # Update user admission status
         admission.user.admission_status = 'rejected'
         admission.user.save()
-        
+
+        # Notify the applicant of the decision
+        try:
+            from apps.notifications.dispatch import notify_status_change
+            notify_status_change(
+                admission.user,
+                entity='Admission',
+                status='rejected',
+                notification_type='student_admission',
+                extra_message=(
+                    f"We're sorry, your admission application was not approved. "
+                    f"Reason: {admission.review_notes}" if admission.review_notes
+                    else "We're sorry, your admission application was not approved."
+                ),
+            )
+        except Exception as notify_err:
+            import logging
+            logging.getLogger(__name__).error("Admission rejection notification failed: %s", notify_err)
+
         # Return updated admission
         response_serializer = AdmissionDetailSerializer(admission)
         return Response({

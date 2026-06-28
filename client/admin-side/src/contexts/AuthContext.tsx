@@ -11,6 +11,8 @@ interface User {
   role: string;
   is_superuser?: boolean;
   interface_mode?: 'simple' | 'advanced';
+  department?: string | null;
+  department_name?: string | null;
 }
 
 interface AuthContextType {

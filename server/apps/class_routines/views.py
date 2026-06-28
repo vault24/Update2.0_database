@@ -19,6 +19,53 @@ from .serializers import (
 )
 
 
+def _routine_recipients(routine):
+    """Students/captains of the routine's department+semester, plus its teacher."""
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    recipients = []
+    try:
+        from apps.students.models import Student
+        student_ids = list(Student.objects.filter(
+            department=routine.department, semester=routine.semester
+        ).values_list('id', flat=True))
+        if student_ids:
+            recipients = list(User.objects.filter(
+                role__in=['student', 'captain'], is_active=True,
+                related_profile_id__in=student_ids,
+            ))
+    except Exception:
+        pass
+    teacher_user = getattr(getattr(routine, 'teacher', None), 'user', None)
+    if teacher_user and teacher_user not in recipients:
+        recipients.append(teacher_user)
+    return recipients
+
+
+def _notify_routine(routine, is_update):
+    """Send class-routine notification (email + in-app) to relevant users."""
+    try:
+        from apps.notifications.dispatch import notify_class_routine
+        recipients = _routine_recipients(routine)
+        if not recipients:
+            return
+        dept_name = getattr(routine.department, 'name', None)
+        scope = f"{dept_name} - Semester {routine.semester} ({routine.shift})" if dept_name else None
+        notify_class_routine(
+            recipients,
+            is_update=is_update,
+            department_name=scope,
+            details=[
+                {'label': 'Department', 'value': dept_name or ''},
+                {'label': 'Semester', 'value': str(routine.semester)},
+                {'label': 'Shift', 'value': routine.shift},
+            ],
+        )
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).error("Class routine notification failed: %s", exc)
+
+
 class ClassRoutineViewSet(viewsets.ModelViewSet):
     """
     ViewSet for Class Routine CRUD operations
@@ -56,11 +103,20 @@ class ClassRoutineViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
-        
+
         # Return complete routine data
         routine = ClassRoutine.objects.get(pk=serializer.instance.pk)
+
+        # Notify only when the routine for this department/semester/shift is first
+        # published (the first entry), to avoid an email per individual class slot.
+        is_first = ClassRoutine.objects.filter(
+            department=routine.department, semester=routine.semester, shift=routine.shift
+        ).count() <= 1
+        if is_first:
+            _notify_routine(routine, is_update=False)
+
         response_serializer = ClassRoutineSerializer(routine)
-        
+
         return Response(
             response_serializer.data,
             status=status.HTTP_201_CREATED
@@ -73,11 +129,12 @@ class ClassRoutineViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
-        
+
         # Return complete routine data
         routine = ClassRoutine.objects.get(pk=instance.pk)
+        _notify_routine(routine, is_update=True)
         response_serializer = ClassRoutineSerializer(routine)
-        
+
         return Response(response_serializer.data)
     
     @action(detail=False, methods=['get'], url_path='my-routine')

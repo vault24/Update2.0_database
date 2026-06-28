@@ -16,6 +16,36 @@ from .serializers import (
 )
 
 
+def _email_applicant(application, *, subject, heading, intro, accent_label,
+                     accent_color, accent_soft, body_lines=None):
+    """Send a branded email to a (public) application's contact email."""
+    if not getattr(application, 'email', None):
+        return
+    try:
+        from apps.notifications.email_service import send_branded_email
+        details = [
+            {'label': 'Applicant', 'value': application.fullNameEnglish},
+            {'label': 'Type', 'value': application.applicationType},
+            {'label': 'Subject', 'value': application.subject},
+            {'label': 'Status', 'value': application.status.title()},
+        ]
+        send_branded_email(
+            subject,
+            application.email,
+            heading=heading,
+            greeting=f"Hello {application.fullNameEnglish},",
+            intro=intro,
+            body_lines=body_lines,
+            details=details,
+            accent_label=accent_label,
+            accent_color=accent_color,
+            accent_soft=accent_soft,
+        )
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).error("Application email failed: %s", exc)
+
+
 class ApplicationViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing applications
@@ -39,6 +69,16 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         serializer = ApplicationSubmitSerializer(data=request.data)
         if serializer.is_valid():
             application = serializer.save()
+            _email_applicant(
+                application,
+                subject="Application Received - SIPI",
+                heading="Application Received",
+                intro=f"This confirms that we have received your {application.applicationType or 'application'}. "
+                      "Our team will review it and update you on the outcome.",
+                accent_label="Received",
+                accent_color="#16a34a",
+                accent_soft="#ecfdf5",
+            )
             response_serializer = ApplicationSerializer(application)
             return Response(
                 response_serializer.data,
@@ -84,7 +124,18 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         application.reviewNotes = review_notes
         application.reviewedAt = timezone.now()
         application.save()
-        
+
+        _email_applicant(
+            application,
+            subject="Application Approved - SIPI",
+            heading="Application Approved",
+            intro="Good news! Your application has been reviewed and approved.",
+            body_lines=[review_notes] if review_notes else None,
+            accent_label="Approved",
+            accent_color="#16a34a",
+            accent_soft="#ecfdf5",
+        )
+
         response_serializer = ApplicationSerializer(application)
         return Response(response_serializer.data)
     
@@ -132,10 +183,21 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         application.reviewNotes = review_notes
         application.reviewedAt = timezone.now()
         application.save()
-        
+
+        _email_applicant(
+            application,
+            subject="Application Update - SIPI",
+            heading="Application Not Approved",
+            intro="After review, your application was not approved.",
+            body_lines=[f"Reason: {review_notes}"] if review_notes else None,
+            accent_label="Not Approved",
+            accent_color="#dc2626",
+            accent_soft="#fef2f2",
+        )
+
         response_serializer = ApplicationSerializer(application)
         return Response(response_serializer.data)
-    
+
     @action(detail=False, methods=['get'], permission_classes=[], url_path='my-applications')
     def my_applications(self, request):
         """

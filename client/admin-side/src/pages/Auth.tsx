@@ -10,6 +10,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import signupRequestService from '@/services/signupRequestService';
+import { API_BASE_URL } from '@/config/api';
+
+interface DepartmentOption {
+  id: string;
+  name: string;
+  code?: string;
+}
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -36,9 +43,22 @@ export default function Auth() {
     password: '',
     confirmPassword: '',
     requestedRole: '',
+    department: '',
   });
   const [rememberMe, setRememberMe] = useState(false);
   const [signupRequestSubmitted, setSignupRequestSubmitted] = useState(false);
+  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
+
+  // Load departments (needed for Department Head signup requests)
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/departments/`)
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((data) => {
+        const list = data?.results || data || [];
+        setDepartments(Array.isArray(list) ? list : []);
+      })
+      .catch(() => setDepartments([]));
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -79,6 +99,15 @@ export default function Auth() {
           setIsLoading(false);
           return;
         }
+        if (formData.requestedRole === 'department_head' && !formData.department) {
+          toast({
+            title: "Error",
+            description: "Please select the department you will manage.",
+            variant: "destructive",
+          });
+          setIsLoading(false);
+          return;
+        }
 
         // Submit signup request
         await signupRequestService.createSignupRequest({
@@ -88,6 +117,7 @@ export default function Auth() {
           last_name: formData.lastName,
           mobile_number: formData.mobileNumber,
           requested_role: formData.requestedRole,
+          department: formData.requestedRole === 'department_head' ? formData.department : undefined,
           password: formData.password,
           password_confirm: formData.confirmPassword,
         });
@@ -251,6 +281,7 @@ export default function Auth() {
                     password: '',
                     confirmPassword: '',
                     requestedRole: '',
+                    department: '',
                   });
                 }}
                 variant="outline"
@@ -384,6 +415,27 @@ export default function Auth() {
                           </SelectContent>
                         </Select>
                       </div>
+
+                      {formData.requestedRole === 'department_head' && (
+                        <div className="space-y-2">
+                          <Label htmlFor="department">Department</Label>
+                          <Select
+                            value={formData.department}
+                            onValueChange={(value) => setFormData({ ...formData, department: value })}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select the department you will manage" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {departments.map((dept) => (
+                                <SelectItem key={dept.id} value={dept.id}>
+                                  {dept.name}{dept.code ? ` (${dept.code})` : ''}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
                     </motion.div>
                   </>
                 )}

@@ -200,14 +200,21 @@ class SignupRequestSerializer(serializers.Serializer):
     last_name = serializers.CharField()
     mobile_number = serializers.CharField(required=False)
     requested_role = serializers.CharField()
+    department = serializers.UUIDField(required=False, allow_null=True)
     password = serializers.CharField()
     password_confirm = serializers.CharField()
-    
+
     def validate(self, data):
         """Validate the signup request data"""
         # Check if passwords match
         if data.get('password') != data.get('password_confirm'):
             raise serializers.ValidationError({"password_confirm": "Passwords do not match"})
+
+        # Department Head requests must select a department
+        if data.get('requested_role') == 'department_head' and not data.get('department'):
+            raise serializers.ValidationError(
+                {"department": "Please select the department you will manage."}
+            )
         
         # Check if username already exists
         if User.objects.filter(username=data.get('username')).exists():
@@ -238,7 +245,14 @@ class SignupRequestSerializer(serializers.Serializer):
         # Hash the password
         password = validated_data.pop('password')
         password_hash = make_password(password)
-        
+
+        # Resolve the requested department (for Department Head requests)
+        department = None
+        department_id = validated_data.get('department')
+        if department_id:
+            from apps.departments.models import Department
+            department = Department.objects.filter(id=department_id).first()
+
         # Create the signup request
         signup_request = SignupRequest.objects.create(
             username=validated_data['username'],
@@ -247,15 +261,18 @@ class SignupRequestSerializer(serializers.Serializer):
             last_name=validated_data['last_name'],
             mobile_number=validated_data.get('mobile_number', ''),
             requested_role=validated_data['requested_role'],
+            department=department,
             password_hash=password_hash,
             status='pending'
         )
-        
+
         return signup_request
 
 
 class SignupRequestListSerializer(serializers.ModelSerializer):
     """Serializer for listing signup requests"""
+    department_name = serializers.CharField(source='department.name', read_only=True, default=None)
+
     class Meta:
         model = SignupRequest
         fields = [
@@ -265,6 +282,8 @@ class SignupRequestListSerializer(serializers.ModelSerializer):
             'first_name',
             'last_name',
             'requested_role',
+            'department',
+            'department_name',
             'mobile_number',
             'status',
             'created_at',
@@ -277,7 +296,8 @@ class SignupRequestListSerializer(serializers.ModelSerializer):
 class SignupRequestDetailSerializer(serializers.ModelSerializer):
     """Serializer for signup request details"""
     reviewed_by_name = serializers.SerializerMethodField()
-    
+    department_name = serializers.CharField(source='department.name', read_only=True, default=None)
+
     class Meta:
         model = SignupRequest
         fields = [
@@ -287,6 +307,8 @@ class SignupRequestDetailSerializer(serializers.ModelSerializer):
             'first_name',
             'last_name',
             'requested_role',
+            'department',
+            'department_name',
             'mobile_number',
             'status',
             'rejection_reason',
@@ -457,12 +479,13 @@ class UserSerializer(serializers.ModelSerializer):
     semester = serializers.SerializerMethodField()
     student_status = serializers.SerializerMethodField()
     is_alumni = serializers.SerializerMethodField()
-    
+    department_name = serializers.CharField(source='department.name', read_only=True, default=None)
+
     class Meta:
         model = User
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name', 'role',
-            'is_superuser', 'interface_mode',
+            'is_superuser', 'interface_mode', 'department', 'department_name',
             'related_profile_id', 'student_id', 'admission_status', 'account_status',
             'mobile_number', 'semester', 'student_status', 'is_alumni',
             'last_login', 'date_joined'

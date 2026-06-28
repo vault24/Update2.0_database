@@ -43,6 +43,7 @@ interface AdminProfile {
   email: string;
   phone: string;
   role: string;
+  department?: string;
   avatar?: string;
   lastLogin?: string;
   createdAt?: string;
@@ -142,6 +143,7 @@ export default function Settings() {
         email: user.email || '',
         phone: '', // Will be fetched from API
         role: roleDisplay,
+        department: (user.department as string) || '',
         lastLogin: '',
         createdAt: ''
       });
@@ -174,6 +176,7 @@ export default function Settings() {
         email: userData.email || '',
         phone: userData.mobile_number || '',
         role: roleDisplay,
+        department: userData.department || '',
         lastLogin: userData.last_login || '',
         createdAt: userData.date_joined || ''
       });
@@ -249,13 +252,18 @@ export default function Settings() {
       const firstName = nameParts[0] || '';
       const lastName = nameParts.slice(1).join(' ') || '';
       
-      await apiClient.put('auth/profile/', {
+      const payload: Record<string, any> = {
         first_name: firstName,
         last_name: lastName,
         email: profile.email,
         mobile_number: profile.phone,
-      });
-      
+      };
+      // Department Heads can set/update the department they manage
+      if (user?.role === 'department_head') {
+        payload.department = profile.department || '';
+      }
+      await apiClient.put('auth/profile/', payload);
+
       setEditingProfile(false);
       toast({
         title: "Profile Updated",
@@ -598,6 +606,27 @@ export default function Settings() {
                       className="bg-muted"
                     />
                   </div>
+                  {user?.role === 'department_head' && (
+                    <div className="space-y-2">
+                      <Label htmlFor="department">Department</Label>
+                      <Select
+                        value={profile.department || ''}
+                        onValueChange={(value) => setProfile({ ...profile, department: value })}
+                        disabled={!editingProfile}
+                      >
+                        <SelectTrigger id="department" className={!editingProfile ? 'bg-muted' : ''}>
+                          <SelectValue placeholder="Select your department" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {departments.map((dept) => (
+                            <SelectItem key={dept.id} value={dept.id}>
+                              {dept.name}{dept.code ? ` (${dept.code})` : ''}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-end gap-3">

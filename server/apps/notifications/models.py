@@ -11,6 +11,15 @@ NOTIFICATION_TYPES = [
     ('deadline_reminder', 'Deadline Reminder'),
     ('account_activity', 'Account Activity'),
     ('attendance_update', 'Attendance Update'),
+    # --- Email + in-app notification system ---
+    ('welcome', 'Welcome'),
+    ('teacher_request', 'Teacher Request'),
+    ('signup_request', 'Signup Request'),
+    ('notice_published', 'Notice Published'),
+    ('class_routine', 'Class Routine'),
+    ('admission_complete', 'Admission Complete'),
+    ('application_submitted', 'Application Submitted'),
+    ('security_alert', 'Security Alert'),
 ]
 
 # Notification status choices

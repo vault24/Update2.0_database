@@ -28,6 +28,7 @@ export interface SignupRequestData {
   last_name: string;
   mobile_number?: string;
   requested_role: string;
+  department?: string; // required when requested_role === 'department_head'
   password: string;
   password_confirm: string;
 }

@@ -104,6 +104,17 @@ class User(AbstractUser):
         blank=True
     )
     
+    # Department managed by a Department Head (admin role only). Used to route
+    # teacher-request notifications to the correct head.
+    department = models.ForeignKey(
+        'departments.Department',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='heads',
+        help_text='Department this Department Head manages'
+    )
+
     # Link to related profile (Student or Teacher model)
     related_profile_id = models.UUIDField(
         null=True,
@@ -223,6 +234,16 @@ class SignupRequest(models.Model):
             ('department_head', 'Department Head'),
             ('institute_head', 'Institute Head'),
         ]
+    )
+
+    # Department requested by a Department Head signup (copied to the user on
+    # approval). Null for Registrar / Principal requests.
+    department = models.ForeignKey(
+        'departments.Department',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='signup_requests'
     )
     
     # Password (hashed)

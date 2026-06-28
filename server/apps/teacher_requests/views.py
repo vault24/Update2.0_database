@@ -84,7 +84,16 @@ class TeacherSignupRequestViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         signup_request = serializer.save()
-        
+
+        # Notify the Department Head of the requested department (or the Principal
+        # if the teacher is non-departmental or no head is assigned).
+        try:
+            from apps.notifications.dispatch import notify_teacher_signup_request
+            notify_teacher_signup_request(signup_request)
+        except Exception as notify_err:
+            import logging
+            logging.getLogger(__name__).error("Teacher request notification failed: %s", notify_err)
+
         # Return complete request data
         response_serializer = TeacherSignupRequestDetailSerializer(signup_request)
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
@@ -148,7 +157,23 @@ class TeacherSignupRequestViewSet(viewsets.ModelViewSet):
                 signup_request.user.account_status = 'active'
                 signup_request.user.related_profile_id = teacher.id
                 signup_request.user.save(update_fields=['account_status', 'related_profile_id'])
-            
+
+            # Welcome the teacher (account approved/activated)
+            try:
+                from apps.notifications.dispatch import send_welcome_email
+                send_welcome_email(
+                    signup_request.user,
+                    portal='student',
+                    role_label='Teacher',
+                    details=[
+                        {'label': 'Designation', 'value': signup_request.designation},
+                        {'label': 'Department', 'value': getattr(signup_request.department, 'name', '')},
+                    ],
+                )
+            except Exception as notify_err:
+                import logging
+                logging.getLogger(__name__).error("Teacher welcome email failed: %s", notify_err)
+
             # Return updated request
             response_serializer = TeacherSignupRequestDetailSerializer(signup_request)
             return Response({
@@ -199,7 +224,25 @@ class TeacherSignupRequestViewSet(viewsets.ModelViewSet):
                 if signup_request.user.account_status != 'pending':
                     signup_request.user.account_status = 'pending'
                     signup_request.user.save()
-            
+
+            # Notify the applicant that the request was declined
+            try:
+                from apps.notifications.dispatch import notify_status_change
+                notify_status_change(
+                    signup_request.user,
+                    entity='Teacher Account Request',
+                    status='rejected',
+                    notification_type='teacher_request',
+                    extra_message=(
+                        f"Your teacher account request was not approved. "
+                        f"Reason: {signup_request.review_notes}" if signup_request.review_notes
+                        else "Your teacher account request was not approved."
+                    ),
+                )
+            except Exception as notify_err:
+                import logging
+                logging.getLogger(__name__).error("Teacher rejection email failed: %s", notify_err)
+
             # Return updated request
             response_serializer = TeacherSignupRequestDetailSerializer(signup_request)
             return Response({

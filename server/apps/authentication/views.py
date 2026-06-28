@@ -95,7 +95,21 @@ def register_view(request):
     if serializer.is_valid():
         try:
             user = serializer.save()
-            
+
+            # Welcome email + in-app notification for new student/captain accounts.
+            # (Teachers are welcomed on approval, not at signup.)
+            if user.role in ['student', 'captain']:
+                try:
+                    from apps.notifications.dispatch import send_welcome_email
+                    send_welcome_email(
+                        user,
+                        portal='student',
+                        role_label='Class Captain' if user.role == 'captain' else 'Student',
+                    )
+                except Exception as notify_err:
+                    import logging
+                    logging.getLogger(__name__).error("Student welcome email failed: %s", notify_err)
+
             # Auto-login user after successful registration (except for teachers who need approval)
             auto_logged_in = False
             if user.role != 'teacher' and user.account_status == 'active':
@@ -342,6 +356,7 @@ def update_profile_view(request):
     email = request.data.get('email')
     mobile_number = request.data.get('mobile_number')
     interface_mode = request.data.get('interface_mode')
+    department_id = request.data.get('department')
 
     # Update fields if provided
     if first_name is not None:
@@ -371,6 +386,20 @@ def update_profile_view(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         user.interface_mode = interface_mode
+
+    # Department Heads can set/update the department they manage
+    if department_id is not None and user.role == 'department_head':
+        if department_id == '' or department_id is None:
+            user.department = None
+        else:
+            from apps.departments.models import Department
+            department = Department.objects.filter(id=department_id).first()
+            if not department:
+                return Response(
+                    {'department': ['Invalid department selected.']},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            user.department = department
 
     try:
         user.save()
@@ -420,7 +449,15 @@ def create_signup_request_view(request):
         
         if serializer.is_valid():
             signup_request = serializer.save()
-            
+
+            # Notify the Principal about the new admin signup request
+            try:
+                from apps.notifications.dispatch import notify_admin_signup_request
+                notify_admin_signup_request(signup_request)
+            except Exception as notify_err:
+                import logging
+                logging.getLogger(__name__).error("Signup request notification failed: %s", notify_err)
+
             return Response(
                 {
                     'message': 'Signup request submitted successfully. Please wait for admin approval.',
@@ -579,18 +616,41 @@ def approve_signup_request_view(request, request_id):
                 last_name=signup_request.last_name,
                 role=signup_request.requested_role,
                 mobile_number=signup_request.mobile_number,
+                department=signup_request.department,  # for Department Head accounts
                 account_status='active',
                 password=signup_request.password_hash  # Already hashed
             )
             user.save()
-            
+
             # Update signup request
             signup_request.status = 'approved'
             signup_request.reviewed_by = request.user
             signup_request.reviewed_at = timezone.now()
             signup_request.created_user = user
             signup_request.save()
-            
+
+            # Send a professional welcome email + in-app notification
+            try:
+                from apps.notifications.dispatch import send_welcome_email
+                role_labels = {
+                    'registrar': 'Registrar',
+                    'department_head': 'Department Head',
+                    'institute_head': 'Principal',
+                }
+                extra = []
+                if user.department:
+                    extra.append({'label': 'Department', 'value': user.department.name})
+                extra.append({'label': 'Username', 'value': user.username})
+                send_welcome_email(
+                    user,
+                    portal='admin',
+                    role_label=role_labels.get(user.role, user.role),
+                    details=extra,
+                )
+            except Exception as notify_err:
+                import logging
+                logging.getLogger(__name__).error("Welcome email failed: %s", notify_err)
+
             return Response(
                 {
                     'message': 'Signup request approved successfully.',
@@ -656,7 +716,31 @@ def reject_signup_request_view(request, request_id):
     signup_request.reviewed_at = timezone.now()
     signup_request.rejection_reason = serializer.validated_data.get('rejection_reason', '')
     signup_request.save()
-    
+
+    # Inform the applicant by email that their request was declined
+    try:
+        from apps.notifications.email_service import send_branded_email
+        reason = signup_request.rejection_reason
+        body_lines = [
+            "After review, we are unable to approve your admin account request at this time."
+        ]
+        if reason:
+            body_lines.append(f"Reason: {reason}")
+        body_lines.append("If you believe this is a mistake, please contact the institute administration.")
+        send_branded_email(
+            "Your SIPI Admin Signup Request",
+            signup_request.email,
+            heading="Signup Request Update",
+            greeting=f"Hello {signup_request.first_name or signup_request.username},",
+            body_lines=body_lines,
+            accent_label="Not Approved",
+            accent_color="#dc2626",
+            accent_soft="#fef2f2",
+        )
+    except Exception as notify_err:
+        import logging
+        logging.getLogger(__name__).error("Rejection email failed: %s", notify_err)
+
     return Response(
         {
             'message': 'Signup request rejected successfully.'
