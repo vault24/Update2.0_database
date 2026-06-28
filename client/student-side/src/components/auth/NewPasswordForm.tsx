@@ -129,7 +129,6 @@ export function NewPasswordForm({ onSubmit, onBack, loading, error }: Props) {
   const [showPopup, setShowPopup] = useState(false);
 
   const { score, missing } = getStrength(password);
-  const isStrong = score >= 4;
   const matches = password === confirm && confirm.length > 0;
 
   const strengthLabel = score >= 4 ? 'Strong' : score >= 3 ? 'Medium' : score >= 1 ? 'Weak' : '';
@@ -137,7 +136,9 @@ export function NewPasswordForm({ onSubmit, onBack, loading, error }: Props) {
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isStrong) { toast.error('Please create a stronger password'); return; }
+    // Strong password is no longer required on the student portal — any
+    // non-empty password is allowed as long as both fields match.
+    if (!password) { toast.error('Please enter a new password'); return; }
     if (!matches) { toast.error('Passwords do not match'); return; }
     setShowPopup(true);
   };
@@ -236,7 +237,7 @@ export function NewPasswordForm({ onSubmit, onBack, loading, error }: Props) {
           )}
 
           {/* Submit */}
-          <motion.button type="submit" disabled={loading || !isStrong || !matches} whileTap={{ scale: 0.97 }}
+          <motion.button type="submit" disabled={loading || !password || !matches} whileTap={{ scale: 0.97 }}
             className="w-full h-12 rounded-2xl text-white font-semibold text-sm flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 mt-2"
             style={{ background: 'linear-gradient(135deg,#3b6cf7,#2152e3)', boxShadow: '0 6px 20px rgba(59,108,247,0.3)' }}>
             {loading

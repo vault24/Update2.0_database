@@ -15,6 +15,7 @@ from .serializers import (
     PasswordResetRequestSerializer,
     OTPVerificationSerializer,
     PasswordResetConfirmSerializer,
+    StudentPasswordResetConfirmSerializer,
     PasswordResetResponseSerializer,
     OTPVerificationResponseSerializer,
     PasswordResetConfirmResponseSerializer
@@ -175,9 +176,12 @@ def student_otp_verification(request):
 @permission_classes([AllowAny])
 def student_password_reset_confirm(request):
     """
-    Confirm password reset for student users
+    Confirm password reset for student users.
+
+    Students may use any non-empty password (no strength requirement); the admin
+    portal keeps the strict validation.
     """
-    serializer = PasswordResetConfirmSerializer(data=request.data)
+    serializer = StudentPasswordResetConfirmSerializer(data=request.data)
     
     if not serializer.is_valid():
         return Response({

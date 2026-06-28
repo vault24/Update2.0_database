@@ -470,8 +470,25 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
                 raise serializers.ValidationError({
                     'confirm_password': 'Passwords do not match'
                 })
-        
+
         return attrs
+
+
+class StudentPasswordResetConfirmSerializer(PasswordResetConfirmSerializer):
+    """
+    Relaxed password-reset confirmation for the Student Portal only.
+
+    Students may set any non-empty password (no strength / length requirement);
+    the only check kept is that both password fields match. The Admin Portal keeps
+    the strict `PasswordResetConfirmSerializer`.
+    """
+    new_password = serializers.CharField(write_only=True)
+    confirm_password = serializers.CharField(write_only=True)
+
+    def validate_new_password(self, value):
+        if not value:
+            raise serializers.ValidationError("New password is required")
+        return value
 
 
 class UserSerializer(serializers.ModelSerializer):
