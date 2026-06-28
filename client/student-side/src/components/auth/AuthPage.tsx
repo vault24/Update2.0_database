@@ -791,22 +791,22 @@ export function AuthPage() {
                       </div>
                       <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Full Name</Label>
                         <div className="relative"><User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <Input placeholder="Enter your full name" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors"
+                          <Input placeholder="Enter your full name" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
                             value={formData.fullName} onChange={(e) => setFormData({ ...formData, fullName: e.target.value })} required /></div></div>
                       <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Mobile Number</Label>
                         <div className="relative"><Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <Input type="tel" placeholder="01XXXXXXXXX" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors"
+                          <Input type="tel" placeholder="01XXXXXXXXX" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
                             value={formData.mobile} onChange={(e) => setFormData({ ...formData, mobile: e.target.value })} required /></div></div>
                       {(selectedRole === 'student' || selectedRole === 'captain') && (
                         <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">SSC Board Roll <span className="text-red-500">*</span></Label>
                           <div className="relative"><GraduationCap className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                            <Input placeholder="e.g., 679377" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors"
+                            <Input placeholder="e.g., 679377" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
                               value={formData.sscBoardRoll} onChange={(e) => setFormData({ ...formData, sscBoardRoll: e.target.value })} required /></div>
                           <p className="text-xs text-gray-400 mt-1">Student ID will be: SIPI-{formData.sscBoardRoll || 'XXXXXX'}</p></div>
                       )}
                       <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Email Address</Label>
                         <div className="relative"><Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <Input type="email" placeholder="your.email@example.com" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors"
+                          <Input type="email" placeholder="your.email@example.com" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
                             value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required /></div></div>
                     </>
                   )}
@@ -816,22 +816,22 @@ export function AuthPage() {
                     <>
                       <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Full Name (Bangla) <span className="text-red-500">*</span></Label>
                         <div className="relative"><User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <Input placeholder="আপনার পূর্ণ নাম" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors"
+                          <Input placeholder="আপনার পূর্ণ নাম" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
                             value={formData.fullNameBangla} onChange={(e) => setFormData({ ...formData, fullNameBangla: e.target.value })} required /></div></div>
                       <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Designation <span className="text-red-500">*</span></Label>
                         <div className="relative"><Briefcase className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <Input placeholder="e.g., Assistant Professor" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors"
+                          <Input placeholder="e.g., Assistant Professor" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
                             value={formData.designation} onChange={(e) => setFormData({ ...formData, designation: e.target.value })} required /></div></div>
                       <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Department <span className="text-red-500">*</span></Label>
                         <div className="relative"><Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
                           <Select value={formData.department} onValueChange={(v) => setFormData({ ...formData, department: v })}>
-                            <SelectTrigger className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors"><SelectValue placeholder="Select department" /></SelectTrigger>
+                            <SelectTrigger className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"><SelectValue placeholder="Select department" /></SelectTrigger>
                             <SelectContent>{departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
                           </Select></div></div>
                       <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Qualifications</Label>
                         <div className="flex gap-2">
                           <div className="relative flex-1"><Award className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                            <Input placeholder="e.g., M.Sc. in CS" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors"
+                            <Input placeholder="e.g., M.Sc. in CS" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
                               value={qualificationInput} onChange={(e) => setQualificationInput(e.target.value)}
                               onKeyDown={(e) => { if (e.key === 'Enter' && qualificationInput.trim()) { e.preventDefault(); setFormData({ ...formData, qualifications: [...formData.qualifications, qualificationInput.trim()] }); setQualificationInput(''); }}} /></div>
                           <Button type="button" variant="outline" className="h-12 px-4 rounded-xl border-gray-200"
@@ -846,7 +846,7 @@ export function AuthPage() {
                           </div>)}</div>
                       <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Office Location</Label>
                         <div className="relative"><MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <Input placeholder="e.g., Room 201, Building A" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors"
+                          <Input placeholder="e.g., Room 201, Building A" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
                             value={formData.officeLocation} onChange={(e) => setFormData({ ...formData, officeLocation: e.target.value })} /></div></div>
                     </>
                   )}
@@ -855,7 +855,7 @@ export function AuthPage() {
                   {mode === 'login' && (
                     <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Email or Student ID</Label>
                       <div className="relative"><Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <Input placeholder="Enter your email or student ID" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors"
+                        <Input placeholder="Enter your email or student ID" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
                           value={formData.studentId} onChange={(e) => setFormData({ ...formData, studentId: e.target.value })} required /></div></div>
                   )}
 
@@ -864,7 +864,7 @@ export function AuthPage() {
                     <div className="relative">
                       <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <Input type={showPassword ? 'text' : 'password'} placeholder="Enter your password"
-                        className="pl-10 pr-11 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors"
+                        className="pl-10 pr-11 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
                         value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required />
                       <button type="button" onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5">
