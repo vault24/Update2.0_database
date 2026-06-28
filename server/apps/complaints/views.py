@@ -65,7 +65,7 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         user = self.request.user
 
         # Admin roles can view all complaints
-        if user.role in ['registrar', 'institute_head'] or user.is_staff:
+        if user.is_admin() or user.is_staff:
             return queryset
 
         # Students/captains can only see their own complaints
@@ -251,8 +251,8 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         """Mark complaint as seen (for admin use)"""
         complaint = self.get_object()
         
-        # Only allow if user is admin/staff
-        if not request.user.is_staff:
+        # Only allow if user is an admin role
+        if not (request.user.is_admin() or request.user.is_staff):
             return Response(
                 {'error': 'Only staff can mark complaints as seen'},
                 status=status.HTTP_403_FORBIDDEN
@@ -274,8 +274,8 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         """Add response to complaint (for admin use)"""
         complaint = self.get_object()
         
-        # Only allow if user is admin/staff
-        if not request.user.is_staff:
+        # Only allow if user is an admin role
+        if not (request.user.is_admin() or request.user.is_staff):
             return Response(
                 {'error': 'Only staff can respond to complaints'},
                 status=status.HTTP_403_FORBIDDEN

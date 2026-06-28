@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from django.utils import timezone
+from apps.authentication.permissions import IsAdminRole
 from .models import Admission
 from .serializers import (
     AdmissionListSerializer,
@@ -85,8 +86,9 @@ class AdmissionViewSet(viewsets.ModelViewSet):
             # Students and captains can submit, view, manage drafts, upload documents, and reapply
             return [permissions.IsAuthenticated()]
         else:
-            # Admin actions require staff permissions
-            return [permissions.IsAdminUser()]
+            # Admin actions require an admin role (Principal / Department Head /
+            # Registrar). Per-role restrictions are enforced by middleware.
+            return [IsAdminRole()]
     
     def create(self, request, *args, **kwargs):
         """
@@ -485,7 +487,9 @@ class AdmissionViewSet(viewsets.ModelViewSet):
             logger.info(f"Found admission: {admission.id} for user: {request.user.username}")
             
             # Check permissions - user must own the admission or be admin
-            if admission.user != request.user and not request.user.is_staff:
+            if (admission.user != request.user
+                    and not request.user.is_staff
+                    and not request.user.is_admin()):
                 return Response({
                     'error': 'Permission denied',
                     'details': 'You can only upload documents for your own admission'

@@ -21,8 +21,8 @@ export function ProtectedRoute() {
     return <Navigate to="/auth" replace />;
   }
 
-  // Check if user has admin role - only registrar and institute_head can access admin-side
-  const allowedRoles = ['registrar', 'institute_head'];
+  // Check if user has admin role - only registrar, department_head and institute_head can access admin-side
+  const allowedRoles = ['registrar', 'department_head', 'institute_head'];
   if (user && !allowedRoles.includes(user.role)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">

@@ -5,8 +5,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { InterfaceModeProvider } from "@/contexts/InterfaceModeContext";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { RoleRouteGuard } from "@/components/RoleRouteGuard";
 import Dashboard from "./pages/Dashboard";
 import StudentsList from "./pages/StudentsList";
 import AddStudent from "./pages/AddStudent";
@@ -53,11 +55,13 @@ const App = () => (
           }}
         >
           <AuthProvider>
+            <InterfaceModeProvider>
             <Routes>
               <Route path="/auth" element={<Auth />} />
               <Route path="/password-reset" element={<PasswordReset />} />
               <Route element={<ProtectedRoute />}>
                 <Route element={<AdminLayout />}>
+                  <Route element={<RoleRouteGuard />}>
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/students" element={<StudentsList />} />
                   <Route path="/students/:id" element={<StudentDetails />} />
@@ -86,10 +90,12 @@ const App = () => (
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/activity-logs" element={<Navigate to="/analytics" replace />} />
                   <Route path="/motivation-management" element={<MotivationManagement />} />
+                  </Route>
                 </Route>
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </InterfaceModeProvider>
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>

@@ -2,80 +2,178 @@
 Authentication Middleware
 """
 from django.http import JsonResponse
-from django.urls import resolve
+
+
+# ---------------------------------------------------------------------------
+# Role-Based Access Control (RBAC) policy
+#
+# This is the single backend source of truth for which API endpoints each admin
+# role may reach. It mirrors the frontend permission config so that hiding a
+# menu item is always backed by a real server-side block: a user can never
+# access a feature outside their role by typing a URL or calling the API
+# directly.
+#
+# `institute_head` is the Principal (super user) and has unrestricted access.
+# Interface mode (simple/advanced) is purely a UI preference and is NOT enforced
+# here -- the backend always allows a role's full (advanced) permission set.
+# ---------------------------------------------------------------------------
+
+# Endpoints every authenticated admin may reach (own account, dashboard,
+# notifications and read-only reference data needed to render allowed pages).
+SHARED_ADMIN_PREFIXES = (
+    '/api/auth/',
+    '/api/dashboard/',
+    '/api/notifications/',
+)
+
+# Reference endpoints all admins may READ (GET) but not modify.
+SHARED_ADMIN_READONLY_PREFIXES = (
+    '/api/settings/',      # institute info shown on Settings page
+    '/api/departments/',   # needed for student/admission form dropdowns
+)
+
+# Per-role allowed prefixes (a role's full / advanced permission set).
+# `full`      -> any HTTP method allowed
+# `read_only` -> only safe (GET/HEAD/OPTIONS) methods allowed
+ROLE_API_POLICY = {
+    'registrar': {
+        'full': (
+            '/api/students/',
+            '/api/admissions/',
+            '/api/applications/',
+            '/api/alumni/',
+            '/api/documents/',
+            '/api/correction-requests/',
+            '/api/admin/notices/',
+        ),
+        'read_only': (),
+    },
+    'department_head': {
+        'full': (
+            '/api/students/',
+            '/api/admissions/',
+            '/api/alumni/',
+            '/api/teachers/',
+            '/api/teacher-requests/',
+            '/api/departments/',
+            '/api/class-routines/',
+            '/api/stipends/',
+            '/api/complaints/',
+            '/api/correction-requests/',
+            '/api/admin/notices/',
+        ),
+        'read_only': (),
+    },
+}
+
+SAFE_METHODS = ('GET', 'HEAD', 'OPTIONS')
 
 
 class RoleBasedAccessMiddleware:
     """
     Middleware to enforce role-based access control
     """
-    
+
     def __init__(self, get_response):
         self.get_response = get_response
-        
-        # Define role-based access rules
+
+        # Legacy access rules for non-admin roles (student / teacher / captain).
         # Format: {url_pattern: [allowed_roles]}
         self.access_rules = {
-            # Admin-only endpoints
-            '/api/teachers/requests/': ['registrar', 'institute_head'],
-            '/api/activity-logs/': ['registrar', 'institute_head'],
-            '/api/analytics/': ['registrar', 'institute_head'],
-            '/api/settings/': ['registrar', 'institute_head'],
-            
             # Teacher and Student endpoints
-            '/api/attendance/': ['student', 'teacher', 'captain', 'registrar', 'institute_head'],
-            '/api/marks/': ['student', 'teacher', 'captain', 'registrar', 'institute_head'],
-            '/api/documents/': ['student', 'teacher', 'captain', 'registrar', 'institute_head'],
-            
+            '/api/attendance/': ['student', 'teacher', 'captain'],
+            '/api/marks/': ['student', 'teacher', 'captain'],
+            '/api/documents/': ['student', 'teacher', 'captain'],
+
             # Student/Captain endpoints
-            '/api/applications/': ['student', 'captain', 'registrar', 'institute_head'],
-            '/api/correction-requests/': ['student', 'teacher', 'captain', 'registrar', 'institute_head'],
+            '/api/applications/': ['student', 'captain'],
+            '/api/correction-requests/': ['student', 'teacher', 'captain'],
         }
-    
+
     def __call__(self, request):
-        # Skip middleware for non-authenticated requests to public endpoints
+        path = request.path
+
+        # Allow public GET to settings (institute info shown before login).
         public_get_endpoints = ['/api/settings/']
-        if not request.user.is_authenticated and request.path in public_get_endpoints and request.method == 'GET':
+        if (not request.user.is_authenticated and path in public_get_endpoints
+                and request.method == 'GET'):
             return self.get_response(request)
-        
-        # Skip middleware for non-authenticated requests
+
+        # Skip middleware for non-authenticated requests.
         if not request.user.is_authenticated:
             return self.get_response(request)
-        
-        # Skip middleware for superusers
-        if request.user.is_superuser:
+
+        # Principal / Django superuser -> unrestricted access.
+        if request.user.is_superuser or request.user.role == 'institute_head':
             return self.get_response(request)
-        
-        # Debug logging
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info(f"Middleware check - Path: {request.path}, Method: {request.method}, User: {request.user.username}, Role: {request.user.role}")
-        
-        # Special handling for admissions endpoint
-        # Allow students/captains to POST (submit) and GET their own admission/draft
-        # Allow admins to access all admission endpoints
-        if request.path.startswith('/api/admissions/'):
-            logger.info(f"Admissions endpoint accessed by {request.user.username} with role {request.user.role}")
 
-            # Allow admins full access
-            if request.user.role in ['registrar', 'institute_head']:
-                logger.info(f"Admin access granted to {request.user.username}")
+        role = request.user.role
+
+        # ------------------------------------------------------------------
+        # Admin roles (registrar, department_head): deny-by-default policy.
+        # ------------------------------------------------------------------
+        if role in ROLE_API_POLICY:
+            return self._handle_admin_request(request, role, path)
+
+        # ------------------------------------------------------------------
+        # Non-admin roles (student / teacher / captain): legacy rules.
+        # ------------------------------------------------------------------
+        return self._handle_non_admin_request(request, path)
+
+    def _denied(self, role):
+        return JsonResponse({
+            'error': 'Access denied',
+            'detail': f'You do not have permission to access this resource. '
+                      f'Your role: {role}'
+        }, status=403)
+
+    def _handle_admin_request(self, request, role, path):
+        # Only guard API routes; let everything else (e.g. /files/) through.
+        if not path.startswith('/api/'):
+            return self.get_response(request)
+
+        policy = ROLE_API_POLICY[role]
+
+        # Always-allowed shared endpoints.
+        if path.startswith(SHARED_ADMIN_PREFIXES):
+            return self.get_response(request)
+
+        # Shared read-only reference endpoints.
+        if path.startswith(SHARED_ADMIN_READONLY_PREFIXES):
+            if request.method in SAFE_METHODS:
                 return self.get_response(request)
+            return self._denied(role)
 
-            # Student/captain access rules
-            if request.user.role in ['student', 'captain']:
+        # Role's full-access prefixes.
+        if path.startswith(policy['full']):
+            return self.get_response(request)
+
+        # Role's read-only prefixes.
+        if path.startswith(policy['read_only']):
+            if request.method in SAFE_METHODS:
+                return self.get_response(request)
+            return self._denied(role)
+
+        # Anything else under /api/ is outside this role's permissions.
+        return self._denied(role)
+
+    def _handle_non_admin_request(self, request, path):
+        role = request.user.role
+
+        # Special handling for admissions endpoint for students/captains.
+        if path.startswith('/api/admissions/'):
+            if role in ['student', 'captain']:
                 # Submit application
-                if request.method == 'POST' and request.path == '/api/admissions/':
-                    logger.info(f"Student POST access granted to {request.user.username}")
+                if request.method == 'POST' and path == '/api/admissions/':
                     return self.get_response(request)
 
-                # View own submitted admission (support both dash and underscore)
-                if request.path in ['/api/admissions/my-admission/', '/api/admissions/my_admission/']:
-                    logger.info(f"Student my-admission access granted to {request.user.username}")
+                # View own submitted admission (dash or underscore form)
+                if path in ['/api/admissions/my-admission/',
+                            '/api/admissions/my_admission/']:
                     return self.get_response(request)
 
                 # Draft endpoints and reapply
-                if request.path in [
+                if path in [
                     '/api/admissions/save-draft/',
                     '/api/admissions/get-draft/',
                     '/api/admissions/clear-draft/',
@@ -83,28 +181,17 @@ class RoleBasedAccessMiddleware:
                     '/api/admissions/reapply/',
                     '/api/admissions/check-existing/',
                 ]:
-                    logger.info(f"Student draft/reapply access granted to {request.user.username} on {request.method} {request.path}")
                     return self.get_response(request)
 
-            # If none of the above conditions matched, deny access
-            logger.warning(f"Access denied to {request.user.username} with role {request.user.role}")
-            return JsonResponse({
-                'error': 'Access denied',
-                'detail': f'You do not have permission to access this resource. Your role: {request.user.role}'
-            }, status=403)
-        
-        # Check access rules for other endpoints
-        path = request.path
+            return self._denied(role)
+
+        # Check legacy access rules for other endpoints.
         for pattern, allowed_roles in self.access_rules.items():
             if path.startswith(pattern):
-                # Allow GET requests to settings for all authenticated users
-                if pattern == '/api/settings/' and request.method == 'GET':
-                    continue
-                
-                if request.user.role not in allowed_roles:
+                if role not in allowed_roles:
                     return JsonResponse({
                         'error': 'Access denied',
                         'detail': 'You do not have permission to access this resource'
                     }, status=403)
-        
+
         return self.get_response(request)

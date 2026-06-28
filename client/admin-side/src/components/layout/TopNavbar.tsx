@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { canAccessRoute, resolveAdminRole } from '@/config/permissions';
 import { cn } from '@/lib/utils';
 import { notificationService, Notification } from '@/services/notificationService';
 import { getErrorMessage } from '@/lib/api';
@@ -98,6 +99,7 @@ export function TopNavbar({ onMenuToggle, sidebarOpen }: TopNavbarProps) {
   const profileRef = useRef<HTMLDivElement>(null);
 
   const currentPage = pageNames[location.pathname] || 'Dashboard';
+  const canViewAnalytics = canAccessRoute(resolveAdminRole(user), '/analytics');
 
   // Fetch unread count on mount and periodically
   useEffect(() => {
@@ -353,7 +355,7 @@ export function TopNavbar({ onMenuToggle, sidebarOpen }: TopNavbarProps) {
                       })
                     )}
                   </div>
-                  {notifications.length > 0 && (
+                  {notifications.length > 0 && canViewAnalytics && (
                     <div className="p-3 border-t border-border">
                       <Button variant="ghost" className="w-full text-primary" onClick={() => {
                         setNotificationsOpen(false);
@@ -411,14 +413,16 @@ export function TopNavbar({ onMenuToggle, sidebarOpen }: TopNavbarProps) {
                       <User className="w-4 h-4" />
                       Profile
                     </button>
-                    <button 
-                      onClick={() => handleNavigate('/analytics')}
-                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-foreground hover:bg-secondary transition-colors"
-                    >
-                      <BarChart3 className="w-4 h-4" />
-                      Analytics
-                    </button>
-                    <button 
+                    {canViewAnalytics && (
+                      <button
+                        onClick={() => handleNavigate('/analytics')}
+                        className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-foreground hover:bg-secondary transition-colors"
+                      >
+                        <BarChart3 className="w-4 h-4" />
+                        Analytics
+                      </button>
+                    )}
+                    <button
                       onClick={() => handleNavigate('/settings')}
                       className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-foreground hover:bg-secondary transition-colors"
                     >

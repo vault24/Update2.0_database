@@ -825,7 +825,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
         
         # Check permission - students and captains can only access their own documents
         if request.user.is_authenticated:
-            if request.user.is_staff or getattr(request.user, 'role', None) == 'admin':
+            if request.user.is_staff or request.user.is_admin():
                 # Admins can access any student's documents
                 pass
             elif getattr(request.user, 'role', None) in ['student', 'captain']:
@@ -910,7 +910,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
             return True
         
         # Admins can access any document
-        if user and user.is_authenticated and (user.is_staff or getattr(user, 'role', None) == 'admin'):
+        if user and user.is_authenticated and (user.is_staff or user.is_admin()):
             return True
         
         # Students and captains can access their own documents

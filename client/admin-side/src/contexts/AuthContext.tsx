@@ -9,6 +9,8 @@ interface User {
   first_name: string;
   last_name: string;
   role: string;
+  is_superuser?: boolean;
+  interface_mode?: 'simple' | 'advanced';
 }
 
 interface AuthContextType {
@@ -18,7 +20,12 @@ interface AuthContextType {
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
+  updateUser: (partial: Partial<User>) => void;
 }
+
+// The admin panel supports exactly three roles. `institute_head` is the
+// Principal (super user), plus Department Head and Registrar.
+const ADMIN_ROLES = ['institute_head', 'department_head', 'registrar'];
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -38,9 +45,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const data = await response.json();
         const userData = data.user || data;
         
-        // Only allow admin roles (registrar, institute_head) to access admin-side
-        const allowedRoles = ['registrar', 'institute_head'];
-        if (userData && !allowedRoles.includes(userData.role)) {
+        // Only allow the three admin roles to access admin-side
+        if (userData && !ADMIN_ROLES.includes(userData.role)) {
           // User is authenticated but not an admin - clear user and logout
           setUser(null);
           // Logout from backend
@@ -169,9 +175,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userData = await response.json();
       const user = userData.user || userData;
       
-      // Only allow admin roles (registrar, institute_head) to access admin-side
-      const allowedRoles = ['registrar', 'institute_head'];
-      if (!allowedRoles.includes(user.role)) {
+      // Only allow the three admin roles to access admin-side
+      if (!ADMIN_ROLES.includes(user.role)) {
         // Logout from backend
         try {
           await fetch(`${API_BASE_URL}${API_ENDPOINTS.auth.logout}`, {
@@ -213,6 +218,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const updateUser = (partial: Partial<User>) => {
+    setUser((prev) => (prev ? { ...prev, ...partial } : prev));
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -222,6 +231,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         logout,
         checkAuth,
+        updateUser,
       }}
     >
       {children}

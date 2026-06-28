@@ -341,7 +341,8 @@ def update_profile_view(request):
     last_name = request.data.get('last_name')
     email = request.data.get('email')
     mobile_number = request.data.get('mobile_number')
-    
+    interface_mode = request.data.get('interface_mode')
+
     # Update fields if provided
     if first_name is not None:
         user.first_name = first_name.strip()
@@ -361,7 +362,16 @@ def update_profile_view(request):
     
     if mobile_number is not None:
         user.mobile_number = mobile_number.strip()
-    
+
+    if interface_mode is not None:
+        valid_modes = [choice[0] for choice in User.INTERFACE_MODE_CHOICES]
+        if interface_mode not in valid_modes:
+            return Response(
+                {'interface_mode': ['Must be either "simple" or "advanced".']},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        user.interface_mode = interface_mode
+
     try:
         user.save()
         serializer = UserSerializer(user)
@@ -397,7 +407,7 @@ def create_signup_request_view(request):
         "password_confirm": "string",
         "first_name": "string",
         "last_name": "string",
-        "requested_role": "registrar|institute_head",
+        "requested_role": "registrar|department_head|institute_head",
         "mobile_number": "string"
     }
     

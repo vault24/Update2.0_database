@@ -379,7 +379,8 @@ export default function Auth() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="registrar">Registrar</SelectItem>
-                            <SelectItem value="institute_head">Institute Head</SelectItem>
+                            <SelectItem value="department_head">Department Head</SelectItem>
+                            <SelectItem value="institute_head">Principal (Institute Head)</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>

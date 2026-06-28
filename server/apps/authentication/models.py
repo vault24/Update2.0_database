@@ -17,8 +17,12 @@ class UserManager(DjangoUserManager):
         extra_fields.setdefault('is_superuser', True)
         extra_fields.setdefault('account_status', 'active')
 
+        # Django superusers act as the Principal (super user) and may also be a
+        # Registrar. Department Head is a delegated admin role and is never a
+        # Django superuser.
+        superuser_roles = ('institute_head', 'registrar')
         role = extra_fields.get('role') or 'institute_head'
-        if role not in User.ADMIN_ROLES:
+        if role not in superuser_roles:
             raise ValueError(
                 "Superuser role must be one of: institute_head, registrar."
             )
@@ -44,9 +48,17 @@ class User(AbstractUser):
         ('captain', 'Captain'),
         ('teacher', 'Teacher'),
         ('registrar', 'Registrar'),
+        ('department_head', 'Department Head'),
         ('institute_head', 'Institute Head'),
     ]
-    ADMIN_ROLES = ('registrar', 'institute_head')
+    # Admin-side roles. `institute_head` is the Principal / super user.
+    ADMIN_ROLES = ('registrar', 'department_head', 'institute_head')
+
+    # Interface mode choices (Account Settings -> Interface Mode toggle)
+    INTERFACE_MODE_CHOICES = [
+        ('simple', 'Simple Mode'),
+        ('advanced', 'Advanced Mode'),
+    ]
     
     # Account status choices
     ACCOUNT_STATUS_CHOICES = [
@@ -75,7 +87,16 @@ class User(AbstractUser):
         choices=ACCOUNT_STATUS_CHOICES,
         default='active'
     )
-    
+
+    # Admin-panel interface mode: 'simple' (essential features only) or
+    # 'advanced' (every feature allowed for the user's role). Mode never
+    # expands a user's permissions beyond what their role allows.
+    interface_mode = models.CharField(
+        max_length=20,
+        choices=INTERFACE_MODE_CHOICES,
+        default='simple'
+    )
+
     admission_status = models.CharField(
         max_length=20,
         choices=ADMISSION_STATUS_CHOICES,
@@ -199,6 +220,7 @@ class SignupRequest(models.Model):
         max_length=20,
         choices=[
             ('registrar', 'Registrar'),
+            ('department_head', 'Department Head'),
             ('institute_head', 'Institute Head'),
         ]
     )

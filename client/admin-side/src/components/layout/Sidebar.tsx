@@ -1,99 +1,35 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
-  LayoutDashboard,
-  Users,
-  UserPlus,
-  UserX,
-  GraduationCap,
-  Calendar,
-  ClipboardCheck,
-  UserCircle,
-  Award,
-  FileText,
-  Inbox,
-  FileEdit,
-  BarChart3,
-  Settings,
   X,
   BookOpen,
-  UserCheck,
-  UserCog,
-  Bell,
   ChevronRight,
-  MessageSquareWarning,
+  Sparkles,
+  Layers,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
+import { useInterfaceMode } from '@/contexts/InterfaceModeContext';
+import { getVisibleMenu, getRoleLabel, resolveAdminRole } from '@/config/permissions';
 
 interface SidebarProps {
   onClose: () => void;
   isMobile?: boolean;
 }
 
-interface MenuGroup {
-  label: string;
-  items: {
-    icon: any;
-    label: string;
-    path: string;
-  }[];
-  collapsible?: boolean;
-}
-
-const menuItems: MenuGroup[] = [
-  {
-    label: 'Main',
-    collapsible: false,
-    items: [
-      { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-    ],
-  },
-  {
-    label: 'Students',
-    collapsible: true,
-    items: [
-      { icon: Users, label: 'Students List', path: '/students' },
-      { icon: UserPlus, label: 'Add Student', path: '/add-student' },
-      { icon: GraduationCap, label: 'Admissions', path: '/admissions' },
-      { icon: Award, label: 'Stipend Eligible', path: '/stipend-eligible' },
-    ],
-  },
-  {
-    label: 'Academics',
-    collapsible: true,
-    items: [
-      { icon: BookOpen, label: 'Departments', path: '/departments' },
-      { icon: UserCheck, label: 'Teachers', path: '/teachers' },
-      { icon: Calendar, label: 'Class Routine', path: '/class-routine' },
-      { icon: ClipboardCheck, label: 'Attendance & Marks', path: '/attendance-marks' },
-    ],
-  },
-  {
-    label: 'Profiles & Records',
-    collapsible: true,
-    items: [
-      { icon: UserX, label: 'Discontinued Students', path: '/discontinued-students' },
-      { icon: Award, label: 'Alumni', path: '/alumni' },
-      { icon: FileText, label: 'Documents', path: '/documents' },
-    ],
-  },
-  {
-    label: 'Requests',
-    collapsible: true,
-    items: [
-      { icon: Inbox, label: 'Applications', path: '/applications' },
-      { icon: FileEdit, label: 'Correction Requests', path: '/correction-requests' },
-      { icon: UserCog, label: 'Signup Requests', path: '/signup-requests' },
-      { icon: MessageSquareWarning, label: 'Complaints', path: '/complaints' },
-    ],
-  },
-];
+const NON_COLLAPSIBLE_GROUPS = new Set(['Main']);
 
 export function Sidebar({ onClose, isMobile }: SidebarProps) {
   const location = useLocation();
+  const { user } = useAuth();
+  const { mode, isAdvanced } = useInterfaceMode();
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+
+  const role = useMemo(() => resolveAdminRole(user), [user]);
+  // Recomputes instantly whenever role or interface mode changes.
+  const menuItems = useMemo(() => getVisibleMenu(role, mode), [role, mode]);
 
   // Load collapsed state from localStorage on mount
   useEffect(() => {
@@ -147,13 +83,30 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
             </Button>
           )}
         </div>
+
+        {/* Role + interface mode indicator */}
+        <div className="mt-4 flex items-center gap-2">
+          <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-[11px] font-semibold text-primary">
+            {getRoleLabel(role)}
+          </span>
+          <span className={cn(
+            'inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium',
+            isAdvanced
+              ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
+              : 'bg-muted text-muted-foreground'
+          )}>
+            {isAdvanced ? <Sparkles className="w-3 h-3" /> : <Layers className="w-3 h-3" />}
+            {isAdvanced ? 'Advanced' : 'Simple'}
+          </span>
+        </div>
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto p-4 space-y-4">
         {menuItems.map((group, groupIndex) => {
-          const isCollapsed = group.collapsible && isSectionCollapsed(group.label);
-          
+          const collapsible = !NON_COLLAPSIBLE_GROUPS.has(group.label);
+          const isCollapsed = collapsible && isSectionCollapsed(group.label);
+
           return (
             <motion.div
               key={group.label}
@@ -164,14 +117,14 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
               {/* Section Header */}
               <div className={cn(
                 "flex items-center justify-between mb-3 px-3",
-                group.collapsible && "cursor-pointer hover:bg-sidebar-accent/50 rounded-md py-1 transition-colors"
+                collapsible && "cursor-pointer hover:bg-sidebar-accent/50 rounded-md py-1 transition-colors"
               )}
-              onClick={group.collapsible ? () => toggleSection(group.label) : undefined}
+              onClick={collapsible ? () => toggleSection(group.label) : undefined}
               >
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   {group.label}
                 </p>
-                {group.collapsible && (
+                {collapsible && (
                   <motion.div
                     animate={{ rotate: isCollapsed ? 0 : 90 }}
                     transition={{ duration: 0.2 }}
@@ -183,7 +136,7 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
 
               {/* Section Items */}
               <AnimatePresence initial={false}>
-                {(!group.collapsible || !isCollapsed) && (
+                {(!collapsible || !isCollapsed) && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}

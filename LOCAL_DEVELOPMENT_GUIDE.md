@@ -93,7 +93,7 @@ Backend is now running at: **http://127.0.0.1:8000**
 Open a new terminal window:
 
 ```bash
-cd slms-project/client/admin-side
+cd /client/admin-side
 npm install
 ```
 
@@ -118,7 +118,7 @@ Admin frontend is now running at: **http://localhost:5173** (or similar port sho
 Open another new terminal window:
 
 ```bash
-cd slms-project/client/student-side
+cd /client/student-side
 npm install
 ```
 

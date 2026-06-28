@@ -111,7 +111,7 @@ class SecureFileView(View):
             return False
         
         # Admin access
-        if user.is_staff or getattr(user, 'role', None) == 'admin':
+        if user.is_staff or user.is_admin():
             return True
         
         # Student and captain access to own documents
@@ -194,7 +194,7 @@ class DocumentThumbnailView(View):
         if not user.is_authenticated:
             return False
         
-        if user.is_staff or getattr(user, 'role', None) == 'admin':
+        if user.is_staff or user.is_admin():
             return True
         
         if getattr(user, 'role', None) in ['student', 'captain']:

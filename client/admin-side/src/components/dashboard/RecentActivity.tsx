@@ -4,6 +4,8 @@ import { UserPlus, FileEdit, GraduationCap, Award, UserCheck, Activity, Loader2,
 import { cn } from '@/lib/utils';
 import { activityLogService, ActivityLog } from '@/services/activityLogService';
 import { getErrorMessage } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
+import { getRoleFeatures, resolveAdminRole } from '@/config/permissions';
 
 const getActionIcon = (action: string) => {
   const value = action?.toLowerCase();
@@ -38,13 +40,22 @@ const formatTimeAgo = (timestamp: string) => {
 };
 
 export function RecentActivity() {
+  const { user } = useAuth();
+  // Activity logs (System Reports) are restricted; only fetch/show this widget
+  // for roles that are allowed to view them (e.g. the Principal).
+  const canViewActivity = getRoleFeatures(resolveAdminRole(user)).has('analytics');
+
   const [activities, setActivities] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchActivities();
-  }, []);
+    if (canViewActivity) {
+      fetchActivities();
+    } else {
+      setLoading(false);
+    }
+  }, [canViewActivity]);
 
   const fetchActivities = async () => {
     try {
@@ -61,6 +72,11 @@ export function RecentActivity() {
       setLoading(false);
     }
   };
+
+  // Hide the widget entirely for roles without activity-log access.
+  if (!canViewActivity) {
+    return null;
+  }
 
   return (
     <motion.div

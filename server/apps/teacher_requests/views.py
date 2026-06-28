@@ -11,18 +11,7 @@ from django.db import transaction
 from .models import TeacherSignupRequest, TeacherRequest
 
 
-class IsAdminRole(permissions.BasePermission):
-    """
-    Custom permission to only allow users with admin roles (registrar, institute_head)
-    to access admin endpoints.
-    """
-    def has_permission(self, request, view):
-        # Check if user is authenticated
-        if not request.user or not request.user.is_authenticated:
-            return False
-        
-        # Check if user has admin role
-        return request.user.is_admin()
+from apps.authentication.permissions import IsAdminRole
 from .serializers import (
     TeacherSignupRequestListSerializer,
     TeacherSignupRequestDetailSerializer,

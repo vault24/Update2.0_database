@@ -462,11 +462,12 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name', 'role',
+            'is_superuser', 'interface_mode',
             'related_profile_id', 'student_id', 'admission_status', 'account_status',
             'mobile_number', 'semester', 'student_status', 'is_alumni',
             'last_login', 'date_joined'
         ]
-        read_only_fields = ['id', 'username', 'role', 'student_id', 'last_login', 'date_joined']
+        read_only_fields = ['id', 'username', 'role', 'is_superuser', 'student_id', 'last_login', 'date_joined']
     
     def get_semester(self, obj):
         """Get student's current semester"""

@@ -100,8 +100,7 @@ sudo systemctl enable postgresql
 
 ```bash
 cd /home/ubuntu
-git clone https://github.com/vault24/Update2.0_database.git slms-project
-cd slms-project
+git clone https://github.com/vault24/Update2.0_database.git
 ```
 
 ---
@@ -109,7 +108,7 @@ cd slms-project
 ## Step 5: Setup the Backend
 
 ```bash
-cd /home/ubuntu/slms-project/server
+cd /home/ubuntu/project/server
 
 # Create and activate virtual environment
 python3 -m venv venv

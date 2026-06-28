@@ -56,7 +56,7 @@ class AdminNoticeListCreateView(generics.ListCreateAPIView):
     
     def get_queryset(self):
         """Get all notices for admin users"""
-        if not self.request.user.role in ['institute_head', 'registrar']:
+        if not self.request.user.is_admin():
             return Notice.objects.none()
         
         queryset = Notice.objects.select_related('created_by').prefetch_related('read_statuses')
@@ -104,7 +104,7 @@ class AdminNoticeDetailView(generics.RetrieveUpdateDestroyAPIView):
     
     def get_queryset(self):
         """Get notices for admin users only"""
-        if not self.request.user.role in ['institute_head', 'registrar']:
+        if not self.request.user.is_admin():
             return Notice.objects.none()
         return Notice.objects.select_related('created_by').prefetch_related('read_statuses')
     
@@ -261,7 +261,7 @@ def notice_stats(request):
     Get engagement statistics for all notices
     GET: Get notice statistics (admin only)
     """
-    if request.user.role not in ['institute_head', 'registrar']:
+    if not request.user.is_admin():
         return Response(
             {'error': 'Only admins can view notice statistics'},
             status=status.HTTP_403_FORBIDDEN
@@ -316,7 +316,7 @@ def notice_detail_stats(request, notice_id):
     Get detailed engagement statistics for a specific notice
     GET: Get detailed notice statistics (admin only)
     """
-    if request.user.role not in ['institute_head', 'registrar']:
+    if not request.user.is_admin():
         return Response(
             {'error': 'Only admins can view notice statistics'},
             status=status.HTTP_403_FORBIDDEN
@@ -365,7 +365,7 @@ def notice_engagement_summary(request):
     Get overall engagement summary for all notices
     GET: Get engagement summary (admin only)
     """
-    if request.user.role not in ['institute_head', 'registrar']:
+    if not request.user.is_admin():
         return Response(
             {'error': 'Only admins can view engagement summary'},
             status=status.HTTP_403_FORBIDDEN

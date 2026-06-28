@@ -19,6 +19,9 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useInterfaceMode } from '@/contexts/InterfaceModeContext';
+import { getRoleLabel, resolveAdminRole } from '@/config/permissions';
+import { Sparkles, Layers } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { settingsService, type SystemSettings } from '@/services/settingsService';
 import { getErrorMessage } from '@/lib/api';
@@ -50,6 +53,7 @@ export default function Settings() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user } = useAuth(); // Get user from AuthContext
+  const { mode, isAdvanced, toggleMode, isSaving: modeSaving } = useInterfaceMode();
   
   // Profile state
   const [profile, setProfile] = useState<AdminProfile>({
@@ -129,16 +133,9 @@ export default function Settings() {
       const lastName = user.last_name || '';
       const fullName = `${firstName} ${lastName}`.trim() || user.username || 'User';
       
-      // Map role to display name
-      let roleDisplay = 'Staff';
-      if (user.role === 'registrar') {
-        roleDisplay = 'Registrar';
-      } else if (user.role === 'institute_head') {
-        roleDisplay = 'Institute Head';
-      } else if (user.role === 'admin' || user.role === 'superadmin') {
-        roleDisplay = 'Admin';
-      }
-      
+      // Map role to display name (Principal / Department Head / Registrar)
+      const roleDisplay = getRoleLabel(resolveAdminRole(user));
+
       setProfile({
         id: user.id || '',
         fullName: fullName,
@@ -168,20 +165,9 @@ export default function Settings() {
       const lastName = userData.last_name || '';
       const fullName = `${firstName} ${lastName}`.trim() || userData.username || 'User';
       
-      // Map role to display name
-      let roleDisplay = 'Staff';
-      if (userData.role === 'registrar') {
-        roleDisplay = 'Registrar';
-      } else if (userData.role === 'institute_head') {
-        roleDisplay = 'Institute Head';
-      } else if (userData.role === 'admin' || userData.role === 'superadmin') {
-        roleDisplay = userData.is_superuser ? 'Super Admin' : 'Admin';
-      } else if (userData.role === 'teacher') {
-        roleDisplay = 'Teacher';
-      } else if (userData.role === 'student' || userData.role === 'captain') {
-        roleDisplay = userData.role === 'captain' ? 'Captain' : 'Student';
-      }
-      
+      // Map role to display name (Principal / Department Head / Registrar)
+      const roleDisplay = getRoleLabel(resolveAdminRole(userData));
+
       setProfile({
         id: userData.id || '',
         fullName: fullName,
@@ -450,6 +436,22 @@ export default function Settings() {
       });
     } finally {
       setDepartmentsSaving(false);
+    }
+  };
+
+  const handleToggleMode = async () => {
+    try {
+      await toggleMode();
+      toast({
+        title: 'Interface Mode Updated',
+        description: `Switched to ${isAdvanced ? 'Simple' : 'Advanced'} Mode.`,
+      });
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: 'Failed to update interface mode. Please try again.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -773,6 +775,75 @@ export default function Settings() {
 
         {/* Appearance Settings */}
         <TabsContent value="appearance" className="space-y-6">
+          {/* Interface Mode */}
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+            <Card className="glass-card overflow-hidden">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  {isAdvanced ? (
+                    <Sparkles className="w-5 h-5 text-amber-500" />
+                  ) : (
+                    <Layers className="w-5 h-5 text-primary" />
+                  )}
+                  Interface Mode
+                </CardTitle>
+                <CardDescription>
+                  Choose how much functionality you want to see in the Admin Panel.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border transition-colors ${
+                  isAdvanced
+                    ? 'bg-amber-500/10 border-amber-500/30'
+                    : 'bg-muted/50 border-border'
+                }`}>
+                  <div className="flex items-center gap-4">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
+                      isAdvanced
+                        ? 'bg-gradient-to-br from-amber-500 to-orange-600 text-white'
+                        : 'bg-gradient-to-br from-primary to-primary/70 text-primary-foreground'
+                    }`}>
+                      {isAdvanced ? <Sparkles className="w-6 h-6" /> : <Layers className="w-6 h-6" />}
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold">
+                          {isAdvanced ? 'Advanced Mode' : 'Simple Mode'}
+                        </p>
+                        <Badge variant="outline" className="bg-background/60">
+                          {getRoleLabel(resolveAdminRole(user))}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground max-w-md">
+                        {isAdvanced
+                          ? 'Showing every feature available for your role.'
+                          : 'A clean, distraction-free view with only the essentials.'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className={`text-sm font-medium ${!isAdvanced ? 'text-foreground' : 'text-muted-foreground'}`}>
+                      Simple
+                    </span>
+                    <Switch
+                      checked={isAdvanced}
+                      onCheckedChange={handleToggleMode}
+                      disabled={modeSaving}
+                      aria-label="Toggle interface mode"
+                    />
+                    <span className={`text-sm font-medium ${isAdvanced ? 'text-foreground' : 'text-muted-foreground'}`}>
+                      Advanced
+                    </span>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Advanced Mode never grants access beyond your role — it only reveals the
+                  additional features your role already permits.
+                </p>
+              </CardContent>
+            </Card>
+          </motion.div>
+
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <Card className="glass-card">
               <CardHeader>
