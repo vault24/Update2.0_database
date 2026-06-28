@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import api from '@/lib/api';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import api, { setAuthErrorHandler } from '@/lib/api';
 
 export type UserRole = 'student' | 'captain' | 'teacher' | 'alumni';
 export type AdmissionStatus = 'not_started' | 'pending' | 'approved' | 'rejected';
@@ -25,7 +25,15 @@ interface AuthContextType {
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   signup: (data: SignupData) => Promise<void>;
   logout: () => void;
+  /** Re-fetch the current user from the server (keeps admission status, profile id, role in sync). */
+  refreshUser: () => Promise<void>;
   loading: boolean;
+}
+
+/** True when an API error represents an authentication failure (expired/invalid session). */
+function isAuthFailure(error: any): boolean {
+  const status = error?.status_code;
+  return status === 401 || status === 403;
 }
 
 interface SignupData {
@@ -106,10 +114,136 @@ const resolveRelatedProfileIdWithFallback = async (userData: any): Promise<strin
   return undefined;
 };
 
+/** Build the app's User object from the backend `user` payload, resolving name + profile id. */
+async function buildUserFromResponse(userData: any): Promise<User> {
+  const relatedProfileId = await resolveRelatedProfileIdWithFallback(userData);
+
+  // Try to get the full name from the profile.
+  let fullName = userData.username; // Default to username (email)
+
+  // Priority 1: first_name / last_name on the User model.
+  if (userData.first_name || userData.last_name) {
+    const firstName = userData.first_name || '';
+    const lastName = userData.last_name || '';
+    fullName = `${firstName} ${lastName}`.trim();
+  }
+  // Priority 2: fall back to the linked profile's English name.
+  else if (relatedProfileId) {
+    if (userData.role === 'student' || userData.role === 'captain') {
+      try {
+        const profileResponse = await api.get<any>(`/students/${relatedProfileId}/`);
+        if (profileResponse.full_name_english) {
+          fullName = profileResponse.full_name_english;
+        }
+      } catch (profileError) {
+        console.error('Failed to fetch student profile for name:', profileError);
+      }
+    } else if (userData.role === 'teacher') {
+      try {
+        const profileResponse = await api.get<any>(`/teachers/${relatedProfileId}/`);
+        if (profileResponse.full_name_english) {
+          fullName = profileResponse.full_name_english;
+        }
+      } catch (profileError) {
+        console.error('Failed to fetch teacher profile for name:', profileError);
+      }
+    }
+  }
+
+  return {
+    id: userData.id,
+    name: fullName,
+    email: userData.email,
+    studentId: userData.student_id || userData.id,
+    role: userData.role || 'student',
+    admissionStatus: userData.admission_status || 'not_started',
+    relatedProfileId,
+    semester: userData.semester,
+    studentStatus: userData.student_status,
+    isAlumni: userData.is_alumni,
+  };
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Guards against overlapping validations and against tearing down state for a
+  // user who has already been logged out / replaced.
+  const validatingRef = useRef(false);
+  const userRef = useRef<User | null>(null);
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
+  /** Persist a freshly built user into state + localStorage backups. */
+  const applyUser = useCallback((built: User) => {
+    setUser(built);
+    if (built.id) {
+      localStorage.setItem('userId', built.id);
+    }
+    if (built.relatedProfileId) {
+      localStorage.setItem('relatedProfileId', built.relatedProfileId);
+    } else {
+      localStorage.removeItem('relatedProfileId');
+    }
+  }, []);
+
+  /** Clear all client-side auth state (used when the session is gone). */
+  const clearUser = useCallback(() => {
+    setUser(null);
+    localStorage.removeItem('userId');
+    localStorage.removeItem('relatedProfileId');
+  }, []);
+
+  /**
+   * Validate the current session against the server and refresh the cached user.
+   * - On success: updates state with the latest admission status / profile / role.
+   * - On a genuine auth failure (401/403): signs the user out cleanly so the app
+   *   redirects to login instead of getting stuck in a broken half-logged-in state.
+   * - On a network/transient error: keeps the existing session untouched.
+   */
+  const validateSession = useCallback(async (): Promise<void> => {
+    if (validatingRef.current) return;
+    validatingRef.current = true;
+    try {
+      const response = await api.get<any>('/auth/me/');
+      if (response.user) {
+        const built = await buildUserFromResponse(response.user);
+        // Avoid pointless re-renders of the whole app when nothing changed
+        // (focus/poll validations are frequent).
+        const current = userRef.current;
+        const unchanged =
+          current &&
+          current.id === built.id &&
+          current.role === built.role &&
+          current.admissionStatus === built.admissionStatus &&
+          current.relatedProfileId === built.relatedProfileId &&
+          current.studentStatus === built.studentStatus &&
+          current.isAlumni === built.isAlumni &&
+          current.name === built.name &&
+          current.studentId === built.studentId;
+        if (!unchanged) {
+          applyUser(built);
+        }
+      }
+    } catch (error) {
+      // Only tear down on a real authentication failure. Network blips, timeouts
+      // or unrelated errors must NOT log the user out.
+      if (isAuthFailure(error) && userRef.current) {
+        clearUser();
+      }
+    } finally {
+      validatingRef.current = false;
+    }
+  }, [applyUser, clearUser]);
+
+  // Public refresh used by the auth-error handler and the focus/poll effects.
+  const refreshUser = useCallback(async () => {
+    await validateSession();
+  }, [validateSession]);
+
+  // Initial authentication check on mount.
   useEffect(() => {
     const checkAuth = async () => {
       const hasLoggedOut = localStorage.getItem('hasLoggedOut');
@@ -122,64 +256,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await api.get<any>('/auth/csrf/');
         const response = await api.get<any>('/auth/me/');
         if (response.user) {
-          localStorage.setItem('userId', response.user.id);
-          
-          // Ensure relatedProfileId is properly set
-          const relatedProfileId = await resolveRelatedProfileIdWithFallback(response.user);
-          
-          // Try to get the full name from the profile
-          let fullName = response.user.username; // Default to username (email)
-          
-          // Priority 1: If first_name and last_name are available in User model, use them
-          if (response.user.first_name || response.user.last_name) {
-            const firstName = response.user.first_name || '';
-            const lastName = response.user.last_name || '';
-            fullName = `${firstName} ${lastName}`.trim();
-          } 
-          // Priority 2: If no name in User model, try to fetch from profile
-          else if (relatedProfileId) {
-            if (response.user.role === 'student' || response.user.role === 'captain') {
-              // For students/captains, try to fetch the profile to get fullNameEnglish
-              try {
-                const profileResponse = await api.get<any>(`/students/${relatedProfileId}/`);
-                if (profileResponse.full_name_english) {
-                  fullName = profileResponse.full_name_english;
-                }
-              } catch (profileError) {
-                console.error('Failed to fetch student profile for name:', profileError);
-              }
-            } else if (response.user.role === 'teacher') {
-              // For teachers, try to fetch the teacher profile
-              try {
-                const profileResponse = await api.get<any>(`/teachers/${relatedProfileId}/`);
-                if (profileResponse.full_name_english) {
-                  fullName = profileResponse.full_name_english;
-                }
-              } catch (profileError) {
-                console.error('Failed to fetch teacher profile for name:', profileError);
-              }
-            }
-          }
-          
-          setUser({
-            id: response.user.id,
-            name: fullName,
-            email: response.user.email,
-            studentId: response.user.student_id || response.user.id, // Use student_id field
-            role: response.user.role || 'student',
-            admissionStatus: response.user.admission_status || 'not_started',
-            relatedProfileId: relatedProfileId,
-            semester: response.user.semester,
-            studentStatus: response.user.student_status,
-            isAlumni: response.user.is_alumni,
-          });
-          
-          // Store relatedProfileId in localStorage as backup
-          if (relatedProfileId) {
-            localStorage.setItem('relatedProfileId', relatedProfileId);
-          } else {
-            localStorage.removeItem('relatedProfileId');
-          }
+          const built = await buildUserFromResponse(response.user);
+          applyUser(built);
         }
       } catch (error) {
         localStorage.removeItem('userId');
@@ -189,7 +267,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     checkAuth();
-  }, []);
+  }, [applyUser]);
+
+  // Keep auth state fresh and the session alive:
+  //  - re-validate when the tab regains focus / becomes visible (covers waking
+  //    from inactivity and returning after an admin changed your status), and
+  //  - poll on an interval so an open-but-idle tab keeps the sliding session
+  //    alive and picks up status changes without a manual refresh.
+  useEffect(() => {
+    if (!user) return;
+
+    const onFocus = () => {
+      void validateSession();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void validateSession();
+      }
+    };
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+
+    const interval = window.setInterval(() => {
+      void validateSession();
+    }, 4 * 60 * 1000); // every 4 minutes
+
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.clearInterval(interval);
+    };
+  }, [user, validateSession]);
+
+  // Register the global auth-error handler so a 401/403 from any request
+  // triggers a single re-validation (which only signs out if truly expired).
+  useEffect(() => {
+    setAuthErrorHandler(() => {
+      if (userRef.current) {
+        void validateSession();
+      }
+    });
+    return () => setAuthErrorHandler(null);
+  }, [validateSession]);
 
   const login = async (email: string, password: string, rememberMe: boolean = false) => {
     try {
@@ -198,67 +318,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await api.get<any>('/auth/csrf/');
       const response = await api.post<any>('/auth/login/', { username: email, password, remember_me: rememberMe });
       
-      if (response.user?.id) {
-        localStorage.setItem('userId', response.user.id);
-      }
-      
-      // Ensure relatedProfileId is properly set
-      const relatedProfileId = await resolveRelatedProfileIdWithFallback(response.user);
-      
-      // Try to get the full name from the profile
-      let fullName = response.user.username; // Default to username (email)
-      
-      // Priority 1: If first_name and last_name are available in User model, use them
-      if (response.user.first_name || response.user.last_name) {
-        const firstName = response.user.first_name || '';
-        const lastName = response.user.last_name || '';
-        fullName = `${firstName} ${lastName}`.trim();
-      } 
-      // Priority 2: If no name in User model, try to fetch from profile
-      else if (relatedProfileId) {
-        if (response.user.role === 'student' || response.user.role === 'captain') {
-          // For students/captains, try to fetch the profile to get fullNameEnglish
-          try {
-            const profileResponse = await api.get<any>(`/students/${relatedProfileId}/`);
-            if (profileResponse.full_name_english) {
-              fullName = profileResponse.full_name_english;
-            }
-          } catch (profileError) {
-            console.error('Failed to fetch student profile for name:', profileError);
-          }
-        } else if (response.user.role === 'teacher') {
-          // For teachers, try to fetch the teacher profile
-          try {
-            const profileResponse = await api.get<any>(`/teachers/${relatedProfileId}/`);
-            if (profileResponse.full_name_english) {
-              fullName = profileResponse.full_name_english;
-            }
-          } catch (profileError) {
-            console.error('Failed to fetch teacher profile for name:', profileError);
-          }
-        }
-      }
-      
-      setUser({
-        id: response.user.id,
-        name: fullName,
-        email: response.user.email,
-        studentId: response.user.student_id || response.user.id, // Use student_id field
-        role: response.user.role || 'student',
-        admissionStatus: response.user.admission_status || 'not_started',
-        relatedProfileId: relatedProfileId,
-        semester: response.user.semester,
-        studentStatus: response.user.student_status,
-        isAlumni: response.user.is_alumni,
-      });
-      
-      // Store relatedProfileId in localStorage as backup
-      if (relatedProfileId) {
-        localStorage.setItem('relatedProfileId', relatedProfileId);
-      } else {
-        localStorage.removeItem('relatedProfileId');
-      }
-      
+      const built = await buildUserFromResponse(response.user);
+      applyUser(built);
+
       if (response.redirect_to_admission) {
         console.log('User needs to complete admission');
       }
@@ -334,30 +396,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       
       if (response.auto_logged_in && response.user) {
-        localStorage.setItem('userId', response.user.id);
-        
-        // Ensure relatedProfileId is properly set
-        const relatedProfileId = await resolveRelatedProfileIdWithFallback(response.user);
-        
-        setUser({
-          id: response.user.id,
-          name: data.fullName, // Use the fullName from signup form
-          email: data.email,
-          studentId: response.user.student_id || response.user.id, // Use student_id field
-          role: data.role,
-          admissionStatus: response.user.admission_status || 'not_started',
-          relatedProfileId: relatedProfileId,
-          semester: response.user.semester,
-          studentStatus: response.user.student_status,
-          isAlumni: response.user.is_alumni,
-        });
-        
-        // Store relatedProfileId in localStorage as backup
-        if (relatedProfileId) {
-          localStorage.setItem('relatedProfileId', relatedProfileId);
-        } else {
-          localStorage.removeItem('relatedProfileId');
-        }
+        const built = await buildUserFromResponse(response.user);
+        // Prefer the name the user just typed in the signup form.
+        applyUser({ ...built, name: data.fullName || built.name });
       }
     } catch (error) {
       console.error('Signup failed:', error);
@@ -367,10 +408,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     localStorage.setItem('hasLoggedOut', 'true');
-    
-    setUser(null);
-    localStorage.removeItem('userId');
-    
+
+    clearUser();
+
     try {
       await api.post('/auth/logout/', {});
     } catch (error) {
@@ -379,12 +419,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      isAuthenticated: !!user, 
-      login, 
-      signup, 
+    <AuthContext.Provider value={{
+      user,
+      isAuthenticated: !!user,
+      login,
+      signup,
       logout,
+      refreshUser,
       loading
     }}>
       {children}

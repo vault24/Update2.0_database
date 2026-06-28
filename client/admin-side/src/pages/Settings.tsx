@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Settings as SettingsIcon, Building, GraduationCap, Calendar, Users, Save, Plus, Trash2, Upload, 
@@ -24,8 +24,22 @@ import { getRoleLabel, resolveAdminRole } from '@/config/permissions';
 import { Sparkles, Layers } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { settingsService, type SystemSettings } from '@/services/settingsService';
+import departmentService from '@/services/departmentService';
 import { getErrorMessage } from '@/lib/api';
 import { apiClient } from '@/lib/api';
+
+// Local-only preference keys (settings without backend persistence are stored here)
+const NOTIF_PREFS_KEY = 'admin_notification_prefs';
+const SYSTEM_PREFS_KEY = 'admin_system_prefs';
+
+function loadLocalPrefs<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? { ...fallback, ...JSON.parse(raw) } : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 // Department interface
 interface Department {
@@ -53,7 +67,7 @@ export default function Settings() {
   const { theme, setTheme } = useTheme();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { user } = useAuth(); // Get user from AuthContext
+  const { user, updateUser } = useAuth(); // Get user from AuthContext
   const { mode, isAdvanced, toggleMode, isSaving: modeSaving } = useInterfaceMode();
   
   // Profile state
@@ -68,6 +82,19 @@ export default function Settings() {
   });
   const [editingProfile, setEditingProfile] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
+
+  // Avatar / logo / signature upload + security-action state
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const signatureInputRef = useRef<HTMLInputElement>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
+  const [signatureUploading, setSignatureUploading] = useState(false);
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [twoFactorSaving, setTwoFactorSaving] = useState(false);
+  const [revokingSessions, setRevokingSessions] = useState(false);
   
   // Password state
   const [passwords, setPasswords] = useState({
@@ -157,8 +184,7 @@ export default function Settings() {
     try {
       setProfileLoading(true);
       const response = await apiClient.get<any>('auth/me/');
-      console.log('Profile API response:', response); // Debug log
-      
+
       // The response has user data nested in a 'user' property
       const userData = response.user || response;
       
@@ -177,17 +203,12 @@ export default function Settings() {
         phone: userData.mobile_number || '',
         role: roleDisplay,
         department: userData.department || '',
+        avatar: userData.profile_photo_url || undefined,
         lastLogin: userData.last_login || '',
         createdAt: userData.date_joined || ''
       });
-      
-      console.log('Mapped profile:', {
-        id: userData.id,
-        fullName,
-        email: userData.email,
-        phone: userData.mobile_number,
-        role: roleDisplay
-      }); // Debug log
+      setTwoFactorEnabled(!!userData.two_factor_enabled);
+      setSignatureUrl(userData.signature_url || null);
     } catch (err) {
       console.error('Failed to fetch profile:', err);
       // Don't show error toast if we already have user data from AuthContext
@@ -209,16 +230,36 @@ export default function Settings() {
       setError(null);
       const data = await settingsService.getSettings();
       setSettings(data);
-      
-      // Populate form fields
+
+      // Populate institute form fields
       setInstituteName(data.institute_name || '');
       setEmail(data.institute_email || '');
       setPhone(data.institute_phone || '');
       setAddress(data.institute_address || '');
+      setLogoUrl(data.institute_logo || null);
+
+      // Populate access-control / maintenance from backend (merge with local-only prefs)
+      setSystemSettings((prev) => ({
+        ...prev,
+        ...loadLocalPrefs(SYSTEM_PREFS_KEY, {}),
+        allowRegistration: data.allow_student_registration ?? prev.allowRegistration,
+        allowAdmission: data.allow_admission_submission ?? prev.allowAdmission,
+        maintenanceMode: data.maintenance_mode ?? prev.maintenanceMode,
+      }));
+
+      // Populate notification channels from backend (merge with local-only prefs)
+      setNotifications((prev) => ({
+        ...prev,
+        ...loadLocalPrefs(NOTIF_PREFS_KEY, {}),
+        emailNotifications: data.enable_email_notifications ?? prev.emailNotifications,
+        smsNotifications: data.enable_sms_notifications ?? prev.smsNotifications,
+      }));
     } catch (err) {
       const errorMsg = getErrorMessage(err);
       setError(errorMsg);
-      // Don't show error toast, just use mock data
+      // Backend unreachable — fall back to any locally saved preferences
+      setSystemSettings((prev) => ({ ...prev, ...loadLocalPrefs(SYSTEM_PREFS_KEY, {}) }));
+      setNotifications((prev) => ({ ...prev, ...loadLocalPrefs(NOTIF_PREFS_KEY, {}) }));
     } finally {
       setLoading(false);
     }
@@ -227,17 +268,17 @@ export default function Settings() {
   const fetchDepartments = async () => {
     try {
       setDepartmentsLoading(true);
-      const response = await apiClient.get<{ results: Department[] }>('departments/');
-      setDepartments(response.results || []);
+      const response = await departmentService.getDepartments({ page_size: 100 });
+      const mapped: Department[] = (response.results || []).map((d) => ({
+        id: d.id,
+        name: d.name,
+        code: d.code || d.short_name || '',
+        studentCount: d.total_students,
+      }));
+      setDepartments(mapped);
     } catch (err) {
-      // Use mock data if API fails
-      setDepartments([
-        { id: '1', name: 'Computer Technology', code: 'CT', studentCount: 245 },
-        { id: '2', name: 'Civil Technology', code: 'CV', studentCount: 189 },
-        { id: '3', name: 'Electrical Technology', code: 'ET', studentCount: 156 },
-        { id: '4', name: 'Mechanical Technology', code: 'MT', studentCount: 178 },
-        { id: '5', name: 'Electronics Technology', code: 'EC', studentCount: 134 },
-      ]);
+      // Leave the list empty on failure rather than showing fake departments
+      setDepartments([]);
     } finally {
       setDepartmentsLoading(false);
     }
@@ -357,15 +398,22 @@ export default function Settings() {
   const handleSaveNotifications = async () => {
     try {
       setSaving(true);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Persist channels backed by the API; keep the rest locally
+      await settingsService.updateSettings({
+        enable_email_notifications: notifications.emailNotifications,
+        enable_sms_notifications: notifications.smsNotifications,
+      });
+      localStorage.setItem(NOTIF_PREFS_KEY, JSON.stringify(notifications));
       toast({
         title: "Notifications Updated",
         description: "Your notification preferences have been saved.",
       });
+      await fetchSettings();
     } catch (err) {
+      const errorMsg = getErrorMessage(err);
       toast({
         title: 'Error',
-        description: 'Failed to save notification settings',
+        description: errorMsg || 'Failed to save notification settings',
         variant: 'destructive',
       });
     } finally {
@@ -376,15 +424,23 @@ export default function Settings() {
   const handleSaveSystem = async () => {
     try {
       setSaving(true);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Persist the fields the backend supports; keep UI-only prefs locally
+      await settingsService.updateSettings({
+        allow_student_registration: systemSettings.allowRegistration,
+        allow_admission_submission: systemSettings.allowAdmission,
+        maintenance_mode: systemSettings.maintenanceMode,
+      });
+      localStorage.setItem(SYSTEM_PREFS_KEY, JSON.stringify(systemSettings));
       toast({
         title: "System Settings Updated",
         description: "System settings have been saved successfully.",
       });
+      await fetchSettings();
     } catch (err) {
+      const errorMsg = getErrorMessage(err);
       toast({
         title: 'Error',
-        description: 'Failed to save system settings',
+        description: errorMsg || 'Failed to save system settings',
         variant: 'destructive',
       });
     } finally {
@@ -404,23 +460,22 @@ export default function Settings() {
 
     try {
       setDepartmentsSaving(true);
-      const newDept = {
-        id: Date.now().toString(),
-        name: newDepartment.name,
-        code: newDepartment.code.toUpperCase(),
-        studentCount: 0
-      };
-      
-      setDepartments([...departments, newDept]);
+      await departmentService.createDepartment({
+        name: newDepartment.name.trim(),
+        code: newDepartment.code.trim().toUpperCase(),
+        short_name: newDepartment.code.trim().toUpperCase(),
+      });
       setNewDepartment({ name: '', code: '' });
       toast({
         title: "Department Added",
         description: `${newDepartment.name} has been added successfully.`,
       });
+      await fetchDepartments();
     } catch (err) {
+      const errorMsg = getErrorMessage(err);
       toast({
         title: 'Error adding department',
-        description: 'Failed to add department',
+        description: errorMsg || 'Failed to add department',
         variant: 'destructive',
       });
     } finally {
@@ -431,15 +486,17 @@ export default function Settings() {
   const handleRemoveDepartment = async (id: string) => {
     try {
       setDepartmentsSaving(true);
-      setDepartments(departments.filter(d => d.id !== id));
+      await departmentService.deleteDepartment(id);
       toast({
         title: "Department Removed",
         description: "Department has been removed successfully.",
       });
+      await fetchDepartments();
     } catch (err) {
+      const errorMsg = getErrorMessage(err);
       toast({
         title: 'Error removing department',
-        description: 'Failed to remove department',
+        description: errorMsg || 'Failed to remove department. It may have students or classes attached.',
         variant: 'destructive',
       });
     } finally {
@@ -460,6 +517,118 @@ export default function Settings() {
         description: 'Failed to update interface mode. Please try again.',
         variant: 'destructive',
       });
+    }
+  };
+
+  const handleAvatarSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast({ title: 'Invalid file', description: 'Please choose an image file.', variant: 'destructive' });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: 'File too large', description: 'Image must be 5MB or smaller.', variant: 'destructive' });
+      return;
+    }
+    try {
+      setAvatarUploading(true);
+      const formData = new FormData();
+      formData.append('profile_photo', file);
+      const res = await apiClient.post<any>('auth/profile/photo/', formData);
+      const url = res?.user?.profile_photo_url || null;
+      setProfile((prev) => ({ ...prev, avatar: url || undefined }));
+      toast({ title: 'Photo Updated', description: 'Your profile photo has been updated.' });
+    } catch (err) {
+      toast({ title: 'Upload failed', description: getErrorMessage(err) || 'Could not upload photo.', variant: 'destructive' });
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
+  const handleLogoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast({ title: 'Invalid file', description: 'Please choose an image file.', variant: 'destructive' });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: 'File too large', description: 'Logo must be 5MB or smaller.', variant: 'destructive' });
+      return;
+    }
+    try {
+      setLogoUploading(true);
+      const updated = await settingsService.uploadLogo(file);
+      setLogoUrl(updated.institute_logo || null);
+      toast({ title: 'Logo Updated', description: 'The institute logo has been updated.' });
+    } catch (err) {
+      toast({ title: 'Upload failed', description: getErrorMessage(err) || 'Could not upload logo.', variant: 'destructive' });
+    } finally {
+      setLogoUploading(false);
+    }
+  };
+
+  const handleSignatureSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast({ title: 'Invalid file', description: 'Please choose an image file.', variant: 'destructive' });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: 'File too large', description: 'Signature image must be 5MB or smaller.', variant: 'destructive' });
+      return;
+    }
+    try {
+      setSignatureUploading(true);
+      const formData = new FormData();
+      formData.append('signature', file);
+      const res = await apiClient.post<any>('auth/profile/signature/', formData);
+      setSignatureUrl(res?.user?.signature_url || null);
+      toast({ title: 'Signature Updated', description: 'Your signature will appear on documents you approve.' });
+    } catch (err) {
+      toast({ title: 'Upload failed', description: getErrorMessage(err) || 'Could not upload signature.', variant: 'destructive' });
+    } finally {
+      setSignatureUploading(false);
+    }
+  };
+
+  const handleToggle2FA = async (checked: boolean) => {
+    const previous = twoFactorEnabled;
+    setTwoFactorEnabled(checked); // optimistic
+    try {
+      setTwoFactorSaving(true);
+      await apiClient.post('auth/2fa/toggle/', { enabled: checked });
+      toast({
+        title: checked ? 'Two-Factor Enabled' : 'Two-Factor Disabled',
+        description: checked
+          ? 'You will be asked for an email code at your next login.'
+          : 'Two-factor authentication has been turned off.',
+      });
+    } catch (err) {
+      setTwoFactorEnabled(previous); // rollback
+      toast({ title: 'Error', description: getErrorMessage(err) || 'Failed to update 2FA setting.', variant: 'destructive' });
+    } finally {
+      setTwoFactorSaving(false);
+    }
+  };
+
+  const handleRevokeSessions = async () => {
+    try {
+      setRevokingSessions(true);
+      const res = await apiClient.post<{ count: number; message: string }>('auth/sessions/revoke-others/', {});
+      toast({
+        title: 'Sessions Signed Out',
+        description: res?.message || 'Other sessions have been signed out.',
+      });
+    } catch (err) {
+      toast({ title: 'Error', description: getErrorMessage(err) || 'Failed to sign out other sessions.', variant: 'destructive' });
+    } finally {
+      setRevokingSessions(false);
     }
   };
 
@@ -538,12 +707,22 @@ export default function Settings() {
                         {(profile.fullName || 'U').split(' ').map(n => n[0]).join('').toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
+                    <input
+                      ref={avatarInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleAvatarSelected}
+                    />
                     <Button
                       size="icon"
                       variant="outline"
                       className="absolute -bottom-2 -right-2 rounded-full w-8 h-8 bg-background"
+                      onClick={() => avatarInputRef.current?.click()}
+                      disabled={avatarUploading}
+                      title="Change profile photo"
                     >
-                      <Camera className="w-4 h-4" />
+                      {avatarUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
                     </Button>
                   </div>
                   <div className="space-y-1">
@@ -746,6 +925,48 @@ export default function Settings() {
               </CardContent>
             </Card>
 
+            {/* Signature */}
+            <Card className="glass-card">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Key className="w-5 h-5 text-primary" />
+                  Approval Signature
+                </CardTitle>
+                <CardDescription>
+                  This signature is composited onto documents you approve in the application workflow.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <input
+                  ref={signatureInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleSignatureSelected}
+                />
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+                  <div className="w-48 h-24 rounded-lg border-2 border-dashed border-border flex items-center justify-center bg-muted/30 overflow-hidden">
+                    {signatureUploading ? (
+                      <Loader2 className="w-6 h-6 text-muted-foreground animate-spin" />
+                    ) : signatureUrl ? (
+                      <img src={signatureUrl} alt="Your signature" className="w-full h-full object-contain p-2" />
+                    ) : (
+                      <p className="text-xs text-muted-foreground">No signature uploaded</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Button variant="outline" onClick={() => signatureInputRef.current?.click()} disabled={signatureUploading}>
+                      <Upload className="w-4 h-4 mr-2" />
+                      {signatureUrl ? 'Replace Signature' : 'Upload Signature'}
+                    </Button>
+                    <p className="text-xs text-muted-foreground max-w-xs">
+                      Use a transparent PNG of your handwritten signature for best results.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Two-Factor Authentication */}
             <Card className="glass-card">
               <CardHeader>
@@ -760,12 +981,14 @@ export default function Settings() {
                   <div className="space-y-1">
                     <p className="font-medium">Enable 2FA</p>
                     <p className="text-sm text-muted-foreground">
-                      Require a verification code when logging in
+                      Require an emailed verification code when logging in
                     </p>
                   </div>
                   <Switch
-                    checked={systemSettings.twoFactorAuth}
-                    onCheckedChange={(checked) => setSystemSettings({ ...systemSettings, twoFactorAuth: checked })}
+                    checked={twoFactorEnabled}
+                    onCheckedChange={handleToggle2FA}
+                    disabled={twoFactorSaving}
+                    aria-label="Toggle two-factor authentication"
                   />
                 </div>
               </CardContent>
@@ -793,8 +1016,13 @@ export default function Settings() {
                   </div>
                   <Badge className="bg-success text-success-foreground">Active</Badge>
                 </div>
-                <Button variant="outline" className="w-full text-destructive border-destructive/50 hover:bg-destructive/10">
-                  <XCircle className="w-4 h-4 mr-2" />
+                <Button
+                  variant="outline"
+                  className="w-full text-destructive border-destructive/50 hover:bg-destructive/10"
+                  onClick={handleRevokeSessions}
+                  disabled={revokingSessions}
+                >
+                  {revokingSessions ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <XCircle className="w-4 h-4 mr-2" />}
                   Sign Out All Other Sessions
                 </Button>
               </CardContent>
@@ -1122,11 +1350,30 @@ export default function Settings() {
                 <div className="flex flex-col sm:flex-row gap-6 items-start">
                   <div className="space-y-2">
                     <Label>Institute Logo</Label>
-                    <div className="w-32 h-32 rounded-xl border-2 border-dashed border-border flex items-center justify-center bg-muted/50 hover:border-primary/50 cursor-pointer transition-colors">
-                      <div className="text-center">
-                        <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                        <p className="text-xs text-muted-foreground">Upload Logo</p>
-                      </div>
+                    <input
+                      ref={logoInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleLogoSelected}
+                    />
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => !logoUploading && logoInputRef.current?.click()}
+                      onKeyDown={(e) => { if (e.key === 'Enter') logoInputRef.current?.click(); }}
+                      className="w-32 h-32 rounded-xl border-2 border-dashed border-border flex items-center justify-center bg-muted/50 hover:border-primary/50 cursor-pointer transition-colors overflow-hidden"
+                    >
+                      {logoUploading ? (
+                        <Loader2 className="w-8 h-8 text-muted-foreground animate-spin" />
+                      ) : logoUrl ? (
+                        <img src={logoUrl} alt="Institute logo" className="w-full h-full object-contain p-2" />
+                      ) : (
+                        <div className="text-center">
+                          <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                          <p className="text-xs text-muted-foreground">Upload Logo</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">

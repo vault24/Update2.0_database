@@ -31,6 +31,7 @@ class SystemSettings(models.Model):
     institute_address = models.TextField(blank=True)
     institute_phone = models.CharField(max_length=20, blank=True)
     institute_email = models.EmailField(blank=True)
+    institute_logo = models.ImageField(upload_to='institute/', null=True, blank=True)
     
     # Maintenance Mode
     maintenance_mode = models.BooleanField(default=False)

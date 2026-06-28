@@ -66,6 +66,32 @@ class EmailService:
             return False
 
     @staticmethod
+    def send_login_otp_email(user, otp):
+        """Send a branded two-factor LOGIN verification code (not a password reset)."""
+        try:
+            from apps.notifications.email_service import send_branded_email
+            expiry = getattr(settings, 'OTP_EXPIRY_MINUTES', 10)
+            return send_branded_email(
+                'Your Login Verification Code - SIPI',
+                user.email,
+                heading='Your Login Verification Code',
+                greeting=f"Hello {user.first_name or user.username},",
+                intro='Use the verification code below to finish signing in to your account.',
+                highlight=otp,
+                body_lines=[
+                    f'This code will expire in {expiry} minutes.',
+                    "If you didn't try to sign in, please change your password immediately.",
+                ],
+                accent_label='Security',
+                accent_color='#2563eb',
+                accent_soft='#eff6ff',
+                async_send=False,  # login should confirm delivery synchronously
+            )
+        except Exception as e:
+            logger.error(f"Error sending login OTP email: {e}")
+            return False
+
+    @staticmethod
     def send_password_reset_confirmation(user):
         """Confirm a successful password reset (security notification)."""
         try:

@@ -133,7 +133,29 @@ class User(AbstractUser):
     
     # Additional fields
     mobile_number = models.CharField(max_length=20, blank=True)
-    
+
+    # Profile photo (avatar) shown in the admin panel
+    profile_photo = models.ImageField(
+        upload_to='avatars/',
+        null=True,
+        blank=True,
+        help_text='Profile photo / avatar'
+    )
+
+    # Signature image (used to sign approved documents in the approval workflow)
+    signature = models.ImageField(
+        upload_to='signatures/',
+        null=True,
+        blank=True,
+        help_text='Signature image used on approved documents'
+    )
+
+    # Two-factor authentication: when enabled, login requires an email OTP step
+    two_factor_enabled = models.BooleanField(
+        default=False,
+        help_text='Require an email OTP code at login'
+    )
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

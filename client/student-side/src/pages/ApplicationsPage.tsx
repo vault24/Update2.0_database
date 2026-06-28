@@ -1,41 +1,49 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { 
-  Send, FileText, CreditCard, Calendar, ClipboardCheck, 
-  BarChart3, Plus, Clock, CheckCircle, XCircle, Search, Filter
+import {
+  Send, FileText, Plus, Clock, CheckCircle, XCircle, Search, Filter,
+  Printer, ArrowRight, User2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import applicationService, { Application } from '@/services/applicationService';
+import applicationService, { Application, DocumentTemplateOption } from '@/services/applicationService';
+import api from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { studentService } from '@/services/studentService';
 import { AdmissionBanner, useAdmissionIncomplete, useValidProfileId } from '@/components/auth/AdmissionGuard';
 
-const applicationTypes = [
-  { id: 'Testimonial', label: 'Testimonial', icon: FileText, description: 'Request character certificate' },
-  { id: 'Certificate', label: 'Certificate', icon: FileText, description: 'Request academic certificate' },
-  { id: 'Transcript', label: 'Transcript', icon: FileText, description: 'Request transcript' },
-  { id: 'Stipend', label: 'Stipend', icon: CreditCard, description: 'Apply for stipend' },
-  { id: 'Transfer', label: 'Transfer', icon: Calendar, description: 'Request transfer certificate' },
-  { id: 'Other', label: 'Other', icon: ClipboardCheck, description: 'Other requests' },
-];
+interface DeptOption { id: string; name: string; code?: string }
+type AssigneeRole = 'registrar' | 'institute_head' | 'department_head';
 
 export function ApplicationsPage() {
   const { user, loading: authLoading } = useAuth();
   const admissionIncomplete = useAdmissionIncomplete();
   const validProfileId = useValidProfileId();
   const [showNewForm, setShowNewForm] = useState(false);
-  const [selectedType, setSelectedType] = useState<string | null>(null);
+  const [templates, setTemplates] = useState<DocumentTemplateOption[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<DocumentTemplateOption | null>(null);
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
+  const [assignee, setAssignee] = useState<AssigneeRole>('registrar');
+  const [assigneeDeptId, setAssigneeDeptId] = useState('');
+  const [departments, setDepartments] = useState<DeptOption[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [studentData, setStudentData] = useState<any>(null);
+
+  // Load available document templates + departments for the new-application form
+  useEffect(() => {
+    applicationService.getAvailableTemplates().then(setTemplates).catch(() => setTemplates([]));
+    api.get<{ results?: DeptOption[] } | DeptOption[]>('/departments/')
+      .then((res: any) => setDepartments(res?.results || res || []))
+      .catch(() => setDepartments([]));
+  }, []);
 
   // Fetch student profile to get rollNumber and registrationNumber
   useEffect(() => {
@@ -84,22 +92,32 @@ export function ApplicationsPage() {
     }
   }, [studentData]);
 
+  const resetForm = () => {
+    setShowNewForm(false);
+    setSelectedTemplate(null);
+    setSubject('');
+    setMessage('');
+    setAssignee('registrar');
+    setAssigneeDeptId('');
+  };
+
   const handleSubmit = async () => {
-    if (!selectedType) {
-      toast.error('Please select an application type');
+    if (!selectedTemplate) {
+      toast.error('Please select a document to apply for');
       return;
     }
-
     if (!subject.trim()) {
       toast.error('Please enter a subject');
       return;
     }
-
     if (!message.trim()) {
       toast.error('Please enter a message');
       return;
     }
-
+    if (assignee === 'department_head' && !assigneeDeptId) {
+      toast.error('Please select which Department Head to assign to');
+      return;
+    }
     if (!studentData) {
       toast.error('Student profile not found. Please complete your admission.');
       return;
@@ -112,24 +130,24 @@ export function ApplicationsPage() {
         fullNameEnglish: studentData.fullNameEnglish,
         fatherName: studentData.fatherName,
         motherName: studentData.motherName,
-        department: typeof studentData.department === 'string' 
-          ? studentData.department 
+        department: typeof studentData.department === 'string'
+          ? studentData.department
           : studentData.department?.name || '',
         session: studentData.session,
         shift: studentData.shift,
         rollNumber: studentData.currentRollNumber,
         registrationNumber: studentData.currentRegistrationNumber,
         email: studentData.email,
-        applicationType: selectedType,
+        applicationType: selectedTemplate.name,
+        template: selectedTemplate.slug,
+        initial_assignee: assignee,
+        department_id: assignee === 'department_head' ? assigneeDeptId : undefined,
         subject,
         message,
       });
 
       toast.success('Application submitted successfully!');
-      setShowNewForm(false);
-      setSelectedType(null);
-      setSubject('');
-      setMessage('');
+      resetForm();
       fetchApplications(); // Refresh list
     } catch (error) {
       console.error('Error submitting application:', error);
@@ -137,6 +155,11 @@ export function ApplicationsPage() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const openDocument = (app: Application) => {
+    const roll = studentData?.currentRollNumber || app.rollNumber;
+    window.open(applicationService.getDocumentUrl(app.id, roll), '_blank', 'noopener');
   };
 
   const statusConfig = {
@@ -173,31 +196,38 @@ export function ApplicationsPage() {
           exit={{ opacity: 0, height: 0 }}
           className="bg-card rounded-2xl border border-border p-6 shadow-card"
         >
-          <h3 className="font-semibold mb-4">Submit New Application</h3>
+          <h3 className="font-semibold mb-1">Submit New Application</h3>
+          <p className="text-sm text-muted-foreground mb-4">Choose a document to apply for</p>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
-            {applicationTypes.map((type) => (
-              <button
-                key={type.id}
-                onClick={() => setSelectedType(type.id)}
-                className={cn(
-                  "p-4 rounded-xl border-2 transition-all duration-200 text-left",
-                  selectedType === type.id
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-primary/50"
-                )}
-              >
-                <type.icon className={cn(
-                  "w-6 h-6 mb-2",
-                  selectedType === type.id ? "text-primary" : "text-muted-foreground"
-                )} />
-                <p className="font-medium text-sm">{type.label}</p>
-                <p className="text-xs text-muted-foreground">{type.description}</p>
-              </button>
-            ))}
-          </div>
+          {templates.length === 0 ? (
+            <div className="text-sm text-muted-foreground p-4 rounded-xl border border-dashed border-border mb-6">
+              No documents are currently available to apply for. Please check back later.
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
+              {templates.map((tpl) => (
+                <button
+                  key={tpl.id}
+                  onClick={() => setSelectedTemplate(tpl)}
+                  className={cn(
+                    "p-4 rounded-xl border-2 transition-all duration-200 text-left",
+                    selectedTemplate?.id === tpl.id
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-primary/50"
+                  )}
+                >
+                  <FileText className={cn(
+                    "w-6 h-6 mb-2",
+                    selectedTemplate?.id === tpl.id ? "text-primary" : "text-muted-foreground"
+                  )} />
+                  <p className="font-medium text-sm">{tpl.name}</p>
+                  <p className="text-xs text-muted-foreground line-clamp-2">{tpl.description}</p>
+                </button>
+              ))}
+            </div>
+          )}
 
-          {selectedType && (
+          {selectedTemplate && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -222,15 +252,33 @@ export function ApplicationsPage() {
                 />
               </div>
 
+              {/* Initial assignee — default Registrar */}
+              <div className="space-y-2">
+                <Label>Send to</Label>
+                <Select value={assignee} onValueChange={(v) => setAssignee(v as AssigneeRole)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="registrar">Registrar (default)</SelectItem>
+                    <SelectItem value="department_head">Department Head</SelectItem>
+                    <SelectItem value="institute_head">Principal</SelectItem>
+                  </SelectContent>
+                </Select>
+                {assignee === 'department_head' && (
+                  <Select value={assigneeDeptId} onValueChange={setAssigneeDeptId}>
+                    <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
+                    <SelectContent>
+                      {departments.map((d) => (
+                        <SelectItem key={d.id} value={d.id}>{d.name}{d.code ? ` (${d.code})` : ''}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+
               <div className="flex gap-3">
-                <Button 
-                  variant="outline" 
-                  onClick={() => {
-                    setShowNewForm(false);
-                    setSelectedType(null);
-                    setSubject('');
-                    setMessage('');
-                  }}
+                <Button
+                  variant="outline"
+                  onClick={resetForm}
                   disabled={submitting}
                 >
                   Cancel
@@ -305,16 +353,50 @@ export function ApplicationsPage() {
                     </div>
                     <p className="text-sm font-medium text-muted-foreground mb-1">{app.subject}</p>
                     <p className="text-sm text-muted-foreground">{app.message}</p>
+
+                    {/* Current holder */}
+                    {app.status === 'pending' && app.current_holder && (
+                      <p className="text-sm mt-2 flex items-center gap-1.5">
+                        <User2 className="w-4 h-4 text-warning" />
+                        <span className="text-muted-foreground">Currently with:</span>
+                        <span className="font-medium">{app.current_holder}</span>
+                      </p>
+                    )}
+
+                    {/* Approval progress / history */}
+                    {app.approvals && app.approvals.length > 0 && (
+                      <div className="mt-3 space-y-1.5 border-l-2 border-primary/30 pl-3">
+                        {app.approvals.map((ap) => (
+                          <div key={ap.id} className="text-xs">
+                            <span className="font-medium capitalize">
+                              {ap.action === 'forwarded'
+                                ? <>{ap.approver_role_label} forwarded <ArrowRight className="w-3 h-3 inline" /> {ap.forwarded_to_name}</>
+                                : `${ap.action} by ${ap.approver_role_label}`}
+                            </span>
+                            <span className="text-muted-foreground"> • {new Date(ap.created_at).toLocaleDateString()}</span>
+                            {ap.notes && <span className="text-muted-foreground italic"> — “{ap.notes}”</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
                     {app.reviewNotes && (
                       <p className="text-sm text-muted-foreground mt-2">
-                        <span className="font-medium">Review Notes:</span> {app.reviewNotes}
+                        <span className="font-medium">Notes:</span> {app.reviewNotes}
                       </p>
+                    )}
+
+                    {app.status === 'approved' && (
+                      <Button size="sm" variant="gradient" className="mt-3 gap-2" onClick={() => openDocument(app)}>
+                        <Printer className="w-4 h-4" />
+                        Download / Print Document
+                      </Button>
                     )}
                   </div>
 
                   <div className="text-sm text-muted-foreground">
-                    {new Date(app.submittedAt).toLocaleDateString('en-US', { 
-                      month: 'short', 
+                    {new Date(app.submittedAt).toLocaleDateString('en-US', {
+                      month: 'short',
                       day: 'numeric',
                       year: 'numeric'
                     })}

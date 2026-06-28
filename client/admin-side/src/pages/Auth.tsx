@@ -25,7 +25,12 @@ export default function Auth() {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { login, isAuthenticated } = useAuth();
+  const { login, verify2FA, isAuthenticated } = useAuth();
+
+  // Two-factor login challenge state
+  const [twoFactor, setTwoFactor] = useState<{ required: boolean; email: string }>({ required: false, email: '' });
+  const [otpCode, setOtpCode] = useState('');
+  const [verifying, setVerifying] = useState(false);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -130,8 +135,20 @@ export default function Auth() {
       } else {
         // Login logic
         try {
-          await login(formData.email, formData.password, rememberMe);
-          
+          const result = await login(formData.email, formData.password, rememberMe);
+
+          // If 2FA is enabled, switch to the verification step instead of logging in
+          if (result?.twoFactorRequired) {
+            setTwoFactor({ required: true, email: result.email || formData.email });
+            setOtpCode('');
+            toast({
+              title: "Verification Required",
+              description: "We've emailed you a 6-digit code to finish signing in.",
+            });
+            setIsLoading(false);
+            return;
+          }
+
           toast({
             title: "Welcome back!",
             description: "You have been logged in successfully.",
@@ -209,6 +226,83 @@ export default function Auth() {
       setIsLoading(false);
     }
   };
+
+  const handleVerify2FA = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (otpCode.trim().length < 6) {
+      toast({ title: "Invalid code", description: "Enter the 6-digit code from your email.", variant: "destructive" });
+      return;
+    }
+    setVerifying(true);
+    try {
+      await verify2FA(twoFactor.email, otpCode.trim(), rememberMe);
+      toast({ title: "Welcome back!", description: "You have been logged in successfully." });
+    } catch (err: any) {
+      toast({
+        title: "Verification Failed",
+        description: err?.message || "The code is incorrect or has expired.",
+        variant: "destructive",
+      });
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  // Two-factor verification screen
+  if (twoFactor.required) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary/10 rounded-full blur-3xl" />
+          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-accent/10 rounded-full blur-3xl" />
+        </div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative w-full max-w-md bg-card/80 backdrop-blur-xl border border-border rounded-2xl shadow-xl p-8"
+        >
+          <div className="text-center mb-6">
+            <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-primary/10 flex items-center justify-center">
+              <Shield className="w-7 h-7 text-primary" />
+            </div>
+            <h1 className="text-2xl font-bold text-foreground">Two-Factor Verification</h1>
+            <p className="text-muted-foreground mt-2 text-sm">
+              Enter the 6-digit code we sent to{' '}
+              <span className="font-medium text-foreground">{twoFactor.email}</span>
+            </p>
+          </div>
+
+          <form onSubmit={handleVerify2FA} className="space-y-5">
+            <div className="space-y-2">
+              <Label htmlFor="otp">Verification Code</Label>
+              <Input
+                id="otp"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                placeholder="000000"
+                className="text-center text-2xl tracking-[0.5em] font-semibold"
+                autoFocus
+              />
+            </div>
+            <Button type="submit" className="w-full gradient-primary text-primary-foreground" disabled={verifying}>
+              {verifying ? 'Verifying...' : 'Verify & Sign In'}
+              {!verifying && <ArrowRight className="w-4 h-4 ml-2" />}
+            </Button>
+            <button
+              type="button"
+              onClick={() => { setTwoFactor({ required: false, email: '' }); setOtpCode(''); }}
+              className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Back to login
+            </button>
+          </form>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">

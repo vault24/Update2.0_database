@@ -13,6 +13,11 @@ urlpatterns = [
     path('me/', views.me_view, name='me'),
     path('change-password/', views.change_password_view, name='change-password'),
     path('profile/', views.update_profile_view, name='update-profile'),
+    path('profile/photo/', views.upload_avatar_view, name='upload-avatar'),
+    path('profile/signature/', views.upload_signature_view, name='upload-signature'),
+    path('2fa/toggle/', views.toggle_2fa_view, name='toggle-2fa'),
+    path('sessions/revoke-others/', views.revoke_other_sessions_view, name='revoke-other-sessions'),
+    path('login/verify-2fa/', views.verify_login_2fa_view, name='verify-login-2fa'),
     
     # Signup Request endpoints
     path('signup-request/', views.create_signup_request_view, name='create-signup-request'),

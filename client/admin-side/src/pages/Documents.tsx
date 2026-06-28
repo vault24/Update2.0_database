@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import documentTemplateService, { type BackendDocumentTemplate } from '@/services/documentTemplateService';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -75,6 +77,41 @@ export default function Documents() {
   const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(false);
   const [templateError, setTemplateError] = useState<string | null>(null);
+
+  // Backend-managed catalog + student availability
+  const [catalog, setCatalog] = useState<BackendDocumentTemplate[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  const loadCatalog = async () => {
+    try {
+      setCatalogLoading(true);
+      setCatalog(await documentTemplateService.list());
+    } catch {
+      setCatalog([]);
+    } finally {
+      setCatalogLoading(false);
+    }
+  };
+
+  useEffect(() => { loadCatalog(); }, []);
+
+  const handleToggleAvailability = async (tpl: BackendDocumentTemplate, value: boolean) => {
+    setCatalog((prev) => prev.map((t) => (t.id === tpl.id ? { ...t, available_to_students: value } : t)));
+    try {
+      setTogglingId(tpl.id);
+      await documentTemplateService.update(tpl.id, { available_to_students: value });
+      toast({
+        title: value ? 'Published to students' : 'Hidden from students',
+        description: `${tpl.name} is ${value ? 'now available' : 'no longer available'} on the student application form.`,
+      });
+    } catch (err) {
+      setCatalog((prev) => prev.map((t) => (t.id === tpl.id ? { ...t, available_to_students: !value } : t)));
+      toast({ title: 'Error', description: `Failed to update ${tpl.name}.`, variant: 'destructive' });
+    } finally {
+      setTogglingId(null);
+    }
+  };
 
   // API state
   // Handle keyboard shortcuts for document preview
@@ -872,6 +909,50 @@ export default function Documents() {
               {/* Document Templates Section */}
               <div className="mb-8">
                 <h3 className="text-lg font-semibold mb-4">Document Templates</h3>
+
+                {/* Student availability — controls which documents students can apply for */}
+                <Card className="glass-card mb-6">
+                  <CardContent className="p-5">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h4 className="font-medium text-sm">Student Application Availability</h4>
+                        <p className="text-xs text-muted-foreground">
+                          Toggle which document templates students can apply for from their Applications page.
+                        </p>
+                      </div>
+                    </div>
+                    {catalogLoading ? (
+                      <div className="text-sm text-muted-foreground">Loading…</div>
+                    ) : catalog.length === 0 ? (
+                      <div className="text-sm text-muted-foreground">
+                        No templates found. Run <code>seed_document_templates</code> on the server.
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-border">
+                        {catalog.map((tpl) => (
+                          <div key={tpl.id} className="flex items-center justify-between py-2.5">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium truncate">{tpl.name}</p>
+                              <p className="text-xs text-muted-foreground capitalize">{tpl.category}</p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-xs text-muted-foreground">
+                                {tpl.available_to_students ? 'Available' : 'Hidden'}
+                              </span>
+                              <Switch
+                                checked={tpl.available_to_students}
+                                onCheckedChange={(v) => handleToggleAvailability(tpl, v)}
+                                disabled={togglingId === tpl.id}
+                                aria-label={`Toggle ${tpl.name} availability`}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
               {templatesLoading ? (
                 <div className="text-sm text-muted-foreground">Loading templates...</div>
               ) : templateError ? (

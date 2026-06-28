@@ -41,6 +41,7 @@ ROLE_API_POLICY = {
             '/api/students/',
             '/api/admissions/',
             '/api/applications/',
+            '/api/document-templates/',
             '/api/alumni/',
             '/api/documents/',
             '/api/correction-requests/',
@@ -52,6 +53,8 @@ ROLE_API_POLICY = {
         'full': (
             '/api/students/',
             '/api/admissions/',
+            '/api/applications/',
+            '/api/document-templates/',
             '/api/alumni/',
             '/api/teachers/',
             '/api/teacher-requests/',

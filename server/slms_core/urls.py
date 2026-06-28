@@ -33,6 +33,7 @@ urlpatterns = [
     path('api/', include('apps.alumni.urls')),
     path('api/applications/', include('apps.applications.urls')),
     path('api/documents/', include('apps.documents.urls')),
+    path('api/document-templates/', include('apps.documents.template_urls')),
     path('api/dashboard/', include('apps.dashboard.urls')),
     path('api/', include('apps.notifications.urls')),
     path('api/', include('apps.notices.urls')),

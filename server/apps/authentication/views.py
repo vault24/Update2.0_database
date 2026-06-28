@@ -19,7 +19,8 @@ from .serializers import (
     ApproveSignupRequestSerializer,
     RejectSignupRequestSerializer,
 )
-from .models import SignupRequest
+from .models import SignupRequest, OTPToken
+from .services import OTPService, EmailService
 from django.utils import timezone
 from django.db import transaction
 from django.conf import settings
@@ -115,9 +116,9 @@ def register_view(request):
             if user.role != 'teacher' and user.account_status == 'active':
                 login(request, user)
                 auto_logged_in = True
-                
-                # Set session expiry (24 hours default)
-                request.session.set_expiry(86400)
+
+                # Set the default session expiry (7 days, sliding).
+                request.session.set_expiry(settings.SESSION_COOKIE_AGE)
             
             # Return user data
             user_serializer = UserSerializer(user)
@@ -172,27 +173,44 @@ def login_view(request):
         
         if serializer.is_valid():
             user = serializer.validated_data['user']
-            
+
+            # Two-factor authentication: if enabled, defer the actual login
+            # until the emailed OTP code is verified at /login/verify-2fa/.
+            if getattr(user, 'two_factor_enabled', False):
+                otp_token = OTPService.create_otp_token(user)
+                EmailService.send_login_otp_email(user, otp_token.token)
+                return Response(
+                    {
+                        'two_factor_required': True,
+                        'email': user.email,
+                        'message': 'A verification code has been sent to your email.',
+                    },
+                    status=status.HTTP_200_OK,
+                )
+
             # Update last_login timestamp
             from django.utils import timezone
             user.last_login = timezone.now()
             user.save(update_fields=['last_login'])
-            
+
             # Login user (creates session)
             login(request, user)
-            
-            # Handle "Remember Me" functionality
+
+            # Handle "Remember Me" functionality.
+            # With SESSION_SAVE_EVERY_REQUEST enabled, the chosen expiry acts as a
+            # sliding window: it is refreshed on every request, so an active user
+            # is never logged out and an idle session survives the full window.
             remember_me = request.data.get('remember_me', False)
             if remember_me:
-                # Set session to expire in 7 days (604800 seconds)
-                request.session.set_expiry(604800)
+                # "Remember Me": effectively indefinite (until explicit logout).
+                request.session.set_expiry(settings.REMEMBER_ME_SESSION_AGE)
             else:
-                # Use default session timeout (24 hours)
-                request.session.set_expiry(86400)
+                # Normal session: the configured default (7 days).
+                request.session.set_expiry(settings.SESSION_COOKIE_AGE)
             
             # Return user data
-            user_serializer = UserSerializer(user)
-            
+            user_serializer = UserSerializer(user, context={'request': request})
+
             response_data = {
                 'message': 'Login successful',
                 'user': user_serializer.data,
@@ -260,8 +278,8 @@ def me_view(request):
     - 200: User profile data
     """
     try:
-        serializer = UserSerializer(request.user)
-        
+        serializer = UserSerializer(request.user, context={'request': request})
+
         response_data = {
             'user': serializer.data
         }
@@ -413,10 +431,153 @@ def update_profile_view(request):
         )
     except Exception as e:
         return Response(
-            {'error': f'Failed to update profile: {str(e)}'},
+            {'error': 'Failed to update profile', 'details': str(e) if settings.DEBUG else None},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def upload_avatar_view(request):
+    """
+    Upload / replace the current user's profile photo.
+    POST /api/auth/profile/photo/  (multipart: profile_photo)
+    """
+    photo = (
+        request.FILES.get('profile_photo')
+        or request.FILES.get('photo')
+        or request.FILES.get('avatar')
+    )
+    if not photo:
+        return Response({'message': 'No image file provided'}, status=status.HTTP_400_BAD_REQUEST)
+    if photo.size > 5 * 1024 * 1024:
+        return Response({'message': 'Image must be 5MB or smaller'}, status=status.HTTP_400_BAD_REQUEST)
+    if not (photo.content_type or '').startswith('image/'):
+        return Response({'message': 'File must be an image'}, status=status.HTTP_400_BAD_REQUEST)
+
+    user = request.user
+    user.profile_photo = photo
+    user.save(update_fields=['profile_photo'])
+    serializer = UserSerializer(user, context={'request': request})
+    return Response(
+        {'message': 'Profile photo updated', 'user': serializer.data},
+        status=status.HTTP_200_OK,
+    )
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def upload_signature_view(request):
+    """
+    Upload / replace the current user's signature image (used on approved documents).
+    POST /api/auth/profile/signature/  (multipart: signature)
+    """
+    sig = request.FILES.get('signature') or request.FILES.get('image')
+    if not sig:
+        return Response({'message': 'No image file provided'}, status=status.HTTP_400_BAD_REQUEST)
+    if sig.size > 5 * 1024 * 1024:
+        return Response({'message': 'Image must be 5MB or smaller'}, status=status.HTTP_400_BAD_REQUEST)
+    if not (sig.content_type or '').startswith('image/'):
+        return Response({'message': 'File must be an image'}, status=status.HTTP_400_BAD_REQUEST)
+
+    user = request.user
+    user.signature = sig
+    user.save(update_fields=['signature'])
+    serializer = UserSerializer(user, context={'request': request})
+    return Response(
+        {'message': 'Signature updated', 'user': serializer.data},
+        status=status.HTTP_200_OK,
+    )
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def toggle_2fa_view(request):
+    """
+    Enable or disable email-based two-factor authentication for the current user.
+    POST /api/auth/2fa/toggle/  body: {"enabled": true|false}
+    """
+    enabled = request.data.get('enabled')
+    if enabled is None:
+        enabled = not request.user.two_factor_enabled
+    enabled = bool(enabled)
+
+    user = request.user
+    user.two_factor_enabled = enabled
+    user.save(update_fields=['two_factor_enabled'])
+    return Response(
+        {
+            'message': f'Two-factor authentication {"enabled" if enabled else "disabled"}.',
+            'two_factor_enabled': enabled,
+        },
+        status=status.HTTP_200_OK,
+    )
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def revoke_other_sessions_view(request):
+    """
+    Sign out all of the current user's sessions except the one making this request.
+    POST /api/auth/sessions/revoke-others/
+    """
+    from django.contrib.sessions.models import Session
+
+    current_key = request.session.session_key
+    user_id = str(request.user.pk)
+    deleted = 0
+    for session in Session.objects.filter(expire_date__gte=timezone.now()):
+        if session.session_key == current_key:
+            continue
+        if str(session.get_decoded().get('_auth_user_id')) == user_id:
+            session.delete()
+            deleted += 1
+    return Response(
+        {'message': f'Signed out {deleted} other session(s).', 'count': deleted},
+        status=status.HTTP_200_OK,
+    )
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def verify_login_2fa_view(request):
+    """
+    Complete a two-factor login by verifying the emailed OTP code.
+    POST /api/auth/login/verify-2fa/  body: {"email", "otp", "remember_me"}
+    """
+    email = (request.data.get('email') or '').strip()
+    otp = (request.data.get('otp') or '').strip()
+    remember_me = bool(request.data.get('remember_me', False))
+
+    if not email or not otp:
+        return Response({'message': 'Email and verification code are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    valid, message = OTPService.verify_otp(email, otp)
+    if not valid:
+        return Response({'message': message}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Resolve the account the (still-unused) OTP belongs to, then consume it.
+    token_obj = OTPToken.objects.filter(
+        user__email__iexact=email, token=otp, is_used=False
+    ).order_by('-created_at').first()
+    user = token_obj.user if token_obj else None
+    if user is None:
+        return Response({'message': 'Invalid verification attempt.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    OTPService.mark_otp_as_used(email, otp)
+
+    user.last_login = timezone.now()
+    user.save(update_fields=['last_login'])
+    login(request, user)
+    request.session.set_expiry(
+        settings.REMEMBER_ME_SESSION_AGE if remember_me else settings.SESSION_COOKIE_AGE
+    )
+
+    user_serializer = UserSerializer(user, context={'request': request})
+    return Response(
+        {'message': 'Login successful', 'user': user_serializer.data, 'remember_me': remember_me},
+        status=status.HTTP_200_OK,
+    )
 
 
 # Signup Request Views

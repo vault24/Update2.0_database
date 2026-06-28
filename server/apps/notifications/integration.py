@@ -15,30 +15,41 @@ def notify_application_status_change(application, new_status):
         new_status: New status value
     """
     try:
-        recipient = application.applicant if hasattr(application, 'applicant') else application.user
-        
+        # Applications are roll-number based; resolve the student's account when
+        # one is linked. Public submissions with no account are notified by email
+        # (handled in the applications views), so just skip in-app here.
+        recipient = None
+        student = getattr(application, 'student', None)
+        if student is not None:
+            from django.contrib.auth import get_user_model
+            UserModel = get_user_model()
+            recipient = UserModel.objects.filter(related_profile_id=student.id).first()
+        if recipient is None:
+            return
+
         status_labels = {
             'pending': 'Your application is pending review',
             'approved': 'Your application has been approved!',
             'rejected': 'Your application has been rejected',
             'under_review': 'Your application is under review'
         }
-        
-        title = f"Application Status Update"
+
+        title = "Application Status Update"
         message = status_labels.get(new_status, f"Your application status changed to {new_status}")
-        
+
         NotificationService.create_notification(
             recipient=recipient,
             notification_type='application_status',
             title=title,
             message=message,
             data={
-                'application_id': application.id,
+                'application_id': str(application.id),
                 'status': new_status
             }
         )
     except Exception as e:
-        print(f"Error creating application status notification: {e}")
+        import logging
+        logging.getLogger(__name__).warning("Application status notification skipped: %s", e)
 
 
 def notify_document_approval(document, approved):

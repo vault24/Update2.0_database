@@ -1,4 +1,19 @@
 import { apiClient } from '@/lib/api';
+import { API_BASE_URL } from '@/config/api';
+
+export interface ApplicationApproval {
+  id: string;
+  action: 'approved' | 'forwarded' | 'rejected';
+  approver_role: string;
+  approver_role_label: string;
+  approver_name: string;
+  notes?: string;
+  forwarded_to_role?: string;
+  forwarded_to_name?: string;
+  signature_url?: string | null;
+  order: number;
+  created_at: string;
+}
 
 export interface Application {
   id: string;
@@ -17,6 +32,18 @@ export interface Application {
   message: string;
   selectedDocuments?: string[];
   status: 'pending' | 'approved' | 'rejected';
+  // Workflow
+  template?: string | null;
+  template_name?: string | null;
+  template_slug?: string | null;
+  current_approver_role?: string;
+  current_approver_label?: string;
+  current_holder?: string;
+  current_department?: string | null;
+  current_department_name?: string | null;
+  stage?: number;
+  approvals?: ApplicationApproval[];
+  can_download?: boolean;
   submittedAt: string;
   reviewedAt?: string;
   reviewedBy?: string;
@@ -68,12 +95,30 @@ const applicationService = {
     });
   },
 
+  // Forward application for a second approval (Principal default, or a Department Head)
+  async forwardApplication(
+    id: string,
+    forwardTo: 'institute_head' | 'department_head',
+    options?: { departmentId?: string; reviewNotes?: string }
+  ): Promise<Application> {
+    return apiClient.post(`/applications/${id}/forward/`, {
+      forward_to: forwardTo,
+      department_id: options?.departmentId,
+      reviewNotes: options?.reviewNotes || '',
+    });
+  },
+
   // Reject application
   async rejectApplication(id: string, reviewedBy: string, reviewNotes: string): Promise<Application> {
     return apiClient.post(`/applications/${id}/reject/`, {
       reviewedBy,
       reviewNotes,
     });
+  },
+
+  // URL of the rendered, signed document (open in a new tab to view / print)
+  getDocumentUrl(id: string): string {
+    return `${API_BASE_URL}/applications/${id}/document/`;
   },
 
   // Get application statistics

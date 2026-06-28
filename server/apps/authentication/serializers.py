@@ -494,6 +494,8 @@ class UserSerializer(serializers.ModelSerializer):
     student_status = serializers.SerializerMethodField()
     is_alumni = serializers.SerializerMethodField()
     department_name = serializers.CharField(source='department.name', read_only=True, default=None)
+    profile_photo_url = serializers.SerializerMethodField()
+    signature_url = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -502,9 +504,30 @@ class UserSerializer(serializers.ModelSerializer):
             'is_superuser', 'interface_mode', 'department', 'department_name',
             'related_profile_id', 'student_id', 'admission_status', 'account_status',
             'mobile_number', 'semester', 'student_status', 'is_alumni',
+            'profile_photo_url', 'signature_url', 'two_factor_enabled',
             'last_login', 'date_joined'
         ]
-        read_only_fields = ['id', 'username', 'role', 'is_superuser', 'student_id', 'last_login', 'date_joined']
+        read_only_fields = [
+            'id', 'username', 'role', 'is_superuser', 'student_id',
+            'profile_photo_url', 'signature_url', 'two_factor_enabled',
+            'last_login', 'date_joined'
+        ]
+
+    def get_profile_photo_url(self, obj):
+        """Absolute (or relative) URL of the user's avatar, if set."""
+        if not obj.profile_photo:
+            return None
+        url = obj.profile_photo.url
+        request = self.context.get('request')
+        return request.build_absolute_uri(url) if request else url
+
+    def get_signature_url(self, obj):
+        """Absolute (or relative) URL of the user's signature image, if set."""
+        if not obj.signature:
+            return None
+        url = obj.signature.url
+        request = self.context.get('request')
+        return request.build_absolute_uri(url) if request else url
     
     def get_semester(self, obj):
         """Get student's current semester"""

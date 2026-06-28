@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { motion } from 'framer-motion';
-import { 
-  Search, Eye, CheckCircle, XCircle, Clock, FileText, 
-  Calendar, User, Inbox, Download, MoreVertical
+import {
+  Search, Eye, CheckCircle, XCircle, Clock, FileText,
+  Calendar, User, Inbox, Download, MoreVertical, ArrowRight, Printer, History
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -28,9 +28,13 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import applicationService, { Application, ApplicationStats } from '@/services/applicationService';
+import { apiClient } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 const applicationTypes = ['All Types', 'Testimonial', 'Certificate', 'Transcript', 'Stipend', 'Transfer', 'Other'];
 const statusOptions = ['All Status', 'Pending', 'Approved', 'Rejected'];
+
+interface DeptOption { id: string; name: string; code?: string }
 
 function Applications() {
   const [search, setSearch] = useState('');
@@ -44,6 +48,45 @@ function Applications() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
+
+  // Forward-to-second-approver UI state
+  const [departments, setDepartments] = useState<DeptOption[]>([]);
+  const [forwardOpen, setForwardOpen] = useState(false);
+  const [forwardTarget, setForwardTarget] = useState<'institute_head' | 'department_head'>('institute_head');
+  const [forwardDeptId, setForwardDeptId] = useState('');
+  const [onlyAssignedToMe, setOnlyAssignedToMe] = useState(false);
+
+  // The Principal defaults to their "Assigned to me" inbox (forwarded requests),
+  // and can switch to "All" when they want the full list.
+  const isPrincipal = !!user && (user.is_superuser || user.role === 'institute_head');
+  const didDefaultView = useRef(false);
+  useEffect(() => {
+    if (user && !didDefaultView.current) {
+      didDefaultView.current = true;
+      if (isPrincipal) setOnlyAssignedToMe(true);
+    }
+  }, [user, isPrincipal]);
+
+  useEffect(() => {
+    apiClient.get<{ results?: DeptOption[] } | DeptOption[]>('departments/')
+      .then((res: any) => setDepartments(res?.results || res || []))
+      .catch(() => setDepartments([]));
+  }, []);
+
+  // Whether the logged-in admin is the current approver for this application.
+  const canActOn = (app: Application | null): boolean => {
+    if (!app || app.status !== 'pending' || !user) return false;
+    const role = user.role;
+    const target = app.current_approver_role;
+    if (target === 'registrar') return role === 'registrar';
+    if (target === 'institute_head') return role === 'institute_head' || !!user.is_superuser;
+    if (target === 'department_head') {
+      if (role !== 'department_head') return false;
+      return !app.current_department || app.current_department === user.department;
+    }
+    return false;
+  };
 
   const fetchApplications = async () => {
     try {
@@ -78,7 +121,10 @@ function Applications() {
     fetchApplications();
   }, [statusFilter, typeFilter]);
 
+  const assignedToMeCount = applications.filter((a) => canActOn(a)).length;
+
   const filteredApplications = applications.filter(a => {
+    if (onlyAssignedToMe && !canActOn(a)) return false;
     if (!search) return true;
     const searchLower = search.toLowerCase();
     return (
@@ -106,10 +152,69 @@ function Applications() {
     }
   };
 
+  // Compact horizontal progress steps shown inline under each application row,
+  // so the workflow can be read at a glance without opening the detail.
+  const trackerSteps = (app: Application): { label: string; dot: string; muted?: boolean }[] => {
+    const steps: { label: string; dot: string; muted?: boolean }[] = [
+      { label: 'Submitted', dot: 'bg-primary' },
+    ];
+    (app.approvals || []).forEach((ap) => {
+      if (ap.action === 'forwarded') {
+        steps.push({ label: `${ap.approver_role_label} → ${ap.forwarded_to_name}`, dot: 'bg-blue-500' });
+      } else if (ap.action === 'rejected') {
+        steps.push({ label: `${ap.approver_role_label} rejected`, dot: 'bg-destructive' });
+      } else {
+        steps.push({ label: `${ap.approver_role_label} approved`, dot: 'bg-success' });
+      }
+    });
+    if (app.status === 'pending') {
+      steps.push({ label: `With ${app.current_holder || '—'}`, dot: 'bg-warning animate-pulse' });
+    } else if (app.status === 'approved') {
+      steps.push({ label: 'Approved', dot: 'bg-success' });
+    } else if (app.status === 'rejected') {
+      steps.push({ label: 'Rejected', dot: 'bg-destructive' });
+    }
+    return steps;
+  };
+
   const handleView = (app: Application) => {
     setSelectedApp(app);
     setAdminRemarks('');
+    setForwardOpen(false);
+    setForwardTarget('institute_head');
+    setForwardDeptId('');
     setIsDetailOpen(true);
+  };
+
+  const handlePrintDocument = (app: Application) => {
+    window.open(applicationService.getDocumentUrl(app.id), '_blank', 'noopener');
+  };
+
+  const handleForward = async () => {
+    if (!selectedApp) return;
+    if (forwardTarget === 'department_head' && !forwardDeptId) {
+      toast({ title: 'Select a department', description: 'Choose which Department Head should receive this.', variant: 'destructive' });
+      return;
+    }
+    try {
+      setProcessing(true);
+      await applicationService.forwardApplication(selectedApp.id, forwardTarget, {
+        departmentId: forwardTarget === 'department_head' ? forwardDeptId : undefined,
+        reviewNotes: adminRemarks,
+      });
+      toast({
+        title: 'Application Forwarded',
+        description: forwardTarget === 'institute_head'
+          ? 'Sent to the Principal for final approval.'
+          : 'Sent to the selected Department Head for final approval.',
+      });
+      setIsDetailOpen(false);
+      fetchApplications();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error?.message || 'Failed to forward application.', variant: 'destructive' });
+    } finally {
+      setProcessing(false);
+    }
   };
 
   const handleApprove = async () => {
@@ -292,6 +397,27 @@ function Applications() {
                 ))}
               </SelectContent>
             </Select>
+            <div className="flex rounded-md border border-border overflow-hidden shrink-0">
+              <button
+                type="button"
+                onClick={() => setOnlyAssignedToMe(true)}
+                className={`px-3 py-2 text-sm font-medium flex items-center gap-1.5 transition-colors ${
+                  onlyAssignedToMe ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                <Inbox className="w-4 h-4" />
+                Assigned to me{assignedToMeCount > 0 ? ` (${assignedToMeCount})` : ''}
+              </button>
+              <button
+                type="button"
+                onClick={() => setOnlyAssignedToMe(false)}
+                className={`px-3 py-2 text-sm font-medium transition-colors ${
+                  !onlyAssignedToMe ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                All
+              </button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -317,12 +443,12 @@ function Applications() {
               </TableHeader>
               <TableBody>
                 {filteredApplications.map((app, index) => (
+                  <Fragment key={app.id}>
                   <motion.tr
-                    key={app.id}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.03 }}
-                    className="hover:bg-muted/50 cursor-pointer"
+                    className="hover:bg-muted/50 cursor-pointer border-b-0"
                     onClick={() => handleView(app)}
                   >
                     <TableCell>
@@ -365,6 +491,23 @@ function Applications() {
                       </DropdownMenu>
                     </TableCell>
                   </motion.tr>
+                  {/* Inline progress tracker — visible without opening the application */}
+                  <tr className="border-b border-border cursor-pointer hover:bg-muted/30" onClick={() => handleView(app)}>
+                    <td colSpan={6} className="px-4 pb-3 pt-0">
+                      <div className="flex items-center gap-1.5 flex-wrap text-xs">
+                        {trackerSteps(app).map((s, i) => (
+                          <Fragment key={i}>
+                            {i > 0 && <span className="text-muted-foreground/50">→</span>}
+                            <span className="inline-flex items-center gap-1.5">
+                              <span className={`w-2 h-2 rounded-full ${s.dot}`} />
+                              <span className="text-muted-foreground">{s.label}</span>
+                            </span>
+                          </Fragment>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                  </Fragment>
                 ))}
               </TableBody>
             </Table>
@@ -437,9 +580,77 @@ function Applications() {
                   </Card>
                 </div>
 
+                {/* Document */}
+                <div className="text-sm">
+                  <p className="text-xs text-muted-foreground">Document</p>
+                  <p className="font-medium">{selectedApp.template_name || selectedApp.applicationType}</p>
+                </div>
+
+                {/* Tracking timeline (same system as the student tracking view) */}
+                <div>
+                  <p className="text-sm font-medium mb-3 flex items-center gap-2">
+                    <History className="w-4 h-4" /> Application Tracking
+                  </p>
+                  <div className="relative pl-6 space-y-4">
+                    <div className="absolute left-[7px] top-1.5 bottom-1.5 w-px bg-border" />
+
+                    {/* Submitted */}
+                    <div className="relative">
+                      <span className="absolute -left-6 top-0.5 w-3.5 h-3.5 rounded-full bg-primary ring-4 ring-primary/15" />
+                      <p className="text-sm font-medium">Submitted</p>
+                      <p className="text-xs text-muted-foreground">{new Date(selectedApp.submittedAt).toLocaleString()}</p>
+                    </div>
+
+                    {/* Approval / forward steps */}
+                    {(selectedApp.approvals || []).map((ap) => {
+                      const dot = ap.action === 'rejected'
+                        ? 'bg-destructive ring-destructive/15'
+                        : ap.action === 'forwarded'
+                          ? 'bg-blue-500 ring-blue-500/15'
+                          : 'bg-success ring-success/15';
+                      return (
+                        <div key={ap.id} className="relative">
+                          <span className={`absolute -left-6 top-0.5 w-3.5 h-3.5 rounded-full ring-4 ${dot}`} />
+                          <p className="text-sm font-medium capitalize">
+                            {ap.action === 'forwarded'
+                              ? `${ap.approver_role_label} forwarded → ${ap.forwarded_to_name}`
+                              : `${ap.action} by ${ap.approver_role_label}`}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {ap.approver_name} • {new Date(ap.created_at).toLocaleString()}
+                          </p>
+                          {ap.notes && <p className="text-xs text-muted-foreground mt-0.5 italic">“{ap.notes}”</p>}
+                        </div>
+                      );
+                    })}
+
+                    {/* Current holder / final state */}
+                    <div className="relative">
+                      {selectedApp.status === 'pending' ? (
+                        <>
+                          <span className="absolute -left-6 top-0.5 w-3.5 h-3.5 rounded-full bg-warning ring-4 ring-warning/20 animate-pulse" />
+                          <p className="text-sm font-medium">Currently with {selectedApp.current_holder}</p>
+                          <p className="text-xs text-muted-foreground">Awaiting review</p>
+                        </>
+                      ) : selectedApp.status === 'approved' ? (
+                        <>
+                          <span className="absolute -left-6 top-0.5 w-3.5 h-3.5 rounded-full bg-success ring-4 ring-success/20" />
+                          <p className="text-sm font-medium text-success">Fully Approved</p>
+                          <p className="text-xs text-muted-foreground">Signed document ready to download</p>
+                        </>
+                      ) : (
+                        <>
+                          <span className="absolute -left-6 top-0.5 w-3.5 h-3.5 rounded-full bg-destructive ring-4 ring-destructive/20" />
+                          <p className="text-sm font-medium text-destructive">Rejected</p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 {selectedApp.reviewNotes && (
                   <div>
-                    <p className="text-sm font-medium mb-2">Review Notes</p>
+                    <p className="text-sm font-medium mb-2">Latest Notes</p>
                     <Card className="bg-muted/50">
                       <CardContent className="p-4">
                         <p className="text-sm">{selectedApp.reviewNotes}</p>
@@ -448,40 +659,89 @@ function Applications() {
                   </div>
                 )}
 
-                {selectedApp.status === 'pending' && (
+                {selectedApp.status === 'pending' && canActOn(selectedApp) && (
                   <div className="space-y-2">
-                    <Label>Admin Remarks (Required for rejection)</Label>
-                    <Textarea 
-                      placeholder="Add remarks for approval/rejection..."
+                    <Label>Remarks (required for rejection)</Label>
+                    <Textarea
+                      placeholder="Add remarks for approval / forward / rejection..."
                       value={adminRemarks}
                       onChange={(e) => setAdminRemarks(e.target.value)}
                     />
                   </div>
                 )}
+
+                {/* Forward panel (first-level Registrar only) */}
+                {forwardOpen && (
+                  <Card className="border-primary/30">
+                    <CardContent className="p-4 space-y-3">
+                      <Label>Forward for second approval to</Label>
+                      <Select value={forwardTarget} onValueChange={(v) => setForwardTarget(v as any)}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="institute_head">Principal</SelectItem>
+                          <SelectItem value="department_head">Department Head</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {forwardTarget === 'department_head' && (
+                        <Select value={forwardDeptId} onValueChange={setForwardDeptId}>
+                          <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
+                          <SelectContent>
+                            {departments.map((d) => (
+                              <SelectItem key={d.id} value={d.id}>{d.name}{d.code ? ` (${d.code})` : ''}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setForwardOpen(false)} disabled={processing}>Cancel</Button>
+                        <Button size="sm" onClick={handleForward} disabled={processing}>
+                          <ArrowRight className="w-4 h-4 mr-1" /> Confirm Forward
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
-              <DialogFooter>
+              <DialogFooter className="flex-wrap gap-2">
                 <Button variant="outline" onClick={() => setIsDetailOpen(false)} disabled={processing}>
                   Close
                 </Button>
-                {selectedApp.status === 'pending' && (
+
+                {selectedApp.status === 'approved' && (
+                  <Button onClick={() => handlePrintDocument(selectedApp)} className="gradient-primary text-primary-foreground">
+                    <Printer className="w-4 h-4 mr-2" />
+                    View / Print Document
+                  </Button>
+                )}
+
+                {selectedApp.status === 'pending' && canActOn(selectedApp) && !forwardOpen && (
                   <>
-                    <Button 
-                      variant="destructive" 
-                      onClick={handleReject}
-                      disabled={processing}
-                    >
+                    <Button variant="destructive" onClick={handleReject} disabled={processing}>
                       <XCircle className="w-4 h-4 mr-2" />
                       Reject
                     </Button>
-                    <Button 
-                      onClick={handleApprove} 
+                    {/* Forwarding is the first-level Registrar's option */}
+                    {selectedApp.current_approver_role === 'registrar' && (
+                      <Button variant="outline" onClick={() => setForwardOpen(true)} disabled={processing}>
+                        <ArrowRight className="w-4 h-4 mr-2" />
+                        Forward
+                      </Button>
+                    )}
+                    <Button
+                      onClick={handleApprove}
                       className="bg-success text-success-foreground hover:bg-success/90"
                       disabled={processing}
                     >
                       <CheckCircle className="w-4 h-4 mr-2" />
-                      Approve
+                      {selectedApp.current_approver_role === 'registrar' ? 'Approve & Finish' : 'Approve'}
                     </Button>
                   </>
+                )}
+
+                {selectedApp.status === 'pending' && !canActOn(selectedApp) && (
+                  <span className="text-xs text-muted-foreground self-center">
+                    Awaiting {selectedApp.current_holder}
+                  </span>
                 )}
               </DialogFooter>
             </>

@@ -326,6 +326,57 @@ class Document(models.Model):
 
 
 
+class DocumentTemplate(models.Model):
+    """
+    Admin-managed certificate/document template.
+
+    Students may only apply for templates that are published
+    (`available_to_students` and `is_active`). The HTML is rendered on demand
+    by the applications `document/` endpoint, with `[Token]` placeholders filled
+    from the application and `[SIG_*]` markers replaced by approver signatures.
+    """
+    CATEGORY_CHOICES = [
+        ('testimonial', 'Testimonial'),
+        ('certificate', 'Certificate'),
+        ('transcript', 'Transcript'),
+        ('character', 'Character Certificate'),
+        ('clearance', 'Clearance Certificate'),
+        ('bonafide', 'Bonafide Certificate'),
+        ('eligibility', 'Eligibility Statement'),
+        ('completion', 'Certificate of Completion'),
+        ('idCard', 'ID Card'),
+        ('other', 'Other'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255)
+    slug = models.SlugField(max_length=120, unique=True)
+    category = models.CharField(max_length=40, choices=CATEGORY_CHOICES, default='other')
+    description = models.TextField(blank=True)
+
+    html_content = models.TextField(blank=True, help_text='Template HTML with [Token] and [SIG_*] markers')
+    required_fields = models.JSONField(default=list, blank=True)
+
+    available_to_students = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'document_templates'
+        ordering = ['name']
+        verbose_name = 'Document Template'
+        verbose_name_plural = 'Document Templates'
+        indexes = [
+            models.Index(fields=['slug']),
+            models.Index(fields=['available_to_students', 'is_active']),
+        ]
+
+    def __str__(self):
+        return self.name
+
+
 class DocumentAccessLog(models.Model):
     """
     Log document access for audit purposes

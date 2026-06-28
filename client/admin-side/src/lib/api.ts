@@ -204,11 +204,16 @@ class ApiClient {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
+    // Support multipart uploads (e.g. institute logo) as well as JSON
+    const isFormData = data instanceof FormData;
+    const headers = isFormData ? this.getHeaders(false) : this.getHeaders();
+    const body = isFormData ? data : JSON.stringify(data);
+
     try {
       const response = await fetch(url, {
         method: 'PUT',
-        headers: this.getHeaders(),
-        body: JSON.stringify(data),
+        headers,
+        body,
         credentials: 'include',
         signal: controller.signal,
       });

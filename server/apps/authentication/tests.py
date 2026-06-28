@@ -2,6 +2,7 @@
 Authentication Tests
 """
 from django.test import TestCase, Client
+from django.conf import settings as django_settings
 from django.contrib.auth.hashers import make_password, check_password
 from django.utils import timezone
 from django.urls import reverse
@@ -1109,50 +1110,50 @@ class RememberMeLoginTests(TestCase):
         self.client = Client()
     
     def test_login_without_remember_me(self):
-        """Test login without remember me uses default session timeout"""
+        """Test login without remember me uses the default session timeout (7 days)"""
         response = self.client.post('/api/auth/login/', {
             'username': 'testuser',
             'password': 'testpass123',
             'remember_me': False
         }, content_type='application/json')
-        
+
         self.assertEqual(response.status_code, 200)
-        
-        # Check session expiry is set to default (24 hours = 86400 seconds)
+
+        # Default session lifetime is 7 days (SESSION_COOKIE_AGE).
         session = self.client.session
-        self.assertEqual(session.get_expiry_age(), 86400)
-    
+        self.assertEqual(session.get_expiry_age(), django_settings.SESSION_COOKIE_AGE)
+
     def test_login_with_remember_me(self):
-        """Test login with remember me extends session to 7 days"""
+        """Test login with remember me extends the session to the long-lived window"""
         response = self.client.post('/api/auth/login/', {
             'username': 'testuser',
             'password': 'testpass123',
             'remember_me': True
         }, content_type='application/json')
-        
+
         self.assertEqual(response.status_code, 200)
-        
-        # Check session expiry is set to 7 days (604800 seconds)
+
+        # "Remember Me" uses the long-lived (effectively indefinite) window.
         session = self.client.session
-        self.assertEqual(session.get_expiry_age(), 604800)
-        
+        self.assertEqual(session.get_expiry_age(), django_settings.REMEMBER_ME_SESSION_AGE)
+
         # Check response includes remember_me flag
         data = response.json()
         self.assertTrue(data.get('remember_me'))
-    
+
     def test_login_remember_me_default_false(self):
         """Test login without remember_me parameter defaults to False"""
         response = self.client.post('/api/auth/login/', {
             'username': 'testuser',
             'password': 'testpass123'
         }, content_type='application/json')
-        
+
         self.assertEqual(response.status_code, 200)
-        
-        # Check session expiry is set to default (24 hours)
+
+        # Defaults to the standard 7-day session.
         session = self.client.session
-        self.assertEqual(session.get_expiry_age(), 86400)
-        
+        self.assertEqual(session.get_expiry_age(), django_settings.SESSION_COOKIE_AGE)
+
         # Check response includes remember_me as False
         data = response.json()
         self.assertFalse(data.get('remember_me'))

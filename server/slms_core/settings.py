@@ -275,7 +275,23 @@ CSRF_FAILURE_VIEW = 'apps.authentication.csrf_handler.csrf_failure'
 SESSION_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=False, cast=bool)  # True when HTTPS
-SESSION_COOKIE_AGE = 86400
+
+# Default session lifetime for a normal login (no "Remember Me").
+# 7 days, as required: a normal session stays valid for at least a week.
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 7  # 7 days
+
+# Lifetime applied when the user ticks "Remember Me". Sessions cannot be truly
+# infinite, so we use a very long window (5 years) which is effectively
+# "until the user explicitly logs out".
+REMEMBER_ME_SESSION_AGE = 60 * 60 * 24 * 365 * 5  # ~5 years
+
+# CRITICAL: extend the session expiry on every request (sliding expiration).
+# Without this the expiry is fixed at login time and an *active* user is logged
+# out the moment the original window elapses, regardless of activity. With it,
+# any request resets the countdown so an active user is never logged out
+# unexpectedly, and an idle session still survives the full window above.
+SESSION_SAVE_EVERY_REQUEST = True
+
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_COOKIE_NAME = 'sessionid'
 

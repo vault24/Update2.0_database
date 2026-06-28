@@ -22,6 +22,7 @@ class SystemSettingsUpdateSerializer(serializers.ModelSerializer):
             'enable_email_notifications', 'enable_sms_notifications', 'admin_notification_email',
             'allow_student_registration', 'allow_teacher_registration', 'allow_admission_submission',
             'institute_name', 'institute_address', 'institute_phone', 'institute_email',
+            'institute_logo',
             'maintenance_mode', 'maintenance_message'
         ]
     

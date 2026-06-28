@@ -20,6 +20,44 @@ export interface PaginatedResponse<T> {
   results: T[];
 }
 
+/**
+ * Auth-error handling
+ *
+ * When the backend rejects a request with 401/403 it may mean the session has
+ * expired. We notify a single registered handler (the AuthProvider) so it can
+ * re-validate the session against /auth/me/ and, only if that also fails, sign
+ * the user out cleanly. This avoids the "broken half-logged-in" state where the
+ * page is shown but every API call silently fails.
+ *
+ * Requests that are part of the auth flow itself are excluded so we never loop.
+ */
+type AuthErrorHandler = (status: number, endpoint: string) => void;
+let authErrorHandler: AuthErrorHandler | null = null;
+
+export function setAuthErrorHandler(handler: AuthErrorHandler | null): void {
+  authErrorHandler = handler;
+}
+
+// Endpoints that are part of the auth flow — a 401/403 here must NOT trigger
+// the global session-expiry path (login uses 400 for bad creds; /auth/me/ is
+// how we validate, so reacting to its own failure would loop).
+const AUTH_FLOW_ENDPOINTS = ['/auth/me/', '/auth/csrf/', '/auth/login/', '/auth/logout/', '/auth/register/'];
+
+function isAuthFlowEndpoint(endpoint: string): boolean {
+  const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  return AUTH_FLOW_ENDPOINTS.some((e) => path.startsWith(e));
+}
+
+function notifyAuthError(status: number, endpoint: string): void {
+  if (!authErrorHandler) return;
+  if (isAuthFlowEndpoint(endpoint)) return;
+  try {
+    authErrorHandler(status, endpoint);
+  } catch {
+    // Never let the handler break the original request flow.
+  }
+}
+
 // API Client class
 class ApiClient {
   private baseURL: string;
@@ -41,7 +79,7 @@ class ApiClient {
   /**
    * Handle API response
    */
-  private async handleResponse<T>(response: Response): Promise<T> {
+  private async handleResponse<T>(response: Response, endpoint: string = ''): Promise<T> {
     if (!response.ok) {
       let errorData: ApiError;
       try {
@@ -49,9 +87,17 @@ class ApiClient {
       } catch {
         errorData = {
           error: `HTTP ${response.status}: ${response.statusText}`,
-          status_code: response.status,
         };
       }
+      // Always expose the HTTP status so callers can reliably detect auth
+      // failures (401/403) instead of guessing from the message body.
+      errorData.status_code = response.status;
+
+      // Surface possible session expiry to the AuthProvider.
+      if (response.status === 401 || response.status === 403) {
+        notifyAuthError(response.status, endpoint);
+      }
+
       throw errorData;
     }
 
@@ -126,7 +172,7 @@ class ApiClient {
         signal: controller.signal,
       });
 
-      return await this.handleResponse<T>(response);
+      return await this.handleResponse<T>(response, endpoint);
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         throw {
@@ -174,7 +220,7 @@ class ApiClient {
         signal: controller.signal,
       });
 
-      return await this.handleResponse<T>(response);
+      return await this.handleResponse<T>(response, endpoint);
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         throw {
@@ -205,7 +251,7 @@ class ApiClient {
         signal: controller.signal,
       });
 
-      return await this.handleResponse<T>(response);
+      return await this.handleResponse<T>(response, endpoint);
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         throw {
@@ -236,7 +282,7 @@ class ApiClient {
         signal: controller.signal,
       });
 
-      return await this.handleResponse<T>(response);
+      return await this.handleResponse<T>(response, endpoint);
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         throw {
@@ -266,7 +312,7 @@ class ApiClient {
         signal: controller.signal,
       });
 
-      return await this.handleResponse<T>(response);
+      return await this.handleResponse<T>(response, endpoint);
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         throw {

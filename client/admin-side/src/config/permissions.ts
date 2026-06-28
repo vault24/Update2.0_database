@@ -164,13 +164,13 @@ export const ROLE_PERMISSIONS: Record<AdminRole, RolePermission> = {
   // Principal — super user. Advanced mode unlocks every feature.
   institute_head: {
     label: 'Principal',
-    simple: ['dashboard', 'students_list', 'departments', 'teachers', 'signup_requests', 'complaints'],
+    simple: ['dashboard', 'students_list', 'departments', 'teachers', 'applications', 'signup_requests', 'complaints'],
     advanced: 'all',
   },
 
   department_head: {
     label: 'Department Head',
-    simple: ['dashboard', 'departments', 'stipend_eligible', 'class_routine', 'discontinued_students', 'notices'],
+    simple: ['dashboard', 'departments', 'applications', 'stipend_eligible', 'class_routine', 'discontinued_students', 'notices'],
     advanced: [
       'dashboard',
       'students_list',
@@ -182,6 +182,7 @@ export const ROLE_PERMISSIONS: Record<AdminRole, RolePermission> = {
       'class_routine',
       'discontinued_students',
       'alumni',
+      'applications',
       'correction_requests',
       'complaints',
       'notices',

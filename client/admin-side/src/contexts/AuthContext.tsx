@@ -15,11 +15,17 @@ interface User {
   department_name?: string | null;
 }
 
+export interface LoginResult {
+  twoFactorRequired?: boolean;
+  email?: string;
+}
+
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<LoginResult>;
+  verify2FA: (email: string, otp: string, rememberMe?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   updateUser: (partial: Partial<User>) => void;
@@ -175,27 +181,68 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const userData = await response.json();
-      const user = userData.user || userData;
-      
-      // Only allow the three admin roles to access admin-side
-      if (!ADMIN_ROLES.includes(user.role)) {
-        // Logout from backend
-        try {
-          await fetch(`${API_BASE_URL}${API_ENDPOINTS.auth.logout}`, {
-            method: 'POST',
-            credentials: 'include',
-          });
-        } catch (e) {
-          // Ignore logout errors
-        }
-        throw new Error('Access denied. This account is only for student-side access. Please use the student portal to login.');
+
+      // Two-factor enabled: backend deferred the login until the emailed
+      // OTP code is verified. Surface that to the login page.
+      if (userData.two_factor_required) {
+        return { twoFactorRequired: true, email: userData.email };
       }
-      
-      setUser(user);
-      navigate('/');
+
+      await finalizeLogin(userData);
+      return {};
     } catch (error) {
       throw error;
     }
+  };
+
+  // Shared post-authentication handling: enforce admin-only access, set the
+  // user, and navigate into the panel.
+  const finalizeLogin = async (userData: any) => {
+    const user = userData.user || userData;
+
+    // Only allow the three admin roles to access admin-side
+    if (!ADMIN_ROLES.includes(user.role)) {
+      try {
+        await fetch(`${API_BASE_URL}${API_ENDPOINTS.auth.logout}`, {
+          method: 'POST',
+          credentials: 'include',
+        });
+      } catch (e) {
+        // Ignore logout errors
+      }
+      throw new Error('Access denied. This account is only for student-side access. Please use the student portal to login.');
+    }
+
+    setUser(user);
+    navigate('/');
+  };
+
+  const verify2FA = async (email: string, otp: string, rememberMe: boolean = false) => {
+    await fetch(`${API_BASE_URL}/auth/csrf/`, { credentials: 'include' }).catch(() => {});
+    const csrfToken = getCsrfToken();
+    const headers: HeadersInit = { 'Content-Type': 'application/json' };
+    if (csrfToken) headers['X-CSRFToken'] = csrfToken;
+
+    const response = await fetch(`${API_BASE_URL}/auth/login/verify-2fa/`, {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+      body: JSON.stringify({ email, otp, remember_me: rememberMe }),
+    });
+
+    if (!response.ok) {
+      let message = 'Verification failed';
+      try {
+        const err = await response.json();
+        message = err.message || err.detail || err.error || message;
+      } catch {
+        // keep default
+      }
+      throw new Error(message);
+    }
+
+    const userData = await response.json();
+    await finalizeLogin(userData);
   };
 
   const logout = async () => {
@@ -231,6 +278,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated: !!user,
         isLoading,
         login,
+        verify2FA,
         logout,
         checkAuth,
         updateUser,
