@@ -2,14 +2,12 @@ import { Outlet, useNavigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { Footer } from '@/components/layout/Footer';
-import { Bell, Search, User, Settings, LogOut, ChevronDown, ShieldAlert } from 'lucide-react';
+import { Bell, Search, User, Settings, LogOut, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { motion } from 'framer-motion';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { noticeService } from '@/services/noticeService';
 import { useAuth } from '@/contexts/AuthContext';
-import { mockAllegations, SeverityLevel } from '@/data/mockAllegations';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import {
@@ -38,9 +36,10 @@ export function DashboardLayout() {
       const response = await noticeService.getUnreadCount();
       setUnreadCount(response.unread_count);
     } catch (err) {
-      const statusCode = typeof err === 'object' && err !== null && 'status_code' in err
-        ? (err as { status_code?: number }).status_code
-        : undefined;
+      const statusCode =
+        typeof err === 'object' && err !== null && 'status_code' in err
+          ? (err as { status_code?: number }).status_code
+          : undefined;
       if (statusCode === 401 || statusCode === 403) {
         setUnreadCount(0);
         return;
@@ -57,176 +56,141 @@ export function DashboardLayout() {
   const getRoleBadge = () => {
     switch (user?.role) {
       case 'captain':
-        return { label: 'Captain', color: 'bg-warning text-warning-foreground' };
+        return { label: 'Captain', color: 'bg-warning/15 text-warning-foreground' };
       case 'teacher':
-        return { label: 'Teacher', color: 'bg-success text-white' };
+        return { label: 'Teacher', color: 'bg-success/12 text-success' };
+      case 'alumni':
+        return { label: 'Alumni', color: 'bg-accent/15 text-accent-foreground' };
       default:
-        return { label: 'Student', color: 'bg-primary text-primary-foreground' };
+        return { label: 'Student', color: 'bg-primary/10 text-primary' };
     }
   };
 
   const roleBadge = getRoleBadge();
 
-  // Get student allegations and highest severity
-  const studentAllegations = useMemo(() => {
-    if (user?.role === 'teacher' || user?.role === 'captain') return [];
-    // For demo, using mock data - in real app, this would be filtered by actual student ID
-    return mockAllegations.filter(a => a.status !== 'resolved');
-  }, [user?.role]);
-
-  const highestSeverity = useMemo((): SeverityLevel | null => {
-    if (studentAllegations.length === 0) return null;
-    if (studentAllegations.some(a => a.severity === 'serious')) return 'serious';
-    if (studentAllegations.some(a => a.severity === 'moderate')) return 'moderate';
-    return 'minor';
-  }, [studentAllegations]);
-
-  const getSeverityColors = (severity: SeverityLevel | null) => {
-    switch (severity) {
-      case 'serious':
-        return { 
-          text: 'text-red-500', 
-          bg: 'bg-red-500', 
-          border: 'border-red-500',
-          gradient: 'from-red-500 to-red-600',
-          glow: 'shadow-red-500/50'
-        };
-      case 'moderate':
-        return { 
-          text: 'text-orange-500', 
-          bg: 'bg-orange-500', 
-          border: 'border-orange-500',
-          gradient: 'from-orange-500 to-orange-600',
-          glow: 'shadow-orange-500/50'
-        };
-      case 'minor':
-        return { 
-          text: 'text-yellow-500', 
-          bg: 'bg-yellow-500', 
-          border: 'border-yellow-500',
-          gradient: 'from-yellow-500 to-yellow-600',
-          glow: 'shadow-yellow-500/50'
-        };
-      default:
-        return { 
-          text: 'text-primary', 
-          bg: 'bg-primary', 
-          border: 'border-primary',
-          gradient: 'from-primary to-primary/60',
-          glow: ''
-        };
-    }
-  };
-
-  const severityColors = getSeverityColors(highestSeverity);
-
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="flex min-h-screen bg-background">
       <Sidebar />
-      
-      <div className="flex-1 flex flex-col min-h-screen min-w-0">
+
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col">
         {/* Top Header */}
-        <motion.header
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="h-16 border-b border-border bg-card/50 backdrop-blur-xl sticky top-0 z-30 flex items-center justify-between px-4 md:px-6"
-        >
-          <div className="flex items-center gap-4 flex-1 pl-12 lg:pl-0">
-            <div className="relative hidden md:block max-w-md flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-border bg-card/80 px-4 backdrop-blur-xl md:px-6">
+          {/* Search */}
+          <div className="flex flex-1 items-center pl-12 lg:pl-0">
+            <div className="relative hidden w-full max-w-md md:block">
+              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search..."
-                className="pl-10 bg-secondary/50 border-0"
+                placeholder="Search anything…"
+                className="h-10 border-transparent bg-secondary/70 pl-10 shadow-none focus-visible:bg-background focus-visible:border-primary"
               />
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="relative"
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Notifications */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="relative rounded-xl"
               onClick={() => navigate('/dashboard/notifications')}
               title="View Notifications"
             >
-              <Bell className="w-5 h-5" />
+              <Bell className="h-5 w-5" />
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground text-xs rounded-full flex items-center justify-center font-medium">
+                <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[0.625rem] font-bold leading-none text-destructive-foreground ring-2 ring-card">
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}
             </Button>
+
             <ThemeToggle />
-            
+
             {/* Profile Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative flex items-center gap-2 px-2">
+                <Button variant="ghost" className="relative h-11 gap-2 rounded-xl px-1.5 sm:px-2">
                   <ProfileAvatar size="sm" />
-                  <ChevronDown className="w-4 h-4 text-muted-foreground hidden sm:block" />
+                  <div className="hidden text-left lg:block">
+                    <p className="max-w-[9rem] truncate text-sm font-semibold leading-tight">
+                      {user?.name || 'User'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{roleBadge.label}</p>
+                  </div>
+                  <ChevronDown className="hidden h-4 w-4 text-muted-foreground sm:block" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuContent align="end" className="w-64 rounded-xl p-2">
                 {/* Profile Header */}
-                <div className="px-3 py-3 border-b border-border">
-                  <div className="flex items-center gap-3">
-                    <ProfileAvatar size="md" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{user?.name || 'User'}</p>
-                      <p className="text-xs text-muted-foreground truncate">{user?.studentId || user?.email}</p>
-                    </div>
-                  </div>
-                  <div className="mt-2">
-                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${roleBadge.color}`}>
+                <div className="mb-1 flex items-center gap-3 rounded-lg bg-secondary/60 px-3 py-3">
+                  <ProfileAvatar size="md" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold">{user?.name || 'User'}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {user?.studentId || user?.email}
+                    </p>
+                    <span
+                      className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[0.7rem] font-semibold ${roleBadge.color}`}
+                    >
                       {roleBadge.label}
                     </span>
                   </div>
                 </div>
-                
-                <DropdownMenuItem onClick={() => {
-                  // Navigate to appropriate profile based on alumni status
-                  if (user?.isAlumni) {
-                    navigate('/dashboard/alumni-profile');
-                  } else {
-                    navigate('/dashboard/profile');
-                  }
-                }} className="cursor-pointer">
-                  <User className="w-4 h-4 mr-2" />
+
+                <DropdownMenuItem
+                  onClick={() => {
+                    if (user?.isAlumni) {
+                      navigate('/dashboard/alumni-profile');
+                    } else {
+                      navigate('/dashboard/profile');
+                    }
+                  }}
+                  className="cursor-pointer rounded-lg py-2"
+                >
+                  <User className="mr-2 h-4 w-4" />
                   {user?.isAlumni ? 'Alumni Profile' : 'View Profile'}
                 </DropdownMenuItem>
-                
-                {/* Add button to view main profile for alumni */}
+
                 {user?.isAlumni && (
-                  <DropdownMenuItem onClick={() => navigate('/dashboard/profile')} className="cursor-pointer">
-                    <User className="w-4 h-4 mr-2" />
+                  <DropdownMenuItem
+                    onClick={() => navigate('/dashboard/profile')}
+                    className="cursor-pointer rounded-lg py-2"
+                  >
+                    <User className="mr-2 h-4 w-4" />
                     View Main Profile
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem onClick={() => navigate('/dashboard/settings')} className="cursor-pointer">
-                  <Settings className="w-4 h-4 mr-2" />
+
+                <DropdownMenuItem
+                  onClick={() => navigate('/dashboard/settings')}
+                  className="cursor-pointer rounded-lg py-2"
+                >
+                  <Settings className="mr-2 h-4 w-4" />
                   Settings
                 </DropdownMenuItem>
+
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive focus:text-destructive">
-                  <LogOut className="w-4 h-4 mr-2" />
+
+                <DropdownMenuItem
+                  onClick={handleLogout}
+                  className="cursor-pointer rounded-lg py-2 text-destructive focus:bg-destructive/10 focus:text-destructive"
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
                   Logout
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-        </motion.header>
+        </header>
 
         {/* Main Content */}
-        <main className="flex-1 p-4 md:p-6 overflow-x-hidden overflow-y-auto">
-          <div className="max-w-full min-w-0 overflow-hidden">
+        <main className="flex-1 overflow-x-hidden overflow-y-auto p-4 md:p-6 lg:p-8">
+          <div className="mx-auto min-w-0 max-w-7xl">
             <ErrorBoundary>
               <Outlet />
             </ErrorBoundary>
           </div>
         </main>
 
-        {/* Footer */}
         <Footer />
       </div>
     </div>

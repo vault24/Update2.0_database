@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
-import { 
-  FileText, Download, Loader2, AlertCircle, FolderOpen, 
-  GraduationCap, Upload, Filter, Eye, User, X
+import {
+  FileText, Download, Loader2, AlertCircle, FolderOpen,
+  GraduationCap, Upload, Filter, Eye, User, X, Award, BadgeCheck
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,16 +17,28 @@ import {
 } from '@/components/ui/dialog';
 import { documentService, type Document, type DocumentCategory } from '@/services/documentService';
 import { admissionService } from '@/services/admissionService';
+import applicationService from '@/services/applicationService';
+import { studentService } from '@/services/studentService';
 import { getErrorMessage } from '@/lib/api';
 import { toast } from 'sonner';
 import { debugAuthState, ensureAuthentication } from '@/utils/authHelper';
 import { AdmissionBanner, useAdmissionIncomplete, useValidProfileId } from '@/components/auth/AdmissionGuard';
+
+// An institute-issued document generated from an approved application
+// (e.g. an approved Testimonial / Certificate from the Applications page).
+interface InstituteDocument {
+  id: string;
+  category: string; // the document type — highlighted (e.g. "Testimonial")
+  subtitle: string; // secondary line (e.g. "Issued 12 Jun 2026")
+  url: string;
+}
 
 export function DocumentsPage() {
   const { user } = useAuth();
   const admissionIncomplete = useAdmissionIncomplete();
   const validProfileId = useValidProfileId();
   const [documents, setDocuments] = useState<Document[]>([]);
+  const [instituteDocs, setInstituteDocs] = useState<InstituteDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
@@ -160,6 +172,34 @@ export function DocumentsPage() {
       
       console.log('✅ Total documents loaded:', mergedDocuments.length);
       setDocuments(mergedDocuments);
+
+      // Institute-issued documents: final signed documents produced by
+      // approved applications (from the Applications page workflow).
+      try {
+        const student = await studentService.getMe(validProfileId);
+        const roll = student?.currentRollNumber;
+        const registration = student?.currentRegistrationNumber;
+        if (roll) {
+          const apps = await applicationService.getMyApplications(roll, registration);
+          const issued: InstituteDocument[] = apps
+            .filter((app) => app.status === 'approved' && app.can_download !== false)
+            .map((app) => {
+              const issuedDate = app.reviewedAt || app.submittedAt;
+              return {
+                id: app.id,
+                category: app.template_name || app.applicationType || 'Issued Document',
+                subtitle: issuedDate
+                  ? `Issued ${new Date(issuedDate).toLocaleDateString()}`
+                  : 'Issued by institute',
+                url: applicationService.getDocumentUrl(app.id, roll),
+              };
+            });
+          setInstituteDocs(issued);
+          console.log('✅ Institute-issued documents loaded:', issued.length);
+        }
+      } catch (issuedErr) {
+        console.warn('Could not fetch institute-issued documents:', issuedErr);
+      }
       
       // If no documents found, don't show error, just empty state
       if (mergedDocuments.length === 0) {
@@ -370,13 +410,74 @@ export function DocumentsPage() {
         </div>
       </motion.div>
 
+      {/* Institute Issued Documents — generated from approved applications */}
+      {instituteDocs.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="space-y-3"
+        >
+          <div className="flex items-center gap-2">
+            <BadgeCheck className="w-5 h-5 text-accent" />
+            <h2 className="section-title">Institute Issued Documents</h2>
+            <Badge variant="accent">{instituteDocs.length}</Badge>
+          </div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+            {instituteDocs.map((doc) => (
+              <motion.div
+                key={doc.id}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="surface-card card-interactive p-4 md:p-6"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-lg bg-accent/15 flex items-center justify-center flex-shrink-0">
+                    <Award className="w-6 h-6 text-accent" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      {/* Document category/type is highlighted */}
+                      <h3 className="font-semibold text-sm md:text-base truncate">{doc.category}</h3>
+                      <Badge variant="success" className="text-xs">Approved</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">{doc.subtitle}</p>
+                    <p className="text-xs text-muted-foreground mt-2">Issued by the institute</p>
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => window.open(doc.url, '_blank', 'noopener')}
+                  >
+                    <Eye className="w-4 h-4 mr-1" />
+                    View
+                  </Button>
+                  <Button
+                    variant="accent"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => window.open(doc.url, '_blank', 'noopener')}
+                  >
+                    <Download className="w-4 h-4 mr-1" />
+                    Download
+                  </Button>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
       {/* Documents Grid */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
       >
-        {documents.length === 0 ? (
+        {documents.length === 0 && instituteDocs.length === 0 ? (
           <div className="bg-card rounded-lg md:rounded-xl lg:rounded-2xl border border-border p-8 md:p-12 shadow-card text-center">
             <FolderOpen className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">No Documents Available</h3>
@@ -384,8 +485,15 @@ export function DocumentsPage() {
               Your academic documents will appear here once they are uploaded by the administration.
             </p>
           </div>
-        ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+        ) : documents.length === 0 ? null : (
+          <div className="space-y-3">
+            {instituteDocs.length > 0 && (
+              <div className="flex items-center gap-2">
+                <FolderOpen className="w-5 h-5 text-primary" />
+                <h2 className="section-title">Uploaded Documents</h2>
+              </div>
+            )}
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
             {documents.map((doc) => (
               <motion.div
                 key={doc.id}
@@ -400,22 +508,19 @@ export function DocumentsPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
+                      {/* Category is the highlighted title (e.g. Certificate, Testimonial) */}
                       <h3 className="font-semibold text-sm md:text-base truncate">
-                        {doc.fileName}
+                        {doc.category}
                       </h3>
                       {doc.id.startsWith('demo-') && (
                         <Badge variant="outline" className="text-xs">
                           Demo
                         </Badge>
                       )}
-                      {doc.category === 'Photo' && (
-                        <Badge variant="secondary" className="text-xs">
-                          Photo
-                        </Badge>
-                      )}
                     </div>
-                    <p className="text-xs text-muted-foreground mb-2">
-                      {doc.category}
+                    {/* File name shown as a secondary detail */}
+                    <p className="text-xs text-muted-foreground mb-2 truncate" title={doc.fileName}>
+                      {doc.fileName}
                     </p>
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <span>{formatFileSize(doc.fileSize)}</span>
@@ -494,6 +599,7 @@ export function DocumentsPage() {
                 </div>
               </motion.div>
             ))}
+            </div>
           </div>
         )}
       </motion.div>
@@ -506,10 +612,10 @@ export function DocumentsPage() {
               <DialogHeader className="px-6 pt-6 pb-4 border-b">
                 <DialogTitle className="flex items-center gap-3">
                   {getFileIcon(selectedDoc.fileType)}
-                  {selectedDoc.fileName}
+                  {selectedDoc.category}
                 </DialogTitle>
-                <DialogDescription>
-                  {selectedDoc.category} • {formatFileSize(selectedDoc.fileSize)} • {selectedDoc.fileType.toUpperCase()}
+                <DialogDescription className="truncate">
+                  {selectedDoc.fileName} • {formatFileSize(selectedDoc.fileSize)} • {selectedDoc.fileType.toUpperCase()}
                 </DialogDescription>
               </DialogHeader>
               

@@ -14,7 +14,27 @@ import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { getErrorMessage } from '@/lib/api';
 import { departmentService, type Department } from '@/services/departmentService';
+import { OTPVerificationForm } from '@/components/auth/OTPVerificationForm';
+
+// Sentinel value for the "No department" option in the teacher signup form.
+// (Radix Select cannot use an empty-string value.)
+const NO_DEPARTMENT = 'none';
+
+/** Pull a readable message out of a DRF validation error object. */
+function firstValidationError(err: any): string {
+  if (err && typeof err === 'object') {
+    // DRF field errors: { field: ["msg"], ... } or { error, detail }
+    for (const key of Object.keys(err)) {
+      if (key === 'status_code') continue;
+      const val = (err as any)[key];
+      if (Array.isArray(val) && val.length) return String(val[0]);
+      if (typeof val === 'string' && val) return val;
+    }
+  }
+  return getErrorMessage(err);
+}
 
 type AuthMode = 'login' | 'signup';
 type MobileView = 'splash' | 'form';
@@ -427,9 +447,10 @@ function MobileAuthForm({
                         <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
                         <Select value={formData.department} onValueChange={(v) => setFormData({ ...formData, department: v })}>
                           <SelectTrigger className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400">
-                            <SelectValue placeholder="Select department" />
+                            <SelectValue placeholder="Select department (optional)" />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value={NO_DEPARTMENT}>No department / General</SelectItem>
                             {departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
                           </SelectContent>
                         </Select>
@@ -555,8 +576,13 @@ export function AuthPage() {
   const [rememberMe, setRememberMe] = useState(false);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [qualificationInput, setQualificationInput] = useState('');
-  const { login, signup } = useAuth();
+  const { login, requestSignupOtp, signup } = useAuth();
   const navigate = useNavigate();
+
+  // Sign-up email-verification (OTP) step
+  const [showOtpStep, setShowOtpStep] = useState(false);
+  const [pendingSignup, setPendingSignup] = useState<any>(null);
+  const [otpError, setOtpError] = useState<string | undefined>();
 
   const [formData, setFormData] = useState({
     studentId: '', email: '', password: '', fullName: '',
@@ -573,6 +599,24 @@ export function AuthPage() {
     }
   }, [selectedRole, mode]);
 
+  // Assemble the signup payload from the current form state.
+  const buildSignupData = () => {
+    const signupData: any = {
+      fullName: formData.fullName, email: formData.email,
+      mobile: formData.mobile, password: formData.password, role: selectedRole,
+    };
+    if (selectedRole === 'student' || selectedRole === 'captain') signupData.sscBoardRoll = formData.sscBoardRoll;
+    if (selectedRole === 'teacher') {
+      signupData.fullNameBangla = formData.fullNameBangla;
+      signupData.designation = formData.designation;
+      signupData.department = formData.department; // '' or 'none' => No department
+      signupData.qualifications = formData.qualifications;
+      signupData.specializations = formData.specializations;
+      signupData.officeLocation = formData.officeLocation;
+    }
+    return signupData;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -580,31 +624,55 @@ export function AuthPage() {
       if (mode === 'login') {
         await login(formData.email || formData.studentId, formData.password, rememberMe);
         toast.success('Welcome back!');
+        navigate('/dashboard');
       } else {
-        const signupData: any = {
-          fullName: formData.fullName, email: formData.email,
-          mobile: formData.mobile, password: formData.password, role: selectedRole,
-        };
-        if (selectedRole === 'student' || selectedRole === 'captain') signupData.sscBoardRoll = formData.sscBoardRoll;
-        if (selectedRole === 'teacher') {
-          signupData.fullNameBangla = formData.fullNameBangla;
-          signupData.designation = formData.designation;
-          signupData.department = formData.department;
-          signupData.qualifications = formData.qualifications;
-          signupData.specializations = formData.specializations;
-          signupData.officeLocation = formData.officeLocation;
-        }
-        await signup(signupData);
-        toast.success(selectedRole === 'teacher'
-          ? 'Registration submitted! Please wait for admin approval.'
-          : 'Account created successfully!');
+        // Step 1 of sign-up: validate + send the email verification code.
+        const signupData = buildSignupData();
+        await requestSignupOtp(signupData);
+        setPendingSignup(signupData);
+        setOtpError(undefined);
+        setShowOtpStep(true);
+        toast.success('Verification code sent to your email');
       }
-      navigate('/dashboard');
-    } catch {
-      toast.error('Something went wrong. Please try again.');
+    } catch (err) {
+      if (mode === 'login') {
+        toast.error('Invalid credentials. Please try again.');
+      } else {
+        toast.error(firstValidationError(err));
+      }
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Step 2 of sign-up: verify the OTP and create the account.
+  const handleVerifyOtp = async (otp: string) => {
+    setIsLoading(true);
+    setOtpError(undefined);
+    try {
+      await signup(pendingSignup, otp);
+      if (pendingSignup?.role === 'teacher') {
+        toast.success('Registration submitted! Please wait for admin approval.');
+        setShowOtpStep(false);
+        setPendingSignup(null);
+        setMode('login');
+        setMobileView('form');
+      } else {
+        toast.success('Account created successfully!');
+        navigate('/dashboard');
+      }
+    } catch (err) {
+      const msg = firstValidationError(err);
+      setOtpError(msg);
+      throw new Error(msg);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (!pendingSignup) return;
+    await requestSignupOtp(pendingSignup);
   };
 
   const sharedFormProps = {
@@ -622,6 +690,35 @@ export function AuthPage() {
 
   return (
     <>
+      {/* ══════════ SIGN-UP EMAIL VERIFICATION (OTP) — overlay ══════════ */}
+      <AnimatePresence>
+        {showOtpStep && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.25 }}
+              className="w-full max-w-md rounded-3xl bg-white p-6 md:p-8 shadow-2xl"
+            >
+              <OTPVerificationForm
+                email={pendingSignup?.email || ''}
+                onSubmit={handleVerifyOtp}
+                onBack={() => { setShowOtpStep(false); setOtpError(undefined); }}
+                onResend={handleResendOtp}
+                loading={isLoading}
+                error={otpError}
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ══════════ MOBILE  (< lg) ══════════ */}
       <div className="lg:hidden">
         <AnimatePresence mode="wait">
@@ -822,11 +919,14 @@ export function AuthPage() {
                         <div className="relative"><Briefcase className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                           <Input placeholder="e.g., Assistant Professor" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
                             value={formData.designation} onChange={(e) => setFormData({ ...formData, designation: e.target.value })} required /></div></div>
-                      <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Department <span className="text-red-500">*</span></Label>
+                      <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Department <span className="text-gray-400 font-normal">(optional)</span></Label>
                         <div className="relative"><Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
                           <Select value={formData.department} onValueChange={(v) => setFormData({ ...formData, department: v })}>
-                            <SelectTrigger className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"><SelectValue placeholder="Select department" /></SelectTrigger>
-                            <SelectContent>{departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
+                            <SelectTrigger className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"><SelectValue placeholder="Select department (optional)" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={NO_DEPARTMENT}>No department / General</SelectItem>
+                              {departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                            </SelectContent>
                           </Select></div></div>
                       <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Qualifications</Label>
                         <div className="flex gap-2">

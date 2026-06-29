@@ -24,8 +24,11 @@ class Teacher(models.Model):
     fullNameEnglish = models.CharField(max_length=255)
     designation = models.CharField(max_length=100)
     
-    # Department and Academic Info
-    department = models.ForeignKey('departments.Department', on_delete=models.PROTECT, related_name='teachers')
+    # Department and Academic Info — optional ("No department" teachers allowed)
+    department = models.ForeignKey(
+        'departments.Department', on_delete=models.PROTECT, related_name='teachers',
+        null=True, blank=True,
+    )
     subjects = models.JSONField(default=list)  # List of subject names
     qualifications = models.JSONField(default=list)  # List of qualification objects
     specializations = models.JSONField(default=list)  # List of specialization strings

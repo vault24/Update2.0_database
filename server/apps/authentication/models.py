@@ -53,6 +53,9 @@ class User(AbstractUser):
     ]
     # Admin-side roles. `institute_head` is the Principal / super user.
     ADMIN_ROLES = ('registrar', 'department_head', 'institute_head')
+    # Student-side roles. `alumni` is represented by the `is_alumni` flag on a
+    # student account (the role stays `student`), so it is not a separate role.
+    STUDENT_PORTAL_ROLES = ('student', 'captain', 'teacher')
 
     # Interface mode choices (Account Settings -> Interface Mode toggle)
     INTERFACE_MODE_CHOICES = [
@@ -179,6 +182,17 @@ class User(AbstractUser):
     def is_admin(self):
         """Check if user has admin privileges"""
         return self.role in self.ADMIN_ROLES
+
+    def can_access_student_portal(self):
+        """
+        Only genuine student-side accounts may use the student portal.
+        Superusers and admin-side roles are explicitly excluded.
+        """
+        return (not self.is_superuser) and self.role in self.STUDENT_PORTAL_ROLES
+
+    def can_access_admin_portal(self):
+        """Only superusers and admin-side roles may use the admin portal."""
+        return self.is_superuser or self.role in self.ADMIN_ROLES
     
     def is_teacher(self):
         """Check if user is a teacher"""
@@ -409,3 +423,49 @@ class PasswordResetAttempt(models.Model):
     def is_rate_limited(cls, email, max_attempts=3, hours=1):
         """Check if email is rate limited"""
         return cls.get_recent_attempts(email, hours) >= max_attempts
+
+
+class EmailVerificationCode(models.Model):
+    """
+    Email-verification OTP for actions that happen *before* a user account
+    exists — e.g. sign-up. Keyed by email + purpose (NOT a User FK), because
+    no User row exists yet at this point. A verified code is required before the
+    account is created.
+    """
+    PURPOSE_SIGNUP = 'signup'
+    PURPOSE_CHOICES = (
+        (PURPOSE_SIGNUP, 'Signup'),
+    )
+
+    email = models.EmailField(db_index=True)
+    token = models.CharField(max_length=6)
+    purpose = models.CharField(max_length=20, default=PURPOSE_SIGNUP)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    is_used = models.BooleanField(default=False)
+    attempts = models.IntegerField(default=0)
+    max_attempts = models.IntegerField(default=5)
+
+    class Meta:
+        db_table = 'auth_email_verification_code'
+        ordering = ['-created_at']
+        verbose_name = 'Email Verification Code'
+        verbose_name_plural = 'Email Verification Codes'
+        indexes = [
+            models.Index(fields=['email', 'purpose', 'created_at']),
+            models.Index(fields=['is_used']),
+        ]
+
+    def __str__(self):
+        return f"{self.purpose} code for {self.email}"
+
+    def is_expired(self):
+        return timezone.now() >= self.expires_at
+
+    def increment_attempts(self):
+        self.attempts += 1
+        self.save(update_fields=['attempts'])
+
+    def mark_as_used(self):
+        self.is_used = True
+        self.save(update_fields=['is_used'])

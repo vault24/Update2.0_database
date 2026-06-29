@@ -12,6 +12,7 @@ import { AdmissionRejected } from './AdmissionRejected';
 import { steps } from './wizard/stepConfig';
 import { AdmissionFormState } from './wizard/types';
 import { defaultFormData } from './wizard/formDefaults';
+import { getStepErrors, type FieldErrors } from './wizard/validation';
 import { StepPersonal } from './wizard/steps/StepPersonal';
 import { StepContactAddress } from './wizard/steps/StepContactAddress';
 import { StepEducation } from './wizard/steps/StepEducation';
@@ -20,6 +21,7 @@ import { StepDocuments } from './wizard/steps/StepDocuments';
 import { StepReview } from './wizard/steps/StepReview';
 import { generateAdmissionPDF } from './wizard/pdf';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { CheckCircle } from 'lucide-react';
 
 const STORAGE_KEY = DRAFT_STORAGE_KEY;
@@ -47,6 +49,8 @@ export function AdmissionWizard() {
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [isCheckingExisting, setIsCheckingExisting] = useState(true);
   const [isDeclarationChecked, setIsDeclarationChecked] = useState(false);
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const formTopRef = useRef<HTMLDivElement | null>(null);
   const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasShownDraftToastRef = useRef(false);
   const navigate = useNavigate();
@@ -491,8 +495,28 @@ export function AdmissionWizard() {
       // Also update formData for validation purposes
       setFormData(prev => ({ ...prev, [field]: value }));
     } else {
-      setFormData(prev => ({ ...prev, [field]: value }));
+      setFormData(prev => {
+        const next = { ...prev, [field]: value };
+        // Dependent dropdowns: changing a division resets its district so a
+        // stale district from another division can never be submitted.
+        if (field === 'presentDivision') next.presentDistrict = '';
+        if (field === 'permanentDivision') next.permanentDistrict = '';
+        return next;
+      });
     }
+
+    // Clear any inline error for the field (and its dependent district) as the
+    // user fixes it, so messages don't linger.
+    setErrors(prev => {
+      if (!prev[field] && !(field === 'presentDivision' && prev.presentDistrict) && !(field === 'permanentDivision' && prev.permanentDistrict)) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[field];
+      if (field === 'presentDivision') delete next.presentDistrict;
+      if (field === 'permanentDivision') delete next.permanentDistrict;
+      return next;
+    });
   };
 
   const validateStep = (step: number): number => {
@@ -599,83 +623,34 @@ export function AdmissionWizard() {
     saveDraftWithRetry(true);
   };
 
-  const validateCurrentStep = (): boolean => {
-    const completeFormData = getCompleteFormData();
-    
-    switch (currentStep) {
-      case 1: // Personal Information
-        return !!(
-          completeFormData.fullNameBangla &&
-          completeFormData.fullNameEnglish &&
-          completeFormData.fatherName &&
-          completeFormData.fatherNID &&
-          completeFormData.motherName &&
-          completeFormData.motherNID &&
-          completeFormData.dateOfBirth &&
-          completeFormData.gender &&
-          completeFormData.birthCertificate &&
-          completeFormData.religion &&
-          completeFormData.maritalStatus
-        );
-      case 2: // Contact & Address
-        return !!(
-          completeFormData.mobile &&
-          completeFormData.email &&
-          completeFormData.guardianMobile &&
-          completeFormData.presentAddress &&
-          completeFormData.presentDivision &&
-          completeFormData.presentDistrict &&
-          completeFormData.presentUpazila &&
-          completeFormData.presentPoliceStation &&
-          completeFormData.presentPostOffice &&
-          completeFormData.presentWard
-        );
-      case 3: // Education
-        return !!(
-          completeFormData.sscBoard &&
-          completeFormData.sscRoll &&
-          completeFormData.sscYear &&
-          completeFormData.sscGPA &&
-          completeFormData.sscGroup &&
-          completeFormData.sscInstitution
-        );
-      case 4: // Academic
-        return !!(
-          completeFormData.department &&
-          completeFormData.shift &&
-          completeFormData.session &&
-          completeFormData.semester &&
-          completeFormData.admissionType
-        );
-      case 5: // Documents
-        return !!(
-          completeFormData.photo &&
-          completeFormData.sscMarksheet &&
-          completeFormData.birthCertificateDoc &&
-          completeFormData.fatherNIDFront &&
-          completeFormData.fatherNIDBack &&
-          completeFormData.motherNIDFront &&
-          completeFormData.motherNIDBack
-        );
-      case 6: // Review
-        return true;
-      default:
-        return false;
-    }
+  const scrollToTop = () => {
+    formTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   const handleNext = () => {
-    if (!validateCurrentStep()) {
-      toast.error('Please fill all required fields', {
-        description: 'All fields marked with * are required to proceed.'
+    const stepErrors = getStepErrors(currentStep, getCompleteFormData());
+    if (Object.keys(stepErrors).length > 0) {
+      setErrors(stepErrors);
+      const count = Object.keys(stepErrors).length;
+      toast.error(`Please complete ${count} field${count > 1 ? 's' : ''}`, {
+        description: 'We highlighted what still needs your attention.'
       });
+      scrollToTop();
       return;
     }
-    if (currentStep < 6) setCurrentStep(prev => prev + 1);
+    setErrors({});
+    if (currentStep < 6) {
+      setCurrentStep(prev => prev + 1);
+      scrollToTop();
+    }
   };
 
   const handlePrev = () => {
-    if (currentStep > 1) setCurrentStep(prev => prev - 1);
+    setErrors({});
+    if (currentStep > 1) {
+      setCurrentStep(prev => prev - 1);
+      scrollToTop();
+    }
   };
 
   const handleSubmit = async () => {
@@ -962,163 +937,154 @@ export function AdmissionWizard() {
     );
   }
 
-  return (
-    <div className="max-w-4xl mx-auto">
-      <div className="flex flex-wrap items-center gap-3 mb-4">
-        {(isDraftLoading || isDraftSaving || isCheckingExisting || isUploadingDocuments) && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className={`w-4 h-4 ${isDraftLoading || isDraftSaving || isUploadingDocuments ? 'animate-spin' : ''}`} />
-            <span>
-              {isDraftLoading
-                ? 'Loading draft...'
-                : isCheckingExisting
-                ? 'Checking for existing submission...'
-                : isUploadingDocuments
-                ? uploadProgress
-                : usingLocalFallback
-                ? 'Saving locally (offline)'
-                : 'Saving draft...'}
-            </span>
-          </div>
-        )}
-        {usingLocalFallback && (
-          <div className="text-xs bg-warning/10 text-warning border border-warning/30 px-2 py-1 rounded-md">
-            Offline mode: changes are stored on this device
-          </div>
-        )}
-        {draftError && (
-          <div className="text-xs text-destructive">
-            {draftError}
-          </div>
-        )}
-        {lastSavedAt && (
-          <div className="text-xs text-muted-foreground">
-            Last saved at {new Date(lastSavedAt).toLocaleTimeString()}
-          </div>
-        )}
-      </div>
+  const savingNow = isDraftSaving || isUploadingDocuments;
 
-      {/* Step Tracker */}
-      <div className="mb-6 md:mb-8 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-4">
-        <div className="flex items-center min-w-max">
+  return (
+    <div ref={formTopRef} className="mx-auto max-w-4xl scroll-mt-4">
+      {/* Header + progress */}
+      <div className="surface-card mb-5 p-4 md:p-6">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="font-display text-xl font-bold md:text-2xl">Admission Application</h1>
+            <p className="text-sm text-muted-foreground">
+              Step {currentStep} of {steps.length} ·{' '}
+              <span className="font-medium text-foreground">{steps[currentStep - 1].title}</span>
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="hidden text-xs text-muted-foreground sm:inline">
+              {savingNow
+                ? (isUploadingDocuments ? (uploadProgress || 'Uploading…') : 'Saving…')
+                : usingLocalFallback
+                ? 'Saved on this device'
+                : lastSavedAt
+                ? `Saved ${new Date(lastSavedAt).toLocaleTimeString()}`
+                : ''}
+            </span>
+            <Button variant="outline" size="sm" onClick={handleSaveProgress} disabled={savingNow} className="gap-2">
+              {savingNow ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              <span className="hidden sm:inline">Save draft</span>
+            </Button>
+          </div>
+        </div>
+
+        {/* Stepper */}
+        <div className="flex items-center">
           {steps.map((step, index) => {
             const isActive = currentStep === step.id;
             const isCompleted = currentStep > step.id;
             const StepIcon = step.icon;
-
             return (
-              <div key={step.id} className="flex items-center">
-                <motion.div
-                  initial={false}
-                  animate={{
-                    scale: isActive ? 1.05 : 1,
-                  }}
-                  className="flex flex-col items-center"
-                >
-                  <div
-                    className={`w-9 h-9 md:w-12 md:h-12 rounded-lg md:rounded-xl flex items-center justify-center transition-all duration-300 ${
+              <div key={step.id} className={cn('flex items-center', index < steps.length - 1 && 'flex-1')}>
+                <div className="flex flex-col items-center gap-1.5">
+                  <motion.div
+                    initial={false}
+                    animate={{ scale: isActive ? 1.1 : 1 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                    className={cn(
+                      'flex h-9 w-9 items-center justify-center rounded-xl transition-colors md:h-11 md:w-11',
                       isCompleted
-                        ? 'gradient-primary text-primary-foreground'
+                        ? 'gradient-primary text-primary-foreground shadow-sm'
                         : isActive
-                        ? 'bg-primary/10 text-primary border-2 border-primary'
-                        : 'bg-secondary text-muted-foreground'
-                    }`}
-                  >
-                    {isCompleted ? (
-                      <CheckCircle className="w-4 h-4 md:w-6 md:h-6" />
-                    ) : (
-                      <StepIcon className="w-4 h-4 md:w-6 md:h-6" />
+                        ? 'border-2 border-primary bg-primary/10 text-primary'
+                        : 'bg-secondary text-muted-foreground',
                     )}
-                  </div>
-                  <span className={`mt-1.5 md:mt-2 text-[10px] md:text-xs font-medium whitespace-nowrap ${
-                    isActive ? 'text-primary' : 'text-muted-foreground'
-                  }`}>
-                    <span className="hidden sm:inline">{step.title}</span>
-                    <span className="sm:hidden">{step.title.split(' ')[0]}</span>
+                  >
+                    {isCompleted ? <CheckCircle className="h-4 w-4 md:h-5 md:w-5" /> : <StepIcon className="h-4 w-4 md:h-5 md:w-5" />}
+                  </motion.div>
+                  <span className={cn('hidden text-[11px] font-medium sm:block', isActive ? 'text-primary' : 'text-muted-foreground')}>
+                    {step.shortTitle}
                   </span>
-                </motion.div>
-                
+                </div>
                 {index < steps.length - 1 && (
-                  <div className={`w-6 md:w-16 h-0.5 mx-1 md:mx-2 transition-colors ${
-                    currentStep > step.id ? 'bg-primary' : 'bg-border'
-                  }`} />
+                  <div className="mx-1.5 h-1 flex-1 overflow-hidden rounded-full bg-border md:mx-2">
+                    <motion.div
+                      className="h-full gradient-primary"
+                      initial={false}
+                      animate={{ width: isCompleted ? '100%' : '0%' }}
+                      transition={{ duration: 0.4 }}
+                    />
+                  </div>
                 )}
               </div>
             );
           })}
         </div>
+
+        {/* Offline / error hints */}
+        {(usingLocalFallback || draftError) && (
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            {usingLocalFallback && (
+              <span className="rounded-md border border-warning/30 bg-warning/10 px-2 py-1 text-warning-foreground">
+                Offline — changes saved on this device
+              </span>
+            )}
+            {draftError && <span className="text-destructive">{draftError}</span>}
+          </div>
+        )}
       </div>
 
       {/* Form Content */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-card rounded-xl md:rounded-2xl border border-border p-4 md:p-6 lg:p-8 shadow-card"
-      >
+      <div className="surface-card p-4 md:p-6 lg:p-8">
         <AnimatePresence mode="wait">
           <motion.div
             key={currentStep}
-            initial={{ opacity: 0, x: 20 }}
+            initial={{ opacity: 0, x: 24 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.3 }}
+            exit={{ opacity: 0, x: -24 }}
+            transition={{ duration: 0.28, ease: [0.4, 0, 0.2, 1] }}
           >
-            {currentStep === 1 && <StepPersonal formData={formData} onChange={handleInputChange} />}
-            {currentStep === 2 && <StepContactAddress formData={formData} onChange={handleInputChange} />}
-            {currentStep === 3 && <StepEducation formData={formData} onChange={handleInputChange} />}
-            {currentStep === 4 && <StepAcademic formData={formData} onChange={handleInputChange} departments={departments} />}
-            {currentStep === 5 && <StepDocuments formData={formData} onChange={handleInputChange} />}
-            {currentStep === 6 && <StepReview formData={formData} isDeclarationChecked={isDeclarationChecked} onDeclarationChange={setIsDeclarationChecked} />}
+            {currentStep === 1 && <StepPersonal formData={formData} onChange={handleInputChange} errors={errors} />}
+            {currentStep === 2 && <StepContactAddress formData={formData} onChange={handleInputChange} errors={errors} />}
+            {currentStep === 3 && <StepEducation formData={formData} onChange={handleInputChange} errors={errors} />}
+            {currentStep === 4 && <StepAcademic formData={formData} onChange={handleInputChange} departments={departments} errors={errors} />}
+            {currentStep === 5 && <StepDocuments formData={formData} onChange={handleInputChange} errors={errors} />}
+            {currentStep === 6 && <StepReview formData={formData} departments={departments} isDeclarationChecked={isDeclarationChecked} onDeclarationChange={setIsDeclarationChecked} />}
           </motion.div>
         </AnimatePresence>
 
         {/* Navigation Buttons */}
-        <div className="flex items-center justify-between mt-8 pt-6 border-t border-border">
+        <div className="mt-8 flex items-center justify-between gap-3 border-t border-border pt-6">
           <Button
+            variant="outline"
+            size="lg"
             onClick={handlePrev}
             disabled={currentStep === 1 || isDraftLoading}
-            className="gap-3 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white font-semibold px-8 py-6 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 group"
+            className="gap-2"
           >
-            <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center transition-transform duration-300 group-hover:-translate-x-6">
-              <ChevronLeft className="w-5 h-5 text-gray-800" />
-            </div>
-            <span className="relative z-10">Previous</span>
+            <ChevronLeft className="h-4 w-4" />
+            <span className="hidden sm:inline">Previous</span>
+            <span className="sm:hidden">Back</span>
           </Button>
 
           {currentStep < 6 ? (
-            <Button
-              onClick={handleNext}
-              className="gap-3 bg-gradient-to-r from-pink-500 via-rose-500 to-orange-500 hover:from-pink-600 hover:via-rose-600 hover:to-orange-600 text-white font-semibold px-8 py-6 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 relative overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={isDraftLoading || !validateCurrentStep()}
-            >
-              <span className="relative z-10">Next</span>
-              <div className="relative z-10 w-8 h-8 bg-white rounded-full flex items-center justify-center transition-transform duration-300 group-hover:translate-x-6">
-                <ChevronRight className={`w-5 h-5 text-gray-800 transition-transform duration-300 ${!validateCurrentStep() ? '-rotate-90' : ''}`} />
-              </div>
+            <Button variant="gradient" size="lg" onClick={handleNext} disabled={isDraftLoading} className="gap-2">
+              Next Step
+              <ChevronRight className="h-4 w-4" />
             </Button>
           ) : (
-            <Button 
-              onClick={handleSubmit} 
-              className="gap-3 bg-gradient-to-r from-green-500 via-emerald-500 to-teal-500 hover:from-green-600 hover:via-emerald-600 hover:to-teal-600 text-white font-semibold px-8 py-6 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 group disabled:opacity-50 disabled:cursor-not-allowed"
+            <Button
+              variant="success"
+              size="lg"
+              onClick={handleSubmit}
               disabled={isSubmitting || isDraftSaving || !isDeclarationChecked}
+              className="gap-2"
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  {isUploadingDocuments ? 'Uploading Documents...' : 'Submitting...'}
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {isUploadingDocuments ? 'Uploading…' : 'Submitting…'}
                 </>
               ) : (
                 <>
-                  <span className="relative z-10">Submit Application</span>
-                  <div className="relative z-10 w-8 h-8 bg-white rounded-full flex items-center justify-center transition-transform duration-300 group-hover:translate-x-6">
-                    <Send className="w-5 h-5 text-gray-800" />
-                  </div>
+                  <Send className="h-4 w-4" />
+                  Submit Application
                 </>
               )}
             </Button>
           )}
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }

@@ -35,7 +35,10 @@ class TeacherSignupRequest(models.Model):
     
     # Professional Information
     designation = models.CharField(max_length=100)
-    department = models.ForeignKey('departments.Department', on_delete=models.PROTECT)
+    # Optional — a teacher may register without a department ("No department").
+    department = models.ForeignKey(
+        'departments.Department', on_delete=models.PROTECT, null=True, blank=True
+    )
     qualifications = models.JSONField(default=list)  # List of qualification objects
     specializations = models.JSONField(default=list)  # List of specialization strings
     office_location = models.CharField(max_length=255, blank=True)

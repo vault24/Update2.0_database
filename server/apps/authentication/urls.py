@@ -7,6 +7,7 @@ from . import password_reset_views
 
 urlpatterns = [
     path('csrf/', views.csrf_token_view, name='csrf-token'),
+    path('register/send-otp/', views.register_request_otp_view, name='register-send-otp'),
     path('register/', views.register_view, name='register'),
     path('login/', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),

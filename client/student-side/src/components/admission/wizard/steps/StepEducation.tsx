@@ -1,104 +1,75 @@
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { GraduationCap, ScrollText } from 'lucide-react';
 import { AdmissionFormState } from '../types';
+import { sscBoards, sscGroups, getPassingYears } from '../stepConfig';
+import { FieldErrors } from '../validation';
+import { TextField, SelectField, SectionCard, StepIntro } from '../fields';
 
 interface Props {
   formData: AdmissionFormState;
   onChange: (field: keyof AdmissionFormState, value: any) => void;
+  errors?: FieldErrors;
 }
 
-export function StepEducation({ formData, onChange }: Props) {
+const passingYears = getPassingYears(20);
+
+export function StepEducation({ formData, onChange, errors = {} }: Props) {
   return (
     <div className="space-y-6">
-      <div>
-        <h3 className="text-xl font-semibold mb-1">Educational Background</h3>
-        <p className="text-sm text-muted-foreground">Enter your SSC/equivalent exam details</p>
-      </div>
+      <StepIntro icon={GraduationCap} title="Educational Background" description="Your SSC or equivalent exam details." />
 
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>Board <span className="text-red-500">*</span></Label>
-          <select 
-            className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm"
-            value={formData.sscBoard}
-            onChange={(e) => onChange('sscBoard', e.target.value)}
-            required
-          >
-            <option value="">Select Board</option>
-            <option value="dhaka">Dhaka</option>
-            <option value="rajshahi">Rajshahi</option>
-            <option value="comilla">Comilla</option>
-            <option value="chittagong">Chittagong</option>
-            <option value="jessore">Jessore</option>
-            <option value="barisal">Barisal</option>
-            <option value="sylhet">Sylhet</option>
-            <option value="dinajpur">Dinajpur</option>
-            <option value="madrasah">Madrasah</option>
-            <option value="technical">Technical</option>
-          </select>
-        </div>
-        <div className="space-y-2">
-          <Label>Roll Number <span className="text-red-500">*</span></Label>
-          <Input 
-            placeholder="Enter roll number"
-            value={formData.sscRoll}
-            onChange={(e) => onChange('sscRoll', e.target.value)}
-            required
+      <SectionCard icon={ScrollText} title="SSC / Equivalent" description="Enter results exactly as printed on your marksheet.">
+        <div className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <SelectField
+              label="Board" required placeholder="Select board"
+              value={formData.sscBoard}
+              onChange={(v) => onChange('sscBoard', v)}
+              options={sscBoards}
+              error={errors.sscBoard}
+            />
+            <TextField
+              label="Roll Number" required numeric
+              placeholder="Enter roll number"
+              value={formData.sscRoll}
+              onChange={(v) => onChange('sscRoll', v)}
+              error={errors.sscRoll}
+            />
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            <SelectField
+              label="Passing Year" required placeholder="Select year"
+              value={formData.sscYear}
+              onChange={(v) => onChange('sscYear', v)}
+              options={passingYears}
+              error={errors.sscYear}
+            />
+            <TextField
+              label="GPA" required
+              placeholder="e.g. 4.50" inputMode="decimal"
+              helper="Out of 5.00"
+              value={formData.sscGPA}
+              onChange={(v) => onChange('sscGPA', v)}
+              error={errors.sscGPA}
+            />
+            <SelectField
+              label="Group" required placeholder="Select group"
+              value={formData.sscGroup}
+              onChange={(v) => onChange('sscGroup', v)}
+              options={sscGroups}
+              error={errors.sscGroup}
+            />
+          </div>
+
+          <TextField
+            label="Institution Name" required
+            placeholder="Enter your school / institution name"
+            value={formData.sscInstitution}
+            onChange={(v) => onChange('sscInstitution', v)}
+            error={errors.sscInstitution}
           />
         </div>
-      </div>
-
-      <div className="grid md:grid-cols-3 gap-4">
-        <div className="space-y-2">
-          <Label>Passing Year <span className="text-red-500">*</span></Label>
-          <select 
-            className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm"
-            value={formData.sscYear}
-            onChange={(e) => onChange('sscYear', e.target.value)}
-            required
-          >
-            <option value="">Select Year</option>
-            {[2024, 2023, 2022, 2021, 2020, 2019].map(year => (
-              <option key={year} value={year}>{year}</option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-2">
-          <Label>GPA <span className="text-red-500">*</span></Label>
-          <Input 
-            placeholder="e.g., 4.50"
-            value={formData.sscGPA}
-            onChange={(e) => onChange('sscGPA', e.target.value)}
-            required
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>Group <span className="text-red-500">*</span></Label>
-          <select 
-            className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm"
-            value={formData.sscGroup}
-            onChange={(e) => onChange('sscGroup', e.target.value)}
-            required
-          >
-            <option value="">Select Group</option>
-            <option value="science">Science</option>
-            <option value="commerce">Commerce</option>
-            <option value="arts">Arts</option>
-            <option value="vocational">Vocational</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label>Institution Name <span className="text-red-500">*</span></Label>
-        <Input 
-          placeholder="Enter your school/institution name"
-          value={formData.sscInstitution}
-          onChange={(e) => onChange('sscInstitution', e.target.value)}
-          required
-        />
-      </div>
+      </SectionCard>
     </div>
   );
 }
-

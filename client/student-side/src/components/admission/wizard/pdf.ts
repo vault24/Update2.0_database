@@ -1,5 +1,9 @@
 import { AdmissionFormState } from './types';
 import { toast } from 'sonner';
+import { semesterOptions, admissionTypeOptions } from './stepConfig';
+
+const semesterLabel = (v: string): string => semesterOptions.find((o) => o.value === v)?.label || v;
+const admissionTypeLabel = (v: string): string => admissionTypeOptions.find((o) => o.value === v)?.label || v;
 
 interface Department {
   id: string;
@@ -359,11 +363,11 @@ export function generateAdmissionPDF(formData: AdmissionFormState, applicationId
             </div>
             <div class="field">
               <div class="field-label">Semester</div>
-              <div class="field-value">${formData.semester || 'N/A'}</div>
+              <div class="field-value">${semesterLabel(formData.semester) || 'N/A'}</div>
             </div>
             <div class="field">
               <div class="field-label">Admission Type</div>
-              <div class="field-value">${capitalize(formData.admissionType) || 'N/A'}</div>
+              <div class="field-value">${admissionTypeLabel(formData.admissionType) || 'N/A'}</div>
             </div>
             <div class="field">
               <div class="field-label">Group</div>

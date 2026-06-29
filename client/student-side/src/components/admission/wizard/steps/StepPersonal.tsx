@@ -1,189 +1,137 @@
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { User, IdCard, Heart } from 'lucide-react';
 import { AdmissionFormState } from '../types';
-import { maritalStatuses, divisions } from '../stepConfig';
+import { genderOptions, bloodGroups, religionOptions, maritalStatuses } from '../stepConfig';
+import { FieldErrors } from '../validation';
+import { TextField, SelectField, SectionCard, StepIntro } from '../fields';
 
 interface Props {
   formData: AdmissionFormState;
   onChange: (field: keyof AdmissionFormState, value: any) => void;
+  errors?: FieldErrors;
 }
 
-export function StepPersonal({ formData, onChange }: Props) {
+export function StepPersonal({ formData, onChange, errors = {} }: Props) {
   return (
     <div className="space-y-6">
-      <div>
-        <h3 className="text-xl font-semibold mb-1">Personal Information</h3>
-        <p className="text-sm text-muted-foreground">Enter your personal details</p>
-      </div>
+      <StepIntro icon={User} title="Personal Information" description="Tell us about yourself and your parents." />
 
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>Full Name (Bangla) <span className="text-red-500">*</span></Label>
-          <Input 
+      <SectionCard icon={User} title="Name" description="As it appears on official documents.">
+        <div className="grid gap-4 md:grid-cols-2">
+          <TextField
+            label="Full Name (Bangla)" required
             placeholder="সম্পূর্ণ নাম লিখুন"
             value={formData.fullNameBangla}
-            onChange={(e) => onChange('fullNameBangla', e.target.value)}
-            required
+            onChange={(v) => onChange('fullNameBangla', v)}
+            error={errors.fullNameBangla}
           />
-        </div>
-        <div className="space-y-2">
-          <Label>Full Name (English) <span className="text-red-500">*</span></Label>
-          <Input 
+          <TextField
+            label="Full Name (English)" required
             placeholder="Enter full name"
             value={formData.fullNameEnglish}
-            onChange={(e) => onChange('fullNameEnglish', e.target.value)}
-            required
+            onChange={(v) => onChange('fullNameEnglish', v)}
+            error={errors.fullNameEnglish}
           />
         </div>
-      </div>
+      </SectionCard>
 
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>Father's Name <span className="text-red-500">*</span></Label>
-          <Input 
+      <SectionCard icon={Heart} title="Parents' Information">
+        <div className="grid gap-4 md:grid-cols-2">
+          <TextField
+            label="Father's Name" required
             placeholder="Enter father's name"
             value={formData.fatherName}
-            onChange={(e) => onChange('fatherName', e.target.value)}
-            required
+            onChange={(v) => onChange('fatherName', v)}
+            error={errors.fatherName}
           />
-        </div>
-        <div className="space-y-2">
-          <Label>Father's NID <span className="text-red-500">*</span></Label>
-          <Input 
+          <TextField
+            label="Father's NID" required numeric
             placeholder="Enter NID number"
             value={formData.fatherNID}
-            onChange={(e) => onChange('fatherNID', e.target.value)}
-            required
+            onChange={(v) => onChange('fatherNID', v)}
+            error={errors.fatherNID}
           />
-        </div>
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>Mother's Name <span className="text-red-500">*</span></Label>
-          <Input 
+          <TextField
+            label="Mother's Name" required
             placeholder="Enter mother's name"
             value={formData.motherName}
-            onChange={(e) => onChange('motherName', e.target.value)}
-            required
+            onChange={(v) => onChange('motherName', v)}
+            error={errors.motherName}
           />
-        </div>
-        <div className="space-y-2">
-          <Label>Mother's NID <span className="text-red-500">*</span></Label>
-          <Input 
+          <TextField
+            label="Mother's NID" required numeric
             placeholder="Enter NID number"
             value={formData.motherNID}
-            onChange={(e) => onChange('motherNID', e.target.value)}
-            required
+            onChange={(v) => onChange('motherNID', v)}
+            error={errors.motherNID}
           />
         </div>
-      </div>
+      </SectionCard>
 
-      <div className="grid md:grid-cols-3 gap-4">
-        <div className="space-y-2">
-          <Label>Date of Birth <span className="text-red-500">*</span></Label>
-          <Input 
-            type="date"
-            value={formData.dateOfBirth}
-            onChange={(e) => onChange('dateOfBirth', e.target.value)}
-            required
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>Gender <span className="text-red-500">*</span></Label>
-          <select 
-            className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm"
-            value={formData.gender}
-            onChange={(e) => onChange('gender', e.target.value)}
-            required
-          >
-            <option value="">Select Gender</option>
-            <option value="male">Male</option>
-            <option value="female">Female</option>
-          </select>
-        </div>
-        <div className="space-y-2">
-          <Label>Blood Group</Label>
-          <select 
-            className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm"
-            value={formData.bloodGroup}
-            onChange={(e) => onChange('bloodGroup', e.target.value)}
-          >
-            <option value="">Select Blood Group</option>
-            <option value="A+">A+</option>
-            <option value="A-">A-</option>
-            <option value="B+">B+</option>
-            <option value="B-">B-</option>
-            <option value="O+">O+</option>
-            <option value="O-">O-</option>
-            <option value="AB+">AB+</option>
-            <option value="AB-">AB-</option>
-          </select>
-        </div>
-      </div>
+      <SectionCard icon={IdCard} title="Identity Details">
+        <div className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-3">
+            <TextField
+              label="Date of Birth" required type="date"
+              value={formData.dateOfBirth}
+              onChange={(v) => onChange('dateOfBirth', v)}
+              error={errors.dateOfBirth}
+            />
+            <SelectField
+              label="Gender" required placeholder="Select gender"
+              value={formData.gender}
+              onChange={(v) => onChange('gender', v)}
+              options={genderOptions}
+              error={errors.gender}
+            />
+            <SelectField
+              label="Blood Group" placeholder="Select blood group"
+              value={formData.bloodGroup}
+              onChange={(v) => onChange('bloodGroup', v)}
+              options={bloodGroups}
+            />
+          </div>
 
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>NID Number</Label>
-          <Input 
-            placeholder="Enter NID number"
-            value={formData.nid}
-            onChange={(e) => onChange('nid', e.target.value)}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>Birth Certificate No. <span className="text-red-500">*</span></Label>
-          <Input 
-            placeholder="Enter birth certificate number"
-            value={formData.birthCertificate}
-            onChange={(e) => onChange('birthCertificate', e.target.value)}
-            required
-          />
-        </div>
-      </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <TextField
+              label="NID Number" numeric
+              placeholder="Enter NID number"
+              helper="Optional — if you have a National ID."
+              value={formData.nid}
+              onChange={(v) => onChange('nid', v)}
+            />
+            <TextField
+              label="Birth Certificate No." required numeric
+              placeholder="Enter birth certificate number"
+              value={formData.birthCertificate}
+              onChange={(v) => onChange('birthCertificate', v)}
+              error={errors.birthCertificate}
+            />
+          </div>
 
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>Religion <span className="text-red-500">*</span></Label>
-          <select 
-            className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm"
-            value={formData.religion}
-            onChange={(e) => onChange('religion', e.target.value)}
-            required
-          >
-            <option value="">Select Religion</option>
-            <option value="islam">Islam</option>
-            <option value="hinduism">Hinduism</option>
-            <option value="christianity">Christianity</option>
-            <option value="buddhism">Buddhism</option>
-            <option value="other">Other</option>
-          </select>
+          <div className="grid gap-4 md:grid-cols-3">
+            <SelectField
+              label="Religion" required placeholder="Select religion"
+              value={formData.religion}
+              onChange={(v) => onChange('religion', v)}
+              options={religionOptions}
+              error={errors.religion}
+            />
+            <TextField
+              label="Nationality"
+              placeholder="Enter nationality"
+              value={formData.nationality || 'Bangladeshi'}
+              onChange={(v) => onChange('nationality', v)}
+            />
+            <SelectField
+              label="Marital Status" required placeholder="Select status"
+              value={formData.maritalStatus}
+              onChange={(v) => onChange('maritalStatus', v)}
+              options={maritalStatuses.map((m) => ({ value: m.toLowerCase(), label: m }))}
+              error={errors.maritalStatus}
+            />
+          </div>
         </div>
-        <div className="space-y-2">
-          <Label>Nationality</Label>
-          <Input 
-            placeholder="Enter nationality"
-            value={formData.nationality || 'Bangladeshi'}
-            onChange={(e) => onChange('nationality', e.target.value)}
-          />
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label>Marital Status <span className="text-red-500">*</span></Label>
-        <select 
-          className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm"
-          value={formData.maritalStatus}
-          onChange={(e) => onChange('maritalStatus', e.target.value)}
-          required
-        >
-          <option value="">Select Marital Status</option>
-          {maritalStatuses.map(ms => (
-            <option key={ms} value={ms.toLowerCase()}>{ms}</option>
-          ))}
-        </select>
-      </div>
+      </SectionCard>
     </div>
   );
 }
-

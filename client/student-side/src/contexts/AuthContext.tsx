@@ -23,7 +23,10 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
-  signup: (data: SignupData) => Promise<void>;
+  /** Step 1 of sign-up: validate data + email an OTP. No account is created yet. */
+  requestSignupOtp: (data: SignupData) => Promise<void>;
+  /** Step 2 of sign-up: verify the OTP and create the account. */
+  signup: (data: SignupData, otp?: string) => Promise<void>;
   logout: () => void;
   /** Re-fetch the current user from the server (keeps admission status, profile id, role in sync). */
   refreshUser: () => Promise<void>;
@@ -34,6 +37,16 @@ interface AuthContextType {
 function isAuthFailure(error: any): boolean {
   const status = error?.status_code;
   return status === 401 || status === 403;
+}
+
+// Roles permitted on the STUDENT portal. Admin accounts (registrar,
+// department_head, institute_head) and superusers must never be treated as
+// authenticated here, even if a backend session exists (the session cookie is
+// shared with the admin portal on the same backend host).
+const STUDENT_PORTAL_ROLES = ['student', 'captain', 'teacher'];
+
+function isStudentPortalUser(userData: any): boolean {
+  return !!userData && STUDENT_PORTAL_ROLES.includes(userData.role);
 }
 
 interface SignupData {
@@ -209,6 +222,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const response = await api.get<any>('/auth/me/');
       if (response.user) {
+        // If the active session belongs to an admin/superuser, do not keep the
+        // student app authenticated (shared backend session across portals).
+        if (!isStudentPortalUser(response.user)) {
+          if (userRef.current) clearUser();
+          return;
+        }
         const built = await buildUserFromResponse(response.user);
         // Avoid pointless re-renders of the whole app when nothing changed
         // (focus/poll validations are frequent).
@@ -256,8 +275,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await api.get<any>('/auth/csrf/');
         const response = await api.get<any>('/auth/me/');
         if (response.user) {
-          const built = await buildUserFromResponse(response.user);
-          applyUser(built);
+          // Reject admin/superuser sessions on the student portal. We do NOT
+          // log them out (that is their valid admin session) — we simply don't
+          // treat them as authenticated here.
+          if (!isStudentPortalUser(response.user)) {
+            localStorage.removeItem('userId');
+            localStorage.removeItem('relatedProfileId');
+          } else {
+            const built = await buildUserFromResponse(response.user);
+            applyUser(built);
+          }
         }
       } catch (error) {
         localStorage.removeItem('userId');
@@ -316,8 +343,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('hasLoggedOut');
       
       await api.get<any>('/auth/csrf/');
-      const response = await api.post<any>('/auth/login/', { username: email, password, remember_me: rememberMe });
-      
+      // `portal: 'student'` tells the backend to reject admin/superuser accounts.
+      const response = await api.post<any>('/auth/login/', {
+        username: email,
+        password,
+        remember_me: rememberMe,
+        portal: 'student',
+      });
+
+      // Defense in depth: never authenticate a non-student account here even if
+      // the backend ever returned one.
+      if (!isStudentPortalUser(response.user)) {
+        try { await api.post('/auth/logout/', {}); } catch (e) {}
+        throw new Error('This account cannot sign in to the student portal.');
+      }
+
       const built = await buildUserFromResponse(response.user);
       applyUser(built);
 
@@ -353,48 +393,69 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signup = async (data: SignupData) => {
+  // Build the backend registration payload shared by the OTP request and the
+  // final account-creation call so both validate against identical data.
+  const buildRegistrationData = (data: SignupData): Record<string, any> => {
+    const nameParts = data.fullName.trim().split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
+
+    const registrationData: Record<string, any> = {
+      username: data.email,
+      email: data.email,
+      password: data.password,
+      confirm_password: data.password,
+      first_name: firstName,
+      last_name: lastName,
+      mobile_number: data.mobile,
+      role: data.role,
+    };
+
+    // SSC Board Roll for students and captains
+    if ((data.role === 'student' || data.role === 'captain') && data.sscBoardRoll) {
+      registrationData.ssc_board_roll = data.sscBoardRoll;
+    }
+
+    if (data.role === 'teacher') {
+      registrationData.full_name_english = data.fullName;
+      registrationData.full_name_bangla = data.fullNameBangla || '';
+      registrationData.designation = data.designation || '';
+      // Department is optional — '' / 'none' means "No department".
+      registrationData.department =
+        data.department && data.department !== 'none' ? data.department : null;
+      registrationData.qualifications = data.qualifications || [];
+      registrationData.specializations = data.specializations || [];
+      registrationData.office_location = data.officeLocation || '';
+    }
+
+    return registrationData;
+  };
+
+  // Step 1: validate + email an OTP. No account is created yet.
+  const requestSignupOtp = async (data: SignupData) => {
+    localStorage.removeItem('hasLoggedOut');
+    await api.get<any>('/auth/csrf/');
+    await api.post<any>('/auth/register/send-otp/', buildRegistrationData(data));
+  };
+
+  // Step 2: verify the OTP and create the account.
+  const signup = async (data: SignupData, otp?: string) => {
     try {
       localStorage.removeItem('hasLoggedOut');
-      
+
       await api.get<any>('/auth/csrf/');
-      
-      const nameParts = data.fullName.trim().split(' ');
-      const firstName = nameParts[0] || '';
-      const lastName = nameParts.slice(1).join(' ') || '';
-      
-      const registrationData: any = {
-        username: data.email,
-        email: data.email,
-        password: data.password,
-        confirm_password: data.password,
-        first_name: firstName,
-        last_name: lastName,
-        mobile_number: data.mobile,
-        role: data.role,
-      };
-      
-      // Add SSC Board Roll for students and captains
-      if ((data.role === 'student' || data.role === 'captain') && data.sscBoardRoll) {
-        registrationData.ssc_board_roll = data.sscBoardRoll;
+
+      const registrationData = buildRegistrationData(data);
+      if (otp) {
+        registrationData.otp = otp;
       }
-      
-      if (data.role === 'teacher') {
-        registrationData.full_name_english = data.fullName;
-        registrationData.full_name_bangla = data.fullNameBangla || '';
-        registrationData.designation = data.designation || '';
-        registrationData.department = data.department || '';
-        registrationData.qualifications = data.qualifications || [];
-        registrationData.specializations = data.specializations || [];
-        registrationData.office_location = data.officeLocation || '';
-      }
-      
+
       const response = await api.post<any>('/auth/register/', registrationData);
-      
+
       if (data.role === 'teacher') {
         return;
       }
-      
+
       if (response.auto_logged_in && response.user) {
         const built = await buildUserFromResponse(response.user);
         // Prefer the name the user just typed in the signup form.
@@ -423,6 +484,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       isAuthenticated: !!user,
       login,
+      requestSignupOtp,
       signup,
       logout,
       refreshUser,

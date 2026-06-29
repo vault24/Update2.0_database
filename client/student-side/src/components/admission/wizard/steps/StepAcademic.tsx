@@ -1,117 +1,83 @@
-import { Label } from '@/components/ui/label';
+import { BookOpen, Building2 } from 'lucide-react';
 import { AdmissionFormState } from '../types';
 import { Department } from '@/services/departmentService';
-import { groups } from '../stepConfig';
+import { groups, shiftOptions, semesterOptions, admissionTypeOptions, getSessions } from '../stepConfig';
+import { FieldErrors } from '../validation';
+import { SelectField, SectionCard, StepIntro } from '../fields';
 
 interface Props {
   formData: AdmissionFormState;
   departments: Department[];
   onChange: (field: keyof AdmissionFormState, value: any) => void;
+  errors?: FieldErrors;
 }
 
-export function StepAcademic({ formData, departments, onChange }: Props) {
+const sessionOptions = getSessions(8);
+
+export function StepAcademic({ formData, departments, onChange, errors = {} }: Props) {
+  const departmentOptions = departments.map((d) => ({ value: String(d.id), label: d.name }));
+
   return (
     <div className="space-y-6">
-      <div>
-        <h3 className="text-xl font-semibold mb-1">Current Academic Information</h3>
-        <p className="text-sm text-muted-foreground">Select your department and session details</p>
-      </div>
+      <StepIntro icon={BookOpen} title="Current Academic Information" description="Choose your programme and session." />
 
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>Department <span className="text-red-500">*</span></Label>
-          <select 
-            className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm"
+      <SectionCard icon={Building2} title="Programme">
+        <div className="grid gap-4 md:grid-cols-2">
+          <SelectField
+            label="Department" required
+            placeholder={departments.length ? 'Select department' : 'Loading departments…'}
             value={formData.department}
-            onChange={(e) => onChange('department', e.target.value)}
-            required
-          >
-            <option value="">Select Department</option>
-            {departments.map((dept) => (
-              <option key={dept.id} value={dept.id}>
-                {dept.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-2">
-          <Label>Shift <span className="text-red-500">*</span></Label>
-          <select 
-            className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm"
+            onChange={(v) => onChange('department', v)}
+            options={departmentOptions}
+            error={errors.department}
+          />
+          <SelectField
+            label="Shift" required placeholder="Select shift"
             value={formData.shift}
-            onChange={(e) => onChange('shift', e.target.value)}
-            required
-          >
-            <option value="">Select Shift</option>
-            <option value="Morning">Morning</option>
-            <option value="Day">Day</option>
-          </select>
+            onChange={(v) => onChange('shift', v)}
+            options={shiftOptions}
+            error={errors.shift}
+          />
         </div>
-      </div>
+      </SectionCard>
 
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>Session <span className="text-red-500">*</span></Label>
-          <select 
-            className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm"
-            value={formData.session}
-            onChange={(e) => onChange('session', e.target.value)}
-            required
-          >
-            <option value="">Select Session</option>
-            <option value="2025-26">2025-26</option>
-            <option value="2024-25">2024-25</option>
-            <option value="2023-24">2023-24</option>
-            <option value="2022-23">2022-23</option>
-            <option value="2021-22">2021-22</option>
-            <option value="2020-21">2020-21</option>
-            <option value="2019-20">2019-20</option>
-          </select>
-        </div>
-        <div className="space-y-2">
-          <Label>Semester <span className="text-red-500">*</span></Label>
-          <select 
-            className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm"
-            value={formData.semester}
-            onChange={(e) => onChange('semester', e.target.value)}
-            required
-          >
-            <option value="">Select Semester</option>
-            <option value="1st">1st Semester</option>
-          </select>
-        </div>
-      </div>
+      <SectionCard icon={BookOpen} title="Session & Type">
+        <div className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <SelectField
+              label="Session" required placeholder="Select session"
+              value={formData.session}
+              onChange={(v) => onChange('session', v)}
+              options={sessionOptions}
+              error={errors.session}
+            />
+            <SelectField
+              label="Semester" required placeholder="Select semester"
+              value={formData.semester}
+              onChange={(v) => onChange('semester', v)}
+              options={semesterOptions}
+              error={errors.semester}
+            />
+          </div>
 
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>Admission Type <span className="text-red-500">*</span></Label>
-          <select 
-            className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm"
-            value={formData.admissionType}
-            onChange={(e) => onChange('admissionType', e.target.value)}
-            required
-          >
-            <option value="">Select Admission Type</option>
-            <option value="regular">Regular</option>
-            <option value="chance">Chance</option>
-            <option value="migration">Migration</option>
-          </select>
+          <div className="grid gap-4 md:grid-cols-2">
+            <SelectField
+              label="Admission Type" required placeholder="Select admission type"
+              value={formData.admissionType}
+              onChange={(v) => onChange('admissionType', v)}
+              options={admissionTypeOptions}
+              error={errors.admissionType}
+            />
+            <SelectField
+              label="Group" placeholder="Select group"
+              helper="Optional."
+              value={formData.group}
+              onChange={(v) => onChange('group', v)}
+              options={groups.map((g) => ({ value: g.toLowerCase(), label: g }))}
+            />
+          </div>
         </div>
-        <div className="space-y-2">
-          <Label>Group (Optional)</Label>
-          <select 
-            className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm"
-            value={formData.group}
-            onChange={(e) => onChange('group', e.target.value)}
-          >
-            <option value="">Select Group</option>
-            {groups.map(g => (
-              <option key={g} value={g.toLowerCase()}>{g}</option>
-            ))}
-          </select>
-        </div>
-      </div>
+      </SectionCard>
     </div>
   );
 }
-

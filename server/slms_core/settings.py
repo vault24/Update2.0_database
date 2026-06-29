@@ -240,6 +240,30 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 # --------------------------------------------------
+# PORTAL ORIGINS
+# Used as a fallback to decide which portal a login request targets when the
+# client does not send an explicit `portal` field. Matched EXACTLY against the
+# request Origin (scheme://host[:port]) — keep student/admin lists disjoint.
+# --------------------------------------------------
+STUDENT_PORTAL_ORIGINS = [
+    "https://spistudent.errorburner.site",
+    "http://13.250.99.61",
+    "http://localhost:8080",
+    "http://localhost:8081",
+    "http://localhost:8082",
+    "http://127.0.0.1:8080",
+    "http://127.0.0.1:8082",
+]
+ADMIN_PORTAL_ORIGINS = [
+    "https://spiadmin.errorburner.site",
+    "http://13.250.99.61:8080",
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+]
+
+# --------------------------------------------------
 # ✅ CSRF
 # --------------------------------------------------
 CSRF_TRUSTED_ORIGINS = [

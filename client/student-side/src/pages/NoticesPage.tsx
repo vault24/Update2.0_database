@@ -1,21 +1,53 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Search, Calendar, AlertTriangle, Info, Megaphone, Loader2, Eye, CheckSquare, Square } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Search, Calendar, AlertTriangle, Info, Megaphone, Loader2, Eye,
+  CheckSquare, Square, Bell, ChevronDown, CheckCheck, Inbox, User,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 import { noticeService, Notice } from '@/services/noticeService';
 import { LoadingState } from '@/components/LoadingState';
 import { ErrorState } from '@/components/ErrorState';
 import { EmptyState } from '@/components/EmptyState';
 
-const priorityConfig = {
-  high: { icon: AlertTriangle, color: 'text-destructive', bg: 'bg-destructive/10', label: 'High Priority' },
-  normal: { icon: Info, color: 'text-accent', bg: 'bg-accent/10', label: 'Normal' },
-  low: { icon: Megaphone, color: 'text-muted-foreground', bg: 'bg-muted/50', label: 'Low Priority' },
+type Priority = 'low' | 'normal' | 'high';
+
+const priorityConfig: Record<Priority, {
+  icon: typeof Info;
+  label: string;
+  chip: string;       // icon chip (soft tinted)
+  accent: string;     // left border colour for unread
+  badge: 'destructive' | 'info' | 'muted';
+}> = {
+  high: {
+    icon: AlertTriangle,
+    label: 'High Priority',
+    chip: 'bg-destructive/10 text-destructive',
+    accent: 'border-l-destructive',
+    badge: 'destructive',
+  },
+  normal: {
+    icon: Info,
+    label: 'Normal',
+    chip: 'bg-primary/10 text-primary',
+    accent: 'border-l-primary',
+    badge: 'info',
+  },
+  low: {
+    icon: Megaphone,
+    label: 'Low Priority',
+    chip: 'bg-muted text-muted-foreground',
+    accent: 'border-l-border',
+    badge: 'muted',
+  },
 };
+
+const formatDate = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 
 export default function NoticesPage() {
   const [notices, setNotices] = useState<Notice[]>([]);
@@ -49,8 +81,8 @@ export default function NoticesPage() {
   const handleMarkAsRead = async (noticeId: number) => {
     try {
       await noticeService.markAsRead(noticeId);
-      setNotices(notices.map(notice => 
-        notice.id === noticeId 
+      setNotices(notices.map(notice =>
+        notice.id === noticeId
           ? { ...notice, is_read: true }
           : notice
       ));
@@ -61,19 +93,19 @@ export default function NoticesPage() {
 
   const handleBulkMarkAsRead = async () => {
     if (selectedNotices.size === 0) return;
-    
+
     try {
       setBulkActionLoading(true);
       const noticeIds = Array.from(selectedNotices);
       await noticeService.bulkMarkAsRead(noticeIds);
-      
+
       // Update notices state
-      setNotices(notices.map(notice => 
-        selectedNotices.has(notice.id) 
+      setNotices(notices.map(notice =>
+        selectedNotices.has(notice.id)
           ? { ...notice, is_read: true }
           : notice
       ));
-      
+
       // Clear selection
       setSelectedNotices(new Set());
     } catch (err) {
@@ -106,66 +138,93 @@ export default function NoticesPage() {
     const matchesSearch = notice.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          notice.content.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesPriority = priorityFilter === 'all' || notice.priority === priorityFilter;
-    const matchesReadStatus = readStatusFilter === 'all' || 
+    const matchesReadStatus = readStatusFilter === 'all' ||
                              (readStatusFilter === 'read' && notice.is_read) ||
                              (readStatusFilter === 'unread' && !notice.is_read);
-    
+
     return matchesSearch && matchesPriority && matchesReadStatus;
   });
 
-  if (loading) return <LoadingState />;
+  const unreadCount = notices.filter(n => !n.is_read).length;
+  const highCount = notices.filter(n => n.priority === 'high').length;
+  const unreadInView = filteredNotices.filter(n => !n.is_read);
+  const allUnreadSelected = unreadInView.length > 0 && selectedNotices.size === unreadInView.length;
+  const hasActiveFilters = !!searchTerm || priorityFilter !== 'all' || readStatusFilter !== 'all';
+
+  if (loading) return <LoadingState message="Loading notices..." />;
   if (error) return <ErrorState error={error} onRetry={loadNotices} />;
 
   return (
-    <div className="space-y-6 max-w-full overflow-x-hidden">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Notices & Updates</h1>
-          <p className="text-muted-foreground">Stay updated with important announcements</p>
+    <div className="max-w-full space-y-5 overflow-x-hidden md:space-y-6">
+      {/* ── Header ── */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="surface-card relative overflow-hidden"
+      >
+        <div className="gradient-mesh pointer-events-none absolute inset-0 opacity-70" />
+        <div className="relative flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between md:p-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl gradient-primary shadow-sm">
+              <Bell className="h-6 w-6 text-primary-foreground" />
+            </div>
+            <div>
+              <h1 className="font-display text-xl font-bold md:text-2xl">Notices &amp; Updates</h1>
+              <p className="text-sm text-muted-foreground">Stay updated with important announcements</p>
+            </div>
+          </div>
+
+          <AnimatePresence>
+            {selectedNotices.size > 0 && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+              >
+                <Button onClick={handleBulkMarkAsRead} disabled={bulkActionLoading} className="gap-2">
+                  {bulkActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCheck className="h-4 w-4" />}
+                  Mark {selectedNotices.size} as read
+                </Button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="secondary">
-            {notices.filter(n => !n.is_read).length} unread
-          </Badge>
-          <Badge variant="outline">
-            {notices.length} total
-          </Badge>
-          {selectedNotices.size > 0 && (
-            <Button 
-              onClick={handleBulkMarkAsRead}
-              disabled={bulkActionLoading}
-              size="sm"
-              className="gap-2"
-            >
-              {bulkActionLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Eye className="w-4 h-4" />
-              )}
-              Mark {selectedNotices.size} as Read
-            </Button>
-          )}
-        </div>
+      </motion.div>
+
+      {/* ── Stat tiles ── */}
+      <div className="grid grid-cols-3 gap-3 md:gap-4">
+        {[
+          { label: 'Total', value: notices.length, icon: Inbox, chip: 'bg-primary/10 text-primary' },
+          { label: 'Unread', value: unreadCount, icon: Bell, chip: 'bg-accent/15 text-accent-foreground' },
+          { label: 'High priority', value: highCount, icon: AlertTriangle, chip: 'bg-destructive/10 text-destructive' },
+        ].map((s) => (
+          <div key={s.label} className="surface-card flex items-center gap-3 p-3 md:p-4">
+            <div className={cn('flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl', s.chip)}>
+              <s.icon className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xl font-bold leading-none md:text-2xl">{s.value}</p>
+              <p className="truncate text-xs text-muted-foreground">{s.label}</p>
+            </div>
+          </div>
+        ))}
       </div>
 
-      {/* Filters */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                <Input
-                  placeholder="Search notices..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
+      {/* ── Filters ── */}
+      <div className="surface-card p-3 md:p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search notices..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <div className="flex gap-2">
             <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-              <SelectTrigger className="w-[140px]">
+              <SelectTrigger className="w-[120px] sm:w-[140px]">
                 <SelectValue placeholder="Priority" />
               </SelectTrigger>
               <SelectContent>
@@ -176,7 +235,7 @@ export default function NoticesPage() {
               </SelectContent>
             </Select>
             <Select value={readStatusFilter} onValueChange={setReadStatusFilter}>
-              <SelectTrigger className="w-[140px]">
+              <SelectTrigger className="w-[110px] sm:w-[130px]">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -185,152 +244,179 @@ export default function NoticesPage() {
                 <SelectItem value="read">Read</SelectItem>
               </SelectContent>
             </Select>
-            {filteredNotices.some(n => !n.is_read) && (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleSelectAll}
-                className="gap-2"
+          </div>
+        </div>
+
+        {unreadInView.length > 0 && (
+          <div className="mt-3 flex items-center justify-between border-t border-border/60 pt-3">
+            <button
+              onClick={handleSelectAll}
+              className="flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+            >
+              {allUnreadSelected ? (
+                <CheckSquare className="h-4 w-4 text-primary" />
+              ) : (
+                <Square className="h-4 w-4" />
+              )}
+              Select all unread ({unreadInView.length})
+            </button>
+            {selectedNotices.size > 0 && (
+              <button
+                onClick={() => setSelectedNotices(new Set())}
+                className="text-sm text-muted-foreground hover:text-foreground"
               >
-                {selectedNotices.size === filteredNotices.filter(n => !n.is_read).length ? (
-                  <CheckSquare className="w-4 h-4" />
-                ) : (
-                  <Square className="w-4 h-4" />
-                )}
-                Select All Unread
-              </Button>
+                Clear
+              </button>
             )}
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </div>
 
-      {/* Notices List */}
+      {/* ── Notices list ── */}
       {filteredNotices.length === 0 ? (
         <EmptyState
+          icon={Bell}
           title="No notices found"
-          message="No notices match your current filters"
-          action={{
-            label: "Clear Filters",
+          message={hasActiveFilters ? 'No notices match your current filters.' : 'There are no notices to show yet.'}
+          action={hasActiveFilters ? {
+            label: 'Clear Filters',
             onClick: () => {
               setSearchTerm('');
               setPriorityFilter('all');
               setReadStatusFilter('all');
-            }
-          }}
+            },
+          } : undefined}
         />
       ) : (
-        <div className="grid gap-4">
+        <div className="space-y-3">
           {filteredNotices.map((notice, index) => {
             const config = priorityConfig[notice.priority];
             const TypeIcon = config.icon;
             const isExpanded = expandedId === notice.id;
+            const isSelected = selectedNotices.has(notice.id);
+
+            const toggle = () => {
+              setExpandedId(isExpanded ? null : notice.id);
+              if (!notice.is_read && !isExpanded) {
+                handleMarkAsRead(notice.id);
+              }
+            };
 
             return (
               <motion.div
                 key={notice.id}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
+                transition={{ delay: Math.min(index * 0.04, 0.3) }}
+                className={cn(
+                  'surface-card overflow-hidden border-l-4 transition-colors',
+                  notice.is_read ? 'border-l-transparent' : config.accent,
+                  !notice.is_read && 'bg-primary/[0.02]',
+                  isSelected && 'ring-2 ring-primary/40',
+                )}
               >
-                <Card className={`transition-all duration-200 ${
-                  notice.is_read 
-                    ? 'opacity-75 hover:opacity-100' 
-                    : 'border-l-4 border-primary shadow-md'
-                }`}>
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-3 flex-1">
+                <div className="flex items-start gap-3 p-4 md:p-5">
+                  {/* Selection (unread only) */}
+                  {!notice.is_read && (
+                    <button
+                      onClick={() => handleSelectNotice(notice.id)}
+                      className="mt-1 flex-shrink-0"
+                      aria-label={isSelected ? 'Deselect notice' : 'Select notice'}
+                    >
+                      {isSelected ? (
+                        <CheckSquare className="h-5 w-5 text-primary" />
+                      ) : (
+                        <Square className="h-5 w-5 text-muted-foreground hover:text-primary" />
+                      )}
+                    </button>
+                  )}
+
+                  {/* Priority icon chip */}
+                  <button
+                    onClick={toggle}
+                    className={cn('flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl', config.chip)}
+                    aria-label="Toggle notice"
+                  >
+                    <TypeIcon className="h-5 w-5" />
+                  </button>
+
+                  {/* Main */}
+                  <div className="min-w-0 flex-1 cursor-pointer" onClick={toggle}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <h3 className={cn(
+                          'truncate font-semibold',
+                          notice.is_read ? 'text-muted-foreground' : 'text-foreground',
+                        )}>
+                          {notice.title}
+                        </h3>
                         {!notice.is_read && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleSelectNotice(notice.id);
-                            }}
-                            className="mt-1 flex-shrink-0"
-                          >
-                            {selectedNotices.has(notice.id) ? (
-                              <CheckSquare className="w-4 h-4 text-primary" />
-                            ) : (
-                              <Square className="w-4 h-4 text-muted-foreground hover:text-primary" />
-                            )}
-                          </button>
+                          <span className="h-2 w-2 flex-shrink-0 animate-pulse rounded-full bg-primary" />
                         )}
-                        <div 
-                          className={`p-2 rounded-lg ${config.bg} flex-shrink-0 cursor-pointer`}
-                          onClick={() => {
-                            setExpandedId(isExpanded ? null : notice.id);
-                            if (!notice.is_read && !isExpanded) {
-                              handleMarkAsRead(notice.id);
-                            }
-                          }}
-                        >
-                          <TypeIcon className={`w-4 h-4 ${config.color}`} />
-                        </div>
-                        <div 
-                          className="flex-1 min-w-0 cursor-pointer"
-                          onClick={() => {
-                            setExpandedId(isExpanded ? null : notice.id);
-                            if (!notice.is_read && !isExpanded) {
-                              handleMarkAsRead(notice.id);
-                            }
-                          }}
-                        >
-                          <div className="flex items-center gap-2 mb-1">
-                            <CardTitle className={`text-lg ${
-                              notice.is_read ? 'text-muted-foreground' : 'text-foreground'
-                            }`}>
-                              {notice.title}
-                            </CardTitle>
-                            {!notice.is_read && (
-                              <span className="w-2 h-2 bg-primary rounded-full animate-pulse" />
-                            )}
-                          </div>
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                            <div className="flex items-center gap-1">
-                              <Calendar className="w-4 h-4" />
-                              {new Date(notice.created_at).toLocaleDateString('en-US', {
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric'
-                              })}
-                            </div>
-                            <span>By {notice.created_by_name}</span>
-                          </div>
-                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge className={`${config.bg} ${config.color} border-0`}>
-                          {config.label}
-                        </Badge>
-                        {notice.is_read && (
-                          <Badge variant="outline" className="gap-1">
-                            <Eye className="w-3 h-3" />
-                            Read
-                          </Badge>
-                        )}
+                      <div className="flex flex-shrink-0 items-center gap-1.5">
+                        <Badge variant={config.badge} className="hidden sm:inline-flex">{config.label}</Badge>
+                        <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', isExpanded && 'rotate-180')} />
                       </div>
                     </div>
-                  </CardHeader>
-                  
-                  <motion.div
-                    initial={false}
-                    animate={{ height: isExpanded ? 'auto' : 0 }}
-                    className="overflow-hidden"
-                  >
-                    <CardContent className="pt-0">
-                      <div className="prose prose-sm max-w-none">
-                        <p className="text-muted-foreground whitespace-pre-wrap">
+
+                    {/* Meta */}
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                      <span className="inline-flex items-center gap-1">
+                        <Calendar className="h-3.5 w-3.5" />
+                        {formatDate(notice.created_at)}
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <User className="h-3.5 w-3.5" />
+                        {notice.created_by_name}
+                      </span>
+                      {notice.is_read && (
+                        <span className="inline-flex items-center gap-1 text-success">
+                          <Eye className="h-3.5 w-3.5" /> Read
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Collapsed preview */}
+                    {!isExpanded && (
+                      <p className="mt-1.5 line-clamp-1 text-sm text-muted-foreground">{notice.content}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Expanded content */}
+                <AnimatePresence initial={false}>
+                  {isExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.25 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="border-t border-border/60 px-4 pb-4 pt-4 md:px-5">
+                        <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
                           {notice.content}
                         </p>
+                        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-xs text-muted-foreground">
+                            Last updated: {new Date(notice.updated_at).toLocaleString()}
+                          </p>
+                          {!notice.is_read && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-1.5"
+                              onClick={(e) => { e.stopPropagation(); handleMarkAsRead(notice.id); }}
+                            >
+                              <Eye className="h-4 w-4" /> Mark as read
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                      <div className="mt-4 pt-4 border-t border-border">
-                        <p className="text-xs text-muted-foreground">
-                          Last updated: {new Date(notice.updated_at).toLocaleString()}
-                        </p>
-                      </div>
-                    </CardContent>
-                  </motion.div>
-                </Card>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </motion.div>
             );
           })}

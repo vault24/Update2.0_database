@@ -28,6 +28,37 @@ from django.conf import settings
 User = get_user_model()
 
 
+def _detect_portal(request):
+    """
+    Determine which portal a login request targets: 'student', 'admin', or None.
+
+    Prefers the explicit `portal` field sent by each client; falls back to an
+    exact Origin/Referer match against the configured portal origins. Returning
+    None means "no restriction" (backward compatible).
+    """
+    portal = (request.data.get('portal') or '').strip().lower()
+    if portal in ('student', 'admin'):
+        return portal
+
+    origin = (request.META.get('HTTP_ORIGIN') or '').strip().lower()
+    if not origin:
+        referer = (request.META.get('HTTP_REFERER') or '').strip().lower()
+        if referer:
+            from urllib.parse import urlparse
+            parsed = urlparse(referer)
+            if parsed.scheme and parsed.netloc:
+                origin = f"{parsed.scheme}://{parsed.netloc}"
+
+    if origin:
+        student_origins = [o.lower() for o in getattr(settings, 'STUDENT_PORTAL_ORIGINS', [])]
+        admin_origins = [o.lower() for o in getattr(settings, 'ADMIN_PORTAL_ORIGINS', [])]
+        if origin in student_origins:
+            return 'student'
+        if origin in admin_origins:
+            return 'admin'
+    return None
+
+
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
 @ensure_csrf_cookie
@@ -56,6 +87,55 @@ def csrf_token_view(request):
                 'traceback': traceback.format_exc() if settings.DEBUG else None
             },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def register_request_otp_view(request):
+    """
+    Step 1 of sign-up: validate the registration data and email a verification
+    code. No account is created here — the user is only created at /register/
+    once this code is verified.
+    POST /api/auth/register/send-otp/
+
+    Body: the same payload as /register/ (without `otp`).
+
+    Returns:
+    - 200: Verification code sent
+    - 400: Validation error (e.g. username/email already taken, missing fields)
+    """
+    serializer = RegisterSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    email = serializer.validated_data.get('email')
+    if not email:
+        return Response({'email': ['Email is required.']}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        from .services import EmailVerificationService, EmailService
+        code = EmailVerificationService.create_code(email)
+        name = serializer.validated_data.get('first_name') or ''
+        sent = EmailService.send_signup_otp_email(email, code.token, name)
+        if not sent:
+            return Response(
+                {'error': 'Could not send the verification email. Please try again.'},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        return Response(
+            {'message': 'A verification code has been sent to your email.', 'email': email},
+            status=status.HTTP_200_OK,
+        )
+    except Exception as e:
+        import traceback
+        return Response(
+            {
+                'error': 'Failed to send verification code',
+                'details': str(e) if settings.DEBUG else None,
+                'traceback': traceback.format_exc() if settings.DEBUG else None,
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
 
@@ -92,8 +172,23 @@ def register_view(request):
     - 400: Validation error
     """
     serializer = RegisterSerializer(data=request.data)
-    
+
     if serializer.is_valid():
+        # Email-verification gate: an account is created ONLY after the emailed
+        # OTP (sent by /register/send-otp/) is verified.
+        otp = (request.data.get('otp') or '').strip()
+        if not otp:
+            return Response(
+                {'otp': ['Email verification code is required. Please verify your email to continue.']},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from .services import EmailVerificationService
+        email = serializer.validated_data.get('email')
+        valid, message = EmailVerificationService.verify_code(email, otp, consume=True)
+        if not valid:
+            return Response({'otp': [message]}, status=status.HTTP_400_BAD_REQUEST)
+
         try:
             user = serializer.save()
 
@@ -169,8 +264,11 @@ def login_view(request):
     - 400: Invalid credentials or account not active
     """
     try:
-        serializer = LoginSerializer(data=request.data, context={'request': request})
-        
+        portal = _detect_portal(request)
+        serializer = LoginSerializer(
+            data=request.data, context={'request': request, 'portal': portal}
+        )
+
         if serializer.is_valid():
             user = serializer.validated_data['user']
 
@@ -563,6 +661,14 @@ def verify_login_2fa_view(request):
     user = token_obj.user if token_obj else None
     if user is None:
         return Response({'message': 'Invalid verification attempt.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Enforce portal access (same rule as the password login path) so an admin
+    # cannot complete a 2FA login on the student portal, and vice-versa.
+    portal = _detect_portal(request)
+    if portal in ('student', 'admin'):
+        from .serializers import user_allowed_for_portal, PORTAL_DENIED_MESSAGE
+        if not user_allowed_for_portal(user, portal):
+            return Response({'message': PORTAL_DENIED_MESSAGE[portal]}, status=status.HTTP_400_BAD_REQUEST)
 
     OTPService.mark_otp_as_used(email, otp)
 

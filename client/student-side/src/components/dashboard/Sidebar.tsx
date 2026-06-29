@@ -18,15 +18,15 @@ import {
   BookOpen,
   Bell,
   MessageCircle,
-  Activity,
   Video,
-  AlertTriangle,
   Shield,
   Sparkles,
   ChevronDown,
+  X,
 } from 'lucide-react';
 import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
+import ProfileAvatar from '@/components/ProfileAvatar';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 
@@ -46,7 +46,7 @@ const mainMenuItems: MenuItem[] = [
   { icon: ClipboardCheck, label: 'Attendance', path: '/dashboard/attendance', roles: ['student', 'captain'] },
   { icon: BarChart3, label: 'Marks', path: '/dashboard/marks', roles: ['student', 'captain'] },
   { icon: FolderOpen, label: 'Documents', path: '/dashboard/documents', roles: ['student', 'captain'] },
-  { icon: AlertTriangle, label: 'Complaints', path: '/dashboard/complaints', roles: ['student', 'captain', 'teacher'] },
+  { icon: Shield, label: 'Complaints', path: '/dashboard/complaints', roles: ['student', 'captain', 'teacher'] },
   { icon: Send, label: 'Applications', path: '/dashboard/applications', roles: ['student', 'captain'] },
   // Captain-specific
   { icon: UserCheck, label: 'Add Attendance', path: '/dashboard/add-attendance', roles: ['captain'] },
@@ -81,10 +81,10 @@ export function Sidebar() {
   };
 
   const userRole = user?.role || 'student';
-  const isGraduatedOrAlumni = userRole === 'alumni' || user?.isAlumni === true;
+  const portalLabel = userRole === 'teacher' ? 'Teacher Portal' : userRole === 'alumni' ? 'Alumni Portal' : 'Student Portal';
 
-  const filteredMainItems = mainMenuItems.filter(item => item.roles.includes(userRole));
-  const filteredUpcomingItems = upcomingMenuItems.filter(item => item.roles.includes(userRole));
+  const filteredMainItems = mainMenuItems.filter((item) => item.roles.includes(userRole));
+  const filteredUpcomingItems = upcomingMenuItems.filter((item) => item.roles.includes(userRole));
 
   const renderNavItem = (item: MenuItem) => {
     const isActive = location.pathname === item.path;
@@ -93,30 +93,31 @@ export function Sidebar() {
         <NavLink
           to={item.path}
           onClick={() => setIsMobileOpen(false)}
+          title={isCollapsed ? item.label : undefined}
           className={cn(
-            "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group relative",
+            'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors duration-200',
+            isCollapsed && 'justify-center px-0',
             isActive
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              ? 'text-primary-foreground'
+              : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-primary',
           )}
         >
           {isActive && (
             <motion.div
-              layoutId="activeNavItem"
-              className="absolute inset-0 gradient-primary rounded-lg"
-              transition={{ type: "spring", duration: 0.5 }}
+              layoutId="activeNavPill"
+              className="absolute inset-0 rounded-xl gradient-primary shadow-sm"
+              transition={{ type: 'spring', stiffness: 380, damping: 32 }}
             />
           )}
-          <item.icon className={cn(
-            "w-5 h-5 flex-shrink-0 relative z-10",
-            isActive && "text-primary-foreground"
-          )} />
-          <motion.span
-            animate={{ opacity: isCollapsed ? 0 : 1, width: isCollapsed ? 0 : 'auto' }}
-            className="text-sm font-medium whitespace-nowrap overflow-hidden relative z-10"
-          >
-            {item.label}
-          </motion.span>
+          <item.icon
+            className={cn(
+              'relative z-10 h-5 w-5 flex-shrink-0 transition-transform duration-200 group-hover:scale-110',
+              isActive && 'text-primary-foreground',
+            )}
+          />
+          {!isCollapsed && (
+            <span className="relative z-10 truncate">{item.label}</span>
+          )}
         </NavLink>
       </li>
     );
@@ -124,95 +125,104 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Mobile Menu Button */}
+      {/* Mobile menu trigger */}
       <button
         onClick={() => setIsMobileOpen(true)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-card shadow-card"
+        aria-label="Open menu"
+        className="fixed left-4 top-3.5 z-50 flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card text-foreground shadow-card lg:hidden"
       >
-        <Menu className="w-6 h-6" />
+        <Menu className="h-5 w-5" />
       </button>
 
-      {/* Mobile Overlay */}
-      {isMobileOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={() => setIsMobileOpen(false)}
-          className="lg:hidden fixed inset-0 bg-foreground/20 backdrop-blur-sm z-40"
-        />
-      )}
+      {/* Mobile overlay */}
+      <AnimatePresence>
+        {isMobileOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsMobileOpen(false)}
+            className="fixed inset-0 z-40 bg-foreground/40 backdrop-blur-sm lg:hidden"
+          />
+        )}
+      </AnimatePresence>
 
       {/* Sidebar */}
       <motion.aside
         initial={false}
         animate={{
-          width: isCollapsed ? 80 : 280,
-          x: isMobileOpen ? 0 : typeof window !== 'undefined' && window.innerWidth < 1024 ? -280 : 0,
+          width: isCollapsed ? 84 : 280,
+          x: isMobileOpen ? 0 : typeof window !== 'undefined' && window.innerWidth < 1024 ? -300 : 0,
         }}
-        transition={{ duration: 0.3, ease: 'easeInOut' }}
+        transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
         className={cn(
-          "fixed left-0 top-0 h-screen bg-card border-r border-border z-50 flex flex-col",
-          "lg:sticky lg:top-0 lg:translate-x-0"
+          'fixed left-0 top-0 z-50 flex h-screen flex-col border-r border-sidebar-border bg-sidebar',
+          'lg:sticky lg:top-0 lg:translate-x-0',
         )}
       >
-        {/* Header */}
-        <div className="p-4 border-b border-border">
-          <div className="flex items-center justify-between">
-            <motion.div
-              animate={{ opacity: isCollapsed ? 0 : 1, width: isCollapsed ? 0 : 'auto' }}
-              className="flex items-center gap-3 overflow-hidden"
-            >
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden">
-                <img src="/spi-logo.png" alt="SPI Logo" className="w-full h-full object-contain" />
+        {/* Brand header — click logo/name to go to the dashboard */}
+        <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-4">
+          <button
+            type="button"
+            onClick={() => {
+              navigate('/dashboard');
+              setIsMobileOpen(false);
+            }}
+            title="Go to Dashboard"
+            aria-label="Go to Dashboard"
+            className={cn(
+              'flex min-w-0 flex-1 items-center gap-3 rounded-xl py-1 text-left transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
+              isCollapsed && 'justify-center',
+            )}
+          >
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-primary/10 ring-1 ring-primary/15">
+              <img src="/spi-logo.png" alt="SPI Logo" className="h-7 w-7 object-contain" />
+            </div>
+            {!isCollapsed && (
+              <div className="min-w-0 flex-1">
+                <h2 className="truncate font-display text-sm font-bold leading-tight text-foreground">
+                  Sirajganj Polytechnic
+                </h2>
+                <p className="truncate text-xs text-muted-foreground">{portalLabel}</p>
               </div>
-              <div className="whitespace-nowrap">
-                <h2 className="font-bold text-sm">Sirajganj Polytechnic</h2>
-                <p className="text-xs text-muted-foreground">
-                  {userRole === 'teacher' ? 'Teacher Portal' : 'Student Portal'}
-                </p>
-              </div>
-            </motion.div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => {
-                if (isMobileOpen) setIsMobileOpen(false);
-                else setIsCollapsed(!isCollapsed);
-              }}
-              className="flex-shrink-0"
-            >
-              <ChevronLeft className={cn("w-5 h-5 transition-transform", isCollapsed && "rotate-180")} />
-            </Button>
-          </div>
+            )}
+          </button>
+          {/* Mobile close */}
+          <button
+            onClick={() => setIsMobileOpen(false)}
+            aria-label="Close menu"
+            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-sidebar-accent hover:text-foreground lg:hidden"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 py-4 overflow-y-auto">
-          {/* Main group */}
-          <ul className="space-y-1 px-3">
-            {filteredMainItems.map(renderNavItem)}
-          </ul>
+        <nav className="flex-1 overflow-y-auto px-3 py-4">
+          {!isCollapsed && (
+            <p className="mb-2 px-3 text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground/70">
+              Menu
+            </p>
+          )}
+          <ul className="space-y-1">{filteredMainItems.map(renderNavItem)}</ul>
 
-          {/* Upcoming group */}
           {filteredUpcomingItems.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-border">
+            <div className="mt-5 border-t border-sidebar-border pt-4">
               <button
                 onClick={() => !isCollapsed && setIsUpcomingOpen(!isUpcomingOpen)}
                 className={cn(
-                  "w-full px-4 mb-2 flex items-center justify-between cursor-pointer hover:opacity-80 transition-opacity",
-                  isCollapsed && "justify-center"
+                  'mb-2 flex w-full items-center gap-1.5 px-3 text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground/70 transition-opacity hover:opacity-80',
+                  isCollapsed && 'justify-center px-0',
                 )}
               >
-                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                  <Sparkles className="w-3 h-3" />
-                  {!isCollapsed && "Upcoming"}
-                </span>
+                <Sparkles className="h-3.5 w-3.5 text-accent" />
                 {!isCollapsed && (
-                  <ChevronDown className={cn(
-                    "w-3.5 h-3.5 text-muted-foreground transition-transform duration-200",
-                    !isUpcomingOpen && "-rotate-90"
-                  )} />
+                  <>
+                    <span>Explore</span>
+                    <ChevronDown
+                      className={cn('ml-auto h-3.5 w-3.5 transition-transform duration-200', !isUpcomingOpen && '-rotate-90')}
+                    />
+                  </>
                 )}
               </button>
               <AnimatePresence initial={false}>
@@ -222,7 +232,7 @@ export function Sidebar() {
                     animate={{ height: 'auto', opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
                     transition={{ duration: 0.2 }}
-                    className="space-y-1 px-3 overflow-hidden"
+                    className="space-y-1 overflow-hidden"
                   >
                     {filteredUpcomingItems.map(renderNavItem)}
                   </motion.ul>
@@ -232,6 +242,54 @@ export function Sidebar() {
           )}
         </nav>
 
+        {/* Footer: profile + logout */}
+        <div className="border-t border-sidebar-border p-3">
+          <div
+            className={cn(
+              'flex items-center gap-3 rounded-xl p-2',
+              !isCollapsed && 'bg-sidebar-accent/60',
+            )}
+          >
+            <ProfileAvatar size="sm" />
+            {!isCollapsed && (
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-foreground">{user?.name || 'User'}</p>
+                <p className="truncate text-xs text-muted-foreground">{user?.studentId || user?.email}</p>
+              </div>
+            )}
+            {!isCollapsed && (
+              <button
+                onClick={handleLogout}
+                title="Logout"
+                aria-label="Logout"
+                className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          {isCollapsed && (
+            <button
+              onClick={handleLogout}
+              title="Logout"
+              aria-label="Logout"
+              className="mt-2 flex w-full items-center justify-center rounded-lg py-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        {/* Collapse toggle (desktop only) */}
+        <Button
+          variant="outline"
+          size="icon-sm"
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          className="absolute -right-3 top-20 hidden h-7 w-7 rounded-full bg-card shadow-card lg:flex"
+        >
+          <ChevronLeft className={cn('h-4 w-4 transition-transform duration-300', isCollapsed && 'rotate-180')} />
+        </Button>
       </motion.aside>
     </>
   );

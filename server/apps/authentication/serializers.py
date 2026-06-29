@@ -72,9 +72,10 @@ class RegisterSerializer(serializers.ModelSerializer):
                     'ssc_board_roll': 'This SSC Board Roll is already registered. Please contact admin if this is an error.'
                 })
         
-        # Validate teacher-specific fields if role is teacher
+        # Validate teacher-specific fields if role is teacher.
+        # `department` is OPTIONAL — a teacher may register with no department.
         if attrs.get('role') == 'teacher':
-            required_fields = ['full_name_english', 'full_name_bangla', 'designation', 'department']
+            required_fields = ['full_name_english', 'full_name_bangla', 'designation']
             missing_fields = [field for field in required_fields if not attrs.get(field)]
             if missing_fields:
                 raise serializers.ValidationError({
@@ -118,9 +119,12 @@ class RegisterSerializer(serializers.ModelSerializer):
         if user.role == 'teacher':
             from apps.teacher_requests.models import TeacherSignupRequest
             from apps.departments.models import Department
-            
-            department = Department.objects.get(id=teacher_fields['department'])
-            
+
+            # Department is optional — a teacher may register without one.
+            department = None
+            if teacher_fields['department']:
+                department = Department.objects.filter(id=teacher_fields['department']).first()
+
             TeacherSignupRequest.objects.create(
                 user=user,
                 full_name_english=teacher_fields['full_name_english'],
@@ -138,20 +142,41 @@ class RegisterSerializer(serializers.ModelSerializer):
         return user
 
 
+# Error messages shown when valid credentials belong to the wrong portal.
+PORTAL_DENIED_MESSAGE = {
+    'student': 'This account cannot sign in to the student portal. '
+               'Admin accounts must use the admin portal.',
+    'admin': 'This account cannot sign in to the admin portal. '
+             'Please use the student portal.',
+}
+
+
+def user_allowed_for_portal(user, portal):
+    """Whether `user` may sign in to the given portal ('student' | 'admin')."""
+    if portal == 'student':
+        return user.can_access_student_portal()
+    if portal == 'admin':
+        return user.can_access_admin_portal()
+    return True  # Unknown portal -> no restriction (backward compatible).
+
+
 class LoginSerializer(serializers.Serializer):
     """Serializer for user login"""
     username = serializers.CharField()
     password = serializers.CharField()
     remember_me = serializers.BooleanField(required=False, default=False)
-    
+    # 'student' | 'admin' — which portal this login is for. Used to keep
+    # student-side accounts out of the admin portal and vice-versa.
+    portal = serializers.CharField(required=False, allow_blank=True)
+
     def validate(self, attrs):
         """Validate login credentials"""
         username = attrs.get('username')
         password = attrs.get('password')
-        
+
         if not username or not password:
             raise serializers.ValidationError('Username and password are required')
-        
+
         # Try to authenticate user
         from django.contrib.auth import get_user_model
         from django.db.models import Q
@@ -164,10 +189,24 @@ class LoginSerializer(serializers.Serializer):
             User.objects.filter(Q(username=username) | Q(email__iexact=username))
         )
 
-        user = next((u for u in candidates if u.check_password(password)), None)
+        matches = [u for u in candidates if u.check_password(password)]
 
-        if user is None:
+        if not matches:
             raise serializers.ValidationError('Invalid credentials')
+
+        # Enforce portal access. The portal is provided by the calling view
+        # (from the request body or origin). If a person happens to own both a
+        # student and an admin account under the same email, we pick the one
+        # that belongs to the portal being signed into.
+        portal = self.context.get('portal')
+        if portal in ('student', 'admin'):
+            allowed = [u for u in matches if user_allowed_for_portal(u, portal)]
+            if not allowed:
+                # Credentials are valid, but only for the *other* portal.
+                raise serializers.ValidationError(PORTAL_DENIED_MESSAGE[portal])
+            user = allowed[0]
+        else:
+            user = matches[0]
 
         # Check if the matched user can login
         if not user.can_login():

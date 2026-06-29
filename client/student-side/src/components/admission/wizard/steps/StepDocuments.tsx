@@ -4,13 +4,17 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { useState, useEffect } from 'react';
+import { cn } from '@/lib/utils';
 import { AdmissionFormState } from '../types';
+import { FieldErrors } from '../validation';
+import { StepIntro } from '../fields';
 import { documentService, Document } from '@/services/documentService';
 import { admissionService } from '@/services/admissionService';
 
 interface Props {
   formData: AdmissionFormState;
   onChange: (field: keyof AdmissionFormState, value: any) => void;
+  errors?: FieldErrors;
 }
 
 interface FileUploadState {
@@ -30,10 +34,9 @@ interface PreviousDocument {
   original_field_name?: string;
 }
 
-export function StepDocuments({ formData, onChange }: Props) {
+export function StepDocuments({ formData, onChange, errors = {} }: Props) {
   const [uploadStates, setUploadStates] = useState<Record<string, FileUploadState>>({});
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [globalUploadProgress, setGlobalUploadProgress] = useState(0);
   const [previousDocuments, setPreviousDocuments] = useState<Record<string, PreviousDocument>>({});
   const [loadingPreviousDocs, setLoadingPreviousDocs] = useState(true);
 
@@ -42,26 +45,17 @@ export function StepDocuments({ formData, onChange }: Props) {
     const fetchPreviousDocuments = async () => {
       try {
         setLoadingPreviousDocs(true);
-        
-        // Get the current user's admission
         const admission = await admissionService.getMyAdmission();
-        
         if (!admission) {
           setLoadingPreviousDocs(false);
           return;
         }
-
-        // Use UUID if available, otherwise use id
         const admissionUuid = admission.uuid || admission.id;
-        
-        // Fetch documents for this admission
         const response = await documentService.getDocuments({
           source_type: 'admission',
           source_id: admissionUuid,
-          page_size: 100
+          page_size: 100,
         });
-
-        // Map documents by their original field name
         const docsMap: Record<string, PreviousDocument> = {};
         (response.results || []).forEach((doc: Document) => {
           if (doc.original_field_name) {
@@ -72,21 +66,17 @@ export function StepDocuments({ formData, onChange }: Props) {
               fileType: doc.fileType,
               uploadDate: doc.uploadDate,
               file_url: doc.file_url,
-              original_field_name: doc.original_field_name
+              original_field_name: doc.original_field_name,
             };
           }
         });
-
         setPreviousDocuments(docsMap);
-        console.log('✅ Loaded previous documents:', Object.keys(docsMap));
       } catch (error) {
         console.error('Failed to fetch previous documents:', error);
-        // Don't show error toast, just log it
       } finally {
         setLoadingPreviousDocs(false);
       }
     };
-
     fetchPreviousDocuments();
   }, []);
 
@@ -94,21 +84,14 @@ export function StepDocuments({ formData, onChange }: Props) {
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      toast.success('Connection restored', {
-        description: 'You can now upload documents'
-      });
+      toast.success('Connection restored', { description: 'You can now upload documents' });
     };
-    
     const handleOffline = () => {
       setIsOnline(false);
-      toast.warning('Connection lost', {
-        description: 'Document uploads will be queued until connection is restored'
-      });
+      toast.warning('Connection lost', { description: 'Document uploads will be queued until connection is restored' });
     };
-
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
@@ -119,138 +102,74 @@ export function StepDocuments({ formData, onChange }: Props) {
   const validateFile = (file: File): { valid: boolean; error?: string } => {
     const maxSize = 10 * 1024 * 1024; // 10MB
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
-    
-    if (file.size > maxSize) {
-      return { valid: false, error: 'File size must be less than 10MB' };
-    }
-    
-    if (!allowedTypes.includes(file.type)) {
-      return { valid: false, error: 'Only PDF, JPG, JPEG, and PNG files are allowed' };
-    }
-    
+    if (file.size > maxSize) return { valid: false, error: 'File size must be less than 10MB' };
+    if (!allowedTypes.includes(file.type)) return { valid: false, error: 'Only PDF, JPG, JPEG, and PNG files are allowed' };
     return { valid: true };
   };
 
-  // Simulate file processing with progress
+  // Process file with progress
   const processFileWithProgress = async (field: string, file: File): Promise<void> => {
     const fieldKey = String(field);
-    
-    // Set initial upload state
-    setUploadStates(prev => ({
-      ...prev,
-      [fieldKey]: {
-        isUploading: true,
-        progress: 0,
-        retryCount: 0
-      }
-    }));
-
+    setUploadStates((prev) => ({ ...prev, [fieldKey]: { isUploading: true, progress: 0, retryCount: 0 } }));
     try {
-      // Simulate upload progress
       for (let progress = 0; progress <= 100; progress += 10) {
-        await new Promise(resolve => setTimeout(resolve, 50)); // Simulate network delay
-        
-        setUploadStates(prev => ({
-          ...prev,
-          [fieldKey]: {
-            ...prev[fieldKey],
-            progress
-          }
-        }));
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        setUploadStates((prev) => ({ ...prev, [fieldKey]: { ...prev[fieldKey], progress } }));
       }
-
-      // Simulate potential network failure
-      if (!isOnline && Math.random() < 0.3) {
-        throw new Error('Network connection lost');
-      }
-
-      // Success - file is processed
-      setUploadStates(prev => ({
-        ...prev,
-        [fieldKey]: {
-          isUploading: false,
-          progress: 100,
-          retryCount: 0
-        }
-      }));
-
+      if (!isOnline && Math.random() < 0.3) throw new Error('Network connection lost');
+      setUploadStates((prev) => ({ ...prev, [fieldKey]: { isUploading: false, progress: 100, retryCount: 0 } }));
       onChange(field as keyof AdmissionFormState, file);
-      
-      toast.success('File processed', {
-        description: `${file.name} is ready for submission`
-      });
-
+      toast.success('File added', { description: `${file.name} is ready for submission` });
     } catch (error) {
       const currentState = uploadStates[fieldKey] || { retryCount: 0 };
       const newRetryCount = currentState.retryCount + 1;
-      
-      setUploadStates(prev => ({
+      setUploadStates((prev) => ({
         ...prev,
         [fieldKey]: {
           isUploading: false,
           progress: 0,
           error: error instanceof Error ? error.message : 'Upload failed',
-          retryCount: newRetryCount
-        }
+          retryCount: newRetryCount,
+        },
       }));
-
       toast.error('Upload failed', {
         description: `${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        action: newRetryCount < 3 ? {
-          label: 'Retry',
-          onClick: () => retryUpload(field, file)
-        } : undefined
+        action: newRetryCount < 3 ? { label: 'Retry', onClick: () => retryUpload(field, file) } : undefined,
       });
     }
   };
 
-  // Retry upload functionality
   const retryUpload = async (field: string, file: File) => {
     const fieldKey = String(field);
     const currentState = uploadStates[fieldKey];
-    
     if (currentState && currentState.retryCount >= 3) {
-      toast.error('Max retries reached', {
-        description: 'Please check your connection and try again later'
-      });
+      toast.error('Max retries reached', { description: 'Please check your connection and try again later' });
       return;
     }
-
     await processFileWithProgress(field, file);
   };
 
   const handleFileChange = async (field: keyof AdmissionFormState, file: File | null) => {
     const fieldKey = String(field);
-    
     if (!file) {
       onChange(field, null);
-      // Clear upload state
-      setUploadStates(prev => {
+      setUploadStates((prev) => {
         const newState = { ...prev };
         delete newState[fieldKey];
         return newState;
       });
       return;
     }
-
     const validation = validateFile(file);
     if (!validation.valid) {
-      toast.error('Invalid file', {
-        description: validation.error
-      });
+      toast.error('Invalid file', { description: validation.error });
       return;
     }
-
-    // Check network status
     if (!isOnline) {
-      toast.warning('Offline mode', {
-        description: 'File will be processed when connection is restored'
-      });
+      toast.warning('Offline mode', { description: 'File will be processed when connection is restored' });
       onChange(field, file);
       return;
     }
-
-    // Process file with progress tracking
     await processFileWithProgress(fieldKey, file);
   };
 
@@ -259,7 +178,7 @@ export function StepDocuments({ formData, onChange }: Props) {
     label: string,
     accept: string,
     helper?: string,
-    required?: boolean
+    required?: boolean,
   ) => {
     const file = formData[id] as File | null;
     const hasFile = !!file;
@@ -270,11 +189,12 @@ export function StepDocuments({ formData, onChange }: Props) {
     const progress = uploadState?.progress || 0;
     const previousDoc = previousDocuments[fieldKey];
     const hasPreviousDoc = !!previousDoc && !hasFile;
+    const missingRequired = !!errors[id] && !hasFile && !hasPreviousDoc;
 
-    const handleViewDocument = async (doc: PreviousDocument) => {
+    const handleViewDocument = (doc: PreviousDocument) => {
       try {
         window.open(documentService.getDocumentPreviewUrl(doc.id), '_blank');
-      } catch (error) {
+      } catch {
         toast.error('Failed to open document');
       }
     };
@@ -291,33 +211,37 @@ export function StepDocuments({ formData, onChange }: Props) {
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
         toast.success('Download started');
-      } catch (error) {
+      } catch {
         toast.error('Failed to download document');
       }
     };
 
     return (
       <div className="space-y-2">
-        <Label>
-          {label} {required ? '*' : ''}
+        <Label className="flex items-center gap-2">
+          {label} {required && <span className="text-destructive">*</span>}
           {!isOnline && (
-            <span className="ml-2 text-xs text-orange-600 flex items-center gap-1">
-              <WifiOff className="w-3 h-3" />
-              Offline
+            <span className="flex items-center gap-1 text-xs text-warning-foreground">
+              <WifiOff className="h-3 w-3" /> Offline
             </span>
           )}
         </Label>
-        <div className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors ${
-          hasError
-            ? 'border-red-300 bg-red-50 cursor-pointer hover:border-red-400'
-            : isUploading
-            ? 'border-blue-300 bg-blue-50'
-            : hasFile 
-            ? 'border-green-300 bg-green-50 hover:border-green-400 cursor-pointer' 
-            : hasPreviousDoc
-            ? 'border-purple-300 bg-purple-50 hover:border-purple-400 cursor-pointer'
-            : 'border-border hover:border-primary/50 cursor-pointer'
-        }`}>
+        <div
+          className={cn(
+            'rounded-2xl border-2 border-dashed p-5 text-center transition-colors',
+            hasError
+              ? 'cursor-pointer border-destructive/50 bg-destructive/5 hover:border-destructive'
+              : isUploading
+              ? 'border-primary/50 bg-primary/5'
+              : hasFile
+              ? 'cursor-pointer border-success/50 bg-success/5 hover:border-success'
+              : hasPreviousDoc
+              ? 'cursor-pointer border-accent/50 bg-accent/10 hover:border-accent'
+              : missingRequired
+              ? 'cursor-pointer border-destructive/50 bg-destructive/5'
+              : 'cursor-pointer border-border hover:border-primary/50 hover:bg-muted/40',
+          )}
+        >
           <input
             type="file"
             className="hidden"
@@ -327,337 +251,144 @@ export function StepDocuments({ formData, onChange }: Props) {
             multiple={id === 'extraCertificates'}
             disabled={isUploading}
           />
-          
+
           {isUploading ? (
             <div className="space-y-3">
-              <div className="flex items-center justify-center">
-                <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
-              </div>
+              <Loader2 className="mx-auto h-7 w-7 animate-spin text-primary" />
               <div>
-                <p className="text-sm font-medium text-blue-800">Processing...</p>
-                <p className="text-xs text-blue-600 mb-2">{progress}% complete</p>
-                <Progress value={progress} className="w-full h-2" />
+                <p className="text-sm font-medium text-primary">Processing… {progress}%</p>
+                <Progress value={progress} className="mt-2 h-2 w-full" />
               </div>
             </div>
           ) : hasError ? (
             <div className="space-y-3">
-              <div className="flex items-center justify-center">
-                <AlertCircle className="w-8 h-8 text-red-600" />
-              </div>
+              <AlertCircle className="mx-auto h-7 w-7 text-destructive" />
               <div>
-                <p className="text-sm font-medium text-red-800">Upload Failed</p>
-                <p className="text-xs text-red-600">{hasError}</p>
+                <p className="text-sm font-medium text-destructive">Upload failed</p>
+                <p className="text-xs text-muted-foreground">{hasError}</p>
               </div>
-              <div className="flex gap-2 justify-center">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => file && retryUpload(fieldKey, file)}
-                  disabled={!file || (uploadState?.retryCount || 0) >= 3}
-                >
-                  <RefreshCw className="w-4 h-4 mr-1" />
-                  Retry ({(uploadState?.retryCount || 0)}/3)
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => file && retryUpload(fieldKey, file)} disabled={!file || (uploadState?.retryCount || 0) >= 3}>
+                  <RefreshCw className="mr-1 h-4 w-4" /> Retry ({uploadState?.retryCount || 0}/3)
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => document.getElementById(String(id))?.click()}
-                >
-                  Choose Different File
+                <Button type="button" variant="outline" size="sm" onClick={() => document.getElementById(String(id))?.click()}>
+                  Choose another
                 </Button>
               </div>
             </div>
           ) : hasFile ? (
             <div className="space-y-3">
-              <div className="flex items-center justify-center">
-                <CheckCircle className="w-8 h-8 text-green-600" />
-              </div>
+              <CheckCircle className="mx-auto h-7 w-7 text-success" />
               <div>
-                <p className="text-sm font-medium text-green-800">{file.name}</p>
-                <p className="text-xs text-green-600">
-                  {(file.size / 1024 / 1024).toFixed(2)} MB
-                </p>
+                <p className="truncate text-sm font-medium text-foreground">{file.name}</p>
+                <p className="text-xs text-muted-foreground">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
               </div>
-              <div className="flex gap-2 justify-center">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => document.getElementById(String(id))?.click()}
-                >
-                  Replace
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleFileChange(id, null)}
-                >
-                  <X className="w-4 h-4" />
+              <div className="flex justify-center gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => document.getElementById(String(id))?.click()}>Replace</Button>
+                <Button type="button" variant="outline" size="icon-sm" onClick={() => handleFileChange(id, null)} aria-label="Remove file">
+                  <X className="h-4 w-4" />
                 </Button>
               </div>
             </div>
           ) : hasPreviousDoc ? (
             <div className="space-y-3">
-              <div className="flex items-center justify-center">
-                <File className="w-8 h-8 text-purple-600" />
-              </div>
+              <File className="mx-auto h-7 w-7 text-accent" />
               <div>
-                <p className="text-xs text-purple-600 font-medium mb-1">Previous Upload</p>
-                <p className="text-sm font-medium text-purple-800">{previousDoc.fileName}</p>
-                <p className="text-xs text-purple-600">
+                <p className="text-xs font-medium text-accent-foreground/80">Previously uploaded</p>
+                <p className="truncate text-sm font-medium text-foreground">{previousDoc.fileName}</p>
+                <p className="text-xs text-muted-foreground">
                   {(previousDoc.fileSize / 1024 / 1024).toFixed(2)} MB • {previousDoc.fileType.toUpperCase()}
                 </p>
-                <p className="text-xs text-purple-500 mt-1">
-                  Uploaded: {new Date(previousDoc.uploadDate).toLocaleDateString()}
-                </p>
               </div>
-              <div className="flex gap-2 justify-center flex-wrap">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleViewDocument(previousDoc)}
-                >
-                  <Eye className="w-4 h-4 mr-1" />
-                  View
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => handleViewDocument(previousDoc)}>
+                  <Eye className="mr-1 h-4 w-4" /> View
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleDownloadDocument(previousDoc)}
-                >
-                  <Download className="w-4 h-4 mr-1" />
-                  Download
+                <Button type="button" variant="outline" size="sm" onClick={() => handleDownloadDocument(previousDoc)}>
+                  <Download className="mr-1 h-4 w-4" /> Download
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => document.getElementById(String(id))?.click()}
-                >
-                  Replace
-                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => document.getElementById(String(id))?.click()}>Replace</Button>
               </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                This document will be used unless you upload a new one
-              </p>
+              <p className="text-xs text-muted-foreground">This document will be used unless you upload a new one.</p>
             </div>
           ) : (
-            <label htmlFor={String(id)} className="cursor-pointer">
-              <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-              <p className="text-sm font-medium">Click to upload</p>
+            <label htmlFor={String(id)} className="block cursor-pointer">
+              <Upload className={cn('mx-auto mb-2 h-7 w-7', missingRequired ? 'text-destructive' : 'text-muted-foreground')} />
+              <p className="text-sm font-medium text-foreground">Click to upload</p>
               {helper && <p className="text-xs text-muted-foreground">{helper}</p>}
-              <p className="text-xs text-muted-foreground mt-1">
-                PDF, JPG, PNG • Max 10MB
-              </p>
+              <p className="mt-1 text-xs text-muted-foreground">PDF, JPG, PNG • Max 10MB</p>
             </label>
           )}
         </div>
+        {missingRequired && (
+          <p className="flex items-center gap-1 text-xs font-medium text-destructive">
+            <AlertCircle className="h-3 w-3" /> This document is required
+          </p>
+        )}
       </div>
     );
   };
 
+  const requiredFields = ['photo', 'sscMarksheet', 'birthCertificateDoc', 'fatherNIDFront', 'fatherNIDBack', 'motherNIDFront', 'motherNIDBack'];
+  const optionalFields = ['sscCertificate', 'studentNIDCopy', 'testimonial', 'medicalCertificate', 'quotaDocument', 'extraCertificates'];
+  const uploadedRequired = requiredFields.filter((f) => formData[f as keyof AdmissionFormState] || previousDocuments[f]);
+  const requiredProgress = Math.round((uploadedRequired.length / requiredFields.length) * 100);
+
   return (
     <div className="space-y-6">
-      <div>
-        <div className="flex items-center justify-between mb-1">
-          <h3 className="text-xl font-semibold">Documents Upload</h3>
-          <div className="flex items-center gap-2">
-            {loadingPreviousDocs && (
-              <div className="flex items-center gap-1 text-blue-600 text-sm">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Loading previous documents...</span>
-              </div>
-            )}
-            {!loadingPreviousDocs && isOnline ? (
-              <div className="flex items-center gap-1 text-green-600 text-sm">
-                <Wifi className="w-4 h-4" />
-                <span>Online</span>
-              </div>
-            ) : !loadingPreviousDocs && (
-              <div className="flex items-center gap-1 text-orange-600 text-sm">
-                <WifiOff className="w-4 h-4" />
-                <span>Offline</span>
-              </div>
-            )}
+      <StepIntro icon={Upload} title="Documents Upload" description="Upload clear scans or photos (PDF, JPG, PNG)." />
+
+      {/* Required progress + status */}
+      <div className="surface-card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex-1">
+          <div className="mb-1.5 flex items-center justify-between text-sm">
+            <span className="font-medium">Required documents</span>
+            <span className={cn('font-semibold', requiredProgress === 100 ? 'text-success' : 'text-muted-foreground')}>
+              {uploadedRequired.length}/{requiredFields.length}
+            </span>
           </div>
+          <Progress value={requiredProgress} className="h-2" />
         </div>
-        <p className="text-sm text-muted-foreground">
-          Upload required documents (PDF, JPG, PNG)
-          {!isOnline && ' • Files will be processed when connection is restored'}
-        </p>
-        
-        {/* Show info about previous documents */}
-        {!loadingPreviousDocs && Object.keys(previousDocuments).length > 0 && (
-          <div className="mt-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
-            <div className="flex items-center gap-2 text-sm text-purple-800">
-              <File className="w-4 h-4" />
-              <span>
-                {Object.keys(previousDocuments).length} previous document(s) found. 
-                You can keep them or upload new ones.
-              </span>
-            </div>
-          </div>
-        )}
-        
-        {/* Global upload progress */}
-        {Object.values(uploadStates).some(state => state.isUploading) && (
-          <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-            <div className="flex items-center gap-2 text-sm text-blue-800 mb-2">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Processing documents...</span>
-            </div>
-            <Progress 
-              value={
-                Object.values(uploadStates).reduce((acc, state) => acc + (state.progress || 0), 0) / 
-                Math.max(Object.values(uploadStates).length, 1)
-              } 
-              className="w-full h-2" 
-            />
-          </div>
-        )}
+        <div className="flex items-center gap-2 text-sm">
+          {loadingPreviousDocs ? (
+            <span className="flex items-center gap-1 text-primary"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</span>
+          ) : isOnline ? (
+            <span className="flex items-center gap-1 text-success"><Wifi className="h-4 w-4" /> Online</span>
+          ) : (
+            <span className="flex items-center gap-1 text-warning-foreground"><WifiOff className="h-4 w-4" /> Offline</span>
+          )}
+        </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        {fileInput('photo', 'Passport-size Photo', 'image/*', '300x300px, max 500KB', true)}
+      {!loadingPreviousDocs && Object.keys(previousDocuments).length > 0 && (
+        <div className="flex items-center gap-2 rounded-xl border border-accent/30 bg-accent/10 p-3 text-sm text-accent-foreground">
+          <File className="h-4 w-4 flex-shrink-0" />
+          <span>{Object.keys(previousDocuments).length} document(s) from a previous application were found. Keep them or upload new ones.</span>
+        </div>
+      )}
+
+      <div className="grid gap-5 md:grid-cols-2">
+        {fileInput('photo', 'Passport-size Photo', 'image/*', '300×300px, max 500KB', true)}
         {fileInput('sscMarksheet', 'SSC Marksheet', '.pdf,image/*', 'PDF or Image', true)}
-        {fileInput('sscCertificate', 'SSC Certificate (Optional)', '.pdf,image/*')}
+        {fileInput('sscCertificate', 'SSC Certificate', '.pdf,image/*', 'Optional')}
         {fileInput('birthCertificateDoc', 'Birth Certificate', '.pdf,image/*', 'PDF or Image', true)}
-        {fileInput('studentNIDCopy', 'Student NID Copy (Optional)', '.pdf,image/*')}
+        {fileInput('studentNIDCopy', 'Student NID Copy', '.pdf,image/*', 'Optional')}
         {fileInput('fatherNIDFront', "Father's NID (Front)", '.pdf,image/*', 'PDF or Image', true)}
         {fileInput('fatherNIDBack', "Father's NID (Back)", '.pdf,image/*', 'PDF or Image', true)}
         {fileInput('motherNIDFront', "Mother's NID (Front)", '.pdf,image/*', 'PDF or Image', true)}
         {fileInput('motherNIDBack', "Mother's NID (Back)", '.pdf,image/*', 'PDF or Image', true)}
-        {fileInput('testimonial', 'Testimonial (Optional)', '.pdf,image/*', 'PDF or Image')}
-        {fileInput('medicalCertificate', 'Medical Certificate (Optional)', '.pdf,image/*', 'PDF or Image')}
-        {fileInput('quotaDocument', 'Quota Document (Optional)', '.pdf,image/*', 'PDF or Image')}
-        {fileInput('extraCertificates', 'Extra Certificates (Optional)', '.pdf,image/*', 'PDF or Image')}
+        {fileInput('testimonial', 'Testimonial', '.pdf,image/*', 'Optional')}
+        {fileInput('medicalCertificate', 'Medical Certificate', '.pdf,image/*', 'Optional')}
+        {fileInput('quotaDocument', 'Quota Document', '.pdf,image/*', 'Optional')}
+        {fileInput('extraCertificates', 'Extra Certificates', '.pdf,image/*', 'Optional')}
       </div>
 
-      {/* Upload Summary */}
-      <div className="mt-8 p-4 bg-muted/50 rounded-lg">
-        <h4 className="font-medium mb-3 flex items-center gap-2">
-          <File className="w-4 h-4" />
-          Upload Summary
-        </h4>
-        
-        {(() => {
-          const requiredFields = ['photo', 'sscMarksheet', 'birthCertificateDoc', 'fatherNIDFront', 'fatherNIDBack', 'motherNIDFront', 'motherNIDBack'];
-          const optionalFields = ['sscCertificate', 'studentNIDCopy', 'testimonial', 'medicalCertificate', 'quotaDocument', 'extraCertificates'];
-          
-          // Count uploaded files (new uploads)
-          const uploadedRequired = requiredFields.filter(field => formData[field as keyof AdmissionFormState]);
-          const uploadedOptional = optionalFields.filter(field => formData[field as keyof AdmissionFormState]);
-          
-          // Count previous documents that will be used
-          const previousRequired = requiredFields.filter(field => 
-            !formData[field as keyof AdmissionFormState] && previousDocuments[field]
-          );
-          const previousOptional = optionalFields.filter(field => 
-            !formData[field as keyof AdmissionFormState] && previousDocuments[field]
-          );
-          
-          // Total available (new + previous)
-          const totalRequiredAvailable = uploadedRequired.length + previousRequired.length;
-          const totalOptionalAvailable = uploadedOptional.length + previousOptional.length;
-          const totalUploaded = uploadedRequired.length + uploadedOptional.length;
-          const totalPrevious = previousRequired.length + previousOptional.length;
-          
-          return (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span>Required documents:</span>
-                <span className={totalRequiredAvailable === requiredFields.length ? 'text-green-600 font-medium' : 'text-orange-600'}>
-                  {totalRequiredAvailable}/{requiredFields.length}
-                  {previousRequired.length > 0 && (
-                    <span className="text-purple-600 ml-1">
-                      ({previousRequired.length} previous)
-                    </span>
-                  )}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span>Optional documents:</span>
-                <span className="text-muted-foreground">
-                  {totalOptionalAvailable}/{optionalFields.length}
-                  {previousOptional.length > 0 && (
-                    <span className="text-purple-600 ml-1">
-                      ({previousOptional.length} previous)
-                    </span>
-                  )}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-sm font-medium pt-2 border-t">
-                <span>Total available:</span>
-                <span className="text-primary">
-                  {totalRequiredAvailable + totalOptionalAvailable}/{requiredFields.length + optionalFields.length}
-                </span>
-              </div>
-              
-              {totalPrevious > 0 && (
-                <div className="flex items-center gap-2 text-sm text-purple-600 mt-3 p-2 bg-purple-50 rounded">
-                  <File className="w-4 h-4" />
-                  <span>{totalPrevious} document(s) from previous application will be reused</span>
-                </div>
-              )}
-              
-              {totalRequiredAvailable < requiredFields.length && (
-                <div className="flex items-center gap-2 text-sm text-orange-600 mt-3">
-                  <AlertCircle className="w-4 h-4" />
-                  <span>Please upload all required documents before submitting</span>
-                </div>
-              )}
-              
-              {/* Show upload errors summary */}
-              {(() => {
-                const errorFields = Object.entries(uploadStates)
-                  .filter(([_, state]) => state.error)
-                  .map(([field, _]) => field);
-                
-                if (errorFields.length > 0) {
-                  return (
-                    <div className="flex items-center gap-2 text-sm text-red-600 mt-3">
-                      <AlertCircle className="w-4 h-4" />
-                      <span>{errorFields.length} document(s) failed to upload. Please retry.</span>
-                    </div>
-                  );
-                }
-                return null;
-              })()}
-              
-              {/* Show uploading status */}
-              {(() => {
-                const uploadingFields = Object.entries(uploadStates)
-                  .filter(([_, state]) => state.isUploading)
-                  .map(([field, _]) => field);
-                
-                if (uploadingFields.length > 0) {
-                  return (
-                    <div className="flex items-center gap-2 text-sm text-blue-600 mt-3">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Processing {uploadingFields.length} document(s)...</span>
-                    </div>
-                  );
-                }
-                return null;
-              })()}
-              
-              {/* Network status warning */}
-              {!isOnline && (
-                <div className="flex items-center gap-2 text-sm text-orange-600 mt-3">
-                  <WifiOff className="w-4 h-4" />
-                  <span>Offline mode - uploads will resume when connection is restored</span>
-                </div>
-              )}
-            </div>
-          );
-        })()}
-      </div>
+      {uploadedRequired.length < requiredFields.length && (
+        <div className="flex items-center gap-2 text-sm text-warning-foreground">
+          <AlertCircle className="h-4 w-4" />
+          <span>Please add all required documents before submitting.</span>
+        </div>
+      )}
     </div>
   );
 }
-

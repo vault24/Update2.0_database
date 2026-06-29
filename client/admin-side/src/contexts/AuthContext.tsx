@@ -129,7 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         method: 'POST',
         headers,
         credentials: 'include',
-        body: JSON.stringify({ username: email, password, remember_me: rememberMe }), // Backend expects 'username' field
+        body: JSON.stringify({ username: email, password, remember_me: rememberMe, portal: 'admin' }), // Backend expects 'username' field; portal keeps student accounts out
       });
 
       if (!response.ok) {
@@ -227,7 +227,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       method: 'POST',
       headers,
       credentials: 'include',
-      body: JSON.stringify({ email, otp, remember_me: rememberMe }),
+      body: JSON.stringify({ email, otp, remember_me: rememberMe, portal: 'admin' }),
     });
 
     if (!response.ok) {

@@ -7,7 +7,7 @@ from django.contrib.auth import get_user_model
 from django.core.mail import send_mail
 from django.utils.html import strip_tags
 import logging
-from .models import OTPToken, PasswordResetAttempt
+from .models import OTPToken, PasswordResetAttempt, EmailVerificationCode
 User = get_user_model()
 logger = logging.getLogger(__name__)
 
@@ -92,6 +92,32 @@ class EmailService:
             return False
 
     @staticmethod
+    def send_signup_otp_email(email, otp, name=None):
+        """Send a branded sign-up email verification code (before the account exists)."""
+        try:
+            from apps.notifications.email_service import send_branded_email
+            expiry = getattr(settings, 'OTP_EXPIRY_MINUTES', 10)
+            return send_branded_email(
+                'Verify Your Email - SIPI',
+                email,
+                heading='Verify Your Email',
+                greeting=f"Hello {name or 'there'},",
+                intro='Use the verification code below to complete your sign up. Your account is created only after this code is verified.',
+                highlight=otp,
+                body_lines=[
+                    f'This code will expire in {expiry} minutes.',
+                    "If you didn't try to sign up, you can safely ignore this email.",
+                ],
+                accent_label='Security',
+                accent_color='#2563eb',
+                accent_soft='#eff6ff',
+                async_send=False,  # signup should confirm delivery synchronously
+            )
+        except Exception as e:
+            logger.error(f"Error sending signup OTP email: {e}")
+            return False
+
+    @staticmethod
     def send_password_reset_confirmation(user):
         """Confirm a successful password reset (security notification)."""
         try:
@@ -166,6 +192,53 @@ class OTPService:
             otp_token.mark_as_used()
             return True
         return False
+
+
+class EmailVerificationService:
+    """
+    OTP verification for pre-account actions (sign-up). Codes are keyed by
+    email + purpose because no User exists yet.
+    """
+
+    @staticmethod
+    def create_code(email, purpose=EmailVerificationCode.PURPOSE_SIGNUP):
+        email = (email or '').strip().lower()
+        # Invalidate any previous unused code for this email + purpose.
+        EmailVerificationCode.objects.filter(
+            email__iexact=email, purpose=purpose, is_used=False
+        ).update(is_used=True)
+        code = OTPService.generate_otp()
+        expires_at = timezone.now() + timedelta(minutes=getattr(settings, 'OTP_EXPIRY_MINUTES', 10))
+        return EmailVerificationCode.objects.create(
+            email=email,
+            token=code,
+            purpose=purpose,
+            expires_at=expires_at,
+            max_attempts=getattr(settings, 'OTP_MAX_ATTEMPTS', 3) + 2,
+        )
+
+    @staticmethod
+    def verify_code(email, token, purpose=EmailVerificationCode.PURPOSE_SIGNUP, consume=False):
+        """
+        Validate a code against the email's latest unused code.
+        Pass consume=True to mark it used on success (do this only at the final
+        account-creation step). Wrong guesses count toward the attempt limit.
+        """
+        obj = EmailVerificationCode.objects.filter(
+            email__iexact=(email or '').strip().lower(), purpose=purpose, is_used=False
+        ).order_by('-created_at').first()
+        if not obj:
+            return False, "Invalid or expired verification code. Please request a new one."
+        if obj.is_expired():
+            return False, "Verification code has expired. Please request a new one."
+        if obj.attempts >= obj.max_attempts:
+            return False, "Maximum verification attempts exceeded. Please request a new code."
+        if obj.token != str(token).strip():
+            obj.increment_attempts()
+            return False, "Invalid verification code."
+        if consume:
+            obj.mark_as_used()
+        return True, "Verified successfully."
 class RateLimitService:
     @staticmethod
     def is_rate_limited(email, ip_address=None):

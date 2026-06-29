@@ -1,259 +1,176 @@
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { Phone, MapPin, Home } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { AdmissionFormState } from '../types';
-import { divisions } from '../stepConfig';
+import { divisions, getDistricts } from '../stepConfig';
+import { FieldErrors } from '../validation';
+import { TextField, SelectField, TextareaField, SectionCard, StepIntro } from '../fields';
 
 interface Props {
   formData: AdmissionFormState;
   onChange: (field: keyof AdmissionFormState, value: any) => void;
+  errors?: FieldErrors;
 }
 
-export function StepContactAddress({ formData, onChange }: Props) {
+const divisionOptions = divisions.map((d) => ({ value: d.toLowerCase(), label: d }));
+
+/**
+ * A full address block (present or permanent). `prefix` selects which set of
+ * form fields it reads/writes. The District dropdown is dependent on Division.
+ */
+function AddressBlock({
+  prefix, formData, onChange, errors, required,
+}: {
+  prefix: 'present' | 'permanent';
+  formData: AdmissionFormState;
+  onChange: (field: keyof AdmissionFormState, value: any) => void;
+  errors: FieldErrors;
+  required: boolean;
+}) {
+  const k = (suffix: string) => `${prefix}${suffix}` as keyof AdmissionFormState;
+  const val = (suffix: string) => (formData[k(suffix)] as string) || '';
+  const err = (suffix: string) => errors[k(suffix)];
+
+  const division = val('Division');
+  const districts = getDistricts(division);
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-xl font-semibold mb-1">Contact & Address</h3>
-        <p className="text-sm text-muted-foreground">Enter your contact details and addresses</p>
+    <div className="space-y-4">
+      <TextareaField
+        label="Full Address" required={required} rows={2}
+        placeholder="House / road / area"
+        value={val('Address')}
+        onChange={(v) => onChange(k('Address'), v)}
+        error={err('Address')}
+      />
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <SelectField
+          label="Division" required={required} placeholder="Select division"
+          value={division}
+          onChange={(v) => onChange(k('Division'), v)}
+          options={divisionOptions}
+          error={err('Division')}
+        />
+        <SelectField
+          label="District" required={required}
+          placeholder={division ? 'Select district' : 'Select a division first'}
+          value={val('District')}
+          onChange={(v) => onChange(k('District'), v)}
+          options={districts}
+          disabled={!division}
+          helper={!division ? 'Choose a division to load its districts.' : undefined}
+          error={err('District')}
+        />
       </div>
 
-      <div className="grid md:grid-cols-3 gap-4">
-        <div className="space-y-2">
-          <Label>Mobile Number <span className="text-red-500">*</span></Label>
-          <Input 
-            placeholder="01XXXXXXXXX"
-            value={formData.mobile}
-            onChange={(e) => onChange('mobile', e.target.value)}
-            required
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>Email Address <span className="text-red-500">*</span></Label>
-          <Input 
-            type="email"
-            placeholder="your@email.com"
-            value={formData.email}
-            onChange={(e) => onChange('email', e.target.value)}
-            required
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>Guardian's Mobile <span className="text-red-500">*</span></Label>
-          <Input 
-            placeholder="01XXXXXXXXX"
-            value={formData.guardianMobile}
-            onChange={(e) => onChange('guardianMobile', e.target.value)}
-            required
-          />
-        </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <TextField
+          label="Upazila / Thana" required={required}
+          placeholder="Enter upazila"
+          value={val('Upazila')}
+          onChange={(v) => onChange(k('Upazila'), v)}
+          error={err('Upazila')}
+        />
+        <TextField
+          label="Police Station" required={required}
+          placeholder="Enter police station"
+          value={val('PoliceStation')}
+          onChange={(v) => onChange(k('PoliceStation'), v)}
+          error={err('PoliceStation')}
+        />
       </div>
 
-      <div className="border-t border-border pt-6">
-        <h4 className="font-medium mb-4">Present Address</h4>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>Address <span className="text-red-500">*</span></Label>
-            <Textarea 
-              placeholder="Enter your present address"
-              value={formData.presentAddress}
-              onChange={(e) => onChange('presentAddress', e.target.value)}
-              required
-            />
-          </div>
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Division <span className="text-red-500">*</span></Label>
-              <select 
-                className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm"
-                value={formData.presentDivision}
-                onChange={(e) => onChange('presentDivision', e.target.value)}
-                required
-              >
-                <option value="">Select Division</option>
-                {divisions.map(d => (
-                  <option key={d} value={d.toLowerCase()}>{d}</option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <Label>District <span className="text-red-500">*</span></Label>
-              <Input 
-                placeholder="Enter district"
-                value={formData.presentDistrict}
-                onChange={(e) => onChange('presentDistrict', e.target.value)}
-                required
-              />
-            </div>
-          </div>
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Upazila <span className="text-red-500">*</span></Label>
-              <Input 
-                placeholder="Enter upazila"
-                value={formData.presentUpazila}
-                onChange={(e) => onChange('presentUpazila', e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Police Station <span className="text-red-500">*</span></Label>
-              <Input 
-                placeholder="Enter police station"
-                value={formData.presentPoliceStation}
-                onChange={(e) => onChange('presentPoliceStation', e.target.value)}
-                required
-              />
-            </div>
-          </div>
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Post Office <span className="text-red-500">*</span></Label>
-              <Input 
-                placeholder="Enter post office"
-                value={formData.presentPostOffice}
-                onChange={(e) => onChange('presentPostOffice', e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Municipality/Union</Label>
-              <Input 
-                placeholder="Enter municipality/union"
-                value={formData.presentMunicipalityUnion}
-                onChange={(e) => onChange('presentMunicipalityUnion', e.target.value)}
-              />
-            </div>
-          </div>
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Village/Neighborhood</Label>
-              <Input 
-                placeholder="Enter village/neighborhood"
-                value={formData.presentVillageNeighborhood}
-                onChange={(e) => onChange('presentVillageNeighborhood', e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Ward Number <span className="text-red-500">*</span></Label>
-              <Input 
-                placeholder="Enter ward"
-                value={formData.presentWard}
-                onChange={(e) => onChange('presentWard', e.target.value)}
-                required
-              />
-            </div>
-          </div>
-        </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <TextField
+          label="Post Office" required={required}
+          placeholder="Enter post office"
+          value={val('PostOffice')}
+          onChange={(v) => onChange(k('PostOffice'), v)}
+          error={err('PostOffice')}
+        />
+        <TextField
+          label="Municipality / Union"
+          placeholder="Enter municipality / union"
+          value={val('MunicipalityUnion')}
+          onChange={(v) => onChange(k('MunicipalityUnion'), v)}
+        />
       </div>
 
-      <div className="border-t border-border pt-6">
-        <div className="flex items-center justify-between mb-4">
-          <h4 className="font-medium">Permanent Address</h4>
-          <label className="flex items-center gap-2 text-sm">
-            <input 
-              type="checkbox"
-              checked={formData.sameAsPresent}
-              onChange={(e) => onChange('sameAsPresent', e.target.checked)}
-              className="rounded"
-            />
-            Same as present address
-          </label>
-        </div>
-        {!formData.sameAsPresent && (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Address</Label>
-              <Textarea 
-                placeholder="Enter your permanent address"
-                value={formData.permanentAddress}
-                onChange={(e) => onChange('permanentAddress', e.target.value)}
-              />
-            </div>
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Division</Label>
-                <select 
-                  className="w-full h-11 px-4 rounded-lg border border-input bg-background text-sm"
-                  value={formData.permanentDivision}
-                  onChange={(e) => onChange('permanentDivision', e.target.value)}
-                >
-                  <option value="">Select Division</option>
-                  {divisions.map(d => (
-                    <option key={d} value={d.toLowerCase()}>{d}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label>District</Label>
-                <Input 
-                  placeholder="Enter district"
-                  value={formData.permanentDistrict}
-                  onChange={(e) => onChange('permanentDistrict', e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Upazila <span className="text-red-500">*</span></Label>
-                <Input 
-                  placeholder="Enter upazila"
-                  value={formData.permanentUpazila}
-                  onChange={(e) => onChange('permanentUpazila', e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Police Station <span className="text-red-500">*</span></Label>
-                <Input 
-                  placeholder="Enter police station"
-                  value={formData.permanentPoliceStation}
-                  onChange={(e) => onChange('permanentPoliceStation', e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Post Office <span className="text-red-500">*</span></Label>
-                <Input 
-                  placeholder="Enter post office"
-                  value={formData.permanentPostOffice}
-                  onChange={(e) => onChange('permanentPostOffice', e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Municipality/Union</Label>
-                <Input 
-                  placeholder="Enter municipality/union"
-                  value={formData.permanentMunicipalityUnion}
-                  onChange={(e) => onChange('permanentMunicipalityUnion', e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Village/Neighborhood</Label>
-                <Input 
-                  placeholder="Enter village/neighborhood"
-                  value={formData.permanentVillageNeighborhood}
-                  onChange={(e) => onChange('permanentVillageNeighborhood', e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Ward <span className="text-red-500">*</span></Label>
-                <Input 
-                  placeholder="Enter ward"
-                  value={formData.permanentWard}
-                  onChange={(e) => onChange('permanentWard', e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-          </div>
-        )}
+      <div className="grid gap-4 md:grid-cols-2">
+        <TextField
+          label="Village / Neighborhood"
+          placeholder="Enter village / neighborhood"
+          value={val('VillageNeighborhood')}
+          onChange={(v) => onChange(k('VillageNeighborhood'), v)}
+        />
+        <TextField
+          label="Ward Number" required={required} numeric
+          placeholder="Enter ward number"
+          value={val('Ward')}
+          onChange={(v) => onChange(k('Ward'), v)}
+          error={err('Ward')}
+        />
       </div>
     </div>
   );
 }
 
+export function StepContactAddress({ formData, onChange, errors = {} }: Props) {
+  return (
+    <div className="space-y-6">
+      <StepIntro icon={MapPin} title="Contact & Address" description="How can we reach you, and where do you live?" />
+
+      <SectionCard icon={Phone} title="Contact Details">
+        <div className="grid gap-4 md:grid-cols-3">
+          <TextField
+            label="Mobile Number" required
+            placeholder="01XXXXXXXXX" inputMode="tel" maxLength={11}
+            value={formData.mobile}
+            onChange={(v) => onChange('mobile', v)}
+            error={errors.mobile}
+          />
+          <TextField
+            label="Email Address" required type="email"
+            placeholder="your@email.com"
+            value={formData.email}
+            onChange={(v) => onChange('email', v)}
+            error={errors.email}
+          />
+          <TextField
+            label="Guardian's Mobile" required
+            placeholder="01XXXXXXXXX" inputMode="tel" maxLength={11}
+            value={formData.guardianMobile}
+            onChange={(v) => onChange('guardianMobile', v)}
+            error={errors.guardianMobile}
+          />
+        </div>
+      </SectionCard>
+
+      <SectionCard icon={MapPin} title="Present Address" description="Where you currently live.">
+        <AddressBlock prefix="present" formData={formData} onChange={onChange} errors={errors} required />
+      </SectionCard>
+
+      <SectionCard
+        icon={Home}
+        title="Permanent Address"
+        action={
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <Checkbox
+              checked={formData.sameAsPresent}
+              onCheckedChange={(c) => onChange('sameAsPresent', !!c)}
+            />
+            <span className="text-muted-foreground">Same as present</span>
+          </label>
+        }
+      >
+        {formData.sameAsPresent ? (
+          <p className="rounded-xl border border-dashed border-border bg-background/60 px-4 py-3 text-sm text-muted-foreground">
+            Your permanent address will be the same as your present address.
+          </p>
+        ) : (
+          <AddressBlock prefix="permanent" formData={formData} onChange={onChange} errors={errors} required={false} />
+        )}
+      </SectionCard>
+    </div>
+  );
+}
