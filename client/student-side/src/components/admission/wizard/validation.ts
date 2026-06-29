@@ -62,15 +62,24 @@ const MOBILE_RE = /^01\d{9}$/;
 /**
  * Returns a { field: message } map of problems for the given step.
  * Empty object means the step is valid.
+ *
+ * `satisfiedDocs` (step 5) is the set of document fields already satisfied by a
+ * PREVIOUSLY uploaded file on the server — e.g. when re-applying after a
+ * rejection. Such a field is valid even though no new file is in the form.
  */
-export function getStepErrors(step: number, data: AdmissionFormState): FieldErrors {
+export function getStepErrors(
+  step: number,
+  data: AdmissionFormState,
+  satisfiedDocs?: Set<string>,
+): FieldErrors {
   const errors: FieldErrors = {};
   const required = REQUIRED_BY_STEP[step] || [];
 
   for (const { field, label } of required) {
     if (isEmpty(data[field])) {
-      const isDoc = step === 5;
-      errors[field] = isDoc ? `${label} is required` : `${label} is required`;
+      // A required document already uploaded on the server counts as satisfied.
+      if (step === 5 && satisfiedDocs?.has(field as string)) continue;
+      errors[field] = `${label} is required`;
     }
   }
 

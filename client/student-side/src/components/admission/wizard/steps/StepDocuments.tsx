@@ -15,6 +15,9 @@ interface Props {
   formData: AdmissionFormState;
   onChange: (field: keyof AdmissionFormState, value: any) => void;
   errors?: FieldErrors;
+  /** Reports which document fields are already satisfied by a server-side upload
+   *  (used so step validation passes on re-application without re-uploading). */
+  onDocsAvailable?: (fieldKeys: string[]) => void;
 }
 
 interface FileUploadState {
@@ -34,7 +37,7 @@ interface PreviousDocument {
   original_field_name?: string;
 }
 
-export function StepDocuments({ formData, onChange, errors = {} }: Props) {
+export function StepDocuments({ formData, onChange, errors = {}, onDocsAvailable }: Props) {
   const [uploadStates, setUploadStates] = useState<Record<string, FileUploadState>>({});
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [previousDocuments, setPreviousDocuments] = useState<Record<string, PreviousDocument>>({});
@@ -79,6 +82,13 @@ export function StepDocuments({ formData, onChange, errors = {} }: Props) {
     };
     fetchPreviousDocuments();
   }, []);
+
+  // Report previously-uploaded document fields up to the wizard so step
+  // validation treats them as satisfied (re-application after rejection).
+  useEffect(() => {
+    onDocsAvailable?.(Object.keys(previousDocuments));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previousDocuments]);
 
   // Monitor network status
   useEffect(() => {

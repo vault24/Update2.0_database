@@ -85,11 +85,79 @@ class StudentDetailSerializer(serializers.ModelSerializer):
         return None
 
 
+def generate_student_identifiers(department, session):
+    """
+    Generate a readable, unique college Roll Number and Registration Number for
+    a new student. Mirrors the format used when an admission is approved.
+
+      Roll Number         -> {DEPT}-{YEAR}-{NNN}   e.g. CST-2025-001
+      Registration Number -> {YEAR}{DEPT}{NNN}     e.g. 2025CST001
+
+    Both are guaranteed unique against existing students.
+    """
+    dept_code = (getattr(department, 'code', None) or 'GEN').upper()
+    year = (session.split('-')[0] if session else str(__import__('datetime').date.today().year))
+
+    base_count = Student.objects.filter(department=department, session=session).count()
+    seq = base_count + 1
+    while True:
+        nnn = str(seq).zfill(3)
+        roll = f"{dept_code}-{year}-{nnn}"
+        registration = f"{year}{dept_code}{nnn}"
+        clash = (
+            Student.objects.filter(currentRollNumber=roll).exists()
+            or Student.objects.filter(currentRegistrationNumber=registration).exists()
+        )
+        if not clash:
+            return roll, registration
+        seq += 1
+
+
 class StudentCreateSerializer(serializers.ModelSerializer):
     """
-    Serializer for creating students with validation
+    Serializer for creating students with validation.
+
+    `currentRollNumber` / `currentRegistrationNumber` are optional — when not
+    provided (e.g. the admin "add student" flow) they are generated as readable,
+    unique identifiers. A few required-but-administrative fields also fall back
+    to sensible defaults.
     """
-    
+    currentRollNumber = serializers.CharField(required=False, allow_blank=True)
+    currentRegistrationNumber = serializers.CharField(required=False, allow_blank=True)
+    emergencyContact = serializers.CharField(required=False, allow_blank=True)
+    enrollmentDate = serializers.DateField(required=False)
+    highestExam = serializers.CharField(required=False, allow_blank=True)
+    registrationNumber = serializers.CharField(required=False, allow_blank=True)
+
+    def create(self, validated_data):
+        from datetime import date
+
+        department = validated_data.get('department')
+        session = validated_data.get('session', '')
+
+        # Auto-generate readable identifiers when the admin did not supply them.
+        if not validated_data.get('currentRollNumber') or not validated_data.get('currentRegistrationNumber'):
+            roll, registration = generate_student_identifiers(department, session)
+            validated_data.setdefault('currentRollNumber', '')
+            validated_data.setdefault('currentRegistrationNumber', '')
+            if not validated_data['currentRollNumber']:
+                validated_data['currentRollNumber'] = roll
+            if not validated_data['currentRegistrationNumber']:
+                validated_data['currentRegistrationNumber'] = registration
+
+        # Sensible fallbacks for administrative fields not collected on the form.
+        if not validated_data.get('emergencyContact'):
+            validated_data['emergencyContact'] = validated_data.get('guardianMobile', '')
+        if not validated_data.get('highestExam'):
+            validated_data['highestExam'] = 'SSC'
+        if not validated_data.get('enrollmentDate'):
+            validated_data['enrollmentDate'] = date.today()
+        if not validated_data.get('registrationNumber'):
+            # Board registration number; fall back to the SSC roll if absent.
+            validated_data['registrationNumber'] = validated_data.get('rollNumber', '') or validated_data['currentRegistrationNumber']
+
+        return super().create(validated_data)
+
     class Meta:
         model = Student
         fields = [

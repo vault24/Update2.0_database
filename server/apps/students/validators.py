@@ -40,12 +40,16 @@ def validate_gpa(value):
 
 def validate_address_structure(value):
     """
-    Validate address has all required fields
+    Validate address has all required fields.
+
+    `village` is intentionally NOT required here — the student admission form
+    treats village/neighborhood as optional, so requiring it would reject valid
+    admissions and block the admin "add student" flow.
     """
     required_fields = [
-        'division', 'district', 'upazila', 'postOffice', 'village'
+        'division', 'district', 'upazila', 'postOffice'
     ]
-    
+
     if not isinstance(value, dict):
         raise ValidationError("Address must be a dictionary")
     

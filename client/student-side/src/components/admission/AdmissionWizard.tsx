@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronRight, ChevronLeft, Save, Send, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -50,6 +50,11 @@ export function AdmissionWizard() {
   const [isCheckingExisting, setIsCheckingExisting] = useState(true);
   const [isDeclarationChecked, setIsDeclarationChecked] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
+  // Document fields already satisfied by a server-side upload (re-application).
+  const [satisfiedDocFields, setSatisfiedDocFields] = useState<Set<string>>(new Set());
+  const handleDocsAvailable = useCallback((keys: string[]) => {
+    setSatisfiedDocFields(new Set(keys));
+  }, []);
   const formTopRef = useRef<HTMLDivElement | null>(null);
   const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasShownDraftToastRef = useRef(false);
@@ -628,7 +633,7 @@ export function AdmissionWizard() {
   };
 
   const handleNext = () => {
-    const stepErrors = getStepErrors(currentStep, getCompleteFormData());
+    const stepErrors = getStepErrors(currentStep, getCompleteFormData(), satisfiedDocFields);
     if (Object.keys(stepErrors).length > 0) {
       setErrors(stepErrors);
       const count = Object.keys(stepErrors).length;
@@ -715,7 +720,8 @@ export function AdmissionWizard() {
         religion: completeFormData.religion,
         blood_group: completeFormData.bloodGroup,
         nationality: completeFormData.nationality || 'Bangladeshi',
-        
+        marital_status: completeFormData.maritalStatus,
+
         // Contact Information
         mobile_student: completeFormData.mobile,
         guardian_mobile: completeFormData.guardianMobile,
@@ -1038,7 +1044,7 @@ export function AdmissionWizard() {
             {currentStep === 2 && <StepContactAddress formData={formData} onChange={handleInputChange} errors={errors} />}
             {currentStep === 3 && <StepEducation formData={formData} onChange={handleInputChange} errors={errors} />}
             {currentStep === 4 && <StepAcademic formData={formData} onChange={handleInputChange} departments={departments} errors={errors} />}
-            {currentStep === 5 && <StepDocuments formData={formData} onChange={handleInputChange} errors={errors} />}
+            {currentStep === 5 && <StepDocuments formData={formData} onChange={handleInputChange} errors={errors} onDocsAvailable={handleDocsAvailable} />}
             {currentStep === 6 && <StepReview formData={formData} departments={departments} isDeclarationChecked={isDeclarationChecked} onDeclarationChange={setIsDeclarationChecked} />}
           </motion.div>
         </AnimatePresence>

@@ -68,6 +68,23 @@ class AdmissionViewSet(viewsets.ModelViewSet):
                 from rest_framework.exceptions import NotFound
                 raise NotFound(f'Admission with id "{lookup_value}" not found')
     
+    def get_queryset(self):
+        """
+        Base queryset.
+
+        For the admin `list` action we exclude unsubmitted drafts. A draft row is
+        created automatically the first time a student opens the admission form
+        (auto-save), and without this filter those empty drafts surface in the
+        admin Admissions list as "fake" applications that only show a UUID and no
+        information. Drafts remain reachable to their owner via my-admission /
+        get-draft and to admins by direct id (approve/reject) since get_object
+        looks them up directly.
+        """
+        qs = Admission.objects.select_related('desired_department', 'user').all()
+        if self.action == 'list':
+            qs = qs.filter(is_draft=False)
+        return qs
+
     def get_serializer_class(self):
         """Return appropriate serializer based on action"""
         if self.action == 'list':
