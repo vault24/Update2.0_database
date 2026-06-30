@@ -870,3 +870,198 @@ class StudentViewSet(viewsets.ModelViewSet):
             'currentSemester': student.semester,
             'status': student.status
         })
+
+    # ──────────────────────────────────────────────────────────────────────
+    # Student Portal account management (admin-only, password-confirmed)
+    # ──────────────────────────────────────────────────────────────────────
+    @action(detail=True, methods=['get', 'post', 'patch'], url_path='account')
+    def account(self, request, pk=None):
+        """
+        Create / view / manage the Student Portal account linked to this student.
+
+        GET    /api/students/{id}/account/   -> account status (no body)
+        POST   /api/students/{id}/account/   -> create account
+                 body: { email, password, admin_password }
+        PATCH  /api/students/{id}/account/   -> update account
+                 body: { email?, is_active?, password?, admin_password }
+
+        All write operations require the administrator to confirm with their own
+        account password (`admin_password`).
+        """
+        from django.contrib.auth import get_user_model
+        from django.db import IntegrityError
+        from apps.activity_logs.signals import log_activity
+
+        User = get_user_model()
+        student = self.get_object()
+
+        # Only administrators may view or manage portal accounts.
+        if not request.user.is_admin():
+            return Response(
+                {'error': 'Permission denied', 'detail': 'Only administrators can manage student accounts.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        def find_account():
+            return User.objects.filter(
+                related_profile_id=student.id, role__in=['student', 'captain']
+            ).order_by('date_joined').first()
+
+        def account_payload(user):
+            return {
+                'has_account': True,
+                'user_id': str(user.id),
+                'username': user.username,
+                'email': user.email,
+                'role': user.role,
+                'account_status': user.account_status,
+                'is_active': bool(user.is_active) and user.account_status == 'active',
+                'student_id': user.student_id,
+                'created_at': user.date_joined.isoformat() if user.date_joined else None,
+                'last_login': user.last_login.isoformat() if user.last_login else None,
+            }
+
+        def client_meta():
+            xff = request.META.get('HTTP_X_FORWARDED_FOR')
+            ip = xff.split(',')[0].strip() if xff else request.META.get('REMOTE_ADDR')
+            return ip, request.META.get('HTTP_USER_AGENT', '')
+
+        # ── GET: status only ──────────────────────────────────────────────
+        if request.method == 'GET':
+            user = find_account()
+            return Response(account_payload(user) if user else {'has_account': False})
+
+        # ── Sensitive write: confirm the admin's own password ─────────────
+        admin_password = (request.data.get('admin_password') or '').strip()
+        if not admin_password:
+            return Response(
+                {'error': 'Password confirmation required', 'detail': 'Please enter your administrator password to confirm this action.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not request.user.check_password(admin_password):
+            return Response(
+                {'error': 'Incorrect password', 'detail': 'The administrator password you entered is incorrect.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        ip_address, user_agent = client_meta()
+
+        # ── POST: create account ──────────────────────────────────────────
+        if request.method == 'POST':
+            if find_account():
+                return Response(
+                    {'error': 'Account already exists', 'detail': 'This student already has a portal account.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            email = (request.data.get('email') or '').strip().lower()
+            password = request.data.get('password') or ''
+
+            if not email:
+                return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
+            if '@' not in email or '.' not in email.split('@')[-1]:
+                return Response({'error': 'Enter a valid email address'}, status=status.HTTP_400_BAD_REQUEST)
+            if len(password) < 8:
+                return Response({'error': 'Password must be at least 8 characters'}, status=status.HTTP_400_BAD_REQUEST)
+            if User.objects.filter(Q(username__iexact=email) | Q(email__iexact=email)).exists():
+                return Response(
+                    {'error': 'Email already in use', 'detail': 'Another account is already using this email address.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            name_parts = (student.fullNameEnglish or '').strip().split(' ', 1)
+            user = User(
+                username=email,
+                email=email,
+                first_name=name_parts[0] if name_parts and name_parts[0] else '',
+                last_name=name_parts[1] if len(name_parts) > 1 else '',
+                role='student',
+                account_status='active',
+                admission_status='approved',
+                student_id=student.currentRollNumber,
+                related_profile_id=student.id,
+                mobile_number=(getattr(student, 'mobileStudent', '') or '')[:20],
+            )
+            user.set_password(password)
+            try:
+                user.save()
+            except IntegrityError:
+                return Response(
+                    {'error': 'Could not create account', 'detail': 'A conflicting account already exists for this student.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Welcome email + in-app notification (best-effort).
+            try:
+                from apps.notifications.dispatch import send_welcome_email
+                send_welcome_email(
+                    user, portal='student', role_label='Student',
+                    details=[
+                        {'label': 'Roll Number', 'value': student.currentRollNumber},
+                        {'label': 'Login Email', 'value': email},
+                    ],
+                )
+            except Exception as notify_err:
+                import logging
+                logging.getLogger(__name__).error('Welcome email failed: %s', notify_err)
+
+            log_activity(
+                request.user, 'create', 'StudentAccount', user.id,
+                f'Created Student Portal account ({email}) for {student.fullNameEnglish} [{student.currentRollNumber}]',
+                changes={'email': email, 'student_id': student.currentRollNumber},
+                ip_address=ip_address, user_agent=user_agent,
+            )
+            return Response(account_payload(user), status=status.HTTP_201_CREATED)
+
+        # ── PATCH: manage existing account ────────────────────────────────
+        user = find_account()
+        if not user:
+            return Response(
+                {'error': 'No account', 'detail': 'This student does not have a portal account yet.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        changes = {}
+
+        new_email = request.data.get('email')
+        if new_email is not None:
+            new_email = new_email.strip().lower()
+            if new_email and new_email != (user.email or '').lower():
+                if '@' not in new_email or '.' not in new_email.split('@')[-1]:
+                    return Response({'error': 'Enter a valid email address'}, status=status.HTTP_400_BAD_REQUEST)
+                if User.objects.filter(Q(username__iexact=new_email) | Q(email__iexact=new_email)).exclude(id=user.id).exists():
+                    return Response(
+                        {'error': 'Email already in use', 'detail': 'Another account is already using this email address.'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                changes['email'] = {'old': user.email, 'new': new_email}
+                user.email = new_email
+                user.username = new_email  # students sign in with their email
+
+        if 'is_active' in request.data:
+            is_active = bool(request.data.get('is_active'))
+            changes['account_status'] = {'old': user.account_status, 'new': 'active' if is_active else 'suspended'}
+            user.account_status = 'active' if is_active else 'suspended'
+            user.is_active = is_active
+
+        new_password = request.data.get('password')
+        if new_password:
+            if len(new_password) < 8:
+                return Response({'error': 'Password must be at least 8 characters'}, status=status.HTTP_400_BAD_REQUEST)
+            user.set_password(new_password)
+            changes['password'] = 'reset'
+
+        if not changes:
+            return Response({'error': 'Nothing to update', 'detail': 'No changes were provided.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user.save()
+        except IntegrityError:
+            return Response({'error': 'Update failed', 'detail': 'That email address is already in use.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        log_activity(
+            request.user, 'update', 'StudentAccount', user.id,
+            f'Updated Student Portal account for {student.fullNameEnglish} [{student.currentRollNumber}]',
+            changes=changes, ip_address=ip_address, user_agent=user_agent,
+        )
+        return Response(account_payload(user))

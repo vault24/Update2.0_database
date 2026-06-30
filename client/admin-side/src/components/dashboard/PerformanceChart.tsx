@@ -32,9 +32,9 @@ export function PerformanceChart() {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.45 }}
-      className="glass-card rounded-2xl p-6"
+      className="surface p-5"
     >
-      <h3 className="text-lg font-semibold text-foreground mb-4">Average GPA Trend</h3>
+      <h3 className="text-[15px] font-semibold text-foreground mb-4">Average GPA trend</h3>
       <div className="h-64">
         {loading ? (
           <div className="flex items-center justify-center h-full">

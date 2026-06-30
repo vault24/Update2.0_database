@@ -1,71 +1,34 @@
-import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { Bell, Users, GraduationCap, Inbox, UserX, Plus } from 'lucide-react';
+import { Users, GraduationCap, Inbox, UserX, Plus, ArrowUpRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const actions = [
-  {
-    icon: Plus,
-    label: 'Add Notice',
-    path: '/notices',
-    color: 'bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground',
-  },
-  {
-    icon: Users,
-    label: 'View Students',
-    path: '/students',
-    color: 'bg-info/10 text-info hover:bg-info hover:text-info-foreground',
-  },
-  {
-    icon: GraduationCap,
-    label: 'Admissions',
-    path: '/admissions',
-    color: 'bg-success/10 text-success hover:bg-success hover:text-success-foreground',
-  },
-  {
-    icon: Inbox,
-    label: 'Applications',
-    path: '/applications',
-    color: 'bg-accent/10 text-accent hover:bg-accent hover:text-accent-foreground',
-  },
-  {
-    icon: UserX,
-    label: 'Discontinued',
-    path: '/discontinued-students',
-    color: 'bg-warning/10 text-warning hover:bg-warning hover:text-warning-foreground',
-  },
+  { icon: Plus, label: 'Add Notice', path: '/notices', tint: 'bg-primary/10 text-primary' },
+  { icon: Users, label: 'View Students', path: '/students', tint: 'bg-info/10 text-info' },
+  { icon: GraduationCap, label: 'Admissions', path: '/admissions', tint: 'bg-success/10 text-success' },
+  { icon: Inbox, label: 'Applications', path: '/applications', tint: 'bg-violet-500/10 text-violet-600 dark:text-violet-400' },
+  { icon: UserX, label: 'Discontinued', path: '/discontinued-students', tint: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' },
 ];
 
 export function QuickActions() {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.4 }}
-      className="glass-card rounded-2xl p-6"
-    >
-      <h3 className="text-lg font-semibold text-foreground mb-4">Quick Actions</h3>
+    <div className="surface p-5">
+      <h3 className="text-[15px] font-semibold text-foreground mb-4">Quick actions</h3>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {actions.map((action, index) => (
-          <motion.div
+        {actions.map((action) => (
+          <Link
             key={action.path}
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.5 + index * 0.1 }}
+            to={action.path}
+            className="group relative flex items-center gap-3 rounded-lg border border-border bg-card p-3 transition-colors hover:border-primary/40 hover:bg-accent focus-visible:border-primary/40"
           >
-            <Link
-              to={action.path}
-              className={cn(
-                'flex flex-col items-center gap-2 p-4 rounded-xl transition-all duration-300',
-                action.color
-              )}
-            >
-              <action.icon className="w-6 h-6" />
-              <span className="text-xs font-medium text-center">{action.label}</span>
-            </Link>
-          </motion.div>
+            <div className={cn('w-9 h-9 rounded-lg flex items-center justify-center shrink-0', action.tint)}>
+              <action.icon className="w-[18px] h-[18px]" />
+            </div>
+            <span className="text-[13px] font-medium text-foreground leading-tight">{action.label}</span>
+            <ArrowUpRight className="w-4 h-4 text-muted-foreground/0 group-hover:text-muted-foreground transition-colors ml-auto shrink-0" />
+          </Link>
         ))}
       </div>
-    </motion.div>
+    </div>
   );
 }

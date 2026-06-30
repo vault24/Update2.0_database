@@ -14,69 +14,50 @@ interface KPICardProps {
   delay?: number;
 }
 
-const gradients = {
-  primary: 'gradient-primary',
-  accent: 'gradient-accent',
-  success: 'gradient-success',
-  info: 'from-info to-info/80 bg-gradient-to-br',
-  warning: 'from-warning to-warning/80 bg-gradient-to-br',
+// `gradient` is kept for API compatibility; it now selects a calm, tinted
+// icon treatment rather than a saturated gradient fill.
+const tints: Record<KPICardProps['gradient'], string> = {
+  primary: 'bg-primary/10 text-primary',
+  success: 'bg-success/10 text-success',
+  info: 'bg-info/10 text-info',
+  warning: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+  accent: 'bg-violet-500/10 text-violet-600 dark:text-violet-400',
 };
 
 export function KPICard({ title, value, trend, icon: Icon, gradient, delay = 0 }: KPICardProps) {
+  const showTrend = trend && trend.value !== 0;
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay, duration: 0.4 }}
-      whileHover={{ scale: 1.02, y: -5 }}
-      className="glass-card rounded-2xl p-6 relative overflow-hidden group cursor-pointer"
+      transition={{ delay, duration: 0.25, ease: 'easeOut' }}
+      className="surface p-5 transition-[border-color,box-shadow] duration-200 hover:border-border hover:shadow-sm"
     >
-      {/* Background Gradient Effect */}
-      <div
-        className={cn(
-          'absolute -right-10 -top-10 w-32 h-32 rounded-full opacity-20 group-hover:opacity-30 transition-opacity blur-2xl',
-          gradients[gradient]
-        )}
-      />
+      <div className="flex items-center justify-between">
+        <p className="text-[13px] font-medium text-muted-foreground">{title}</p>
+        <div className={cn('w-9 h-9 rounded-lg flex items-center justify-center shrink-0', tints[gradient])}>
+          <Icon className="w-[18px] h-[18px]" />
+        </div>
+      </div>
 
-      <div className="relative z-10">
-        <div className="flex items-start justify-between mb-4">
-          <div
+      <div className="mt-3 flex items-end justify-between gap-2">
+        <h3 className="text-[28px] leading-none font-semibold text-foreground tabular-nums tracking-tight">
+          {typeof value === 'number' ? value.toLocaleString() : value}
+        </h3>
+        {showTrend && (
+          <span
             className={cn(
-              'w-12 h-12 rounded-xl flex items-center justify-center shadow-lg',
-              gradients[gradient]
+              'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium',
+              trend!.isPositive
+                ? 'bg-success/10 text-success'
+                : 'bg-destructive/10 text-destructive'
             )}
           >
-            <Icon className="w-6 h-6 text-primary-foreground" />
-          </div>
-          {trend && (
-            <div
-              className={cn(
-                'flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium',
-                trend.isPositive
-                  ? 'bg-success/10 text-success'
-                  : 'bg-destructive/10 text-destructive'
-              )}
-            >
-              {trend.isPositive ? (
-                <TrendingUp className="w-3 h-3" />
-              ) : (
-                <TrendingDown className="w-3 h-3" />
-              )}
-              {trend.value}%
-            </div>
-          )}
-        </div>
-
-        <motion.h3
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: delay + 0.2 }}
-          className="text-3xl font-bold text-foreground mb-1"
-        >
-          {value.toLocaleString()}
-        </motion.h3>
-        <p className="text-sm text-muted-foreground">{title}</p>
+            {trend!.isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+            {Math.abs(trend!.value)}%
+          </span>
+        )}
       </div>
     </motion.div>
   );

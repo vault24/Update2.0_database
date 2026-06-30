@@ -22,7 +22,7 @@ const getActionColor = (action: string) => {
   if (value === 'update') return 'bg-primary/10 text-primary';
   if (value === 'approve') return 'bg-success/10 text-success';
   if (value === 'reject' || value === 'delete') return 'bg-destructive/10 text-destructive';
-  return 'bg-accent/10 text-accent';
+  return 'bg-muted text-muted-foreground';
 };
 
 const formatTimeAgo = (timestamp: string) => {
@@ -79,15 +79,10 @@ export function RecentActivity() {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.5 }}
-      className="glass-card rounded-2xl p-6"
-    >
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-foreground">Recent Activity</h3>
-        <a href="/analytics" className="text-sm text-primary hover:underline">View all</a>
+    <div className="surface p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-[15px] font-semibold text-foreground">Recent activity</h3>
+        <a href="/analytics" className="text-sm font-medium text-primary hover:underline">View all</a>
       </div>
 
       {loading ? (
@@ -112,13 +107,13 @@ export function RecentActivity() {
             return (
               <motion.div
                 key={activity.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.6 + index * 0.1 }}
-                className="flex items-start gap-4 p-3 rounded-xl hover:bg-secondary/50 transition-colors cursor-pointer"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.04, duration: 0.2 }}
+                className="flex items-start gap-3 p-2.5 -mx-2.5 rounded-lg hover:bg-accent transition-colors cursor-pointer"
               >
-                <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center shrink-0', colorClass)}>
-                  <Icon className="w-5 h-5" />
+                <div className={cn('w-9 h-9 rounded-lg flex items-center justify-center shrink-0', colorClass)}>
+                  <Icon className="w-[18px] h-[18px]" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground capitalize">{activity.actionType} - {activity.entityType}</p>
@@ -130,6 +125,6 @@ export function RecentActivity() {
           })}
         </div>
       )}
-    </motion.div>
+    </div>
   );
 }

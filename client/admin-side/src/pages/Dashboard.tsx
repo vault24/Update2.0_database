@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Users, UserCheck, UserX, Award, GraduationCap, Inbox, Loader2, AlertCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Users, UserCheck, UserX, Award, GraduationCap, Inbox, AlertCircle, Plus } from 'lucide-react';
 import { KPICard } from '@/components/dashboard/KPICard';
 import { QuickActions } from '@/components/dashboard/QuickActions';
 import { RecentActivity } from '@/components/dashboard/RecentActivity';
@@ -41,11 +42,17 @@ export default function Dashboard() {
   // Loading state
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center space-y-4">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
-          <p className="text-muted-foreground">Loading dashboard...</p>
+      <div className="space-y-8">
+        <div className="space-y-2">
+          <div className="h-7 w-64 rounded-md bg-muted animate-pulse" />
+          <div className="h-4 w-80 rounded-md bg-muted animate-pulse" />
         </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="surface p-5 h-[112px] animate-pulse" />
+          ))}
+        </div>
+        <div className="surface p-5 h-28 animate-pulse" />
       </div>
     );
   }
@@ -54,17 +61,17 @@ export default function Dashboard() {
   if (error || !stats) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Card className="glass-card max-w-md">
+        <Card className="max-w-md w-full">
           <CardContent className="pt-6">
             <div className="text-center space-y-4">
-              <AlertCircle className="w-12 h-12 text-destructive mx-auto" />
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Error Loading Dashboard</h3>
-                <p className="text-muted-foreground mb-4">{error || 'Failed to load dashboard data'}</p>
+              <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
+                <AlertCircle className="w-6 h-6 text-destructive" />
               </div>
-              <Button onClick={fetchDashboardStats} className="gradient-primary text-primary-foreground">
-                Try Again
-              </Button>
+              <div>
+                <h3 className="text-base font-semibold mb-1">Couldn't load the dashboard</h3>
+                <p className="text-sm text-muted-foreground mb-4">{error || 'Failed to load dashboard data'}</p>
+              </div>
+              <Button onClick={fetchDashboardStats}>Try again</Button>
             </div>
           </CardContent>
         </Card>
@@ -121,13 +128,21 @@ export default function Dashboard() {
   return (
     <div className="space-y-8">
       {/* Page Header */}
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-foreground">
-          Welcome back, <span className="gradient-text">{user?.last_name || user?.first_name || 'Admin'}</span>
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Here's what's happening at Sirajganj Polytechnic Institute today.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-xl md:text-2xl font-semibold text-foreground">
+            Welcome back, {user?.last_name || user?.first_name || 'Admin'}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Here's what's happening at Sirajganj Polytechnic Institute today.
+          </p>
+        </div>
+        <Button asChild className="shrink-0 hidden sm:inline-flex">
+          <Link to="/add-student">
+            <Plus className="w-4 h-4 mr-1.5" />
+            Add student
+          </Link>
+        </Button>
       </div>
 
       {/* KPI Cards */}
@@ -136,7 +151,7 @@ export default function Dashboard() {
           <KPICard
             key={kpi.title}
             {...kpi}
-            delay={index * 0.1}
+            delay={index * 0.05}
           />
         ))}
       </div>

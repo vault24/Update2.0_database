@@ -32,9 +32,9 @@ export function AdmissionChart() {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.35 }}
-      className="glass-card rounded-2xl p-6"
+      className="surface p-5"
     >
-      <h3 className="text-lg font-semibold text-foreground mb-4">Admission Stats</h3>
+      <h3 className="text-[15px] font-semibold text-foreground mb-4">Admission stats</h3>
       <div className="h-80">
         {loading ? (
           <div className="flex items-center justify-center h-full">

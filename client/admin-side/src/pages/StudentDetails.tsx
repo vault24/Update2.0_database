@@ -24,6 +24,7 @@ import { documentService, Document } from '@/services/documentService';
 import { getErrorMessage } from '@/lib/api';
 import { LoadingState } from '@/components/LoadingState';
 import { ErrorState } from '@/components/ErrorState';
+import { StudentAccountSection } from '@/components/students/StudentAccountSection';
 
 
 
@@ -134,13 +135,7 @@ export default function StudentDetails() {
       
       try {
         setDocumentsLoading(true);
-        
-        console.log('=== FETCHING DOCUMENTS FOR STUDENT ===');
-        console.log('Student ID:', id);
-        console.log('Student Name:', student.fullNameEnglish);
-        console.log('Student Roll:', student.currentRollNumber);
-        console.log('Student Email:', student.email);
-        
+
         let allStudentDocuments: Document[] = [];
         
         // Strategy 1: Fetch documents directly linked to student ID
@@ -152,10 +147,9 @@ export default function StudentDetails() {
           
           if (directDocsResponse.results && directDocsResponse.results.length > 0) {
             allStudentDocuments = [...directDocsResponse.results];
-            console.log(`✅ Found ${directDocsResponse.results.length} documents directly linked to student ID`);
           }
-        } catch (err) {
-          console.warn('⚠️ Error fetching direct student documents:', err);
+        } catch {
+          // Ignore — fall back to admission-linked documents below.
         }
         
         // Strategy 2: Fetch admission documents
@@ -170,9 +164,7 @@ export default function StudentDetails() {
             const matchedAdmissions = (admissionsResponse.results || []).filter(admission => 
               admission.email?.toLowerCase().trim() === student.email.toLowerCase().trim()
             );
-            
-            console.log(`Found ${matchedAdmissions.length} matching admissions`);
-            
+
             // Fetch documents for each admission
             for (const admission of matchedAdmissions) {
               try {
@@ -181,20 +173,15 @@ export default function StudentDetails() {
                 
                 // If uuid is not available, fetch the full admission details
                 if (!admissionUuid) {
-                  console.log(`Fetching full admission details for: ${admission.id}`);
                   try {
                     const fullAdmission = await admissionService.getAdmission(admission.id);
                     admissionUuid = fullAdmission.uuid || fullAdmission.id;
-                    console.log(`Got UUID from full admission: ${admissionUuid}`);
-                  } catch (fetchErr) {
-                    console.warn(`Could not fetch full admission details for ${admission.id}:`, fetchErr);
-                    // Skip this admission if we can't get the UUID
+                  } catch {
+                    // Can't resolve this admission's UUID — skip it.
                     continue;
                   }
                 }
-                
-                console.log(`Fetching documents for admission: ${admission.id} (UUID: ${admissionUuid})`);
-                
+
                 const admissionDocsResponse = await documentService.getDocuments({
                   source_type: 'admission',
                   source_id: admissionUuid,
@@ -212,38 +199,18 @@ export default function StudentDetails() {
                   const uniqueAdmissionDocs = admissionDocs.filter(d => !existingIds.has(d.id));
                   
                   allStudentDocuments = [...allStudentDocuments, ...uniqueAdmissionDocs];
-                  console.log(`✅ Added ${uniqueAdmissionDocs.length} admission documents`);
                 }
-              } catch (admissionDocErr) {
-                console.warn(`⚠️ Error fetching documents for admission ${admission.id}:`, admissionDocErr);
+              } catch {
+                // Ignore documents we can't load for an individual admission.
               }
             }
-          } catch (admissionErr) {
-            console.warn('⚠️ Error fetching admissions by email:', admissionErr);
+          } catch {
+            // Ignore — admission lookup failed; show whatever we already have.
           }
         }
-        
+
         setDocuments(allStudentDocuments);
-        
-        console.log(`✅ Total documents loaded: ${allStudentDocuments.length}`);
-        
-        if (allStudentDocuments.length === 0) {
-          console.warn('⚠️ NO DOCUMENTS FOUND');
-          console.log('Possible reasons:');
-          console.log('1. Documents not yet uploaded');
-          console.log('2. Documents linked to different student ID');
-          console.log('3. Admission documents not properly linked');
-        } else {
-          console.log('Document breakdown:');
-          const bySource = allStudentDocuments.reduce((acc, doc) => {
-            const source = doc.source_type || 'unknown';
-            acc[source] = (acc[source] || 0) + 1;
-            return acc;
-          }, {} as Record<string, number>);
-          console.log('By source type:', bySource);
-        }
-      } catch (err) {
-        console.error('❌ Error fetching documents:', err);
+      } catch {
         setDocuments([]);
       } finally {
         setDocumentsLoading(false);
@@ -624,16 +591,8 @@ export default function StudentDetails() {
       result.gpa !== null && 
       result.gpa > 0
     );
-    
-    // Debug logging
-    console.log('Alumni Eligibility Check:', {
-      status: student.status,
-      semester: student.semester,
-      has8thSemesterResult,
-      semesterResults: student.semesterResults
-    });
-    
-    // Student is eligible if they have completed 8th semester results
+
+    // Student is eligible once they have completed valid 8th-semester results.
     return has8thSemesterResult;
   };
 
@@ -683,8 +642,7 @@ export default function StudentDetails() {
       const blob = await documentService.previewDocument(doc.id);
       const url = window.URL.createObjectURL(blob);
       setPreviewUrl(url);
-    } catch (err) {
-      console.error('Error loading document preview:', err);
+    } catch {
       toast({
         title: 'Preview Error',
         description: 'Failed to load document preview. You can still download it.',
@@ -711,8 +669,7 @@ export default function StudentDetails() {
         title: "Download Started",
         description: "Your document is being downloaded.",
       });
-    } catch (err: any) {
-      console.error('Error downloading document:', err);
+    } catch {
       toast({
         title: 'Error',
         description: 'Failed to download document. Please try again.',
@@ -724,16 +681,33 @@ export default function StudentDetails() {
   const getFileIcon = (format: string) => {
     switch (format) {
       case 'pdf':
-        return <FileText className="w-8 h-8 text-red-500" />;
+        return <FileText className="w-5 h-5 text-red-500" />;
       case 'jpg':
       case 'png':
-        return <FileText className="w-8 h-8 text-blue-500" />;
+        return <FileText className="w-5 h-5 text-blue-500" />;
       case 'xlsx':
       case 'xls':
-        return <FileText className="w-8 h-8 text-green-500" />;
+        return <FileText className="w-5 h-5 text-green-500" />;
       default:
-        return <FileText className="w-8 h-8 text-muted-foreground" />;
+        return <FileText className="w-5 h-5 text-muted-foreground" />;
     }
+  };
+
+  // The document *category* (e.g. "fatherNIDBack" → "Father NID Back") is what
+  // tells a teacher what a file actually is, so we surface it as the headline
+  // and keep the raw filename as the secondary detail.
+  const formatDocCategory = (doc: Document) => {
+    const raw = (doc.original_field_name || doc.category || '').trim();
+    if (!raw) return 'Document';
+    return raw
+      .replace(/[_-]+/g, ' ')
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .split(' ')
+      .map((w) => (w === w.toUpperCase() ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+      .join(' ');
   };
 
   if (loading) {
@@ -758,8 +732,8 @@ export default function StudentDetails() {
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Student Details</h1>
-          <p className="text-muted-foreground">Complete student information and records</p>
+          <h1 className="text-xl font-semibold text-foreground">Student details</h1>
+          <p className="text-sm text-muted-foreground">Complete student information and records</p>
         </div>
       </div>
 
@@ -774,9 +748,9 @@ export default function StudentDetails() {
               {/* Profile Photo */}
               <div className="flex flex-col items-center lg:items-start">
                 <div className="relative">
-                  <Avatar className="w-40 h-40 border-4 border-primary/20 ring-4 ring-primary/10">
+                  <Avatar className="w-36 h-36 border border-border shadow-sm">
                     <AvatarImage src={student.profilePhoto} />
-                    <AvatarFallback className="gradient-primary text-primary-foreground text-4xl">
+                    <AvatarFallback className="bg-primary text-primary-foreground text-4xl font-semibold">
                       {student.fullNameEnglish.split(' ').map(n => n[0]).join('').slice(0, 2)}
                     </AvatarFallback>
                   </Avatar>
@@ -790,7 +764,7 @@ export default function StudentDetails() {
 
               {/* Names & Info */}
               <div className="flex-1 text-center lg:text-left">
-                <h2 className="text-2xl font-bold text-foreground">{student.fullNameEnglish}</h2>
+                <h2 className="text-2xl font-semibold text-foreground tracking-tight">{student.fullNameEnglish}</h2>
                 <p className="text-lg text-muted-foreground font-medium">{student.fullNameBangla}</p>
                 <p className="text-sm text-muted-foreground mt-1">
                   {typeof student.department === 'string' ? student.department : student.department.name}
@@ -798,19 +772,19 @@ export default function StudentDetails() {
 
                 {/* Quick Info Cards */}
                 <div className={`grid grid-cols-2 gap-4 mt-6 ${isEligibleForAlumni() ? 'md:grid-cols-5' : 'md:grid-cols-4'}`}>
-                  <Card className="bg-muted/50">
+                  <Card className="bg-muted/50 border-0 shadow-none">
                     <CardContent className="p-3 text-center">
                       <p className="text-xs text-muted-foreground">Roll Number</p>
                       <p className="text-lg font-bold text-primary">{student.currentRollNumber}</p>
                     </CardContent>
                   </Card>
-                  <Card className="bg-muted/50">
+                  <Card className="bg-muted/50 border-0 shadow-none">
                     <CardContent className="p-3 text-center">
                       <p className="text-xs text-muted-foreground">Semester</p>
                       <p className="text-lg font-bold text-foreground">{student.semester}th</p>
                     </CardContent>
                   </Card>
-                  <Card className="bg-muted/50">
+                  <Card className="bg-muted/50 border-0 shadow-none">
                     <CardContent className="p-3 text-center">
                       <p className="text-xs text-muted-foreground">CGPA</p>
                       <p className="text-lg font-bold text-success">
@@ -820,7 +794,7 @@ export default function StudentDetails() {
                       </p>
                     </CardContent>
                   </Card>
-                  <Card className="bg-muted/50">
+                  <Card className="bg-muted/50 border-0 shadow-none">
                     <CardContent className="p-3 text-center">
                       <p className="text-xs text-muted-foreground">Attendance</p>
                       <p className={`text-lg font-bold ${getAttendanceColor(averageAttendance)}`}>{averageAttendance}%</p>
@@ -1160,30 +1134,23 @@ export default function StudentDetails() {
               </div>
             ) : documents.length > 0 ? (
               <>
-                <div className="mb-4 p-3 bg-muted/30 rounded-lg">
-                  <p className="text-sm text-muted-foreground">
-                    Showing {documents.length} document{documents.length !== 1 ? 's' : ''} for this student
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Student ID: {id} | Name: {student?.fullNameEnglish} | Roll: {student?.currentRollNumber}
-                  </p>
-                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {documents.map((doc) => (
                     <Card key={doc.id} className="bg-muted/50 hover:bg-muted/70 transition-colors">
                       <CardContent className="p-4">
                         <div className="flex items-start gap-3">
-                          {getFileIcon(doc.fileType)}
+                          <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                            {getFileIcon(doc.fileType)}
+                          </div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm truncate">{doc.fileName}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {doc.original_field_name || doc.category}
+                            <p className="font-semibold text-sm text-foreground leading-snug">
+                              {formatDocCategory(doc)}
                             </p>
-                            <p className="text-xs text-muted-foreground">
-                              {(doc.fileSize / 1024).toFixed(0)} KB • {doc.fileType.toUpperCase()}
+                            <p className="text-xs text-muted-foreground truncate mt-0.5" title={doc.fileName}>
+                              {doc.fileName}
                             </p>
-                            <p className="text-xs text-muted-foreground">
-                              {new Date(doc.uploadDate).toLocaleDateString()}
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {(doc.fileSize / 1024).toFixed(0)} KB • {doc.fileType.toUpperCase()} • {new Date(doc.uploadDate).toLocaleDateString()}
                             </p>
                           </div>
                         </div>
@@ -1213,23 +1180,15 @@ export default function StudentDetails() {
                 </div>
               </>
             ) : (
-              <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
-                <FileText className="w-12 h-12 mx-auto text-muted-foreground mb-3 opacity-50" />
-                <p className="text-foreground font-medium mb-2">No Documents Linked</p>
-                <p className="text-sm text-muted-foreground mb-3">
-                  No documents are currently linked to this student record.
-                </p>
-                <div className="text-xs text-muted-foreground space-y-2 mb-4 bg-muted/30 rounded p-4 max-w-md mx-auto text-left">
-                  <p className="font-medium text-foreground text-center mb-2">📋 Student Information</p>
-                  <p><span className="font-medium">ID:</span> {id}</p>
-                  <p><span className="font-medium">Name:</span> {student?.fullNameEnglish}</p>
-                  <p><span className="font-medium">Roll:</span> {student?.currentRollNumber || 'Not assigned'}</p>
-                  
-                  <div className="mt-3 pt-3 border-t border-border">
-                    <p className="text-warning font-medium mb-1">💡 Note:</p>
-                    <p className="text-xs">If this student was created from an admission application, their documents may still be linked to the admission record. Check the <span className="font-medium">Admissions</span> page to view those documents.</p>
-                  </div>
+              <div className="border border-dashed border-border rounded-xl p-8 text-center">
+                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+                  <FileText className="w-6 h-6 text-muted-foreground" />
                 </div>
+                <p className="text-foreground font-medium mb-1">No documents linked</p>
+                <p className="text-sm text-muted-foreground max-w-md mx-auto mb-4">
+                  No documents are linked to this student yet. If this student came from an admission
+                  application, their files may still be attached to the admission record — check the Admissions page.
+                </p>
                 <div className="flex gap-2 justify-center">
                   <Button 
                     size="sm"
@@ -1253,7 +1212,14 @@ export default function StudentDetails() {
         </Card>
       </motion.div>
 
-
+      {/* Student Portal Account management — kept at the bottom of the page */}
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+        <StudentAccountSection
+          studentId={student.id}
+          studentName={student.fullNameEnglish}
+          studentEmail={student.email}
+        />
+      </motion.div>
 
       {/* Math Challenge Dialog for Disconnect */}
       <Dialog open={isMathDialogOpen} onOpenChange={setIsMathDialogOpen}>

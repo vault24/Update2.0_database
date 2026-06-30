@@ -185,37 +185,36 @@ export function TopNavbar({ onMenuToggle, sidebarOpen }: TopNavbarProps) {
   };
 
   return (
-    <header className="h-16 bg-background/80 backdrop-blur-xl border-b border-border sticky top-0 z-30">
+    <header className="h-16 bg-card border-b border-border sticky top-0 z-30">
       <div className="h-full px-4 flex items-center justify-between gap-4">
         {/* Left Section */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <Button
             variant="ghost"
             size="icon"
             onClick={onMenuToggle}
-            className="shrink-0"
+            className="shrink-0 text-muted-foreground"
+            aria-label="Toggle navigation"
           >
             <Menu className="w-5 h-5" />
           </Button>
 
-          <motion.h1
-            key={currentPage}
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-lg font-semibold text-foreground hidden sm:block"
-          >
+          <h1 className="text-[15px] font-semibold text-foreground hidden sm:block truncate">
             {currentPage}
-          </motion.h1>
+          </h1>
         </div>
 
         {/* Center - Search */}
         <div className="flex-1 max-w-md hidden md:block">
-          <div className="relative">
+          <div className="relative group">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Search students, admissions..."
-              className="pl-10 bg-secondary/50 border-0 focus-visible:ring-primary"
+              placeholder="Search students, admissions…"
+              className="pl-10 pr-16 h-9 bg-secondary/60 border-border focus-visible:bg-card"
             />
+            <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 hidden lg:inline-flex items-center gap-0.5 rounded border border-border bg-card px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+              Ctrl K
+            </kbd>
           </div>
         </div>
 
@@ -236,7 +235,8 @@ export function TopNavbar({ onMenuToggle, sidebarOpen }: TopNavbarProps) {
             variant="ghost"
             size="icon"
             onClick={toggleTheme}
-            className="relative overflow-hidden"
+            className="relative overflow-hidden text-muted-foreground"
+            aria-label="Toggle theme"
           >
             <AnimatePresence mode="wait">
               <motion.div
@@ -264,12 +264,13 @@ export function TopNavbar({ onMenuToggle, sidebarOpen }: TopNavbarProps) {
                 setNotificationsOpen(!notificationsOpen);
                 setProfileOpen(false);
               }}
-              className="relative"
+              className="relative text-muted-foreground"
+              aria-label="Notifications"
             >
               <Bell className="w-5 h-5" />
               {unreadCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-destructive text-destructive-foreground text-xs rounded-full flex items-center justify-center">
-                  {unreadCount}
+                <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 bg-destructive text-destructive-foreground text-[10px] font-semibold rounded-full flex items-center justify-center ring-2 ring-card">
+                  {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}
             </Button>
@@ -378,17 +379,17 @@ export function TopNavbar({ onMenuToggle, sidebarOpen }: TopNavbarProps) {
                 setProfileOpen(!profileOpen);
                 setNotificationsOpen(false);
               }}
-              className="flex items-center gap-2 px-2"
+              className="flex items-center gap-2 px-1.5 sm:pl-1.5 sm:pr-2.5"
             >
-              <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center">
-                <span className="text-sm font-bold text-primary-foreground">
-                  {user?.first_name?.[0] || 'A'}
+              <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0">
+                <span className="text-sm font-semibold text-primary-foreground">
+                  {user?.first_name?.[0]?.toUpperCase() || 'A'}
                 </span>
               </div>
-              <span className="hidden sm:block text-sm font-medium">
+              <span className="hidden sm:block text-sm font-medium text-foreground">
                 {user?.first_name || 'Admin'}
               </span>
-              <ChevronDown className="w-4 h-4 hidden sm:block" />
+              <ChevronDown className="w-4 h-4 hidden sm:block text-muted-foreground" />
             </Button>
 
             <AnimatePresence>

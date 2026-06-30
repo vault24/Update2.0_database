@@ -68,9 +68,9 @@ export function PendingSignupRequests() {
     return (
       <Card className="glass-card">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <UserCog className="w-5 h-5" />
-            Pending Signup Requests
+          <CardTitle className="flex items-center gap-2 text-[15px] font-semibold">
+            <UserCog className="w-[18px] h-[18px] text-muted-foreground" />
+            Pending signup requests
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -86,13 +86,13 @@ export function PendingSignupRequests() {
     <Card className="glass-card">
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <UserCog className="w-5 h-5" />
-            Pending Signup Requests
+          <CardTitle className="flex items-center gap-2 text-[15px] font-semibold">
+            <UserCog className="w-[18px] h-[18px] text-muted-foreground" />
+            Pending signup requests
           </CardTitle>
           {pendingCount > 0 && (
-            <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
-              {pendingCount} Pending
+            <Badge variant="secondary" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">
+              {pendingCount} pending
             </Badge>
           )}
         </div>
@@ -108,10 +108,10 @@ export function PendingSignupRequests() {
             {requests.map((request, index) => (
               <motion.div
                 key={request.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.04, duration: 0.2 }}
+                className="flex items-center justify-between p-3 rounded-lg border border-border bg-card hover:bg-accent transition-colors"
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground truncate">

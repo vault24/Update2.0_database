@@ -34,7 +34,7 @@ export function AdminLayout() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 lg:hidden"
+              className="fixed inset-0 bg-foreground/40 backdrop-blur-[2px] z-40 lg:hidden"
               onClick={() => setMobileMenuOpen(false)}
             />
             <motion.div
@@ -64,13 +64,15 @@ export function AdminLayout() {
         />
         
         <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-          >
-            <Outlet />
-          </motion.div>
+          <div className="mx-auto w-full max-w-[1600px]">
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+            >
+              <Outlet />
+            </motion.div>
+          </div>
         </main>
         
         <Footer />
