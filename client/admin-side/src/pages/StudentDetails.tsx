@@ -840,10 +840,6 @@ export default function StudentDetails() {
                     Disconnect
                   </Button>
                 )}
-                <Button variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/10" onClick={handleDeleteClick}>
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete
-                </Button>
               </div>
             </div>
           </CardContent>
@@ -1218,6 +1214,7 @@ export default function StudentDetails() {
           studentId={student.id}
           studentName={student.fullNameEnglish}
           studentEmail={student.email}
+          onDeleted={() => navigate('/students')}
         />
       </motion.div>
 

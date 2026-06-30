@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState, useEffect } from "react";
@@ -35,6 +35,7 @@ import TeacherAllegationsPage from "./pages/TeacherAllegationsPage";
 import PublicStudentProfilePage from "./pages/PublicStudentProfilePage";
 import PublicTeacherProfilePage from "./pages/PublicTeacherProfilePage";
 import AlumniProfilePage from "./pages/AlumniProfilePage";
+import AlumniRegistrationPage from "./pages/AlumniRegistrationPage";
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
@@ -88,6 +89,26 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+/**
+ * Routes a freshly-created "Alumni Account" to the alumni self-registration
+ * wizard until they have submitted their alumni information. Once registered
+ * (isAlumni === true) they use the normal alumni profile.
+ */
+const AlumniAccountGate = ({ children }: { children: React.ReactNode }) => {
+  const { user } = useAuth();
+  const location = useLocation();
+  const regPath = "/dashboard/alumni-registration";
+
+  if (user?.isAlumniAccount && !user?.isAlumni && location.pathname !== regPath) {
+    return <Navigate to={regPath} replace />;
+  }
+  // Already registered alumni shouldn't sit on the registration page.
+  if (user?.isAlumniAccount && user?.isAlumni && location.pathname === regPath) {
+    return <Navigate to="/dashboard/alumni-profile" replace />;
+  }
+  return <>{children}</>;
+};
+
 const App = () => (
   <BrowserRouter>
     <Routes>
@@ -104,7 +125,9 @@ const App = () => (
         path="/dashboard" 
         element={
           <ProtectedRoute>
-            <DashboardLayout />
+            <AlumniAccountGate>
+              <DashboardLayout />
+            </AlumniAccountGate>
           </ProtectedRoute>
         }
       >
@@ -145,6 +168,7 @@ const App = () => (
         
         {/* Alumni-specific routes */}
         <Route path="alumni-profile" element={<AlumniProfilePage />} />
+        <Route path="alumni-registration" element={<AlumniRegistrationPage />} />
       </Route>
       
       <Route path="*" element={<div>Page not found</div>} />

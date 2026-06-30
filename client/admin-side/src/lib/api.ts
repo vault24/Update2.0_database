@@ -282,7 +282,7 @@ class ApiClient {
   /**
    * DELETE request
    */
-  async delete<T>(endpoint: string): Promise<T> {
+  async delete<T>(endpoint: string, options?: { data?: any }): Promise<T> {
     const url = this.buildURL(endpoint);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
@@ -291,6 +291,7 @@ class ApiClient {
       const response = await fetch(url, {
         method: 'DELETE',
         headers: this.getHeaders(),
+        body: options?.data ? JSON.stringify(options.data) : undefined,
         credentials: 'include',
         signal: controller.signal,
       });

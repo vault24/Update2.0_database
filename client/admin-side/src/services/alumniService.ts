@@ -48,6 +48,8 @@ export interface Student {
   semester: number;
   status: string;
   // Extended student fields (matching actual model)
+  session?: string;
+  shift?: string;
   email?: string;
   mobileStudent?: string;
   presentAddress?: {
@@ -83,6 +85,64 @@ export interface Alumni {
   lastEditedAt?: string;
   lastEditedBy?: string;
   verificationNotes?: string;
+  // Registration workflow
+  registrationSource?: 'pipeline' | 'admin_manual' | 'self_registration';
+  reviewStatus?: 'pending' | 'approved' | 'rejected';
+}
+
+export interface AlumniDocumentCategory {
+  key: string;
+  display: string;
+  isCustom: boolean;
+}
+
+export interface AlumniDocumentUpload {
+  file: File;
+  category: string;
+  customName?: string;
+}
+
+export interface AlumniDocumentRecord {
+  id: string;
+  fileName: string;
+  fileType: string;
+  category: string;
+  displayName: string;
+  alumniCategory: string;
+  fileUrl: string;
+  fileSize: number;
+  uploadDate: string;
+}
+
+export interface ManualCreateAlumniResult {
+  alumni: Alumni;
+  documents: { created: string[]; errors: string[] };
+}
+
+export interface PortalAccountResult {
+  message: string;
+  username: string;
+  email: string;
+  generatedPassword: string | null;
+  hasAccount: boolean;
+}
+
+/**
+ * Build the multipart FormData body shared by manual-create and document upload.
+ */
+function buildAlumniFormData(payload: Record<string, unknown> | null, documents: AlumniDocumentUpload[]): FormData {
+  const fd = new FormData();
+  if (payload) {
+    fd.append('payload', JSON.stringify(payload));
+  }
+  const meta = documents.map((doc, index) => ({
+    field: `doc_${index}`,
+    category: doc.category,
+    customName: doc.customName || '',
+  }));
+  fd.append('documentMeta', JSON.stringify(meta));
+  documents.forEach((doc, index) => fd.append(`doc_${index}`, doc.file));
+  return fd;
 }
 
 export interface AlumniFilters {
@@ -316,5 +376,86 @@ export const alumniService = {
    */
   verifyProfile: async (studentId: string, notes?: string): Promise<Alumni> => {
     return await apiClient.post<Alumni>(`/alumni/${studentId}/verify/`, { notes: notes || '' });
+  },
+
+  /**
+   * Get the predefined document categories (plus 'custom') for the uploader.
+   */
+  getDocumentCategories: async (): Promise<{ categories: AlumniDocumentCategory[]; maxDocuments: number }> => {
+    return await apiClient.get(API_ENDPOINTS.alumni.documentCategories);
+  },
+
+  /**
+   * Manually create an alumni from essential info + documents (admin).
+   * Creates the Student in the background and immediately moves them to Alumni.
+   */
+  manualCreateAlumni: async (
+    payload: Record<string, unknown>,
+    documents: AlumniDocumentUpload[] = [],
+  ): Promise<ManualCreateAlumniResult> => {
+    const fd = buildAlumniFormData(payload, documents);
+    return await apiClient.post<ManualCreateAlumniResult>(API_ENDPOINTS.alumni.manualCreate, fd);
+  },
+
+  /**
+   * List an alumni's documents.
+   */
+  getDocuments: async (studentId: string): Promise<{ documents: AlumniDocumentRecord[] }> => {
+    return await apiClient.get(API_ENDPOINTS.alumni.documents(studentId));
+  },
+
+  /**
+   * Upload more documents to an existing alumni (admin).
+   */
+  uploadDocuments: async (
+    studentId: string,
+    documents: AlumniDocumentUpload[],
+  ): Promise<{ created: string[]; errors: string[] }> => {
+    const fd = buildAlumniFormData(null, documents);
+    return await apiClient.post(API_ENDPOINTS.alumni.documents(studentId), fd);
+  },
+
+  /**
+   * Delete a single alumni document.
+   */
+  deleteDocument: async (studentId: string, documentId: string): Promise<void> => {
+    return await apiClient.delete(API_ENDPOINTS.alumni.deleteDocument(studentId, documentId));
+  },
+
+  /**
+   * Create a student-portal login for a manually-added alumnus (admin).
+   */
+  createPortalAccount: async (
+    studentId: string,
+    data?: { email?: string; password?: string },
+  ): Promise<PortalAccountResult> => {
+    return await apiClient.post(API_ENDPOINTS.alumni.createPortalAccount(studentId), data || {});
+  },
+
+  /**
+   * Check whether a portal account is already linked to an alumni.
+   */
+  getPortalAccountStatus: async (
+    studentId: string,
+  ): Promise<{ hasAccount: boolean; username: string | null; email: string | null }> => {
+    return await apiClient.get(API_ENDPOINTS.alumni.portalAccountStatus(studentId));
+  },
+
+  /**
+   * List self-registered alumni awaiting verification (admin).
+   */
+  getPendingReview: async (): Promise<{ count: number; results: Alumni[] }> => {
+    return await apiClient.get(API_ENDPOINTS.alumni.pendingReview);
+  },
+
+  /**
+   * Approve or reject a self-registered alumni (admin).
+   */
+  reviewAlumni: async (
+    studentId: string,
+    action: 'approve' | 'reject',
+    notes?: string,
+  ): Promise<Alumni> => {
+    return await apiClient.post(API_ENDPOINTS.alumni.review(studentId), { action, notes: notes || '' });
   },
 };

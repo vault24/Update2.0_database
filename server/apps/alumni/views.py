@@ -1,10 +1,14 @@
 """
 Alumni Views
 """
+import json
+import logging
+
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Count
 from django.conf import settings
@@ -17,6 +21,49 @@ from .serializers import (
     AddCareerPositionSerializer,
     UpdateSupportCategorySerializer
 )
+from .services import (
+    ALUMNI_DOCUMENT_CATEGORIES,
+    MAX_ALUMNI_DOCUMENTS,
+    create_alumni_from_essentials,
+    attach_alumni_documents,
+    create_portal_account_for_alumni,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def _collect_document_items(request):
+    """
+    Build the document_items list expected by attach_alumni_documents from a
+    multipart request.
+
+    Expected request shape:
+      - files under arbitrary field names (e.g. doc_0, doc_1, ...)
+      - a 'documentMeta' field: JSON array of
+            {"field": "doc_0", "category": "photo", "customName": ""}
+    Falls back to treating every uploaded file as category 'other' when no
+    metadata is supplied.
+    """
+    items = []
+    meta_raw = request.data.get('documentMeta')
+    if meta_raw:
+        try:
+            meta = json.loads(meta_raw) if isinstance(meta_raw, str) else meta_raw
+        except (ValueError, TypeError):
+            meta = []
+        for entry in meta:
+            field = entry.get('field')
+            uploaded = request.FILES.get(field) if field else None
+            if uploaded:
+                items.append({
+                    'file': uploaded,
+                    'category': entry.get('category') or 'other',
+                    'custom_name': entry.get('customName') or entry.get('custom_name') or '',
+                })
+    else:
+        for field, uploaded in request.FILES.items():
+            items.append({'file': uploaded, 'category': 'other', 'custom_name': ''})
+    return items
 
 
 class AlumniViewSet(viewsets.ModelViewSet):
@@ -1081,9 +1128,305 @@ class AlumniViewSet(viewsets.ModelViewSet):
         """
         alumni = self.get_object()
         notes = request.data.get('notes', '')
-        
+
         alumni.verify_profile(notes=notes)
-        
+
         # Return updated alumni
         response_serializer = AlumniSerializer(alumni)
         return Response(response_serializer.data)
+
+    # ------------------------------------------------------------------
+    # Manual alumni creation, self-registration, documents, portal account
+    # ------------------------------------------------------------------
+
+    @action(detail=False, methods=['get'])
+    def document_categories(self, request):
+        """
+        List the predefined alumni document categories (plus the 'custom' option)
+        so the frontend uploader can render the category dropdown.
+        GET /api/alumni/document-categories/
+        """
+        categories = [
+            {'key': key, 'display': cfg['display'], 'isCustom': key == 'custom'}
+            for key, cfg in ALUMNI_DOCUMENT_CATEGORIES.items()
+        ]
+        return Response({'categories': categories, 'maxDocuments': MAX_ALUMNI_DOCUMENTS})
+
+    @action(detail=False, methods=['post'], parser_classes=[MultiPartParser, FormParser, JSONParser])
+    def manual_create(self, request):
+        """
+        Admin: create an alumni from essential info only.
+        POST /api/alumni/manual-create/   (multipart/form-data)
+
+        Form fields:
+          - payload: JSON string with student + alumni fields and optional
+                     semesterResults (every field optional except fullNameEnglish
+                     and department).
+          - documentMeta: JSON array describing uploaded files (see
+                          _collect_document_items).
+          - <file fields>: the actual document files.
+
+        Workflow: Student is created in the background, immediately transitioned
+        to Alumni, then documents are attached.
+        """
+        if not request.user.is_authenticated or not request.user.can_access_admin_portal():
+            return Response({'error': 'Admin access required.'}, status=status.HTTP_403_FORBIDDEN)
+
+        payload_raw = request.data.get('payload')
+        if payload_raw:
+            try:
+                data = json.loads(payload_raw) if isinstance(payload_raw, str) else payload_raw
+            except (ValueError, TypeError):
+                return Response({'error': 'Invalid payload JSON.'}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            # Allow flat form fields / pure JSON body as a fallback.
+            data = {k: v for k, v in request.data.items() if k not in ('documentMeta',)}
+
+        try:
+            alumni = create_alumni_from_essentials(
+                data=data,
+                registration_source='admin_manual',
+                review_status='approved',
+            )
+        except ValueError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Manual alumni creation failed")
+            return Response(
+                {'error': 'Failed to create alumni.', 'details': str(exc) if settings.DEBUG else None},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        document_result = attach_alumni_documents(alumni, _collect_document_items(request))
+
+        response_serializer = AlumniSerializer(alumni)
+        return Response(
+            {
+                'alumni': response_serializer.data,
+                'documents': document_result,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=False, methods=['post'], parser_classes=[MultiPartParser, FormParser, JSONParser],
+            permission_classes=[IsAuthenticated])
+    def self_register(self, request):
+        """
+        Student-side: an alumnus registers themselves with essential info.
+        POST /api/alumni/self-register/   (multipart/form-data)
+
+        Same shape as manual_create. The record is linked to the authenticated
+        user and starts as reviewStatus='pending' so an admin can verify it.
+        """
+        user = request.user
+
+        # Prevent duplicate alumni for an account that already has one.
+        if user.related_profile_id and Alumni.objects.filter(student_id=user.related_profile_id).exists():
+            return Response(
+                {'error': 'An alumni profile already exists for your account.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        payload_raw = request.data.get('payload')
+        if payload_raw:
+            try:
+                data = json.loads(payload_raw) if isinstance(payload_raw, str) else payload_raw
+            except (ValueError, TypeError):
+                return Response({'error': 'Invalid payload JSON.'}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            data = {k: v for k, v in request.data.items() if k not in ('documentMeta',)}
+
+        # Default contact details from the account when omitted.
+        if not data.get('email'):
+            data['email'] = user.email
+        if not data.get('fullNameEnglish') and (user.first_name or user.last_name):
+            data['fullNameEnglish'] = f"{user.first_name} {user.last_name}".strip()
+
+        try:
+            alumni = create_alumni_from_essentials(
+                data=data,
+                registration_source='self_registration',
+                review_status='pending',
+            )
+        except ValueError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Alumni self-registration failed")
+            return Response(
+                {'error': 'Failed to submit alumni registration.', 'details': str(exc) if settings.DEBUG else None},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        # Link the new student profile to the account.
+        user.related_profile_id = alumni.student.id
+        user.admission_status = 'approved'
+        user.save(update_fields=['related_profile_id', 'admission_status'])
+
+        document_result = attach_alumni_documents(alumni, _collect_document_items(request))
+
+        return Response(
+            {
+                'alumni': AlumniSerializer(alumni).data,
+                'documents': document_result,
+                'message': 'Your alumni information has been submitted and is pending verification.',
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=['get', 'post'], parser_classes=[MultiPartParser, FormParser, JSONParser],
+            url_path='documents')
+    def documents(self, request, pk=None):
+        """
+        GET  /api/alumni/{id}/documents/   -> list alumni documents
+        POST /api/alumni/{id}/documents/   -> upload more documents (multipart)
+        """
+        alumni = self.get_object()
+
+        if request.method.lower() == 'get':
+            from apps.documents.models import Document
+            docs = Document.objects.filter(
+                student=alumni.student, document_type='alumni', status='active'
+            ).order_by('-uploadDate')
+            return Response({'documents': [
+                {
+                    'id': str(doc.id),
+                    'fileName': doc.fileName,
+                    'fileType': doc.fileType,
+                    'category': doc.category,
+                    'displayName': (doc.metadata or {}).get('display_name', doc.description),
+                    'alumniCategory': (doc.metadata or {}).get('alumni_category', doc.original_field_name),
+                    'fileUrl': doc.file_url,
+                    'fileSize': doc.fileSize,
+                    'uploadDate': doc.uploadDate,
+                }
+                for doc in docs
+            ]})
+
+        # POST upload
+        if not request.user.is_authenticated or not request.user.can_access_admin_portal():
+            return Response({'error': 'Admin access required.'}, status=status.HTTP_403_FORBIDDEN)
+
+        result = attach_alumni_documents(alumni, _collect_document_items(request))
+        http_status = status.HTTP_201_CREATED if result['created'] else status.HTTP_400_BAD_REQUEST
+        return Response(result, status=http_status)
+
+    @action(detail=True, methods=['delete'], url_path='documents/(?P<document_id>[^/.]+)')
+    def delete_document(self, request, pk=None, document_id=None):
+        """
+        DELETE /api/alumni/{id}/documents/{document_id}/
+        Removes the file from storage and the Document record.
+        """
+        if not request.user.is_authenticated or not request.user.can_access_admin_portal():
+            return Response({'error': 'Admin access required.'}, status=status.HTTP_403_FORBIDDEN)
+
+        alumni = self.get_object()
+        from apps.documents.models import Document
+        from utils.structured_file_storage import structured_storage
+
+        try:
+            document = Document.objects.get(
+                id=document_id, student=alumni.student, document_type='alumni'
+            )
+        except Document.DoesNotExist:
+            return Response({'error': 'Document not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        structured_storage.delete_file(document.filePath)
+        document.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['post'], url_path='create-portal-account')
+    def create_portal_account(self, request, pk=None):
+        """
+        Admin: create a student-portal login for a manually-added alumnus.
+        POST /api/alumni/{id}/create-portal-account/
+
+        Body (optional): { "email": "...", "password": "..." }
+        Returns generated credentials when a password was auto-created.
+        """
+        if not request.user.is_authenticated or not request.user.can_access_admin_portal():
+            return Response({'error': 'Admin access required.'}, status=status.HTTP_403_FORBIDDEN)
+
+        alumni = self.get_object()
+        try:
+            result = create_portal_account_for_alumni(
+                alumni,
+                email=request.data.get('email'),
+                password=request.data.get('password'),
+            )
+        except ValueError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Portal account creation failed")
+            return Response(
+                {'error': 'Failed to create portal account.', 'details': str(exc) if settings.DEBUG else None},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return Response(
+            {
+                'message': 'Portal account created successfully.',
+                'username': result['username'],
+                'email': result['email'],
+                'generatedPassword': result['password'],
+                'hasAccount': True,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=['get'], url_path='portal-account-status')
+    def portal_account_status(self, request, pk=None):
+        """
+        Whether a portal account is already linked to this alumni.
+        GET /api/alumni/{id}/portal-account-status/
+        """
+        alumni = self.get_object()
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        user = User.objects.filter(related_profile_id=alumni.student.id).first()
+        return Response({
+            'hasAccount': user is not None,
+            'username': user.username if user else None,
+            'email': user.email if user else None,
+        })
+
+    @action(detail=False, methods=['get'], url_path='pending-review')
+    def pending_review(self, request):
+        """
+        Admin: list self-registered alumni awaiting verification.
+        GET /api/alumni/pending-review/
+        """
+        if not request.user.is_authenticated or not request.user.can_access_admin_portal():
+            return Response({'error': 'Admin access required.'}, status=status.HTTP_403_FORBIDDEN)
+
+        queryset = Alumni.objects.select_related('student', 'student__department').filter(
+            reviewStatus='pending'
+        ).order_by('-createdAt')
+        serializer = AlumniSerializer(queryset, many=True)
+        return Response({'count': queryset.count(), 'results': serializer.data})
+
+    @action(detail=True, methods=['post'], url_path='review')
+    def review(self, request, pk=None):
+        """
+        Admin: approve or reject a self-registered alumni.
+        POST /api/alumni/{id}/review/
+        Body: { "action": "approve" | "reject", "notes": "..." }
+        """
+        if not request.user.is_authenticated or not request.user.can_access_admin_portal():
+            return Response({'error': 'Admin access required.'}, status=status.HTTP_403_FORBIDDEN)
+
+        alumni = self.get_object()
+        decision = (request.data.get('action') or '').lower()
+        notes = request.data.get('notes', '')
+
+        if decision == 'approve':
+            alumni.reviewStatus = 'approved'
+            alumni.verify_profile(notes=notes)
+        elif decision == 'reject':
+            alumni.reviewStatus = 'rejected'
+            alumni.isVerified = False
+            alumni.verificationNotes = notes
+            alumni.save(update_fields=['reviewStatus', 'isVerified', 'verificationNotes'])
+        else:
+            return Response({'error': "action must be 'approve' or 'reject'."}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(AlumniSerializer(alumni).data)

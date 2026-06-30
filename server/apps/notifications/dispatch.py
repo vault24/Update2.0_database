@@ -70,6 +70,11 @@ def get_notice_recipients():
     )
 
 
+def get_active_students():
+    """Active students (including captains, who are students with a role)."""
+    return User.objects.filter(is_active=True, role__in=["student", "captain"])
+
+
 # ---------------------------------------------------------------------------
 # Generic single / bulk dispatch
 # ---------------------------------------------------------------------------
@@ -220,27 +225,67 @@ def notify_teacher_signup_request(teacher_request):
 
 
 def notify_new_notice(notice):
-    """A notice was published -> notify all notice recipients (in-app + email)."""
+    """
+    A notice was published.
+
+    Priority routing:
+      - high          -> in-app notification for everyone + email to all ACTIVE students.
+      - low / normal  -> in-app (push) notification only, no email.
+    """
     recipients = get_notice_recipients()
     title = getattr(notice, "title", "New Notice")
     body = getattr(notice, "content", "") or getattr(notice, "description", "")
     snippet = (body[:300] + "…") if len(body) > 300 else body
-    priority = getattr(notice, "priority", None)
-    details = []
-    if priority:
-        details.append({"label": "Priority", "value": str(priority).title()})
+    priority = str(getattr(notice, "priority", "") or "").lower()
+    is_high = priority == "high"
+
+    # Note when the notice carries attachments so recipients know to open it.
+    attachment_count = 0
+    try:
+        attachment_count = notice.attachments.count()
+    except Exception:  # noqa: BLE001
+        attachment_count = 0
+
+    body_lines = [snippet] if snippet else []
+    if attachment_count:
+        body_lines.append(
+            f"This notice includes {attachment_count} attachment"
+            f"{'s' if attachment_count != 1 else ''}."
+        )
+
+    details = [{"label": "Priority", "value": (priority or "normal").title()}]
+    accent = "danger" if is_high else "info"
+    accent_label = "Important Notice" if is_high else "Notice"
+
+    # 1. In-app (push) notification for every recipient — no email here.
     notify_users(
         recipients,
         notification_type="notice_published",
         title=f"New Notice: {title}",
         message=snippet or "A new notice has been published.",
-        body_lines=[snippet] if snippet else None,
-        details=details or None,
-        accent="info",
-        accent_label="Notice",
-        subject=f"New Notice: {title}",
+        body_lines=body_lines or None,
+        details=details,
+        accent=accent,
+        accent_label=accent_label,
         data={"notice_id": getattr(notice, "id", None)},
+        send_email=False,
     )
+
+    # 2. High priority only -> email every active student.
+    if is_high:
+        students = get_active_students()
+        emails = [s.email for s in students if getattr(s, "email", None)]
+        if emails:
+            send_branded_email(
+                f"Important Notice: {title}",
+                to=[],
+                bcc=emails,
+                heading=title,
+                intro=snippet or "A new high-priority notice has been published.",
+                body_lines=body_lines or None,
+                details=details,
+                **_accent("danger", "Important Notice"),
+            )
 
 
 def notify_class_routine(recipients, *, is_update=False, details=None, department_name=None):

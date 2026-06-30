@@ -34,37 +34,40 @@ class Student(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     
     # Personal Information
-    fullNameBangla = models.CharField(max_length=255)
+    # NOTE: Only fullNameEnglish is strictly required at the DB level. Most
+    # other fields are optional so that legacy/manual alumni (graduated before
+    # this system existed) can be recorded with whatever data is available.
+    fullNameBangla = models.CharField(max_length=255, blank=True)
     fullNameEnglish = models.CharField(max_length=255)
-    fatherName = models.CharField(max_length=255)
-    fatherNID = models.CharField(max_length=20)
-    motherName = models.CharField(max_length=255)
-    motherNID = models.CharField(max_length=20)
-    dateOfBirth = models.DateField()
-    birthCertificateNo = models.CharField(max_length=50)
+    fatherName = models.CharField(max_length=255, blank=True)
+    fatherNID = models.CharField(max_length=20, blank=True)
+    motherName = models.CharField(max_length=255, blank=True)
+    motherNID = models.CharField(max_length=20, blank=True)
+    dateOfBirth = models.DateField(null=True, blank=True)
+    birthCertificateNo = models.CharField(max_length=50, blank=True)
     nidNumber = models.CharField(max_length=20, blank=True)
-    gender = models.CharField(max_length=10, choices=GENDER_CHOICES)
+    gender = models.CharField(max_length=10, choices=GENDER_CHOICES, blank=True)
     religion = models.CharField(max_length=50, blank=True)
     bloodGroup = models.CharField(max_length=5, blank=True)
     nationality = models.CharField(max_length=100, default='Bangladeshi', blank=True)
     maritalStatus = models.CharField(max_length=20, blank=True)
     
     # Contact Information
-    mobileStudent = models.CharField(max_length=11)
-    guardianMobile = models.CharField(max_length=11)
+    mobileStudent = models.CharField(max_length=11, blank=True)
+    guardianMobile = models.CharField(max_length=11, blank=True)
     email = models.EmailField(blank=True)
-    emergencyContact = models.CharField(max_length=255)
-    presentAddress = models.JSONField()  # Structured address
-    permanentAddress = models.JSONField()  # Structured address
-    
+    emergencyContact = models.CharField(max_length=255, blank=True)
+    presentAddress = models.JSONField(default=dict, blank=True)  # Structured address
+    permanentAddress = models.JSONField(default=dict, blank=True)  # Structured address
+
     # Educational Background
-    highestExam = models.CharField(max_length=100)
-    board = models.CharField(max_length=100)
-    group = models.CharField(max_length=50)
-    rollNumber = models.CharField(max_length=50)
-    registrationNumber = models.CharField(max_length=50)
-    passingYear = models.IntegerField()
-    gpa = models.DecimalField(max_digits=4, decimal_places=2)
+    highestExam = models.CharField(max_length=100, blank=True)
+    board = models.CharField(max_length=100, blank=True)
+    group = models.CharField(max_length=50, blank=True)
+    rollNumber = models.CharField(max_length=50, blank=True)
+    registrationNumber = models.CharField(max_length=50, blank=True)
+    passingYear = models.IntegerField(null=True, blank=True)
+    gpa = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
     institutionName = models.CharField(max_length=255, blank=True)
     
     # Current Academic Information
@@ -72,11 +75,11 @@ class Student(models.Model):
     currentRegistrationNumber = models.CharField(max_length=50, unique=True)
     semester = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(8)])
     department = models.ForeignKey('departments.Department', on_delete=models.PROTECT)
-    session = models.CharField(max_length=20)
-    shift = models.CharField(max_length=20, choices=SHIFT_CHOICES)
-    currentGroup = models.CharField(max_length=20)
+    session = models.CharField(max_length=20, blank=True)
+    shift = models.CharField(max_length=20, choices=SHIFT_CHOICES, blank=True)
+    currentGroup = models.CharField(max_length=20, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
-    enrollmentDate = models.DateField()
+    enrollmentDate = models.DateField(null=True, blank=True)
     
     # Academic Records (stored as JSON)
     semesterResults = models.JSONField(default=list, blank=True)

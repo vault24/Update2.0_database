@@ -141,6 +141,9 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         # Get all students in department
         students = department.student_set.filter(status='active')
         
+        # Serializer context so photo/media URLs resolve to absolute URLs.
+        ctx = self.get_serializer_context()
+
         # Group students by semester
         students_by_semester = {}
         for semester in range(1, 9):  # Semesters 1-8
@@ -149,17 +152,17 @@ class DepartmentViewSet(viewsets.ModelViewSet):
                 from apps.students.serializers import StudentListSerializer
                 students_by_semester[semester] = {
                     'count': semester_students.count(),
-                    'students': StudentListSerializer(semester_students, many=True).data
+                    'students': StudentListSerializer(semester_students, many=True, context=ctx).data
                 }
-        
-        # Get teachers in department
-        teachers = department.teacher_set.all()
+
+        # Get teachers in department (related_name='teachers')
+        teachers = department.teachers.all()
         from apps.teachers.serializers import TeacherListSerializer
-        
+
         # Build response
-        response_data = DepartmentSerializer(department).data
+        response_data = DepartmentSerializer(department, context=ctx).data
         response_data['studentsBySemester'] = students_by_semester
-        response_data['teachers'] = TeacherListSerializer(teachers, many=True).data
+        response_data['teachers'] = TeacherListSerializer(teachers, many=True, context=ctx).data
         
         return Response(response_data)
     
@@ -218,10 +221,11 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         
         # Import here to avoid circular dependency
         from apps.students.serializers import StudentListSerializer
-        serializer = StudentListSerializer(students, many=True)
-        
+        ctx = self.get_serializer_context()
+        serializer = StudentListSerializer(students, many=True, context=ctx)
+
         return Response({
-            'department': DepartmentSerializer(department).data,
+            'department': DepartmentSerializer(department, context=ctx).data,
             'students': serializer.data,
             'count': students.count(),
             'filters': {

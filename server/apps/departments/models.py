@@ -33,4 +33,6 @@ class Department(models.Model):
     
     def teacher_count(self):
         """Return the number of teachers in this department"""
-        return self.teacher_set.count()
+        # Teacher.department uses related_name='teachers' (not the default
+        # teacher_set), so the count must go through that accessor.
+        return self.teachers.count()

@@ -19,7 +19,12 @@ class RegisterSerializer(serializers.ModelSerializer):
     
     # Student-specific fields
     ssc_board_roll = serializers.CharField(required=False, allow_blank=True)
-    
+
+    # Account type: 'student' (default) or 'alumni'. An alumni account skips the
+    # admission flow and the SSC-board-roll requirement; the person provides
+    # their alumni details through the self-registration wizard after login.
+    account_type = serializers.CharField(required=False, allow_blank=True)
+
     # Teacher-specific fields
     full_name_english = serializers.CharField(required=False, allow_blank=True)
     full_name_bangla = serializers.CharField(required=False, allow_blank=True)
@@ -36,7 +41,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             'username', 'email', 'password', 'confirm_password', 
             'first_name', 'last_name', 'role', 'mobile_number',
             # Student-specific fields
-            'ssc_board_roll',
+            'ssc_board_roll', 'account_type',
             # Teacher-specific fields
             'full_name_english', 'full_name_bangla', 'designation',
             'department', 'qualifications', 'specializations', 'office_location'
@@ -46,8 +51,11 @@ class RegisterSerializer(serializers.ModelSerializer):
         if attrs['password'] != attrs['confirm_password']:
             raise serializers.ValidationError("Passwords don't match")
         
+        # Alumni accounts skip the SSC-board-roll / admission requirements.
+        is_alumni_account = (attrs.get('account_type') or '').lower() == 'alumni'
+
         # Validate student-specific fields if role is student or captain
-        if attrs.get('role') in ['student', 'captain']:
+        if attrs.get('role') in ['student', 'captain'] and not is_alumni_account:
             if not attrs.get('ssc_board_roll'):
                 raise serializers.ValidationError({
                     'ssc_board_roll': 'SSC Board Roll is required for student registration'
@@ -88,7 +96,9 @@ class RegisterSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         # Extract student-specific fields
         ssc_board_roll = validated_data.pop('ssc_board_roll', '')
-        
+        account_type = (validated_data.pop('account_type', '') or '').lower()
+        is_alumni_account = account_type == 'alumni'
+
         # Extract teacher-specific fields
         teacher_fields = {
             'full_name_english': validated_data.pop('full_name_english', ''),
@@ -107,11 +117,17 @@ class RegisterSerializer(serializers.ModelSerializer):
             validated_data['account_status'] = 'pending'
         else:
             validated_data['account_status'] = 'active'
-        
+
+        # Alumni accounts: keep the student role, flag the account, and skip the
+        # admission flow entirely (they register their details via the wizard).
+        if is_alumni_account:
+            validated_data['role'] = 'student'
+            validated_data['is_alumni_account'] = True
+            validated_data['admission_status'] = 'approved'
         # Generate Student ID from SSC Board Roll for students and captains
-        if validated_data.get('role') in ['student', 'captain'] and ssc_board_roll:
+        elif validated_data.get('role') in ['student', 'captain'] and ssc_board_roll:
             validated_data['student_id'] = f"SIPI-{ssc_board_roll}"
-        
+
         # Create user
         user = User.objects.create_user(**validated_data)
         
@@ -542,7 +558,7 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 'first_name', 'last_name', 'role',
             'is_superuser', 'interface_mode', 'department', 'department_name',
             'related_profile_id', 'student_id', 'admission_status', 'account_status',
-            'mobile_number', 'semester', 'student_status', 'is_alumni',
+            'mobile_number', 'semester', 'student_status', 'is_alumni', 'is_alumni_account',
             'profile_photo_url', 'signature_url', 'two_factor_enabled',
             'last_login', 'date_joined'
         ]

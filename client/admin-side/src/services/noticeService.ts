@@ -1,5 +1,12 @@
 import { apiClient as api } from '@/lib/api';
 
+export interface NoticeAttachment {
+  id: number;
+  name: string;
+  file_url: string | null;
+  uploaded_at: string;
+}
+
 export interface Notice {
   id: number;
   title: string;
@@ -14,6 +21,7 @@ export interface Notice {
   total_students: number;
   read_percentage: number;
   is_low_engagement: boolean;
+  attachments?: NoticeAttachment[];
 }
 
 export interface NoticeCreateUpdate {
@@ -68,14 +76,29 @@ class NoticeService {
     return response;
   }
 
-  async createNotice(notice: NoticeCreateUpdate): Promise<Notice> {
-    const response = await api.post<Notice>(`${this.baseUrl}/`, notice);
-    return response;
+  private buildFormData(notice: NoticeCreateUpdate, files?: File[], removeIds?: number[]): FormData {
+    const fd = new FormData();
+    fd.append('title', notice.title);
+    fd.append('content', notice.content);
+    fd.append('priority', notice.priority);
+    fd.append('is_published', String(notice.is_published));
+    (files || []).forEach((f) => fd.append('attachments', f));
+    (removeIds || []).forEach((id) => fd.append('remove_attachments', String(id)));
+    return fd;
   }
 
-  async updateNotice(id: number, notice: NoticeCreateUpdate): Promise<Notice> {
-    const response = await api.put<Notice>(`${this.baseUrl}/${id}/`, notice);
-    return response;
+  async createNotice(notice: NoticeCreateUpdate, files?: File[]): Promise<Notice> {
+    if (files && files.length > 0) {
+      return await api.post<Notice>(`${this.baseUrl}/`, this.buildFormData(notice, files));
+    }
+    return await api.post<Notice>(`${this.baseUrl}/`, notice);
+  }
+
+  async updateNotice(id: number, notice: NoticeCreateUpdate, files?: File[], removeIds?: number[]): Promise<Notice> {
+    if ((files && files.length > 0) || (removeIds && removeIds.length > 0)) {
+      return await api.put<Notice>(`${this.baseUrl}/${id}/`, this.buildFormData(notice, files, removeIds));
+    }
+    return await api.put<Notice>(`${this.baseUrl}/${id}/`, notice);
   }
 
   async deleteNotice(id: number): Promise<void> {

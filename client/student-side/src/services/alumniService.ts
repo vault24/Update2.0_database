@@ -370,7 +370,46 @@ export const alumniService = {
       throw error;
     }
   },
+
+  /**
+   * Get the predefined document categories (plus 'custom') for self-registration.
+   */
+  getDocumentCategories: async (): Promise<{ categories: AlumniDocCategory[]; maxDocuments: number }> => {
+    return await apiClient.get('/alumni/document_categories/');
+  },
+
+  /**
+   * Self-register as an alumnus: submit essential info + documents.
+   * The record is created with reviewStatus='pending' for admin verification.
+   */
+  selfRegister: async (
+    payload: Record<string, unknown>,
+    documents: AlumniDocUpload[] = [],
+  ): Promise<{ alumni: any; documents: { created: string[]; errors: string[] }; message: string }> => {
+    const fd = new FormData();
+    fd.append('payload', JSON.stringify(payload));
+    const meta = documents.map((doc, index) => ({
+      field: `doc_${index}`,
+      category: doc.category,
+      customName: doc.customName || '',
+    }));
+    fd.append('documentMeta', JSON.stringify(meta));
+    documents.forEach((doc, index) => fd.append(`doc_${index}`, doc.file));
+    return await apiClient.post('/alumni/self_register/', fd, true);
+  },
 };
+
+export interface AlumniDocCategory {
+  key: string;
+  display: string;
+  isCustom: boolean;
+}
+
+export interface AlumniDocUpload {
+  file: File;
+  category: string;
+  customName?: string;
+}
 
 // Helper function to transform backend data to frontend format
 function transformBackendToFrontend(backendData: any): AlumniProfile {

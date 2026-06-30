@@ -85,6 +85,35 @@ class Notice(models.Model):
         return self.read_percentage < threshold
 
 
+class NoticeAttachment(models.Model):
+    """A file (image or PDF) attached to a notice."""
+
+    notice = models.ForeignKey(
+        Notice,
+        on_delete=models.CASCADE,
+        related_name='attachments',
+        help_text="The notice this file is attached to",
+    )
+    file = models.FileField(
+        upload_to='notices/',
+        help_text="The attached file (image or PDF)",
+    )
+    original_name = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Original filename as uploaded",
+    )
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['uploaded_at']
+        verbose_name = 'Notice Attachment'
+        verbose_name_plural = 'Notice Attachments'
+
+    def __str__(self):
+        return f"Attachment for notice {self.notice_id}"
+
+
 class NoticeReadStatus(models.Model):
     """Model for tracking which students have read which notices"""
     

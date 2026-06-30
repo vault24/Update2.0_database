@@ -5,7 +5,8 @@ import {
   ArrowLeft, Edit, Download, User, Phone, MapPin, GraduationCap, BookOpen, 
   Mail, Briefcase, Building2, Calendar, TrendingUp, Heart, HeartHandshake,
   ShieldCheck, Plus, X, Star, Target, CheckCircle, FileText, ExternalLink,
-  Code, Globe, Zap, Users, Loader2, AlertCircle, RefreshCw, Eye, ShieldAlert
+  Code, Globe, Zap, Users, Loader2, AlertCircle, RefreshCw, Eye, ShieldAlert,
+  UserPlus, KeyRound, Copy
 } from 'lucide-react';
 import { alumniService, Alumni as AlumniType } from '@/services/alumniService';
 import { getErrorMessage } from '@/lib/api';
@@ -277,6 +278,40 @@ export default function AlumniDetails() {
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
   const [isVerifyDialogOpen, setIsVerifyDialogOpen] = useState(false);
   const [verificationNotes, setVerificationNotes] = useState('');
+
+  // Portal account (create student-portal login for a manually-added alumnus)
+  const [portalStatus, setPortalStatus] = useState<{ hasAccount: boolean; username: string | null; email: string | null } | null>(null);
+  const [isPortalDialogOpen, setIsPortalDialogOpen] = useState(false);
+  const [portalEmail, setPortalEmail] = useState('');
+  const [portalPassword, setPortalPassword] = useState('');
+  const [portalSubmitting, setPortalSubmitting] = useState(false);
+  const [generatedCreds, setGeneratedCreds] = useState<{ username: string; email: string; password: string | null } | null>(null);
+
+  useEffect(() => {
+    if (!id) return;
+    alumniService
+      .getPortalAccountStatus(id)
+      .then(setPortalStatus)
+      .catch(() => setPortalStatus(null));
+  }, [id]);
+
+  const handleCreatePortalAccount = async () => {
+    if (!id) return;
+    setPortalSubmitting(true);
+    try {
+      const result = await alumniService.createPortalAccount(id, {
+        email: portalEmail || undefined,
+        password: portalPassword || undefined,
+      });
+      setGeneratedCreds({ username: result.username, email: result.email, password: result.generatedPassword });
+      setPortalStatus({ hasAccount: true, username: result.username, email: result.email });
+      toast({ title: 'Portal account created', description: `Login for ${result.username} is ready.` });
+    } catch (err) {
+      toast({ title: 'Could not create account', description: getErrorMessage(err), variant: 'destructive' });
+    } finally {
+      setPortalSubmitting(false);
+    }
+  };
   
   const [careerTypeSelection, setCareerTypeSelection] = useState<'job' | 'higherStudies' | 'business' | 'other' | null>(null);
   const [editingCareerId, setEditingCareerId] = useState<string | null>(null);
@@ -1232,6 +1267,25 @@ export default function AlumniDetails() {
           <FileText className="w-4 h-4 mr-2" />
           View Full Profile
         </Button>
+        {portalStatus?.hasAccount ? (
+          <Badge variant="outline" className="bg-green-500/20 text-green-700 dark:text-green-300 border-green-500/30 px-3 py-2">
+            <KeyRound className="w-3.5 h-3.5 mr-1.5" />
+            Portal Account Active
+          </Badge>
+        ) : (
+          <Button
+            variant="outline"
+            onClick={() => {
+              setPortalEmail(alumni.email && alumni.email !== 'N/A' ? alumni.email : '');
+              setPortalPassword('');
+              setGeneratedCreds(null);
+              setIsPortalDialogOpen(true);
+            }}
+          >
+            <UserPlus className="w-4 h-4 mr-2" />
+            Create Portal Account
+          </Button>
+        )}
       </div>
 
       {/* Hero Section - Profile */}
@@ -2678,6 +2732,105 @@ export default function AlumniDetails() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Create Portal Account Dialog */}
+      <Dialog open={isPortalDialogOpen} onOpenChange={setIsPortalDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="w-5 h-5 text-primary" />
+              Create Student Portal Account
+            </DialogTitle>
+            <DialogDescription>
+              Give this alumnus a login so they can sign in to the student portal and update their own
+              information. A username and student ID are generated automatically.
+            </DialogDescription>
+          </DialogHeader>
+
+          {generatedCreds ? (
+            <div className="space-y-4 py-2">
+              <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-4 space-y-3">
+                <div className="flex items-center gap-2 text-green-700 dark:text-green-300 font-medium">
+                  <CheckCircle className="w-4 h-4" /> Account created successfully
+                </div>
+                <CredRow label="Username" value={generatedCreds.username} />
+                <CredRow label="Email" value={generatedCreds.email} />
+                {generatedCreds.password && <CredRow label="Temporary Password" value={generatedCreds.password} />}
+                {generatedCreds.password && (
+                  <p className="text-xs text-muted-foreground">
+                    Share these credentials with the alumnus. Ask them to change the password after first login.
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="portalEmail">Email</Label>
+                <Input
+                  id="portalEmail"
+                  type="email"
+                  placeholder="name@example.com"
+                  value={portalEmail}
+                  onChange={(e) => setPortalEmail(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">Required for login and password recovery.</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="portalPassword">Password (optional)</Label>
+                <Input
+                  id="portalPassword"
+                  type="text"
+                  placeholder="Leave blank to auto-generate"
+                  value={portalPassword}
+                  onChange={(e) => setPortalPassword(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            {generatedCreds ? (
+              <Button onClick={() => setIsPortalDialogOpen(false)}>Done</Button>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => setIsPortalDialogOpen(false)} disabled={portalSubmitting}>
+                  Cancel
+                </Button>
+                <Button onClick={handleCreatePortalAccount} disabled={portalSubmitting} className="gradient-primary text-primary-foreground">
+                  {portalSubmitting ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Creating...</>
+                  ) : (
+                    <><KeyRound className="w-4 h-4 mr-2" /> Create Account</>
+                  )}
+                </Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function CredRow({ label, value }: { label: string; value: string }) {
+  const { toast } = useToast();
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <div className="min-w-0">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="text-sm font-mono font-medium truncate">{value}</p>
+      </div>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => {
+          navigator.clipboard?.writeText(value);
+          toast({ title: `${label} copied` });
+        }}
+      >
+        <Copy className="w-4 h-4" />
+      </Button>
     </div>
   );
 }

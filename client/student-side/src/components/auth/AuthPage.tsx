@@ -43,6 +43,7 @@ const roleOptions: { value: UserRole; label: string; icon: React.ElementType }[]
   { value: 'student', label: 'Student', icon: GraduationCap },
   { value: 'captain', label: 'Captain', icon: Users },
   { value: 'teacher', label: 'Teacher', icon: BookOpen },
+  { value: 'alumni', label: 'Alumni', icon: Award },
 ];
 
 const splideSlides = [
@@ -382,7 +383,7 @@ function MobileAuthForm({
               {mode === 'signup' && (
                 <>
                   <Label className="text-xs font-semibold text-gray-500 -mb-1 block">I am a...</Label>
-                  <div className="grid grid-cols-3 gap-2 mb-1">
+                  <div className="grid grid-cols-2 gap-2 mb-1">
                     {roleOptions.map((opt) => {
                       const Icon = opt.icon;
                       const sel = selectedRole === opt.value;
@@ -868,7 +869,7 @@ export function AuthPage() {
                     <>
                       <div>
                         <Label className="text-xs font-semibold text-gray-600 mb-2 block">Select Your Role</Label>
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-2 gap-2">
                           {roleOptions.map((opt) => {
                             const Icon = opt.icon;
                             const sel = selectedRole === opt.value;

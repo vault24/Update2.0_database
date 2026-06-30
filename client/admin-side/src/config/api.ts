@@ -139,6 +139,14 @@ export const API_ENDPOINTS = {
     detail: (id: string) => `/alumni/${id}/`,
     update: (id: string) => `/alumni/${id}/`,
     search: '/alumni/search/',
+    manualCreate: '/alumni/manual_create/',
+    documentCategories: '/alumni/document_categories/',
+    pendingReview: '/alumni/pending_review/',
+    documents: (id: string) => `/alumni/${id}/documents/`,
+    deleteDocument: (id: string, docId: string) => `/alumni/${id}/documents/${docId}/`,
+    createPortalAccount: (id: string) => `/alumni/${id}/create-portal-account/`,
+    portalAccountStatus: (id: string) => `/alumni/${id}/portal-account-status/`,
+    review: (id: string) => `/alumni/${id}/review/`,
   },
   
   // Activity Logs

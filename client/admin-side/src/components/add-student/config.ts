@@ -79,3 +79,21 @@ export const getSessions = (count = 8): string[] => {
     return `${start}-${String((start + 1) % 100).padStart(2, '0')}`;
   });
 };
+
+/** Academic sessions "YYYY-YY" from `startYear` up to the current year (newest first). */
+export const getSessionsRange = (startYear = 2000): string[] => {
+  const current = new Date().getFullYear();
+  const out: string[] = [];
+  for (let y = current; y >= startYear; y--) {
+    out.push(`${y}-${String((y + 1) % 100).padStart(2, '0')}`);
+  }
+  return out;
+};
+
+/** Years from `startYear` up to the current year (newest first). */
+export const getYearsRange = (startYear = 2000): string[] => {
+  const current = new Date().getFullYear();
+  const out: string[] = [];
+  for (let y = current; y >= startYear; y--) out.push(String(y));
+  return out;
+};

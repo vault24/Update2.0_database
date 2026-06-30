@@ -1,14 +1,12 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Plus, Edit, Trash2, Users, GraduationCap, BookOpen, Building2, 
-  Search, MoreVertical, ChevronRight, Award
+import {
+  Plus, Edit, Trash2, Users, GraduationCap, BookOpen, Building2,
+  Search, MoreVertical, ChevronRight, UserCheck,
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -18,10 +16,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
 import { API_BASE_URL } from '@/config/api';
 import departmentService, { Department as APIDepartment } from '@/services/departmentService';
 import { LoadingState } from '@/components/LoadingState';
-import { EmptyState } from '@/components/EmptyState';
 
 interface Department {
   id: string;
@@ -35,6 +33,41 @@ interface Department {
   photo_url: string | null;
 }
 
+function StatTile({ label, value, icon: Icon, tint }: { label: string; value: number; icon: typeof Users; tint: string }) {
+  return (
+    <div className="surface p-4">
+      <div className="flex items-center justify-between">
+        <p className="text-[13px] font-medium text-muted-foreground">{label}</p>
+        <div className={cn('w-9 h-9 rounded-lg flex items-center justify-center shrink-0', tint)}>
+          <Icon className="w-[18px] h-[18px]" />
+        </div>
+      </div>
+      <p className="mt-3 text-[26px] leading-none font-semibold text-foreground tabular-nums">{value.toLocaleString()}</p>
+    </div>
+  );
+}
+
+// Department thumbnail with a graceful fallback to the code badge when there is
+// no photo or the image fails to load.
+function DeptThumb({ photoUrl, code }: { photoUrl: string | null; code: string }) {
+  const [failed, setFailed] = useState(false);
+  if (photoUrl && !failed) {
+    return (
+      <img
+        src={photoUrl}
+        alt={code}
+        onError={() => setFailed(true)}
+        className="w-14 h-14 rounded-xl object-cover border border-border shrink-0"
+      />
+    );
+  }
+  return (
+    <div className="w-14 h-14 rounded-xl bg-primary flex items-center justify-center shrink-0">
+      <span className="text-lg font-semibold text-primary-foreground">{code?.slice(0, 3) || '—'}</span>
+    </div>
+  );
+}
+
 export default function Departments() {
   const navigate = useNavigate();
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -43,6 +76,7 @@ export default function Departments() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [selectedDept, setSelectedDept] = useState<Department | null>(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -53,7 +87,6 @@ export default function Departments() {
   });
   const { toast } = useToast();
 
-  // Fetch departments from API
   useEffect(() => {
     fetchDepartments();
   }, []);
@@ -62,10 +95,8 @@ export default function Departments() {
     try {
       setLoading(true);
       const response = await departmentService.getDepartments();
-      
-      // Get base URL without /api suffix for media files
       const baseURL = API_BASE_URL.replace('/api', '');
-      
+
       const mappedDepts = response.results.map((dept: APIDepartment) => ({
         id: dept.id,
         name: dept.name,
@@ -75,16 +106,12 @@ export default function Departments() {
         activeStudents: dept.active_students,
         faculty: dept.faculty_count,
         established: dept.established_year || null,
-        // Convert relative photo URL to absolute URL
-        photo_url: dept.photo_url 
-          ? (dept.photo_url.startsWith('http') 
-              ? dept.photo_url 
-              : `${baseURL}${dept.photo_url}`)
+        photo_url: dept.photo_url
+          ? (dept.photo_url.startsWith('http') ? dept.photo_url : `${baseURL}${dept.photo_url}`)
           : null,
       }));
       setDepartments(mappedDepts);
     } catch (error) {
-      console.error('Error fetching departments:', error);
       toast({
         title: 'Error',
         description: 'Failed to load departments. Please try again.',
@@ -95,22 +122,25 @@ export default function Departments() {
     }
   };
 
-  const filteredDepartments = departments.filter(d => 
+  const filteredDepartments = departments.filter(d =>
     d.name.toLowerCase().includes(search.toLowerCase()) ||
     d.code.toLowerCase().includes(search.toLowerCase()) ||
     (d.head && d.head.toLowerCase().includes(search.toLowerCase()))
   );
 
   const totalStudents = departments.reduce((acc, d) => acc + (d.totalStudents || 0), 0);
+  const activeStudents = departments.reduce((acc, d) => acc + (d.activeStudents || 0), 0);
   const totalFaculty = departments.reduce((acc, d) => acc + (d.faculty || 0), 0);
+
+  const resetForm = () => setFormData({ name: '', code: '', head: '', established: '', photo: null });
 
   const handleAdd = async () => {
     if (!formData.name || !formData.code) {
-      toast({ title: "Error", description: "Name and Department Code are required.", variant: "destructive" });
+      toast({ title: 'Missing details', description: 'Name and department code are required.', variant: 'destructive' });
       return;
     }
-    
     try {
+      setIsSaving(true);
       await departmentService.createDepartment({
         name: formData.name,
         code: formData.code,
@@ -118,30 +148,25 @@ export default function Departments() {
         established_year: formData.established,
         photo: formData.photo || undefined,
       });
-      
-      setFormData({ name: '', code: '', head: '', established: '', photo: null });
+      resetForm();
       setIsAddOpen(false);
-      toast({ title: "Department Added", description: `${formData.name} has been added successfully.` });
+      toast({ title: 'Department added', description: `${formData.name} has been added.` });
       fetchDepartments();
     } catch (error) {
-      console.error('Error adding department:', error);
-      toast({ 
-        title: "Error", 
-        description: "Failed to add department. Please try again.", 
-        variant: "destructive" 
-      });
+      toast({ title: 'Error', description: 'Failed to add department. Please try again.', variant: 'destructive' });
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const handleEdit = async () => {
     if (!selectedDept) return;
-    
     if (!formData.name || !formData.code) {
-      toast({ title: "Error", description: "Name and Department Code are required.", variant: "destructive" });
+      toast({ title: 'Missing details', description: 'Name and department code are required.', variant: 'destructive' });
       return;
     }
-    
     try {
+      setIsSaving(true);
       await departmentService.updateDepartment(selectedDept.id, {
         name: formData.name,
         code: formData.code,
@@ -149,36 +174,35 @@ export default function Departments() {
         established_year: formData.established,
         photo: formData.photo || undefined,
       });
-      
       setIsEditOpen(false);
-      setFormData({ name: '', code: '', head: '', established: '', photo: null });
-      toast({ title: "Department Updated", description: "Department details have been updated." });
+      resetForm();
+      toast({ title: 'Department updated', description: 'Department details have been saved.' });
       fetchDepartments();
     } catch (error) {
-      console.error('Error updating department:', error);
-      toast({ 
-        title: "Error", 
-        description: "Failed to update department. Please try again.", 
-        variant: "destructive" 
-      });
+      toast({ title: 'Error', description: 'Failed to update department. Please try again.', variant: 'destructive' });
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const handleDelete = async () => {
     if (!selectedDept) return;
-    
     try {
+      setIsSaving(true);
       await departmentService.deleteDepartment(selectedDept.id);
       setIsDeleteOpen(false);
-      toast({ title: "Department Deleted", description: `${selectedDept.name} has been deleted.` });
+      toast({ title: 'Department deleted', description: `${selectedDept.name} has been deleted.` });
       fetchDepartments();
-    } catch (error) {
-      console.error('Error deleting department:', error);
-      toast({ 
-        title: "Error", 
-        description: "Failed to delete department. Please try again.", 
-        variant: "destructive" 
+    } catch (error: any) {
+      // Backend returns a helpful 400 detail when the department still has students/teachers.
+      const detail = error?.detail || error?.details;
+      toast({
+        title: 'Cannot delete department',
+        description: detail || 'Failed to delete department. Please try again.',
+        variant: 'destructive',
       });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -212,238 +236,177 @@ export default function Departments() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Department Management</h1>
-          <p className="text-muted-foreground">Manage academic departments and their resources</p>
+          <h1 className="text-xl md:text-2xl font-semibold text-foreground">Departments</h1>
+          <p className="text-sm text-muted-foreground mt-1">Manage academic departments and their resources.</p>
         </div>
-        <Button onClick={() => setIsAddOpen(true)} className="gradient-primary text-primary-foreground">
-          <Plus className="w-4 h-4 mr-2" />
-          Add Department
+        <Button onClick={() => { resetForm(); setIsAddOpen(true); }} className="shrink-0">
+          <Plus className="w-4 h-4 mr-1.5" />
+          Add department
         </Button>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <Card className="glass-card">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg gradient-primary flex items-center justify-center">
-                  <Building2 className="w-5 h-5 text-primary-foreground" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-foreground">{departments.length || 0}</p>
-                  <p className="text-xs text-muted-foreground">Total Departments</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-          <Card className="glass-card">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-success/20 flex items-center justify-center">
-                  <Users className="w-5 h-5 text-success" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-foreground">{totalStudents || 0}</p>
-                  <p className="text-xs text-muted-foreground">Total Students</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-          <Card className="glass-card">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-info/20 flex items-center justify-center">
-                  <GraduationCap className="w-5 h-5 text-info" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-foreground">{totalFaculty || 0}</p>
-                  <p className="text-xs text-muted-foreground">Total Faculty</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
-          <Card className="glass-card">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-warning/20 flex items-center justify-center">
-                  <Award className="w-5 h-5 text-warning" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-foreground">{departments.length || 0}</p>
-                  <p className="text-xs text-muted-foreground">Active Programs</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatTile label="Departments" value={departments.length} icon={Building2} tint="bg-primary/10 text-primary" />
+        <StatTile label="Total students" value={totalStudents} icon={Users} tint="bg-info/10 text-info" />
+        <StatTile label="Active students" value={activeStudents} icon={UserCheck} tint="bg-success/10 text-success" />
+        <StatTile label="Faculty members" value={totalFaculty} icon={GraduationCap} tint="bg-violet-500/10 text-violet-600 dark:text-violet-400" />
       </div>
 
       {/* Search */}
-      <Card className="glass-card">
-        <CardContent className="p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search departments..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </CardContent>
-      </Card>
+      <div className="surface p-3">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Search departments by name, code, or head…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+      </div>
 
-      {/* Departments Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredDepartments.map((dept, index) => (
-          <motion.div
-            key={dept.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.05 }}
-          >
-            <Card 
-              className="glass-card hover:shadow-lg transition-all duration-300 cursor-pointer group relative overflow-hidden"
-              onClick={() => handleDepartmentClick(dept)}
+      {/* Departments grid */}
+      {filteredDepartments.length === 0 ? (
+        <div className="surface p-12 text-center">
+          <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+            <Building2 className="w-6 h-6 text-muted-foreground" />
+          </div>
+          <p className="text-foreground font-medium mb-1">No departments found</p>
+          <p className="text-sm text-muted-foreground">
+            {search ? 'Try a different search term.' : 'Add your first department to get started.'}
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {filteredDepartments.map((dept, index) => (
+            <motion.div
+              key={dept.id}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: Math.min(index * 0.04, 0.3), duration: 0.2 }}
             >
-              <div className="absolute top-0 right-0 p-3 z-10">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <MoreVertical className="w-4 h-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openEdit(dept); }}>
-                      <Edit className="w-4 h-4 mr-2" />
-                      Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="text-destructive" onClick={(e) => { e.stopPropagation(); openDelete(dept); }}>
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-              <CardContent className="p-6">
-                <div className="flex items-start gap-4 mb-4">
-                  {dept.photo_url ? (
-                    <img 
-                      src={dept.photo_url} 
-                      alt={dept.name}
-                      className="w-16 h-16 rounded-xl object-cover flex-shrink-0 group-hover:scale-110 transition-transform"
-                    />
-                  ) : (
-                    <div className="w-16 h-16 rounded-xl gradient-primary flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
-                      <span className="text-xl font-bold text-primary-foreground">{dept.code}</span>
-                    </div>
-                  )}
+              <div
+                className="surface p-5 h-full cursor-pointer transition-[border-color,box-shadow] duration-200 hover:border-primary/40 hover:shadow-md relative group"
+                onClick={() => handleDepartmentClick(dept)}
+              >
+                <div className="absolute top-3 right-3">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" aria-label="Department actions">
+                        <MoreVertical className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openEdit(dept); }}>
+                        <Edit className="w-4 h-4 mr-2" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={(e) => { e.stopPropagation(); openDelete(dept); }}>
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+
+                <div className="flex items-start gap-4 mb-5 pr-8">
+                  <DeptThumb photoUrl={dept.photo_url} code={dept.code} />
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-lg text-foreground mb-1 truncate">{dept.name}</h3>
-                    <p className="text-sm text-muted-foreground">Code: {dept.code}</p>
+                    <h3 className="font-semibold text-foreground leading-tight truncate">{dept.name}</h3>
+                    <p className="text-sm text-muted-foreground mt-0.5">Code: {dept.code}</p>
                     {dept.established && (
-                      <p className="text-sm text-muted-foreground">Est. {dept.established}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Est. {dept.established}</p>
                     )}
                   </div>
                 </div>
-                
-                <div className="space-y-3 mb-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground flex items-center gap-2">
-                      <Users className="w-4 h-4" />
-                      Active Students
-                    </span>
-                    <span className="font-semibold text-foreground">{dept.activeStudents || 0}</span>
+
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                  <div className="rounded-lg bg-muted/50 p-2.5 text-center">
+                    <p className="text-lg font-semibold text-foreground tabular-nums leading-none">{dept.activeStudents || 0}</p>
+                    <p className="text-[11px] text-muted-foreground mt-1">Active</p>
                   </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground flex items-center gap-2">
-                      <GraduationCap className="w-4 h-4" />
-                      Faculty Members
-                    </span>
-                    <span className="font-semibold text-foreground">{dept.faculty || 0}</span>
+                  <div className="rounded-lg bg-muted/50 p-2.5 text-center">
+                    <p className="text-lg font-semibold text-foreground tabular-nums leading-none">{dept.totalStudents || 0}</p>
+                    <p className="text-[11px] text-muted-foreground mt-1">Students</p>
                   </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground flex items-center gap-2">
-                      <BookOpen className="w-4 h-4" />
-                      Total Students
-                    </span>
-                    <span className="font-semibold text-foreground">{dept.totalStudents || 0}</span>
+                  <div className="rounded-lg bg-muted/50 p-2.5 text-center">
+                    <p className="text-lg font-semibold text-foreground tabular-nums leading-none">{dept.faculty || 0}</p>
+                    <p className="text-[11px] text-muted-foreground mt-1">Faculty</p>
                   </div>
                 </div>
 
-                {dept.head && (
+                {dept.head ? (
+                  <div className="flex items-center gap-2 pt-3 border-t border-border">
+                    <BookOpen className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <div className="min-w-0">
+                      <span className="text-xs text-muted-foreground">Head: </span>
+                      <span className="text-sm font-medium text-foreground">{dept.head}</span>
+                    </div>
+                  </div>
+                ) : (
                   <div className="pt-3 border-t border-border">
-                    <p className="text-xs text-muted-foreground mb-1">Department Head</p>
-                    <p className="text-sm font-medium text-foreground">{dept.head}</p>
+                    <span className="text-xs text-muted-foreground">No department head assigned</span>
                   </div>
                 )}
 
-                <div className="mt-4 flex items-center justify-end text-primary group-hover:translate-x-1 transition-transform">
-                  <span className="text-sm font-medium">View Details</span>
-                  <ChevronRight className="w-4 h-4 ml-1" />
+                <div className="mt-3 flex items-center justify-end text-primary text-sm font-medium">
+                  <span>View details</span>
+                  <ChevronRight className="w-4 h-4 ml-0.5 group-hover:translate-x-0.5 transition-transform" />
                 </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        ))}
-      </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
 
-      {/* Add Dialog */}
+      {/* Add dialog */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add New Department</DialogTitle>
-            <DialogDescription>
-              Create a new department by filling in the details below.
-            </DialogDescription>
+            <DialogTitle>Add new department</DialogTitle>
+            <DialogDescription>Create a new department by filling in the details below.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Department Name *</Label>
-                <Input 
-                  placeholder="e.g., Computer Technology" 
+              <div className="space-y-1.5">
+                <Label>Department name <span className="text-destructive">*</span></Label>
+                <Input
+                  placeholder="e.g., Computer Technology"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Department Code *</Label>
-                <Input 
-                  placeholder="e.g., CT" 
+              <div className="space-y-1.5">
+                <Label>Department code <span className="text-destructive">*</span></Label>
+                <Input
+                  placeholder="e.g., CT"
                   value={formData.code}
                   onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
                 />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Department Head</Label>
-                <Input 
-                  placeholder="Enter name" 
+              <div className="space-y-1.5">
+                <Label>Department head</Label>
+                <Input
+                  placeholder="Enter name"
                   value={formData.head}
                   onChange={(e) => setFormData({ ...formData, head: e.target.value })}
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Established Year</Label>
-                <Input 
-                  placeholder="e.g., 2020" 
+              <div className="space-y-1.5">
+                <Label>Established year</Label>
+                <Input
+                  placeholder="e.g., 2020"
                   value={formData.established}
                   onChange={(e) => setFormData({ ...formData, established: e.target.value })}
                 />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>Department Photo</Label>
-              <Input 
+            <div className="space-y-1.5">
+              <Label>Department photo</Label>
+              <Input
                 type="file"
                 accept="image/*"
                 onChange={(e) => setFormData({ ...formData, photo: e.target.files?.[0] || null })}
@@ -452,87 +415,76 @@ export default function Departments() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
-            <Button onClick={handleAdd} className="gradient-primary text-primary-foreground">Add Department</Button>
+            <Button onClick={handleAdd} disabled={isSaving}>{isSaving ? 'Adding…' : 'Add department'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Edit Dialog */}
+      {/* Edit dialog */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Department</DialogTitle>
-            <DialogDescription>
-              Update the department information below.
-            </DialogDescription>
+            <DialogTitle>Edit department</DialogTitle>
+            <DialogDescription>Update the department information below.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Department Name *</Label>
-                <Input 
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                />
+              <div className="space-y-1.5">
+                <Label>Department name <span className="text-destructive">*</span></Label>
+                <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
               </div>
-              <div className="space-y-2">
-                <Label>Department Code *</Label>
-                <Input 
-                  value={formData.code}
-                  onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-                />
+              <div className="space-y-1.5">
+                <Label>Department code <span className="text-destructive">*</span></Label>
+                <Input value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Department Head</Label>
-                <Input 
-                  value={formData.head}
-                  onChange={(e) => setFormData({ ...formData, head: e.target.value })}
-                />
+              <div className="space-y-1.5">
+                <Label>Department head</Label>
+                <Input value={formData.head} onChange={(e) => setFormData({ ...formData, head: e.target.value })} />
               </div>
-              <div className="space-y-2">
-                <Label>Established Year</Label>
-                <Input 
-                  value={formData.established}
-                  onChange={(e) => setFormData({ ...formData, established: e.target.value })}
-                />
+              <div className="space-y-1.5">
+                <Label>Established year</Label>
+                <Input value={formData.established} onChange={(e) => setFormData({ ...formData, established: e.target.value })} />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>Department Photo</Label>
-              <Input 
+            <div className="space-y-1.5">
+              <Label>Department photo</Label>
+              <Input
                 type="file"
                 accept="image/*"
                 onChange={(e) => setFormData({ ...formData, photo: e.target.files?.[0] || null })}
               />
               {selectedDept?.photo_url && (
-                <div className="mt-2">
-                  <img src={selectedDept.photo_url} alt="Current" className="w-20 h-20 rounded object-cover" />
-                  <p className="text-xs text-muted-foreground mt-1">Current photo</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <img src={selectedDept.photo_url} alt="Current" className="w-16 h-16 rounded-lg object-cover border border-border" />
+                  <p className="text-xs text-muted-foreground">Current photo — upload a new file to replace it.</p>
                 </div>
               )}
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditOpen(false)}>Cancel</Button>
-            <Button onClick={handleEdit} className="gradient-primary text-primary-foreground">Save Changes</Button>
+            <Button onClick={handleEdit} disabled={isSaving}>{isSaving ? 'Saving…' : 'Save changes'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Dialog */}
+      {/* Delete dialog */}
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="text-destructive">Delete Department</DialogTitle>
+            <DialogTitle className="text-destructive">Delete department</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete "{selectedDept?.name}"? This action cannot be undone.
+              Are you sure you want to delete "{selectedDept?.name}"? This action cannot be undone. Departments
+              with enrolled students or assigned teachers can't be deleted.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleDelete}>Delete Department</Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={isSaving}>
+              {isSaving ? 'Deleting…' : 'Delete department'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

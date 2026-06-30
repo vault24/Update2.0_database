@@ -21,7 +21,21 @@ class Alumni(models.Model):
         ('needs_extra_support', 'Needs Extra Support'),
         ('no_support_needed', 'No Support Needed'),
     ]
-    
+
+    # How this alumni record entered the system
+    REGISTRATION_SOURCE_CHOICES = [
+        ('pipeline', 'Promoted From Student'),      # 8th-semester transition
+        ('admin_manual', 'Manually Added By Admin'),  # legacy graduate, admin entry
+        ('self_registration', 'Self Registered'),    # alumni signed up themselves
+    ]
+
+    # Review state (only meaningful for self_registration, which needs admin approval)
+    REVIEW_STATUS_CHOICES = [
+        ('pending', 'Pending Review'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+
     # One-to-one relationship with Student
     student = models.OneToOneField(
         'students.Student',
@@ -29,7 +43,7 @@ class Alumni(models.Model):
         related_name='alumni',
         primary_key=True
     )
-    
+
     # Alumni information
     alumniType = models.CharField(
         max_length=20,
@@ -37,7 +51,19 @@ class Alumni(models.Model):
         default='recent'
     )
     transitionDate = models.DateTimeField(default=timezone.now)
-    graduationYear = models.IntegerField()
+    graduationYear = models.IntegerField(null=True, blank=True)
+
+    # Registration / review workflow
+    registrationSource = models.CharField(
+        max_length=20,
+        choices=REGISTRATION_SOURCE_CHOICES,
+        default='pipeline'
+    )
+    reviewStatus = models.CharField(
+        max_length=20,
+        choices=REVIEW_STATUS_CHOICES,
+        default='approved'
+    )
     
     # Support tracking
     currentSupportCategory = models.CharField(
@@ -80,6 +106,8 @@ class Alumni(models.Model):
             models.Index(fields=['alumniType']),
             models.Index(fields=['graduationYear']),
             models.Index(fields=['currentSupportCategory']),
+            models.Index(fields=['registrationSource']),
+            models.Index(fields=['reviewStatus']),
         ]
     
     def __str__(self):

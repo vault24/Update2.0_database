@@ -1,19 +1,43 @@
+import os
+
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import Notice, NoticeReadStatus
+from .models import Notice, NoticeReadStatus, NoticeAttachment
 
 User = get_user_model()
 
 
+class NoticeAttachmentSerializer(serializers.ModelSerializer):
+    """Serializer exposing a downloadable URL + friendly name for an attachment."""
+
+    name = serializers.SerializerMethodField()
+    file_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = NoticeAttachment
+        fields = ['id', 'name', 'file_url', 'uploaded_at']
+
+    def get_name(self, obj):
+        return obj.original_name or os.path.basename(obj.file.name)
+
+    def get_file_url(self, obj):
+        if not obj.file:
+            return None
+        request = self.context.get('request')
+        url = obj.file.url
+        return request.build_absolute_uri(url) if request else url
+
+
 class NoticeSerializer(serializers.ModelSerializer):
     """Serializer for Notice model"""
-    
+
     created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
     read_count = serializers.IntegerField(read_only=True)
     total_students = serializers.IntegerField(read_only=True)
     read_percentage = serializers.FloatField(read_only=True)
     is_low_engagement = serializers.BooleanField(read_only=True)
-    
+    attachments = NoticeAttachmentSerializer(many=True, read_only=True)
+
     class Meta:
         model = Notice
         fields = [
@@ -30,6 +54,7 @@ class NoticeSerializer(serializers.ModelSerializer):
             'total_students',
             'read_percentage',
             'is_low_engagement',
+            'attachments',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'created_by']
     
@@ -71,7 +96,8 @@ class StudentNoticeSerializer(serializers.ModelSerializer):
     
     created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
     is_read = serializers.SerializerMethodField()
-    
+    attachments = NoticeAttachmentSerializer(many=True, read_only=True)
+
     class Meta:
         model = Notice
         fields = [
@@ -83,6 +109,7 @@ class StudentNoticeSerializer(serializers.ModelSerializer):
             'updated_at',
             'created_by_name',
             'is_read',
+            'attachments',
         ]
     
     def get_is_read(self, obj):

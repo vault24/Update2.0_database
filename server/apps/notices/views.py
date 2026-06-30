@@ -2,6 +2,7 @@ from rest_framework import generics, status, permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.db.models import Count, Q, Case, When, IntegerField, Prefetch
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
@@ -11,7 +12,7 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from django.views.decorators.vary import vary_on_headers
 
-from .models import Notice, NoticeReadStatus
+from .models import Notice, NoticeReadStatus, NoticeAttachment
 from .serializers import (
     NoticeSerializer,
     NoticeCreateUpdateSerializer,
@@ -22,6 +23,29 @@ from .serializers import (
 )
 
 User = get_user_model()
+
+# Attachments are limited to images and PDFs, max 10 MB each.
+ALLOWED_ATTACHMENT_TYPES = {
+    'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf',
+}
+MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024
+
+
+def _save_notice_attachments(notice, files):
+    """Persist uploaded files as NoticeAttachment rows, skipping invalid ones."""
+    saved = []
+    for f in files:
+        content_type = getattr(f, 'content_type', '') or ''
+        if content_type and content_type not in ALLOWED_ATTACHMENT_TYPES:
+            continue
+        if f.size and f.size > MAX_ATTACHMENT_SIZE:
+            continue
+        saved.append(NoticeAttachment.objects.create(
+            notice=notice,
+            file=f,
+            original_name=getattr(f, 'name', '')[:255],
+        ))
+    return saved
 
 
 class NoticesPagination(PageNumberPagination):
@@ -54,7 +78,8 @@ class AdminNoticeListCreateView(generics.ListCreateAPIView):
     serializer_class = NoticeSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = NoticesPagination
-    
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
     def get_queryset(self):
         """Get all notices for admin users"""
         if not self.request.user.is_admin():
@@ -81,18 +106,21 @@ class AdminNoticeListCreateView(generics.ListCreateAPIView):
         return NoticeSerializer
     
     def perform_create(self, serializer):
-        """Set the created_by field to the current user and invalidate caches"""
+        """Set the created_by field, save attachments, and dispatch notifications."""
         notice = serializer.save(created_by=self.request.user)
 
+        # Persist any uploaded attachments (images / PDFs).
+        _save_notice_attachments(notice, self.request.FILES.getlist('attachments'))
+
         # Invalidate all user unread count caches when a new notice is created
-        from django.core.cache.utils import make_template_fragment_key
         User = get_user_model()
         user_ids = User.objects.filter(role__in=['student', 'captain', 'teacher']).values_list('id', flat=True)
         for user_id in user_ids:
             cache_key = f'user_unread_count_{user_id}'
             cache.delete(cache_key)
 
-        # Email + in-app notification to all notice recipients (only when published)
+        # Notify recipients. Priority routing lives in notify_new_notice:
+        # high -> email all active students + in-app; low/normal -> in-app only.
         try:
             if getattr(notice, 'is_published', True):
                 from apps.notifications.dispatch import notify_new_notice
@@ -100,6 +128,11 @@ class AdminNoticeListCreateView(generics.ListCreateAPIView):
         except Exception as notify_err:
             import logging
             logging.getLogger(__name__).error("Notice notification failed: %s", notify_err)
+
+    def get_serializer_context(self):
+        ctx = super().get_serializer_context()
+        ctx['request'] = self.request
+        return ctx
 
 
 class AdminNoticeDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -111,18 +144,35 @@ class AdminNoticeDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
     serializer_class = NoticeSerializer
     permission_classes = [permissions.IsAuthenticated]
-    
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
     def get_queryset(self):
         """Get notices for admin users only"""
         if not self.request.user.is_admin():
             return Notice.objects.none()
-        return Notice.objects.select_related('created_by').prefetch_related('read_statuses')
-    
+        return Notice.objects.select_related('created_by').prefetch_related('read_statuses', 'attachments')
+
     def get_serializer_class(self):
         """Use different serializers for different actions"""
         if self.request.method in ['PUT', 'PATCH']:
             return NoticeCreateUpdateSerializer
         return NoticeSerializer
+
+    def get_serializer_context(self):
+        ctx = super().get_serializer_context()
+        ctx['request'] = self.request
+        return ctx
+
+    def perform_update(self, serializer):
+        notice = serializer.save()
+
+        # Remove attachments the editor deleted (ids passed as repeated form fields).
+        remove_ids = self.request.data.getlist('remove_attachments') if hasattr(self.request.data, 'getlist') else self.request.data.get('remove_attachments', [])
+        if remove_ids:
+            notice.attachments.filter(id__in=[r for r in remove_ids if str(r).isdigit()]).delete()
+
+        # Append any newly uploaded attachments.
+        _save_notice_attachments(notice, self.request.FILES.getlist('attachments'))
 
 
 @method_decorator(vary_on_headers('Authorization'), name='dispatch')

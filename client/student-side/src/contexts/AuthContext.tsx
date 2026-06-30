@@ -17,6 +17,8 @@ interface User {
   relatedProfileId?: string;
   studentStatus?: string;
   isAlumni?: boolean;
+  /** True when the account was created via the "Alumni Account" signup option. */
+  isAlumniAccount?: boolean;
 }
 
 interface AuthContextType {
@@ -174,6 +176,7 @@ async function buildUserFromResponse(userData: any): Promise<User> {
     semester: userData.semester,
     studentStatus: userData.student_status,
     isAlumni: userData.is_alumni,
+    isAlumniAccount: userData.is_alumni_account,
   };
 }
 
@@ -240,6 +243,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           current.relatedProfileId === built.relatedProfileId &&
           current.studentStatus === built.studentStatus &&
           current.isAlumni === built.isAlumni &&
+          current.isAlumniAccount === built.isAlumniAccount &&
           current.name === built.name &&
           current.studentId === built.studentId;
         if (!unchanged) {
@@ -410,6 +414,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mobile_number: data.mobile,
       role: data.role,
     };
+
+    // Alumni accounts register as a student-role account flagged as alumni.
+    // The backend skips the SSC-roll / admission requirements for these.
+    if (data.role === 'alumni') {
+      registrationData.role = 'student';
+      registrationData.account_type = 'alumni';
+    }
 
     // SSC Board Roll for students and captains
     if ((data.role === 'student' || data.role === 'captain') && data.sscBoardRoll) {

@@ -267,13 +267,17 @@ class StructuredFileStorage:
         alumni_id = self._sanitize_filename(alumni_data['alumni_id'])
         
         # Build hierarchical path
-        # Structure: Alumni_Documents/dept-code_dept-name/alumni-name_alumni-id/
+        # Structure: Alumni_Documents/dept-code_dept-name/graduation-year/alumni-name_alumni-id/
+        # (mirrors the admission/student hierarchy, grouping alumni by their
+        # graduation year instead of session/shift)
         dept_folder = f"{dept_code}_{dept_name}" if dept_name else dept_code
+        grad_folder = grad_year if grad_year else 'unknown-year'
         alumni_folder = f"{alumni_name}_{alumni_id}"
-        
+
         relative_dir = os.path.join(
             self.DOCUMENT_TYPES['alumni'],
             dept_folder,
+            grad_folder,
             alumni_folder
         )
         
@@ -310,6 +314,19 @@ class StructuredFileStorage:
         
         return file_info
     
+    def get_alumni_documents_path(self, alumni_data: Dict[str, str]) -> Path:
+        """Get the directory path for an alumni's documents."""
+        dept_code = self._sanitize_path_component(alumni_data['department_code'])
+        dept_name = self._sanitize_path_component(alumni_data.get('department_name', ''))
+        grad_year = self._sanitize_path_component(alumni_data.get('graduation_year', '')) or 'unknown-year'
+        alumni_name = self._sanitize_filename(alumni_data['alumni_name'])
+        alumni_id = self._sanitize_filename(alumni_data['alumni_id'])
+
+        dept_folder = f"{dept_code}_{dept_name}" if dept_name else dept_code
+        alumni_folder = f"{alumni_name}_{alumni_id}"
+
+        return self.storage_root / self.DOCUMENT_TYPES['alumni'] / dept_folder / grad_year / alumni_folder
+
     def get_student_documents_path(self, student_data: Dict[str, str]) -> Path:
         """Get the directory path for a student's documents"""
         dept_code = self._sanitize_path_component(student_data['department_code'])
@@ -404,6 +421,55 @@ class StructuredFileStorage:
         if not file_path:
             return ''
         return self.storage_url + file_path
+
+    def save_system_document(
+        self,
+        uploaded_file: UploadedFile,
+        document_category: str = 'other',
+        validate: bool = True
+    ) -> Dict[str, Union[str, int]]:
+        """
+        Save a document that has no owner context (e.g. an admin upload not tied
+        to a student) under System_Documents/misc/. This keeps every upload in
+        the structured store so the legacy flat storage is never written to.
+        """
+        category = document_category if document_category in self.DOCUMENT_CATEGORIES else 'other'
+        if validate:
+            self._validate_file(uploaded_file, category)
+
+        relative_dir = os.path.join(self.DOCUMENT_TYPES['system'], 'misc')
+        file_info = self._generate_structured_filename(uploaded_file, category, relative_dir)
+        file_info['storage_path'].parent.mkdir(parents=True, exist_ok=True)
+        file_info['file_hash'] = self._save_file_with_hash(uploaded_file, file_info['storage_path'])
+        file_info.update({'document_type': 'system', 'document_category': category})
+        logger.info(f"System document saved: {file_info['file_path']} ({file_info['file_size']} bytes)")
+        return file_info
+
+    def cleanup_orphaned_files(self, valid_paths: List[str]) -> Dict[str, int]:
+        """Delete files under the structured root that are not in valid_paths."""
+        valid = {str(p).replace('\\', '/') for p in valid_paths if p}
+        deleted_count = 0
+        deleted_size = 0
+        try:
+            for root, _dirs, files in os.walk(self.storage_root):
+                for name in files:
+                    full = Path(root) / name
+                    rel = str(full.relative_to(self.storage_root)).replace('\\', '/')
+                    if rel not in valid:
+                        try:
+                            size = full.stat().st_size
+                            full.unlink()
+                            deleted_count += 1
+                            deleted_size += size
+                        except OSError as exc:
+                            logger.error(f"Failed to delete orphaned file {rel}: {exc}")
+        except OSError as exc:
+            logger.error(f"Orphan cleanup failed: {exc}")
+        return {
+            'deleted_count': deleted_count,
+            'deleted_size_bytes': deleted_size,
+            'deleted_size_mb': round(deleted_size / (1024 * 1024), 2),
+        }
     
     def get_storage_stats(self) -> Dict[str, Union[int, str, Dict]]:
         """Get storage statistics"""

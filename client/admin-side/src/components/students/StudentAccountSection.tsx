@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import {
   ShieldCheck, KeyRound, Mail, UserPlus, Power, Loader2, AlertCircle,
-  Eye, EyeOff, Lock, CheckCircle2, ShieldAlert,
+  Eye, EyeOff, Lock, CheckCircle2, ShieldAlert, Trash2,
 } from 'lucide-react';
 import studentAccountService, { StudentAccount, accountErrorMessage } from '@/services/studentAccountService';
 
@@ -197,16 +197,167 @@ function SecureAccountDialog({
   );
 }
 
+// ── Delete Account Dialog (math challenge → OTP sent to ADMIN's email) ───────
+function DeleteAccountDialog({
+  studentId, onClose, onDone,
+}: {
+  studentId: string;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const { toast } = useToast();
+
+  const generateMath = () => {
+    const a = Math.floor(Math.random() * 20) + 1;
+    const b = Math.floor(Math.random() * 20) + 1;
+    return { a, b };
+  };
+
+  const [step, setStep] = useState<'math' | 'otp'>('math');
+  const [math, setMath] = useState(generateMath);
+  const [mathAnswer, setMathAnswer] = useState('');
+  const [adminEmail, setAdminEmail] = useState('');
+  const [otp, setOtp] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleMathSubmit = async () => {
+    if (parseInt(mathAnswer) !== math.a + math.b) {
+      setError('Incorrect answer. Please try again.');
+      setMath(generateMath());
+      setMathAnswer('');
+      return;
+    }
+    setError('');
+    setSubmitting(true);
+    try {
+      const res = await studentAccountService.sendDeleteOtp(studentId, {});
+      setAdminEmail(res.email || '');
+      toast({ title: 'Verification code sent', description: `A code has been sent to your email.` });
+      setStep('otp');
+    } catch (e: any) {
+      setError(accountErrorMessage(e));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!otp.trim()) { setError('Enter the verification code.'); return; }
+    setError('');
+    setSubmitting(true);
+    try {
+      await studentAccountService.deleteAccount(studentId, { otp: otp.trim() });
+      toast({
+        title: 'Student permanently deleted',
+        description: 'The student record and portal account have been removed.',
+        variant: 'destructive',
+      });
+      onDone();
+    } catch (e: any) {
+      setError(accountErrorMessage(e));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o && !submitting) onClose(); }}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-destructive">
+            <Trash2 className="h-5 w-5" />
+            Delete Student Permanently
+          </DialogTitle>
+          <DialogDescription>
+            {step === 'math'
+              ? 'This will permanently delete the student record and portal account. Solve the math problem to send a verification code to your email.'
+              : `Enter the code sent to ${adminEmail || 'your email'} to confirm permanent deletion.`}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {step === 'math' ? (
+            <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-center space-y-3">
+              <p className="text-2xl font-bold text-foreground tracking-wide">
+                {math.a} + {math.b} = ?
+              </p>
+              <Input
+                type="number"
+                placeholder="Your answer"
+                value={mathAnswer}
+                onChange={(e) => setMathAnswer(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleMathSubmit(); }}
+                className="text-center text-lg font-mono"
+                autoFocus
+              />
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <Label htmlFor="del-otp">Verification Code</Label>
+              <Input
+                id="del-otp"
+                type="text"
+                inputMode="numeric"
+                maxLength={8}
+                value={otp}
+                placeholder="Enter code from your email"
+                onChange={(e) => setOtp(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleDelete(); }}
+                autoFocus
+                className="text-center tracking-widest text-lg font-mono"
+              />
+              <p className="text-xs text-muted-foreground">
+                Didn't receive it?{' '}
+                <button
+                  type="button"
+                  className="underline text-primary hover:text-primary/80 disabled:opacity-50"
+                  disabled={submitting}
+                  onClick={() => { setStep('math'); setMath(generateMath()); setMathAnswer(''); setOtp(''); setError(''); }}
+                >
+                  Start over
+                </button>
+              </p>
+            </div>
+          )}
+
+          {error && (
+            <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-sm text-destructive">
+              <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
+          {step === 'math' ? (
+            <Button variant="destructive" onClick={handleMathSubmit} disabled={submitting || !mathAnswer}>
+              {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending…</> : 'Send OTP'}
+            </Button>
+          ) : (
+            <Button variant="destructive" onClick={handleDelete} disabled={submitting}>
+              {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting…</> : 'Confirm Delete'}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function StudentAccountSection({
-  studentId, studentEmail,
+  studentId, studentEmail, onDeleted,
 }: {
   studentId: string;
   studentName?: string;
   studentEmail?: string;
+  onDeleted?: () => void;
 }) {
   const [account, setAccount] = useState<StudentAccount | null>(null);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<ActionMode | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -296,6 +447,25 @@ export function StudentAccountSection({
               >
                 <Power className="h-4 w-4" /> {isActive ? 'Deactivate' : 'Activate'}
               </Button>
+              <Button
+                variant="outline" size="sm"
+                className="gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => setShowDeleteDialog(true)}
+              >
+                <Trash2 className="h-4 w-4" /> Delete Account
+              </Button>
+            </div>
+
+            {/* ── Delete Account — placed at the very bottom ── */}
+            <div className="mt-2 border-t border-border/50 pt-4">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 w-full text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => setShowDeleteDialog(true)}
+              >
+                <Trash2 className="h-4 w-4" /> Delete Portal Account
+              </Button>
             </div>
           </div>
         )}
@@ -309,6 +479,14 @@ export function StudentAccountSection({
           defaultEmail={studentEmail}
           onClose={() => setMode(null)}
           onDone={(a) => { setAccount(a); setMode(null); }}
+        />
+      )}
+
+      {showDeleteDialog && (
+        <DeleteAccountDialog
+          studentId={studentId}
+          onClose={() => setShowDeleteDialog(false)}
+          onDone={() => { setShowDeleteDialog(false); onDeleted?.(); }}
         />
       )}
     </Card>

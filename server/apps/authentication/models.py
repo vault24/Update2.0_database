@@ -137,6 +137,14 @@ class User(AbstractUser):
     # Additional fields
     mobile_number = models.CharField(max_length=20, blank=True)
 
+    # Marks an account created via the student-side "Alumni Account" signup
+    # option. Such accounts skip admission and are routed to the alumni
+    # self-registration wizard until they submit their alumni information.
+    is_alumni_account = models.BooleanField(
+        default=False,
+        help_text='True for accounts that registered as Alumni (self-registration flow)'
+    )
+
     # Profile photo (avatar) shown in the admin panel
     profile_photo = models.ImageField(
         upload_to='avatars/',

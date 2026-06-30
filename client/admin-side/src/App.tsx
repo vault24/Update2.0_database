@@ -21,6 +21,7 @@ import AttendanceMarks from "./pages/AttendanceMarks";
 import StudentDetails from "./pages/StudentDetails";
 import EditStudent from "./pages/EditStudent";
 import Alumni from "./pages/Alumni";
+import AddAlumni from "./pages/AddAlumni";
 import AlumniDetails from "./pages/AlumniDetails";
 import Documents from "./pages/Documents";
 import Applications from "./pages/Applications";
@@ -81,6 +82,7 @@ const App = () => (
                   <Route path="/attendance-marks" element={<AttendanceMarks />} />
 
                   <Route path="/alumni" element={<Alumni />} />
+                  <Route path="/alumni/add" element={<AddAlumni />} />
                   <Route path="/alumni/:id" element={<AlumniDetails />} />
                   <Route path="/documents" element={<Documents />} />
                   <Route path="/applications" element={<Applications />} />

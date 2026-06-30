@@ -874,7 +874,7 @@ class StudentViewSet(viewsets.ModelViewSet):
     # ──────────────────────────────────────────────────────────────────────
     # Student Portal account management (admin-only, password-confirmed)
     # ──────────────────────────────────────────────────────────────────────
-    @action(detail=True, methods=['get', 'post', 'patch'], url_path='account')
+    @action(detail=True, methods=['get', 'post', 'patch', 'delete'], url_path='account')
     def account(self, request, pk=None):
         """
         Create / view / manage the Student Portal account linked to this student.
@@ -1065,3 +1065,145 @@ class StudentViewSet(viewsets.ModelViewSet):
             changes=changes, ip_address=ip_address, user_agent=user_agent,
         )
         return Response(account_payload(user))
+
+    @action(detail=True, methods=['post'], url_path='account/send-delete-otp')
+    def account_send_delete_otp(self, request, pk=None):
+        """
+        Send a one-time verification code to the ADMIN'S OWN email so they can
+        confirm the full deletion of both the student portal account and the
+        student record.
+        POST /api/students/{id}/account/send-delete-otp/
+        No body required — admin must be authenticated via session.
+        """
+        from apps.authentication.services import OTPService, EmailService
+        from apps.activity_logs.signals import log_activity
+
+        student = self.get_object()
+
+        if not request.user.is_admin():
+            return Response(
+                {'error': 'Permission denied', 'detail': 'Only administrators can perform this action.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # OTP is sent to the logged-in admin's own email, not the student's.
+        admin = request.user
+        if not admin.email:
+            return Response(
+                {'error': 'No email on file', 'detail': 'Your admin account has no email address configured.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            otp_token = OTPService.create_otp_token(admin)
+            sent = EmailService.send_login_otp_email(admin, otp_token.token)
+            if not sent:
+                return Response(
+                    {'error': 'Email delivery failed', 'detail': 'Could not send verification code. Please try again.'},
+                    status=status.HTTP_502_BAD_GATEWAY,
+                )
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error('Delete OTP send failed: %s', e)
+            return Response(
+                {'error': 'Failed to send OTP', 'detail': 'An error occurred sending the verification code.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        xff = request.META.get('HTTP_X_FORWARDED_FOR')
+        ip = xff.split(',')[0].strip() if xff else request.META.get('REMOTE_ADDR')
+        log_activity(
+            admin, 'other', 'StudentRecord', student.id,
+            f'Requested full-delete OTP for student {student.fullNameEnglish} [{student.currentRollNumber}] — code sent to admin {admin.email}',
+            ip_address=ip, user_agent=request.META.get('HTTP_USER_AGENT', ''),
+        )
+
+        return Response(
+            {'message': f'A verification code has been sent to {admin.email}.', 'email': admin.email},
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=['delete'], url_path='account/delete')
+    def account_delete(self, request, pk=None):
+        """
+        Full deletion: verify the OTP sent to the admin's own email, then
+        delete BOTH the linked student portal account AND the student record.
+        DELETE /api/students/{id}/account/delete/
+          body: { otp }
+        """
+        from apps.authentication.services import OTPService
+        from apps.activity_logs.signals import log_activity
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+        student = self.get_object()
+
+        if not request.user.is_admin():
+            return Response(
+                {'error': 'Permission denied', 'detail': 'Only administrators can perform this action.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        otp = (request.data.get('otp') or '').strip()
+        if not otp:
+            return Response(
+                {'error': 'OTP required', 'detail': 'Please enter the verification code sent to your email.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        admin = request.user
+
+        # Verify OTP against the admin's own email/tokens
+        valid, message = OTPService.verify_otp(admin.email, otp)
+        if not valid:
+            return Response({'error': 'Invalid code', 'detail': message}, status=status.HTTP_400_BAD_REQUEST)
+
+        OTPService.mark_otp_as_used(admin.email, otp)
+
+        xff = request.META.get('HTTP_X_FORWARDED_FOR')
+        ip = xff.split(',')[0].strip() if xff else request.META.get('REMOTE_ADDR')
+        student_name = student.fullNameEnglish
+        student_roll = student.currentRollNumber
+        student_id = str(student.id)
+
+        # 1. Delete linked student portal account (if any)
+        portal_user = User.objects.filter(
+            related_profile_id=student.id, role__in=['student', 'captain']
+        ).order_by('date_joined').first()
+        portal_deleted = False
+        if portal_user:
+            portal_email = portal_user.email
+            portal_user.delete()
+            portal_deleted = True
+        else:
+            portal_email = None
+
+        # 2. Delete the student record itself
+        student.delete()
+
+        log_activity(
+            admin, 'delete', 'StudentRecord', None,
+            f'Fully deleted student {student_name} [{student_roll}]'
+            + (f' + portal account ({portal_email})' if portal_deleted else ' (no portal account)'),
+            changes={
+                'student_id': student_id,
+                'student_name': student_name,
+                'roll_number': student_roll,
+                'portal_account_deleted': portal_deleted,
+                'portal_email': portal_email,
+            },
+            ip_address=ip, user_agent=request.META.get('HTTP_USER_AGENT', ''),
+        )
+
+        return Response(
+            {
+                'deleted': True,
+                'portal_account_deleted': portal_deleted,
+                'message': (
+                    f'Student record and portal account for {student_name} have been permanently deleted.'
+                    if portal_deleted else
+                    f'Student record for {student_name} has been permanently deleted (no portal account found).'
+                ),
+            },
+            status=status.HTTP_200_OK,
+        )

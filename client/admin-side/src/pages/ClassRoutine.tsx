@@ -111,21 +111,17 @@ export default function ClassRoutine() {
   const { toast } = useToast();
   const timeSlots = timeSlotsByShift[shift] || [];
 
-  // Helper function to filter teachers by shift permission
+  // Teachers available for the selected shift. A teacher with no explicitly
+  // assigned shifts is treated as available for every shift (otherwise newly
+  // approved teachers — who have shifts=[] — would never appear).
   const getFilteredTeachers = (): Teacher[] => {
     if (!shift) return teachers;
-    
     const shiftLower = shift.toLowerCase();
-    const filtered = teachers.filter(teacher => {
-      const teacherShifts = teacher.shifts || [];
-      const hasShift = teacherShifts.includes(shiftLower);
-      
-      return hasShift;
+    return teachers.filter(teacher => {
+      const teacherShifts = (teacher.shifts || []).map(s => String(s).toLowerCase().trim());
+      if (teacherShifts.length === 0) return true;
+      return teacherShifts.some(s => s === shiftLower || s.startsWith(shiftLower));
     });
-    
-    console.log(`Filtered teachers for ${shift}:`, filtered.length, 'out of', teachers.length);
-    
-    return filtered;
   };
 
   // Load departments and teachers once
@@ -178,18 +174,15 @@ export default function ClassRoutine() {
   // Filter validation function
   const validateFilters = (): boolean => {
     if (!department) {
-      console.log('No department selected, skipping fetch');
       return false;
     }
 
     if (!semester || semester < 1 || semester > 8) {
-      console.warn('Invalid semester value:', semester);
       setError('Invalid semester selection. Please select a valid semester (1-8).');
       return false;
     }
 
-    if (!shift || !['Morning', 'Day', 'Evening'].includes(shift)) {
-      console.warn('Invalid shift value:', shift);
+    if (!shift || !['Morning', 'Day'].includes(shift)) {
       setError('Invalid shift selection. Please select a valid shift.');
       return false;
     }
@@ -217,8 +210,6 @@ export default function ClassRoutine() {
         setRoutineGrid(buildEmptyGrid(timeSlots));
       }
       
-      console.log('Fetching routine with filters:', { department, semester, shift });
-      
       // Prepare query parameters with proper validation
       const queryParams: any = {
         is_active: true,
@@ -235,15 +226,12 @@ export default function ClassRoutine() {
         queryParams.semester = semester;
       }
       
-      if (shift && ['Morning', 'Day', 'Evening'].includes(shift)) {
+      if (shift && ['Morning', 'Day'].includes(shift)) {
         queryParams.shift = shift;
       }
 
-      console.log('Query parameters:', queryParams);
-      
       const response = await routineService.getRoutine(queryParams);
 
-      console.log('Fetched routine data:', response.results.length, 'entries');
       setRoutineData(response.results);
       if (response.results.length > 0) {
         setSession(response.results[0].session || session);
@@ -257,7 +245,6 @@ export default function ClassRoutine() {
     } catch (err) {
       const errorMsg = getErrorMessage(err);
       setError(errorMsg);
-      console.error('Error fetching routine:', err);
 
       // Enhanced error handling with retry logic
       const isNetworkError = errorMsg.includes('Failed to fetch') || 
@@ -297,8 +284,6 @@ export default function ClassRoutine() {
         setRoutineGrid(buildEmptyGrid(timeSlots));
       }
       
-      console.log('Fetching teacher routine for:', selectedTeacher);
-      
       // Fetch all routine entries for this teacher
       const queryParams: any = {
         is_active: true,
@@ -307,13 +292,12 @@ export default function ClassRoutine() {
         teacher: selectedTeacher,
       };
 
-      if (shift && ['Morning', 'Day', 'Evening'].includes(shift)) {
+      if (shift && ['Morning', 'Day'].includes(shift)) {
         queryParams.shift = shift;
       }
-      
+
       const response = await routineService.getRoutine(queryParams);
 
-      console.log('Fetched teacher routine data:', response.results.length, 'entries');
       setRoutineData(response.results);
 
       const gridData = routineTransformers.apiToGrid(response.results, timeSlots);
@@ -323,8 +307,7 @@ export default function ClassRoutine() {
     } catch (err) {
       const errorMsg = getErrorMessage(err);
       setError(errorMsg);
-      console.error('Error fetching teacher routine:', err);
-      
+
       toast({
         title: 'Error loading teacher routine',
         description: errorMsg,
@@ -583,20 +566,11 @@ export default function ClassRoutine() {
         ? { department, semester, shift, session }
         : { teacher: selectedTeacher, shift, session, department: slotForm.department || department, semester: slotForm.semester || semester };
       
-      console.log('Saving routine with data:', {
-        routineGrid,
-        routineData: routineData.length,
-        filters: saveFilters,
-        viewMode
-      });
-      
       const saveResponse = await routineTransformers.saveRoutineChanges(
         routineGrid,
         routineData,
         saveFilters
       );
-
-      console.log('Save response:', saveResponse);
 
       if (!saveResponse.success) {
         // Handle validation errors from bulk operations
@@ -629,15 +603,12 @@ export default function ClassRoutine() {
       // Notify about successful save with refresh confirmation
       toast({ 
         title: "Routine Saved & Refreshed", 
-        description: `${saveResponse.message || "Class routine has been saved successfully."} (${saveResponse.completed_operations}/${saveResponse.total_operations} operations completed). Data refreshed from server.` 
+        description: `${saveResponse.message || "Class routine has been saved successfully."} (${saveResponse.completed_operations}/${saveResponse.total_operations} operations completed). Data refreshed from server.`
       });
-
-      console.log('Routine saved and automatically refreshed from server');
     } catch (err: any) {
       const errorMsg = getErrorMessage(err);
       setError(errorMsg);
-      console.error('Save error:', err);
-      
+
       // Parse validation errors if available
       const validationErrs = parseValidationErrors(err);
       if (Object.keys(validationErrs).length > 0) {
@@ -672,20 +643,22 @@ export default function ClassRoutine() {
     }
   };
 
-  // Loading state
-  if (loading) {
+  // Full-page loader only for the very first load; subsequent fetches use the
+  // in-grid overlay so filters/header stay put.
+  const initialLoading = loading && departments.length === 0 && teachers.length === 0;
+  if (initialLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center space-y-4">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
-          <p className="text-muted-foreground">Loading class routine...</p>
+          <Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">Loading class routine…</p>
         </div>
       </div>
     );
   }
 
-  // Error state
-  if (error && !loading) {
+  // Error state (only when we have nothing to show)
+  if (error && !loading && routineData.length === 0 && departments.length === 0) {
     const isNetworkError = error.includes('Failed to fetch') || 
                           error.includes('NetworkError') || 
                           error.includes('timeout');
@@ -708,8 +681,7 @@ export default function ClassRoutine() {
               <div className="flex gap-2 justify-center">
                 <Button 
                   onClick={() => fetchRoutine(true)} 
-                  className="gradient-primary text-primary-foreground"
-                  disabled={loading}
+                                   disabled={loading}
                 >
                   {loading ? (
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -738,9 +710,9 @@ export default function ClassRoutine() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Class Routine</h1>
-          <p className="text-muted-foreground">
-            {viewMode === 'student' ? 'Manage department-wise weekly class schedules' : 'View teacher-wise class schedules'}
+          <h1 className="text-xl md:text-2xl font-semibold text-foreground">Class routine</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {viewMode === 'student' ? 'Manage department-wise weekly class schedules.' : 'View teacher-wise class schedules.'}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -761,8 +733,7 @@ export default function ClassRoutine() {
               </Button>
               <Button 
                 onClick={handleSaveRoutine} 
-                className="gradient-primary text-primary-foreground"
-                disabled={saving || loading}
+                               disabled={saving || loading}
               >
                 {saving ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -792,8 +763,7 @@ export default function ClassRoutine() {
                 Edit Routine
               </Button>
               <Button 
-                className="gradient-primary text-primary-foreground"
-                disabled={loading}
+                               disabled={loading}
               >
                 <Download className="w-4 h-4 mr-2" />
                 Export PDF
@@ -818,8 +788,7 @@ export default function ClassRoutine() {
               </Button>
               <Button 
                 onClick={handleSaveRoutine} 
-                className="gradient-primary text-primary-foreground"
-                disabled={saving || loading}
+                               disabled={saving || loading}
               >
                 {saving ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -849,8 +818,7 @@ export default function ClassRoutine() {
                 Edit Routine
               </Button>
               <Button 
-                className="gradient-primary text-primary-foreground"
-                disabled={loading}
+                               disabled={loading}
               >
                 <Download className="w-4 h-4 mr-2" />
                 Export PDF
@@ -978,7 +946,7 @@ export default function ClassRoutine() {
               <Calendar className="w-3 h-3 mr-1" />
               {departments.find(d => d.id === department)?.name || 'Select Department'}
             </Badge>
-            <Badge variant="outline" className="bg-accent/10 text-accent-foreground border-accent/20">
+            <Badge variant="outline" className="bg-muted text-muted-foreground border-border">
               {semester}{semester === 1 ? 'st' : semester === 2 ? 'nd' : semester === 3 ? 'rd' : 'th'} Semester
             </Badge>
           </>
@@ -1319,8 +1287,7 @@ export default function ClassRoutine() {
             </Button>
             <Button 
               onClick={handleSaveSlot} 
-              className="gradient-primary text-primary-foreground"
-              disabled={saving || (slotForm.subject && Object.keys(slotFormErrors).length > 0)}
+                           disabled={saving || (slotForm.subject && Object.keys(slotFormErrors).length > 0)}
             >
               <Save className="w-4 h-4 mr-2" />
               Save

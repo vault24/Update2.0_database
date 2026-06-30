@@ -233,19 +233,9 @@ class Document(models.Model):
     
     @property
     def file_url(self):
-        """Get public URL for file access"""
-        from utils.file_storage import file_storage
+        """Get public URL for file access (served via the /files/ endpoint)."""
         from utils.structured_file_storage import structured_storage
-        
-        # Try structured storage first (new system)
-        if self.filePath:
-            # Check if file exists in structured storage
-            file_info = structured_storage.get_file_info(self.filePath)
-            if file_info and file_info.get('exists'):
-                return structured_storage.get_file_url(self.filePath)
-        
-        # Fallback to old storage system
-        return file_storage.get_file_url(self.filePath)
+        return structured_storage.get_file_url(self.filePath) if self.filePath else ''
     
     @property
     def file_size_mb(self):
@@ -264,17 +254,9 @@ class Document(models.Model):
         return self.fileType.lower() == 'pdf'
     
     def get_file_info(self):
-        """Get detailed file information from storage"""
-        from utils.file_storage import file_storage
+        """Get detailed file information from structured storage."""
         from utils.structured_file_storage import structured_storage
-        
-        # Try structured storage first (new system)
-        file_info = structured_storage.get_file_info(self.filePath)
-        if file_info and file_info.get('exists'):
-            return file_info
-        
-        # Fallback to old storage system
-        return file_storage.get_file_info(self.filePath)
+        return structured_storage.get_file_info(self.filePath)
     
     def verify_integrity(self):
         """Verify file integrity using hash"""

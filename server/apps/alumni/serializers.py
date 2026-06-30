@@ -71,6 +71,8 @@ class AlumniSerializer(serializers.ModelSerializer):
             'skills',
             'highlights',
             'courses',
+            'registrationSource',
+            'reviewStatus',
             'isVerified',
             'lastEditedAt',
             'lastEditedBy',

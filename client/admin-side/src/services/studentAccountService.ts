@@ -30,6 +30,14 @@ export interface UpdateAccountPayload {
   admin_password: string;
 }
 
+export interface SendDeleteOtpPayload {
+  // no body needed — session auth is sufficient
+}
+
+export interface DeleteAccountPayload {
+  otp: string;
+}
+
 /** Extract a clean, user-friendly message from a thrown API error. */
 export function accountErrorMessage(err: any): string {
   return (
@@ -50,6 +58,18 @@ export const studentAccountService = {
 
   update: (studentId: string, data: UpdateAccountPayload) =>
     apiClient.patch<StudentAccount>(`/students/${studentId}/account/`, data),
+
+  sendDeleteOtp: (studentId: string, data: SendDeleteOtpPayload) =>
+    apiClient.post<{ message: string; email: string }>(
+      `/students/${studentId}/account/send-delete-otp/`,
+      data,
+    ),
+
+  deleteAccount: (studentId: string, data: DeleteAccountPayload) =>
+    apiClient.delete<{ has_account: false; message: string }>(
+      `/students/${studentId}/account/delete/`,
+      { data },
+    ),
 };
 
 export default studentAccountService;

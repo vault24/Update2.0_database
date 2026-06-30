@@ -17,15 +17,28 @@ import logging
 
 from .models import Document, DocumentAccessLog
 from .serializers import (
-    DocumentSerializer, 
+    DocumentSerializer,
     DocumentUploadSerializer,
     BatchDocumentUploadSerializer,
     DocumentAccessLogSerializer,
     DocumentIntegritySerializer
 )
-from utils.file_storage import file_storage
+from utils.structured_file_storage import structured_storage
 
 logger = logging.getLogger(__name__)
+
+# Maps the human-facing category to the structured-storage category slug.
+CATEGORY_TO_STRUCTURED = {
+    'Photo': 'photo',
+    'Birth Certificate': 'birth_certificate',
+    'NID': 'nid',
+    'Marksheet': 'ssc_marksheet',
+    'Certificate': 'ssc_certificate',
+    'Testimonial': 'transcript',
+    'Medical Certificate': 'medical_certificate',
+    'Quota Document': 'quota_document',
+    'Other': 'other',
+}
 
 
 class DocumentViewSet(viewsets.ModelViewSet):
@@ -64,11 +77,12 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 # Get student if provided
                 student_id = validated_data.get('student')
                 
+                document_category = CATEGORY_TO_STRUCTURED.get(validated_data['category'], 'other')
+
                 if student_id:
                     # Use structured storage for student documents
                     from apps.students.models import Student
-                    from utils.structured_file_storage import structured_storage
-                    
+
                     try:
                         student = Student.objects.select_related('department').get(id=student_id)
                     except Student.DoesNotExist:
@@ -76,7 +90,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
                             {'error': 'Student not found'},
                             status=status.HTTP_404_NOT_FOUND
                         )
-                    
+
                     # Prepare student data
                     student_data = {
                         'department_code': student.department.code.lower().replace(' ', '-'),
@@ -86,21 +100,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
                         'student_name': student.fullNameEnglish.replace(' ', ''),
                         'student_id': student.currentRollNumber,
                     }
-                    
-                    # Map category to document_category
-                    category_map = {
-                        'Photo': 'photo',
-                        'Birth Certificate': 'birth_certificate',
-                        'NID': 'nid',
-                        'Marksheet': 'ssc_marksheet',
-                        'Certificate': 'ssc_certificate',
-                        'Testimonial': 'transcript',
-                        'Medical Certificate': 'medical_certificate',
-                        'Quota Document': 'quota_document',
-                        'Other': 'other',
-                    }
-                    document_category = category_map.get(validated_data['category'], 'other')
-                    
+
                     # Save file using structured storage
                     file_info = structured_storage.save_student_document(
                         uploaded_file=validated_data['file'],
@@ -109,12 +109,11 @@ class DocumentViewSet(viewsets.ModelViewSet):
                         validate=True
                     )
                 else:
-                    # Use old storage for non-student documents
-                    file_info = file_storage.save_file(
+                    # No student context — still keep it in the structured store
+                    # (System_Documents/misc) so the legacy flat storage is unused.
+                    file_info = structured_storage.save_system_document(
                         uploaded_file=validated_data['file'],
-                        category='documents',
-                        subfolder=validated_data.get('category', '').lower(),
-                        custom_name=validated_data.get('custom_filename'),
+                        document_category=document_category,
                         validate=True
                     )
                 
@@ -192,8 +191,8 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 document.status = 'deleted'
                 document.save()
                 
-                # Delete physical file
-                file_deleted = file_storage.delete_file(document.filePath)
+                # Delete physical file from structured storage
+                file_deleted = structured_storage.delete_file(document.filePath)
                 
                 if not file_deleted:
                     logger.warning(f"Physical file not found during deletion: {document.filePath}")
@@ -245,15 +244,9 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        # Get file information
-        # Try structured storage first (new system)
-        from utils.structured_file_storage import structured_storage
+        # Resolve the file from structured storage.
         file_info = structured_storage.get_file_info(document.filePath)
-        
-        # Fallback to old storage if not found
-        if not file_info or not file_info.get('exists'):
-            file_info = file_storage.get_file_info(document.filePath)
-        
+
         if not file_info or not file_info.get('exists'):
             self._log_document_access(
                 document=document,
@@ -354,15 +347,9 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        # Get file information
-        # Try structured storage first (new system)
-        from utils.structured_file_storage import structured_storage
+        # Resolve the file from structured storage.
         file_info = structured_storage.get_file_info(document.filePath)
-        
-        # Fallback to old storage if not found
-        if not file_info or not file_info.get('exists'):
-            file_info = file_storage.get_file_info(document.filePath)
-        
+
         if not file_info or not file_info.get('exists'):
             self._log_document_access(
                 document=document,
@@ -560,8 +547,8 @@ class DocumentViewSet(viewsets.ModelViewSet):
             )
         
         # Get file information
-        file_info = file_storage.get_file_info(document.filePath)
-        
+        file_info = structured_storage.get_file_info(document.filePath)
+
         # Verify integrity
         integrity_valid, integrity_message = document.verify_integrity()
         
@@ -650,8 +637,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 
                 if student_id:
                     from apps.students.models import Student
-                    from utils.structured_file_storage import structured_storage
-                    
+
                     try:
                         student = Student.objects.select_related('department').get(id=student_id)
                         # Prepare student data for structured storage
@@ -671,23 +657,9 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 
                 for i, doc_data in enumerate(documents_data):
                     try:
+                        document_category = CATEGORY_TO_STRUCTURED.get(doc_data['category'], 'other')
                         if student_data:
                             # Use structured storage for student documents
-                            # Map category to document_category
-                            category_map = {
-                                'Photo': 'photo',
-                                'Birth Certificate': 'birth_certificate',
-                                'NID': 'nid',
-                                'Marksheet': 'ssc_marksheet',
-                                'Certificate': 'ssc_certificate',
-                                'Testimonial': 'transcript',
-                                'Medical Certificate': 'medical_certificate',
-                                'Quota Document': 'quota_document',
-                                'Other': 'other',
-                            }
-                            document_category = category_map.get(doc_data['category'], 'other')
-                            
-                            # Save file using structured storage
                             file_info = structured_storage.save_student_document(
                                 uploaded_file=doc_data['file'],
                                 student_data=student_data,
@@ -695,11 +667,10 @@ class DocumentViewSet(viewsets.ModelViewSet):
                                 validate=True
                             )
                         else:
-                            # Use old storage for non-student documents
-                            file_info = file_storage.save_file(
+                            # No student context — keep in the structured store.
+                            file_info = structured_storage.save_system_document(
                                 uploaded_file=doc_data['file'],
-                                category='documents',
-                                subfolder=doc_data['category'].lower(),
+                                document_category=document_category,
                                 validate=True
                             )
                         
@@ -789,7 +760,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
             )
         
         # Get file storage stats
-        storage_stats = file_storage.get_storage_stats()
+        storage_stats = structured_storage.get_storage_stats()
         
         # Get database stats
         db_stats = {
@@ -895,7 +866,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
         )
         
         # Cleanup orphaned files
-        cleanup_stats = file_storage.cleanup_orphaned_files(valid_paths)
+        cleanup_stats = structured_storage.cleanup_orphaned_files(valid_paths)
         
         return Response({
             'message': 'Cleanup completed',
