@@ -244,17 +244,50 @@ class ChangePasswordSerializer(serializers.Serializer):
         return attrs
 
 
+VALID_SHIFTS = ('1st_shift', '2nd_shift')
+
+
+def signup_username_available(username):
+    """A username is available if no real User and no PENDING request uses it
+    (case-insensitive). Rejected requests do NOT block reuse."""
+    from .models import SignupRequest
+    username = (username or '').strip()
+    if not username:
+        return False
+    if User.objects.filter(username__iexact=username).exists():
+        return False
+    if SignupRequest.objects.filter(username__iexact=username, status='pending').exists():
+        return False
+    return True
+
+
+def signup_email_available(email):
+    """Same rule as username, for email (case-insensitive)."""
+    from .models import SignupRequest
+    email = (email or '').strip()
+    if not email:
+        return False
+    if User.objects.filter(email__iexact=email).exists():
+        return False
+    if SignupRequest.objects.filter(email__iexact=email, status='pending').exists():
+        return False
+    return True
+
+
 class SignupRequestSerializer(serializers.Serializer):
     """Serializer for signup requests"""
     username = serializers.CharField()
     email = serializers.EmailField()
     first_name = serializers.CharField()
     last_name = serializers.CharField()
-    mobile_number = serializers.CharField(required=False)
+    mobile_number = serializers.CharField(required=False, allow_blank=True)
     requested_role = serializers.CharField()
     department = serializers.UUIDField(required=False, allow_null=True)
+    shift = serializers.CharField(required=False, allow_blank=True)
     password = serializers.CharField()
     password_confirm = serializers.CharField()
+    # Email verification code (sent to the email before the request is made).
+    verification_code = serializers.CharField(required=False, allow_blank=True)
 
     def validate(self, data):
         """Validate the signup request data"""
@@ -262,38 +295,37 @@ class SignupRequestSerializer(serializers.Serializer):
         if data.get('password') != data.get('password_confirm'):
             raise serializers.ValidationError({"password_confirm": "Passwords do not match"})
 
-        # Department Head requests must select a department
-        if data.get('requested_role') == 'department_head' and not data.get('department'):
-            raise serializers.ValidationError(
-                {"department": "Please select the department you will manage."}
-            )
-        
-        # Check if username already exists
-        if User.objects.filter(username=data.get('username')).exists():
-            raise serializers.ValidationError({"username": "Username already exists"})
-        
-        # Check if email already exists
-        if User.objects.filter(email=data.get('email')).exists():
-            raise serializers.ValidationError({"email": "Email already exists"})
-        
-        # Check if there's already a pending request with this username or email
-        from .models import SignupRequest
-        if SignupRequest.objects.filter(username=data.get('username'), status='pending').exists():
-            raise serializers.ValidationError({"username": "A signup request with this username is already pending"})
-        
-        if SignupRequest.objects.filter(email=data.get('email'), status='pending').exists():
-            raise serializers.ValidationError({"email": "A signup request with this email is already pending"})
-        
+        # Department Head requests must select a department AND a shift.
+        if data.get('requested_role') == 'department_head':
+            if not data.get('department'):
+                raise serializers.ValidationError(
+                    {"department": "Please select the department you will manage."}
+                )
+            if data.get('shift') not in VALID_SHIFTS:
+                raise serializers.ValidationError(
+                    {"shift": "Please select your shift (1st Shift or 2nd Shift)."}
+                )
+        else:
+            # Shift only applies to department heads.
+            data['shift'] = ''
+
+        # Username / email availability (rejected requests never block reuse).
+        if not signup_username_available(data.get('username')):
+            raise serializers.ValidationError({"username": "This username is already taken."})
+        if not signup_email_available(data.get('email')):
+            raise serializers.ValidationError({"email": "This email is already registered."})
+
         return data
-    
+
     def create(self, validated_data):
         """Create a new signup request"""
         from .models import SignupRequest
         from django.contrib.auth.hashers import make_password
-        
-        # Remove password_confirm as it's not needed in the model
+
+        # Fields not stored directly on the model.
         validated_data.pop('password_confirm', None)
-        
+        validated_data.pop('verification_code', None)
+
         # Hash the password
         password = validated_data.pop('password')
         password_hash = make_password(password)
@@ -314,6 +346,7 @@ class SignupRequestSerializer(serializers.Serializer):
             mobile_number=validated_data.get('mobile_number', ''),
             requested_role=validated_data['requested_role'],
             department=department,
+            shift=validated_data.get('shift', ''),
             password_hash=password_hash,
             status='pending'
         )
@@ -336,6 +369,7 @@ class SignupRequestListSerializer(serializers.ModelSerializer):
             'requested_role',
             'department',
             'department_name',
+            'shift',
             'mobile_number',
             'status',
             'created_at',
@@ -361,6 +395,7 @@ class SignupRequestDetailSerializer(serializers.ModelSerializer):
             'requested_role',
             'department',
             'department_name',
+            'shift',
             'mobile_number',
             'status',
             'rejection_reason',
@@ -383,8 +418,15 @@ class ApproveSignupRequestSerializer(serializers.Serializer):
 
 
 class RejectSignupRequestSerializer(serializers.Serializer):
-    """Serializer for rejecting signup requests"""
-    reason = serializers.CharField(required=False)
+    """Serializer for rejecting signup requests. Accepts either `rejection_reason`
+    or the legacy `reason` key."""
+    rejection_reason = serializers.CharField(required=False, allow_blank=True)
+    reason = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        # Normalise to `rejection_reason` for the view.
+        attrs['rejection_reason'] = attrs.get('rejection_reason') or attrs.get('reason') or ''
+        return attrs
 
 
 class PasswordResetRequestSerializer(serializers.Serializer):
@@ -559,7 +601,7 @@ class UserSerializer(serializers.ModelSerializer):
             'is_superuser', 'interface_mode', 'department', 'department_name',
             'related_profile_id', 'student_id', 'admission_status', 'account_status',
             'mobile_number', 'semester', 'student_status', 'is_alumni', 'is_alumni_account',
-            'profile_photo_url', 'signature_url', 'two_factor_enabled',
+            'shift', 'profile_photo_url', 'signature_url', 'two_factor_enabled',
             'last_login', 'date_joined'
         ]
         read_only_fields = [

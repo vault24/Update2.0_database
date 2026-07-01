@@ -147,6 +147,8 @@ export const API_ENDPOINTS = {
     createPortalAccount: (id: string) => `/alumni/${id}/create-portal-account/`,
     portalAccountStatus: (id: string) => `/alumni/${id}/portal-account-status/`,
     review: (id: string) => `/alumni/${id}/review/`,
+    completionReport: '/alumni/completion-report/',
+    sendCompletionReminders: '/alumni/send-completion-reminders/',
   },
   
   // Activity Logs

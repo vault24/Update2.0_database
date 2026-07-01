@@ -62,9 +62,22 @@ const mainMenuItems: MenuItem[] = [
 const upcomingMenuItems: MenuItem[] = [
   { icon: BookOpen, label: 'Learning Hub', path: '/dashboard/learning-hub', roles: ['student', 'captain', 'teacher'] },
   { icon: Video, label: 'Live Classes', path: '/dashboard/live-classes', roles: ['student', 'captain', 'teacher'] },
-  { icon: MessageCircle, label: 'Messages', path: '/dashboard/messages', roles: ['student', 'captain', 'teacher', 'alumni'] },
+  { icon: MessageCircle, label: 'Messages', path: '/dashboard/messages', roles: ['student', 'captain', 'teacher'] },
   { icon: Shield, label: 'My Allegations', path: '/dashboard/my-allegations', roles: ['student', 'captain'] },
+];
+
+// Dedicated menu for alumni accounts — no Admission / Class Routine / Attendance,
+// and no "Explore" section. Everything else an alumnus may need is kept.
+const alumniMenuItems: MenuItem[] = [
+  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', roles: ['alumni'] },
   { icon: GraduationCap, label: 'Alumni Profile', path: '/dashboard/alumni-profile', roles: ['alumni'] },
+  { icon: Users, label: 'Alumni Directory', path: '/dashboard/alumni-directory', roles: ['alumni'] },
+  { icon: Bell, label: 'Notices & Updates', path: '/dashboard/notices', roles: ['alumni'] },
+  { icon: BarChart3, label: 'Marks', path: '/dashboard/marks', roles: ['alumni'] },
+  { icon: FolderOpen, label: 'Documents', path: '/dashboard/documents', roles: ['alumni'] },
+  { icon: Send, label: 'Applications', path: '/dashboard/applications', roles: ['alumni'] },
+  { icon: Shield, label: 'Complaints', path: '/dashboard/complaints', roles: ['alumni'] },
+  { icon: MessageCircle, label: 'Messages', path: '/dashboard/messages', roles: ['alumni'] },
 ];
 
 export function Sidebar() {
@@ -80,11 +93,19 @@ export function Sidebar() {
     navigate('/', { replace: true });
   };
 
-  const userRole = user?.role || 'student';
+  // Alumni accounts have backend role 'student' + an alumni flag, so detect via
+  // the flags rather than the raw role.
+  const isAlumni = !!(user?.isAlumni || user?.isAlumniAccount);
+  const userRole: UserRole = isAlumni ? 'alumni' : (user?.role || 'student');
   const portalLabel = userRole === 'teacher' ? 'Teacher Portal' : userRole === 'alumni' ? 'Alumni Portal' : 'Student Portal';
 
-  const filteredMainItems = mainMenuItems.filter((item) => item.roles.includes(userRole));
-  const filteredUpcomingItems = upcomingMenuItems.filter((item) => item.roles.includes(userRole));
+  // Alumni get a dedicated menu and no "Explore" group.
+  const filteredMainItems = isAlumni
+    ? alumniMenuItems
+    : mainMenuItems.filter((item) => item.roles.includes(userRole));
+  const filteredUpcomingItems = isAlumni
+    ? []
+    : upcomingMenuItems.filter((item) => item.roles.includes(userRole));
 
   const renderNavItem = (item: MenuItem) => {
     const isActive = location.pathname === item.path;

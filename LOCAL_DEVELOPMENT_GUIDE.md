@@ -53,24 +53,6 @@ pip install -r requirements.txt
 
 ### Create your `.env` file
 
-Inside the `server/` folder, create a file named `.env` and paste this:
-
-```env
-DB_NAME=sipi_db
-DB_USER=sipi_web
-DB_PASSWORD=sipiadmin
-DB_HOST=localhost
-DB_PORT=5432
-
-SECRET_KEY=any-random-string-for-local-dev-only
-DEBUG=True
-ALLOWED_HOSTS=localhost,127.0.0.1
-
-EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend
-```
-
-> Tip: For local dev, `DEBUG=True` shows detailed error pages which helps with debugging.
-
 ### Run database migrations and create admin user
 
 ```bash

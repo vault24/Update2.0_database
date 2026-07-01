@@ -317,6 +317,107 @@ def create_portal_account_for_alumni(alumni, *, email=None, password=None):
     }
 
 
+def compute_profile_completion(alumni):
+    """
+    Server-side mirror of the frontend `getProfileCompletion` scoring so the
+    admin email/reminder tooling and the alumni UI stay in agreement.
+
+    Returns:
+        dict: {
+            'percentage': int (0-100),
+            'completed': int,
+            'total': int,
+            'missing': [str labels...],
+        }
+    """
+    student = alumni.student
+
+    def _has(value):
+        return bool(value and str(value).strip() and str(value).strip() != 'N/A')
+
+    address = student.presentAddress if isinstance(student.presentAddress, dict) else {}
+
+    items = [
+        ('Profile photo', _has(student.profilePhoto)),
+        ('About / bio', _has(alumni.bio)),
+        ('Contact details', _has(student.email) and _has(student.mobileStudent)),
+        ('Current location', _has(address.get('district'))),
+        ('A career or study entry', len(alumni.careerHistory or []) > 0),
+        ('At least 3 skills', len(alumni.skills or []) >= 3),
+        ('A course or certification', len(alumni.courses or []) > 0),
+        ('A career highlight', len(alumni.highlights or []) > 0),
+        ('LinkedIn or portfolio link', _has(alumni.linkedinUrl) or _has(alumni.portfolioUrl)),
+    ]
+
+    completed = sum(1 for _, done in items if done)
+    total = len(items)
+    percentage = round((completed / total) * 100) if total else 0
+
+    return {
+        'percentage': percentage,
+        'completed': completed,
+        'total': total,
+        'missing': [label for label, done in items if not done],
+    }
+
+
+def get_alumni_account_email(alumni):
+    """
+    Preferred contact email for an alumnus: the email on their login account
+    (the address they registered/were created with), falling back to the email
+    stored on the student record. Returns '' when neither is set.
+    """
+    from django.contrib.auth import get_user_model
+
+    User = get_user_model()
+    user = User.objects.filter(related_profile_id=alumni.student_id).first()
+    account_email = (user.email if user else '') or ''
+    return (account_email or alumni.student.email or '').strip()
+
+
+def send_profile_completion_reminder(alumni, completion=None, *, from_email=None):
+    """
+    Email a single alumnus (at their account email) asking them to finish their
+    profile.
+
+    Returns True when an email was dispatched, False when skipped (no email on
+    file). Raises on hard send failures so the caller can record them.
+    """
+    from django.conf import settings
+    from django.core.mail import send_mail
+
+    student = alumni.student
+    recipient = get_alumni_account_email(alumni)
+    if not recipient:
+        return False
+
+    completion = completion or compute_profile_completion(alumni)
+    name = student.fullNameEnglish or 'there'
+    missing = completion['missing']
+    missing_lines = '\n'.join(f'  • {m}' for m in missing) or '  • (a few finishing touches)'
+
+    subject = 'Complete your alumni profile'
+    body = (
+        f"Dear {name},\n\n"
+        f"Your alumni profile is currently {completion['percentage']}% complete.\n"
+        f"A complete profile helps the institute and fellow alumni stay connected "
+        f"with you and share relevant opportunities.\n\n"
+        f"Still to add:\n{missing_lines}\n\n"
+        f"You can update your profile any time from the alumni portal.\n\n"
+        f"Warm regards,\n"
+        f"Sirajganj Polytechnic Institute — Alumni Office"
+    )
+
+    send_mail(
+        subject=subject,
+        message=body,
+        from_email=from_email or settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[recipient],
+        fail_silently=False,
+    )
+    return True
+
+
 def attach_alumni_documents(alumni, document_items):
     """
     Save and register a batch of documents for an alumni record.

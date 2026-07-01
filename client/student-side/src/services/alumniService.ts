@@ -1,5 +1,29 @@
 // Alumni Service - Matching admin-side fields
 import { apiClient } from '@/lib/api';
+import { API_BASE_URL } from '@/config/api';
+
+/**
+ * Fixed institute cover image used for every alumni surface (profile header,
+ * dashboard hero, directory). Served from `student-side/public`. Alumni cannot
+ * change this — the cover is a shared branding element.
+ */
+export const ALUMNI_COVER_IMAGE = '/alumni_cover_photo.png';
+
+/**
+ * Resolve a stored file reference into a browser-loadable URL. Server media is
+ * stored as `/files/…` paths (relative to the API host), while pasted/absolute
+ * URLs are used as-is. Mirrors the logic in useProfilePicture so avatars and
+ * cover images render consistently across the dashboard, profile and directory.
+ */
+export function resolveFileUrl(value?: string | null): string {
+  const v = (value || '').trim();
+  if (!v) return '';
+  if (/^https?:\/\//i.test(v) || v.startsWith('data:')) return v;
+  if (v.startsWith('/files/') || v.startsWith('/media/')) {
+    return `${API_BASE_URL.replace(/\/api\/?$/, '')}${v}`;
+  }
+  return v;
+}
 
 export type CareerType = 'job' | 'higherStudies' | 'business' | 'other';
 export type SkillCategory = 'technical' | 'soft' | 'language' | 'other';
@@ -81,6 +105,9 @@ export interface AlumniProfile {
   bio?: string;
   linkedin?: string;
   portfolio?: string;
+  coverImage?: string;
+  isVerified?: boolean;
+  reviewStatus?: 'pending' | 'approved' | 'rejected';
 }
 
 function toApiDate(value?: string | null): string | null {
@@ -379,6 +406,47 @@ export const alumniService = {
   },
 
   /**
+   * Browse the privacy-conscious alumni directory (approved alumni only).
+   */
+  getDirectory: async (params: AlumniDirectoryParams = {}): Promise<AlumniDirectoryResponse> => {
+    const query: Record<string, string> = {};
+    if (params.q) query.q = params.q;
+    if (params.department) query.department = params.department;
+    if (params.graduationYear) query.graduationYear = String(params.graduationYear);
+    if (params.alumniType) query.alumniType = params.alumniType;
+    if (params.page) query.page = String(params.page);
+    const qs = new URLSearchParams(query).toString();
+    const res = await apiClient.get<AlumniDirectoryResponse>(`/alumni/directory/${qs ? `?${qs}` : ''}`);
+    return {
+      ...res,
+      results: (res.results || []).map((r) => ({
+        ...r,
+        avatar: resolveFileUrl(r.avatar),
+        coverImage: resolveFileUrl(r.coverImage),
+      })),
+    };
+  },
+
+  /**
+   * Fetch the richer public profile shown in the directory detail modal.
+   */
+  getPublicProfile: async (studentId: string): Promise<AlumniPublicProfile> => {
+    const p = await apiClient.get<AlumniPublicProfile>(`/alumni/${studentId}/public-profile/`);
+    return { ...p, avatar: resolveFileUrl(p.avatar), coverImage: resolveFileUrl(p.coverImage) };
+  },
+
+  /**
+   * Upload/replace the current alumnus's profile photo (updates the underlying
+   * student photo used everywhere the avatar appears).
+   */
+  uploadAvatar: async (file: File): Promise<{ profilePhoto: string; avatar: string }> => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return await apiClient.post('/alumni/upload_my_avatar/', fd, true);
+  },
+
+
+  /**
    * Self-register as an alumnus: submit essential info + documents.
    * The record is created with reviewStatus='pending' for admin verification.
    */
@@ -403,6 +471,107 @@ export interface AlumniDocCategory {
   key: string;
   display: string;
   isCustom: boolean;
+}
+
+export interface AlumniDirectoryEntry {
+  id: string;
+  name: string;
+  department: string;
+  graduationYear: number | null;
+  alumniType: string;
+  isVerified: boolean;
+  coverImage: string;
+  avatar: string;
+  location: string;
+  currentPosition: { title: string; organization: string };
+  skills: string[];
+}
+
+export interface AlumniPublicCareer {
+  id: string;
+  type: string;
+  title: string;
+  organization: string;
+  location: string;
+  startDate: string;
+  endDate: string;
+  isCurrent: boolean;
+}
+
+export interface AlumniPublicProfile extends AlumniDirectoryEntry {
+  bio: string;
+  email: string;
+  phone: string;
+  linkedin: string;
+  portfolio: string;
+  careers: AlumniPublicCareer[];
+  highlights: { title: string; description: string; date: string; type: string }[];
+  allSkills: { name: string; category: string; proficiency: number }[];
+}
+
+export interface AlumniDirectoryParams {
+  q?: string;
+  department?: string;
+  graduationYear?: number | string;
+  alumniType?: string;
+  page?: number;
+}
+
+export interface AlumniDirectoryResponse {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: AlumniDirectoryEntry[];
+}
+
+export interface ProfileCompletionItem {
+  key: string;
+  label: string;
+  done: boolean;
+  /** Optional deep-link/anchor hint the UI can use to guide the user. */
+  hint?: string;
+}
+
+export interface ProfileCompletionResult {
+  /** 0-100 rounded percentage of completed items. */
+  percentage: number;
+  completed: number;
+  total: number;
+  items: ProfileCompletionItem[];
+  /** The next few things worth completing (not yet done). */
+  nextSteps: ProfileCompletionItem[];
+}
+
+/**
+ * Compute an alumni profile's completion score from the fields an alumnus can
+ * fill in. Pure + shared so the dashboard and profile page stay in sync.
+ */
+export function getProfileCompletion(profile: AlumniProfile | null): ProfileCompletionResult {
+  const has = (v?: string | null) => !!(v && v.trim() && v.trim() !== 'N/A');
+
+  const items: ProfileCompletionItem[] = [
+    { key: 'avatar', label: 'Profile photo', done: has(profile?.avatar) },
+    { key: 'bio', label: 'About / bio', done: has(profile?.bio) },
+    { key: 'contact', label: 'Contact details', done: has(profile?.email) && has(profile?.phone) },
+    { key: 'location', label: 'Current location', done: has(profile?.location) },
+    { key: 'career', label: 'A career or study entry', done: (profile?.careers?.length || 0) > 0 },
+    { key: 'skills', label: 'At least 3 skills', done: (profile?.skills?.length || 0) >= 3 },
+    { key: 'courses', label: 'A course or certification', done: (profile?.courses?.length || 0) > 0 },
+    { key: 'highlights', label: 'A career highlight', done: (profile?.highlights?.length || 0) > 0 },
+    { key: 'links', label: 'LinkedIn or portfolio link', done: has(profile?.linkedin) || has(profile?.portfolio) },
+  ];
+
+  const completed = items.filter((i) => i.done).length;
+  const total = items.length;
+  const percentage = total ? Math.round((completed / total) * 100) : 0;
+
+  return {
+    percentage,
+    completed,
+    total,
+    items,
+    nextSteps: items.filter((i) => !i.done).slice(0, 3),
+  };
 }
 
 export interface AlumniDocUpload {
@@ -497,7 +666,7 @@ function transformBackendToFrontend(backendData: any): AlumniProfile {
     company: currentPosition.organizationName || currentPosition.company || '',
     location: location,
     gpa: getStudentCgpa(student),
-    avatar: student.profilePhoto || student.profile_photo || '',
+    avatar: resolveFileUrl(student.profilePhoto || student.profile_photo || ''),
     category: backendData.alumniType || 'recent',
     supportStatus: supportStatusMap[backendData.currentSupportCategory] || 'noSupportNeeded',
     higherStudiesInstitute: currentPosition.institution || '',
@@ -506,8 +675,11 @@ function transformBackendToFrontend(backendData: any): AlumniProfile {
     skills,
     highlights,
     courses,
+    isVerified: backendData.isVerified ?? backendData.is_verified,
+    reviewStatus: backendData.reviewStatus || backendData.review_status,
     bio: backendData.bio || '',
     linkedin: backendData.linkedinUrl || backendData.linkedin_url || '',
     portfolio: backendData.portfolioUrl || backendData.portfolio_url || '',
+    coverImage: resolveFileUrl(backendData.coverImage || backendData.cover_image || ''),
   };
 }

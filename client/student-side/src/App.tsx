@@ -36,6 +36,7 @@ import PublicStudentProfilePage from "./pages/PublicStudentProfilePage";
 import PublicTeacherProfilePage from "./pages/PublicTeacherProfilePage";
 import AlumniProfilePage from "./pages/AlumniProfilePage";
 import AlumniRegistrationPage from "./pages/AlumniRegistrationPage";
+import AlumniDirectoryPage from "./pages/AlumniDirectoryPage";
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
@@ -168,6 +169,7 @@ const App = () => (
         
         {/* Alumni-specific routes */}
         <Route path="alumni-profile" element={<AlumniProfilePage />} />
+        <Route path="alumni-directory" element={<AlumniDirectoryPage />} />
         <Route path="alumni-registration" element={<AlumniRegistrationPage />} />
       </Route>
       

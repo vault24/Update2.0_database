@@ -4,7 +4,7 @@ Authentication Views
 from rest_framework import status, permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
-from django.contrib.auth import login, logout, get_user_model
+from django.contrib.auth import login, logout, get_user_model, update_session_auth_hash
 from django.middleware.csrf import get_token
 from django.views.decorators.csrf import ensure_csrf_cookie
 
@@ -434,7 +434,13 @@ def change_password_view(request):
         # Set new password
         request.user.set_password(serializer.validated_data['new_password'])
         request.user.save()
-        
+
+        # CRITICAL: changing the password rotates the auth-session hash, which
+        # would otherwise log the user out on their very next request. Re-hash
+        # the current session so the user who just changed their password stays
+        # signed in.
+        update_session_auth_hash(request, request.user)
+
         return Response(
             {
                 'message': 'Password changed successfully'
@@ -688,6 +694,67 @@ def verify_login_2fa_view(request):
 
 # Signup Request Views
 
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def check_signup_availability_view(request):
+    """
+    Check whether a username and/or email is available for an admin signup
+    request (used by the signup form to show live availability).
+    GET /api/auth/signup-request/availability/?username=X&email=Y
+
+    A value is AVAILABLE when no real User and no *pending* request uses it.
+    Values from rejected requests are available again.
+    """
+    from .serializers import signup_username_available, signup_email_available
+
+    username = request.query_params.get('username')
+    email = request.query_params.get('email')
+    result = {}
+    if username is not None:
+        result['username'] = username
+        result['username_available'] = signup_username_available(username)
+    if email is not None:
+        result['email'] = email
+        result['email_available'] = signup_email_available(email)
+    return Response(result, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def send_signup_request_code_view(request):
+    """
+    Send an email verification code for a new admin signup request.
+    POST /api/auth/signup-request/send-code/   body: {"email", "first_name"?}
+    """
+    email = (request.data.get('email') or '').strip()
+    if not email:
+        return Response({'email': ['Email is required.']}, status=status.HTTP_400_BAD_REQUEST)
+
+    from .serializers import signup_email_available
+    if not signup_email_available(email):
+        return Response({'email': ['This email is already registered.']}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        from .services import EmailVerificationService, EmailService
+        code = EmailVerificationService.create_code(email)
+        name = (request.data.get('first_name') or '').strip()
+        sent = EmailService.send_signup_otp_email(email, code.token, name)
+        if not sent:
+            return Response(
+                {'error': 'Could not send the verification email. Please try again.'},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        return Response(
+            {'message': 'A verification code has been sent to your email.', 'email': email},
+            status=status.HTTP_200_OK,
+        )
+    except Exception as e:
+        return Response(
+            {'error': 'Failed to send verification code', 'details': str(e) if settings.DEBUG else None},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
 def create_signup_request_view(request):
@@ -713,8 +780,22 @@ def create_signup_request_view(request):
     """
     try:
         serializer = SignupRequestSerializer(data=request.data)
-        
+
         if serializer.is_valid():
+            # Email-verification gate: the request is only created after the
+            # emailed OTP (sent by /signup-request/send-code/) is verified.
+            email = serializer.validated_data.get('email')
+            code = (request.data.get('verification_code') or '').strip()
+            if not code:
+                return Response(
+                    {'verification_code': ['Email verification code is required. Please verify your email to continue.']},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            from .services import EmailVerificationService
+            ok, msg = EmailVerificationService.verify_code(email, code, consume=True)
+            if not ok:
+                return Response({'verification_code': [msg]}, status=status.HTTP_400_BAD_REQUEST)
+
             signup_request = serializer.save()
 
             # Notify the Principal about the new admin signup request
@@ -884,6 +965,7 @@ def approve_signup_request_view(request, request_id):
                 role=signup_request.requested_role,
                 mobile_number=signup_request.mobile_number,
                 department=signup_request.department,  # for Department Head accounts
+                shift=signup_request.shift,            # 1st/2nd shift for Dept Heads
                 account_status='active',
                 password=signup_request.password_hash  # Already hashed
             )

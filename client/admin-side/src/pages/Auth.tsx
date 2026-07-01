@@ -149,10 +149,56 @@ export default function Auth() {
     confirmPassword: '',
     requestedRole: '',
     department: '',
+    shift: '' as '' | '1st_shift' | '2nd_shift',
   });
   const [rememberMe, setRememberMe] = useState(false);
   const [signupRequestSubmitted, setSignupRequestSubmitted] = useState(false);
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
+
+  // Live username availability ('idle' | 'checking' | 'available' | 'taken')
+  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  // Email verification (code sent to the requester's email before submitting)
+  const [verificationCode, setVerificationCode] = useState('');
+  const [codeSent, setCodeSent] = useState(false);
+  const [sendingCode, setSendingCode] = useState(false);
+
+  // Debounced username availability check while signing up.
+  useEffect(() => {
+    if (isLogin) return;
+    const name = formData.username.trim();
+    if (!name) {
+      setUsernameStatus('idle');
+      return;
+    }
+    setUsernameStatus('checking');
+    const t = setTimeout(async () => {
+      try {
+        const res = await signupRequestService.checkAvailability({ username: name });
+        setUsernameStatus(res.username_available ? 'available' : 'taken');
+      } catch {
+        setUsernameStatus('idle');
+      }
+    }, 450);
+    return () => clearTimeout(t);
+  }, [formData.username, isLogin]);
+
+  const handleSendCode = async () => {
+    if (!formData.email) {
+      toast({ title: 'Enter your email first', variant: 'destructive' });
+      return;
+    }
+    setSendingCode(true);
+    try {
+      await signupRequestService.sendSignupCode(formData.email, formData.firstName);
+      setCodeSent(true);
+      toast({ title: 'Verification code sent', description: `Check ${formData.email} for a 6-digit code.` });
+    } catch (err: any) {
+      const msg = err?.details?.email?.[0] || err?.message || 'Could not send the code.';
+      toast({ title: 'Failed to send code', description: msg, variant: 'destructive' });
+    } finally {
+      setSendingCode(false);
+    }
+  };
 
   // Load departments (needed for Department Head signup requests)
   useEffect(() => {
@@ -213,6 +259,29 @@ export default function Auth() {
           setIsLoading(false);
           return;
         }
+        if (formData.requestedRole === 'department_head' && !formData.shift) {
+          toast({
+            title: "Error",
+            description: "Please select your shift (1st Shift or 2nd Shift).",
+            variant: "destructive",
+          });
+          setIsLoading(false);
+          return;
+        }
+        if (usernameStatus === 'taken') {
+          toast({ title: "Error", description: "That username is already taken.", variant: "destructive" });
+          setIsLoading(false);
+          return;
+        }
+        if (!verificationCode.trim()) {
+          toast({
+            title: "Verify your email",
+            description: codeSent ? "Enter the code we emailed you." : "Click \"Send code\" and enter the code we email you.",
+            variant: "destructive",
+          });
+          setIsLoading(false);
+          return;
+        }
 
         // Submit signup request
         await signupRequestService.createSignupRequest({
@@ -223,8 +292,10 @@ export default function Auth() {
           mobile_number: formData.mobileNumber,
           requested_role: formData.requestedRole,
           department: formData.requestedRole === 'department_head' ? formData.department : undefined,
+          shift: formData.requestedRole === 'department_head' ? (formData.shift || undefined) : undefined,
           password: formData.password,
           password_confirm: formData.confirmPassword,
+          verification_code: verificationCode.trim(),
         });
 
         setSignupRequestSubmitted(true);
@@ -455,6 +526,9 @@ export default function Auth() {
               onClick={() => {
                 setSignupRequestSubmitted(false);
                 setIsLogin(true);
+                setVerificationCode('');
+                setCodeSent(false);
+                setUsernameStatus('idle');
                 setFormData({
                   username: '',
                   firstName: '',
@@ -465,6 +539,7 @@ export default function Auth() {
                   confirmPassword: '',
                   requestedRole: '',
                   department: '',
+                  shift: '',
                 });
               }}
               variant="outline"
@@ -499,6 +574,17 @@ export default function Auth() {
                           className="pl-10"
                         />
                       </div>
+                      {formData.username.trim() && (
+                        <p className={`text-xs ${
+                          usernameStatus === 'available' ? 'text-green-600'
+                          : usernameStatus === 'taken' ? 'text-destructive'
+                          : 'text-muted-foreground'
+                        }`}>
+                          {usernameStatus === 'checking' && 'Checking availability…'}
+                          {usernameStatus === 'available' && '✓ Username is available'}
+                          {usernameStatus === 'taken' && '✗ Username is already taken'}
+                        </p>
+                      )}
                     </div>
                   </motion.div>
 
@@ -612,6 +698,24 @@ export default function Auth() {
                         </Select>
                       </div>
                     )}
+
+                    {formData.requestedRole === 'department_head' && (
+                      <div className="space-y-2">
+                        <Label htmlFor="shift">Shift</Label>
+                        <Select
+                          value={formData.shift}
+                          onValueChange={(value) => setFormData({ ...formData, shift: value as '1st_shift' | '2nd_shift' })}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select the shift you will manage" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1st_shift">1st Shift</SelectItem>
+                            <SelectItem value="2nd_shift">2nd Shift</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                   </motion.div>
                 </>
               )}
@@ -632,6 +736,38 @@ export default function Auth() {
                 />
               </div>
             </div>
+
+            {!isLogin && (
+              <div className="space-y-2">
+                <Label htmlFor="verificationCode">Email Verification</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="verificationCode"
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder="6-digit code"
+                    value={verificationCode}
+                    onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))}
+                    disabled={!codeSent}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="shrink-0"
+                    onClick={handleSendCode}
+                    disabled={sendingCode || !formData.email}
+                  >
+                    {sendingCode ? 'Sending…' : codeSent ? 'Resend code' : 'Send code'}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {codeSent
+                    ? `Enter the code we emailed to ${formData.email}.`
+                    : 'We will email a code to verify your address before submitting.'}
+                </p>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>

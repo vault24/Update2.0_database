@@ -18,6 +18,8 @@ from .serializers import (
     AlumniCreateSerializer,
     AlumniUpdateSerializer,
     AlumniStatsSerializer,
+    AlumniDirectorySerializer,
+    AlumniPublicProfileSerializer,
     AddCareerPositionSerializer,
     UpdateSupportCategorySerializer
 )
@@ -27,7 +29,11 @@ from .services import (
     create_alumni_from_essentials,
     attach_alumni_documents,
     create_portal_account_for_alumni,
+    compute_profile_completion,
+    send_profile_completion_reminder,
+    get_alumni_account_email,
 )
+from .permissions import CanManageAlumni, user_can_manage_alumni
 
 logger = logging.getLogger(__name__)
 
@@ -289,6 +295,268 @@ class AlumniViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
     
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def directory(self, request):
+        """
+        Privacy-conscious alumni directory for peer discovery/networking.
+        GET /api/alumni/directory/?q=&department=&graduationYear=&alumniType=
+
+        The free-text `q` matches across name, department, current position
+        (title/organization), location and skills. Only approved alumni are
+        listed and only non-sensitive fields are returned. Paginated.
+        """
+        queryset = Alumni.objects.select_related('student', 'student__department').filter(
+            reviewStatus='approved'
+        )
+
+        query = (request.query_params.get('q') or '').strip().lower()
+        department = request.query_params.get('department')
+        graduation_year = request.query_params.get('graduationYear')
+        alumni_type = request.query_params.get('alumniType')
+
+        # Cheap, indexed filters run in the DB.
+        if department:
+            queryset = queryset.filter(student__department_id=department)
+        if alumni_type:
+            queryset = queryset.filter(alumniType=alumni_type)
+        if graduation_year:
+            try:
+                queryset = queryset.filter(graduationYear=int(graduation_year))
+            except (ValueError, TypeError):
+                pass
+
+        queryset = queryset.order_by('-graduationYear', 'student__fullNameEnglish')
+
+        results = list(queryset)
+
+        # Free-text `q` spans JSON fields (position/skills) too, so match in
+        # Python. The approved-alumni set is small enough for this to be fine.
+        if query:
+            def _matches(alumni):
+                student = alumni.student
+                haystack = [
+                    student.fullNameEnglish or '',
+                    student.department.name if student.department_id else '',
+                ]
+                cp = alumni.currentPosition or {}
+                haystack += [cp.get('positionTitle') or '', cp.get('organizationName') or '']
+                for c in (alumni.careerHistory or []):
+                    haystack += [
+                        c.get('positionTitle') or '', c.get('organizationName') or '',
+                        c.get('institution') or '', c.get('businessName') or '', c.get('location') or '',
+                    ]
+                addr = student.presentAddress if isinstance(student.presentAddress, dict) else {}
+                haystack.append(addr.get('district') or '')
+                haystack += [s.get('name') or '' for s in (alumni.skills or [])]
+                return query in ' '.join(haystack).lower()
+
+            results = [a for a in results if _matches(a)]
+
+        page = self.paginate_queryset(results)
+        if page is not None:
+            serializer = AlumniDirectorySerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = AlumniDirectorySerializer(results, many=True)
+        return Response({'count': len(results), 'results': serializer.data})
+
+    @action(detail=True, methods=['get'], url_path='public-profile',
+            permission_classes=[IsAuthenticated])
+    def public_profile(self, request, pk=None):
+        """
+        Detailed public profile for the directory click-through modal.
+        GET /api/alumni/{studentId}/public-profile/
+
+        Approved alumni only; returns networking-appropriate detail incl. bio,
+        careers, skills, highlights and contact info.
+        """
+        alumni = self.get_object()
+        if alumni.reviewStatus != 'approved':
+            return Response({'error': 'This profile is not publicly available.'},
+                            status=status.HTTP_404_NOT_FOUND)
+        return Response(AlumniPublicProfileSerializer(alumni).data)
+
+    # ------------------------------------------------------------------
+    # Profile / cover photo uploads (student self-service)
+    # ------------------------------------------------------------------
+
+    def _alumni_storage_data(self, alumni):
+        student = alumni.student
+        department = student.department
+        return {
+            'department_code': (getattr(department, 'code', '') or 'unknown').lower().replace(' ', '-'),
+            'department_name': (getattr(department, 'name', '') or '').lower().replace(' ', '-'),
+            'graduation_year': str(alumni.graduationYear or 'unknown'),
+            'alumni_name': (student.fullNameEnglish or 'alumni').replace(' ', ''),
+            'alumni_id': student.currentRollNumber or str(student.id)[:8],
+        }
+
+    @action(detail=False, methods=['post'], parser_classes=[MultiPartParser, FormParser],
+            permission_classes=[IsAuthenticated])
+    def upload_my_avatar(self, request):
+        """
+        Upload/replace the authenticated alumnus's profile photo.
+        POST /api/alumni/upload_my_avatar/  (multipart: file)
+        Updates the underlying student's profilePhoto (the single source of
+        truth used everywhere the avatar appears).
+        """
+        try:
+            student, alumni = self._get_student_alumni(request)
+        except ValueError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_404_NOT_FOUND)
+
+        uploaded = request.FILES.get('file') or request.FILES.get('photo')
+        if not uploaded:
+            return Response({'error': 'No image provided.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from utils.structured_file_storage import structured_storage
+        try:
+            file_info = structured_storage.save_alumni_document(
+                uploaded_file=uploaded,
+                alumni_data=self._alumni_storage_data(alumni),
+                document_category='photo',
+                validate=True,
+            )
+        except Exception as exc:  # noqa: BLE001
+            return Response({'error': f'Upload failed: {exc}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        student.profilePhoto = structured_storage.get_file_url(file_info['file_path'])
+        student.save(update_fields=['profilePhoto'])
+        return Response({
+            'profilePhoto': student.profilePhoto,
+            'avatar': request.build_absolute_uri(student.profilePhoto),
+        })
+
+    # ------------------------------------------------------------------
+    # Admin: profile-completion reporting + reminder emails
+    # ------------------------------------------------------------------
+
+    def _completion_queryset(self, params):
+        """Shared filtered queryset for the completion tools (approved alumni)."""
+        qs = Alumni.objects.select_related('student', 'student__department').filter(
+            reviewStatus='approved'
+        )
+        department = params.get('department')
+        registration_source = params.get('registrationSource')
+        if department:
+            qs = qs.filter(student__department_id=department)
+        if registration_source:
+            qs = qs.filter(registrationSource=registration_source)
+        return qs
+
+    @action(detail=False, methods=['get'], url_path='completion-report',
+            permission_classes=[CanManageAlumni])
+    def completion_report(self, request):
+        """
+        Admin: report each alumnus's profile-completion % so the admin can
+        decide who should receive reminder emails.
+        GET /api/alumni/completion-report/?threshold=50&department=&registrationSource=
+        """
+        try:
+            threshold = int(request.query_params.get('threshold') or 100)
+        except (ValueError, TypeError):
+            threshold = 100
+        threshold = max(0, min(100, threshold))
+
+        rows = []
+        below_with_email = 0
+        for alumni in self._completion_queryset(request.query_params):
+            comp = compute_profile_completion(alumni)
+            email = get_alumni_account_email(alumni)
+            is_below = comp['percentage'] < threshold
+            if is_below and email:
+                below_with_email += 1
+            rows.append({
+                'id': str(alumni.student_id),
+                'name': alumni.student.fullNameEnglish or '',
+                'department': alumni.student.department.name if alumni.student.department_id else '',
+                'graduationYear': alumni.graduationYear,
+                'email': email,
+                'hasEmail': bool(email),
+                'percentage': comp['percentage'],
+                'missing': comp['missing'],
+                'belowThreshold': is_below,
+            })
+
+        rows.sort(key=lambda r: r['percentage'])
+        return Response({
+            'threshold': threshold,
+            'total': len(rows),
+            'belowThreshold': sum(1 for r in rows if r['belowThreshold']),
+            'eligibleForEmail': below_with_email,
+            'results': rows,
+        })
+
+    @action(detail=False, methods=['post'], url_path='send-completion-reminders',
+            permission_classes=[CanManageAlumni])
+    def send_completion_reminders(self, request):
+        """
+        Admin: email alumni whose profile completion is below `threshold`.
+        POST /api/alumni/send-completion-reminders/
+        Body: {
+          "threshold": 50,               # required target %
+          "department": "<id>",          # optional filter
+          "registrationSource": "...",   # optional filter
+          "studentIds": ["..."],         # optional explicit recipient list
+          "dryRun": true                 # preview without sending
+        }
+        """
+        try:
+            threshold = int(request.data.get('threshold') if request.data.get('threshold') is not None else 50)
+        except (ValueError, TypeError):
+            return Response({'error': 'threshold must be a number.'}, status=status.HTTP_400_BAD_REQUEST)
+        threshold = max(0, min(100, threshold))
+
+        dry_run = bool(request.data.get('dryRun'))
+        student_ids = request.data.get('studentIds') or None
+
+        qs = self._completion_queryset(request.data)
+        if student_ids:
+            qs = qs.filter(student_id__in=student_ids)
+
+        matched = 0
+        sent = 0
+        skipped_no_email = 0
+        failed = 0
+        recipients = []
+
+        for alumni in qs:
+            comp = compute_profile_completion(alumni)
+            if comp['percentage'] >= threshold:
+                continue
+            email = get_alumni_account_email(alumni)
+            if not email:
+                skipped_no_email += 1
+                continue
+            matched += 1
+            entry = {
+                'id': str(alumni.student_id),
+                'name': alumni.student.fullNameEnglish or '',
+                'email': email,
+                'percentage': comp['percentage'],
+            }
+            if not dry_run:
+                try:
+                    send_profile_completion_reminder(alumni, comp)
+                    sent += 1
+                    entry['status'] = 'sent'
+                except Exception as exc:  # noqa: BLE001
+                    logger.exception("Failed to send completion reminder to %s", email)
+                    failed += 1
+                    entry['status'] = 'failed'
+                    entry['error'] = str(exc) if settings.DEBUG else None
+            recipients.append(entry)
+
+        return Response({
+            'dryRun': dry_run,
+            'threshold': threshold,
+            'matched': matched,
+            'sent': sent,
+            'skippedNoEmail': skipped_no_email,
+            'failed': failed,
+            'recipients': recipients,
+        })
+
     @action(detail=False, methods=['get'])
     def stats(self, request):
         """
@@ -1169,7 +1437,7 @@ class AlumniViewSet(viewsets.ModelViewSet):
         Workflow: Student is created in the background, immediately transitioned
         to Alumni, then documents are attached.
         """
-        if not request.user.is_authenticated or not request.user.can_access_admin_portal():
+        if not user_can_manage_alumni(request.user):
             return Response({'error': 'Admin access required.'}, status=status.HTTP_403_FORBIDDEN)
 
         payload_raw = request.data.get('payload')
@@ -1303,7 +1571,7 @@ class AlumniViewSet(viewsets.ModelViewSet):
             ]})
 
         # POST upload
-        if not request.user.is_authenticated or not request.user.can_access_admin_portal():
+        if not user_can_manage_alumni(request.user):
             return Response({'error': 'Admin access required.'}, status=status.HTTP_403_FORBIDDEN)
 
         result = attach_alumni_documents(alumni, _collect_document_items(request))
@@ -1316,7 +1584,7 @@ class AlumniViewSet(viewsets.ModelViewSet):
         DELETE /api/alumni/{id}/documents/{document_id}/
         Removes the file from storage and the Document record.
         """
-        if not request.user.is_authenticated or not request.user.can_access_admin_portal():
+        if not user_can_manage_alumni(request.user):
             return Response({'error': 'Admin access required.'}, status=status.HTTP_403_FORBIDDEN)
 
         alumni = self.get_object()
@@ -1343,7 +1611,7 @@ class AlumniViewSet(viewsets.ModelViewSet):
         Body (optional): { "email": "...", "password": "..." }
         Returns generated credentials when a password was auto-created.
         """
-        if not request.user.is_authenticated or not request.user.can_access_admin_portal():
+        if not user_can_manage_alumni(request.user):
             return Response({'error': 'Admin access required.'}, status=status.HTTP_403_FORBIDDEN)
 
         alumni = self.get_object()
@@ -1395,7 +1663,7 @@ class AlumniViewSet(viewsets.ModelViewSet):
         Admin: list self-registered alumni awaiting verification.
         GET /api/alumni/pending-review/
         """
-        if not request.user.is_authenticated or not request.user.can_access_admin_portal():
+        if not user_can_manage_alumni(request.user):
             return Response({'error': 'Admin access required.'}, status=status.HTTP_403_FORBIDDEN)
 
         queryset = Alumni.objects.select_related('student', 'student__department').filter(
@@ -1411,7 +1679,7 @@ class AlumniViewSet(viewsets.ModelViewSet):
         POST /api/alumni/{id}/review/
         Body: { "action": "approve" | "reject", "notes": "..." }
         """
-        if not request.user.is_authenticated or not request.user.can_access_admin_portal():
+        if not user_can_manage_alumni(request.user):
             return Response({'error': 'Admin access required.'}, status=status.HTTP_403_FORBIDDEN)
 
         alumni = self.get_object()

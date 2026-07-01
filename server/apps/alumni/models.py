@@ -81,6 +81,7 @@ class Alumni(models.Model):
     bio = models.TextField(blank=True, null=True)
     linkedinUrl = models.URLField(blank=True, null=True)
     portfolioUrl = models.URLField(blank=True, null=True)
+    coverImage = models.URLField(blank=True, null=True)
     
     # Skills and highlights (stored as JSON)
     skills = models.JSONField(default=list, blank=True)

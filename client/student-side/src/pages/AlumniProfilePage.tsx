@@ -15,14 +15,16 @@ import { EditAlumniSkillDialog } from '@/components/alumni/EditAlumniSkillDialog
 import { EditHighlightDialog } from '@/components/alumni/EditHighlightDialog';
 import { EditCourseDialog } from '@/components/alumni/EditCourseDialog';
 import { EditAlumniProfileDialog } from '@/components/alumni/EditAlumniProfileDialog';
-import { 
-  alumniService, 
-  AlumniProfile, 
+import {
+  alumniService,
+  AlumniProfile,
   CareerEntry,
   Skill,
   CareerHighlight,
-  Course
+  Course,
+  getProfileCompletion,
 } from '@/services/alumniService';
+import { Sparkles, ArrowRight, CheckCircle2, Circle } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function AlumniProfilePage() {
@@ -351,10 +353,63 @@ export default function AlumniProfilePage() {
       )}
 
       {/* Profile Header */}
-      <AlumniProfileHeader 
-        alumni={alumni} 
+      <AlumniProfileHeader
+        alumni={alumni}
         onEdit={handleEditProfile}
+        onPhotoChange={fetchAlumniData}
       />
+
+      {/* Profile completion — shares the same scoring the dashboard uses */}
+      {(() => {
+        const completion = getProfileCompletion(alumni);
+        if (completion.percentage >= 100) return null;
+        return (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-2xl border border-border bg-card p-5 shadow-sm"
+          >
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-4">
+                <div className="relative h-16 w-16 shrink-0">
+                  <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
+                    <circle cx="60" cy="60" r="52" fill="none" strokeWidth="14" className="stroke-muted" />
+                    <circle
+                      cx="60" cy="60" r="52" fill="none" strokeWidth="14" strokeLinecap="round"
+                      className="stroke-blue-500"
+                      strokeDasharray={2 * Math.PI * 52}
+                      strokeDashoffset={2 * Math.PI * 52 * (1 - completion.percentage / 100)}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center text-sm font-bold text-foreground">
+                    {completion.percentage}%
+                  </div>
+                </div>
+                <div>
+                  <p className="flex items-center gap-1.5 font-semibold text-foreground">
+                    <Sparkles className="h-4 w-4 text-amber-500" /> Complete your profile
+                  </p>
+                  <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
+                    {completion.nextSteps.map((s) => (
+                      <span key={s.key} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+                        <Circle className="h-3.5 w-3.5 text-muted-foreground/50" /> {s.label}
+                      </span>
+                    ))}
+                    {completion.nextSteps.length === 0 && (
+                      <span className="inline-flex items-center gap-1.5 text-sm text-emerald-600">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Almost there!
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <Button onClick={handleEditProfile} variant="outline" className="shrink-0 gap-2 self-start sm:self-center">
+                Update details <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </motion.div>
+        );
+      })()}
 
       {/* Stats */}
       <AlumniStatsCard alumni={alumni} />

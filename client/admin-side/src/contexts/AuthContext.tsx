@@ -43,54 +43,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
 
   const checkAuth = async () => {
-    try {
-      // Check if user is authenticated by calling /api/auth/me/
-      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.auth.me}`, {
-        credentials: 'include',
-      });
+    // Resilient session check. A logged-in user must ONLY be signed out on a
+    // definitive 401/403 from the server. Transient failures (network blip,
+    // 5xx, proxy hiccup) are retried so a valid session is never dropped just
+    // because a single /auth/me request failed after a refresh.
+    const MAX_ATTEMPTS = 3;
 
-      if (response.ok) {
-        const data = await response.json();
-        const userData = data.user || data;
-        
-        // Only allow the three admin roles to access admin-side
-        if (userData && !ADMIN_ROLES.includes(userData.role)) {
-          // User is authenticated but not an admin - clear user and logout
-          setUser(null);
-          // Logout from backend
-          try {
-            await fetch(`${API_BASE_URL}${API_ENDPOINTS.auth.logout}`, {
-              method: 'POST',
-              credentials: 'include',
-            });
-          } catch (e) {
-            // Ignore logout errors
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.auth.me}`, {
+          credentials: 'include',
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const userData = data.user || data;
+
+          // Only allow the three admin roles to access admin-side.
+          if (userData && !ADMIN_ROLES.includes(userData.role)) {
+            setUser(null);
+            try {
+              await fetch(`${API_BASE_URL}${API_ENDPOINTS.auth.logout}`, {
+                method: 'POST',
+                credentials: 'include',
+              });
+            } catch {
+              // Ignore logout errors.
+            }
+          } else {
+            setUser(userData);
           }
+          setIsLoading(false);
           return;
         }
-        
-        setUser(userData);
-      } else if (response.status === 403 || response.status === 401) {
-        // 403/401 is expected when user is not authenticated - silently handle it
-        setUser(null);
-      } else {
-        // Other errors should be logged
-        console.error('Auth check failed with status:', response.status);
-        setUser(null);
+
+        // Definitive "not authenticated" — stop and clear.
+        if (response.status === 401 || response.status === 403) {
+          setUser(null);
+          setIsLoading(false);
+          return;
+        }
+
+        // Any other status (5xx, etc.) is treated as transient → retry below.
+        console.warn(`Auth check attempt ${attempt} got status ${response.status}; retrying.`);
+      } catch {
+        // Network error → transient → retry below.
+        console.warn(`Auth check attempt ${attempt} failed (network); retrying.`);
       }
-    } catch (error) {
-      // Network errors or other exceptions
-      // Only log if it's not a 403/401 (which might be caught as network error in some cases)
-      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-        // Network error - might be CORS or server down, but don't spam console
-        setUser(null);
-      } else {
-        console.error('Auth check failed:', error);
-        setUser(null);
+
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, 800 * attempt));
       }
-    } finally {
-      setIsLoading(false);
     }
+
+    // Every attempt hit a transient error (server unreachable / 5xx). Do NOT
+    // forcibly clear a possibly-valid session — just stop the loader. A valid
+    // cookie will authenticate on the next successful check.
+    setIsLoading(false);
   };
 
   useEffect(() => {

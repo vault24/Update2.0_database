@@ -4,8 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import {
   Search, Eye, GraduationCap, Briefcase, Calendar, Users, TrendingUp, Clock,
   Heart, HeartHandshake, ShieldCheck, ShieldAlert, Loader2, AlertCircle, RefreshCw,
-  UserPlus, X, SlidersHorizontal, Building2, Layers, UserCheck, BadgeCheck,
+  UserPlus, X, SlidersHorizontal, Building2, Layers, UserCheck, BadgeCheck, Mail,
 } from 'lucide-react';
+import { AlumniReminderDialog } from '@/components/alumni/AlumniReminderDialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -80,6 +81,7 @@ export default function Alumni() {
   const [source, setSource] = useState(ALL);
   const [category, setCategory] = useState<AlumniCategory>('all');
   const [sortBy, setSortBy] = useState('year_desc');
+  const [reminderOpen, setReminderOpen] = useState(false);
 
   const [alumniData, setAlumniData] = useState<DisplayAlumni[]>([]);
   const [loading, setLoading] = useState(true);
@@ -257,6 +259,9 @@ export default function Alumni() {
           <div className="flex items-center gap-2">
             <Button variant="secondary" size="sm" onClick={fetchAlumni} className="bg-white/15 hover:bg-white/25 text-primary-foreground border-0">
               <RefreshCw className="w-4 h-4 mr-2" /> Refresh
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => setReminderOpen(true)} className="bg-white/15 hover:bg-white/25 text-primary-foreground border-0">
+              <Mail className="w-4 h-4 mr-2" /> Completion Reminders
             </Button>
             <Button size="sm" onClick={() => navigate('/alumni/add')} className="bg-white text-primary hover:bg-white/90">
               <UserPlus className="w-4 h-4 mr-2" /> Create New Alumni
@@ -457,6 +462,8 @@ export default function Alumni() {
           </Card>
         </motion.div>
       )}
+
+      <AlumniReminderDialog open={reminderOpen} onOpenChange={setReminderOpen} />
     </div>
   );
 }

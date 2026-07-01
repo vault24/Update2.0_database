@@ -13,6 +13,9 @@ export interface SignupRequest {
   last_name: string;
   mobile_number: string;
   requested_role: string;
+  department?: string;
+  department_name?: string | null;
+  shift?: '' | '1st_shift' | '2nd_shift';
   status: 'pending' | 'approved' | 'rejected';
   reviewed_by?: string;
   reviewed_at?: string;
@@ -29,8 +32,17 @@ export interface SignupRequestData {
   mobile_number?: string;
   requested_role: string;
   department?: string; // required when requested_role === 'department_head'
+  shift?: '1st_shift' | '2nd_shift'; // required when requested_role === 'department_head'
   password: string;
   password_confirm: string;
+  verification_code: string; // emailed OTP, required
+}
+
+export interface AvailabilityResponse {
+  username?: string;
+  username_available?: boolean;
+  email?: string;
+  email_available?: boolean;
 }
 
 export interface SignupRequestFilters {
@@ -63,6 +75,24 @@ const signupRequestService = {
    */
   createSignupRequest: async (data: SignupRequestData): Promise<{ message: string }> => {
     return await apiClient.post('/auth/signup-request/', data);
+  },
+
+  /**
+   * Live availability check for username and/or email (rejected requests never
+   * block reuse). Pass either or both.
+   */
+  checkAvailability: async (params: { username?: string; email?: string }): Promise<AvailabilityResponse> => {
+    return await apiClient.get('/auth/signup-request/availability/', params);
+  },
+
+  /**
+   * Send an email verification code for a new signup request.
+   */
+  sendSignupCode: async (email: string, firstName?: string): Promise<{ message: string }> => {
+    return await apiClient.post('/auth/signup-request/send-code/', {
+      email,
+      first_name: firstName || '',
+    });
   },
 
   /**

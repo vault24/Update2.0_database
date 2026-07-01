@@ -97,6 +97,7 @@ interface AlumniData {
   bio?: string;
   linkedin?: string;
   portfolio?: string;
+  coverImage?: string;
   isVerified?: boolean;
   lastEditedAt?: string;
   lastEditedBy?: string;
@@ -128,6 +129,7 @@ const transformAlumniData = (apiData: AlumniType): AlumniData => {
     bio: apiData.bio || apiData.currentPosition?.description || '',
     linkedin: apiData.linkedinUrl || '',
     portfolio: apiData.portfolioUrl || '',
+    coverImage: apiData.coverImage || '',
     // Enhanced career transformation with type-specific fields
     careers: transformCareerHistory(apiData.careerHistory || []),
     // Initialize skills and highlights (to be populated from API)
@@ -1294,12 +1296,17 @@ export default function AlumniDetails() {
         animate={{ opacity: 1, y: 0 }}
       >
         <Card className="glass-card overflow-hidden border-2 border-border/50">
-          <CardContent className="p-6">
+          {/* Cover banner — fixed institute banner (mirrors the alumni portal) */}
+          <div className="relative h-24 sm:h-32 bg-gradient-to-br from-blue-700 via-blue-600 to-blue-500">
+            <img src="/alumni_cover_photo.png" alt="Institute cover" className="h-full w-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+          </div>
+          <CardContent className="p-6 pt-4">
             <div className="flex flex-col lg:flex-row gap-6">
               {/* Profile Photo */}
-              <div className="flex flex-col items-center lg:items-start">
+              <div className="-mt-20 flex flex-col items-center lg:items-start">
                 <div className="relative">
-                  <Avatar className="w-32 h-32 border-4 border-primary/20 ring-4 ring-primary/10">
+                  <Avatar className="w-32 h-32 border-4 border-background ring-4 ring-primary/10">
                     <AvatarImage src={alumni.avatar} />
                     <AvatarFallback className="gradient-primary text-primary-foreground text-3xl">
                       {alumni.name.split(' ').map(n => n[0]).join('').slice(0, 2)}

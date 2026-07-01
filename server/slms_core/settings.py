@@ -305,13 +305,14 @@ SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=False, cast=bool)  # True when HTTPS
 
 # Default session lifetime for a normal login (no "Remember Me").
-# 7 days, as required: a normal session stays valid for at least a week.
-SESSION_COOKIE_AGE = 60 * 60 * 24 * 7  # 7 days
+# 20 days: a normal session stays valid for ~3 weeks of inactivity, and with
+# sliding expiration (below) an active user is never logged out unexpectedly.
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 20  # 20 days
 
 # Lifetime applied when the user ticks "Remember Me". Sessions cannot be truly
-# infinite, so we use a very long window (5 years) which is effectively
+# infinite, so we use a very long window (10 years) which is effectively
 # "until the user explicitly logs out".
-REMEMBER_ME_SESSION_AGE = 60 * 60 * 24 * 365 * 5  # ~5 years
+REMEMBER_ME_SESSION_AGE = 60 * 60 * 24 * 365 * 10  # ~10 years
 
 # CRITICAL: extend the session expiry on every request (sliding expiration).
 # Without this the expiry is fixed at login time and an *active* user is logged

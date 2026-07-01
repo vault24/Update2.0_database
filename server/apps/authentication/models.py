@@ -145,6 +145,18 @@ class User(AbstractUser):
         help_text='True for accounts that registered as Alumni (self-registration flow)'
     )
 
+    # Shift managed by a Department Head account (blank for other roles).
+    SHIFT_CHOICES = [
+        ('1st_shift', '1st Shift'),
+        ('2nd_shift', '2nd Shift'),
+    ]
+    shift = models.CharField(
+        max_length=20,
+        choices=SHIFT_CHOICES,
+        blank=True,
+        help_text='Shift managed by a Department Head'
+    )
+
     # Profile photo (avatar) shown in the admin panel
     profile_photo = models.ImageField(
         upload_to='avatars/',
@@ -263,12 +275,22 @@ class SignupRequest(models.Model):
     # Request identification
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     
-    # Requester information
-    username = models.CharField(max_length=150, unique=True)
-    email = models.EmailField(unique=True)
+    # Shift (for Department Head requests — which daily shift they will manage)
+    SHIFT_CHOICES = [
+        ('1st_shift', '1st Shift'),
+        ('2nd_shift', '2nd Shift'),
+    ]
+
+    # Requester information.
+    # NOTE: username/email are intentionally NOT unique here. Uniqueness is
+    # enforced in the serializer against real Users and *pending* requests only,
+    # so a username/email from a REJECTED request can be reused.
+    username = models.CharField(max_length=150)
+    email = models.EmailField()
     first_name = models.CharField(max_length=150)
     last_name = models.CharField(max_length=150)
     mobile_number = models.CharField(max_length=11, blank=True)
+    shift = models.CharField(max_length=20, choices=SHIFT_CHOICES, blank=True)
     
     # Requested role (admin roles only)
     requested_role = models.CharField(

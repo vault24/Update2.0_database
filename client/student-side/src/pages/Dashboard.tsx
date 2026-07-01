@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { PremiumWelcomeCard } from '@/components/dashboard/PremiumWelcomeCard';
 import { StatusCard } from '@/components/dashboard/StatusCard';
 import { PremiumQuickActions } from '@/components/dashboard/PremiumQuickActions';
+import { AlumniDashboard } from '@/components/dashboard/AlumniDashboard';
 import { EnhancedNoticeBoard } from '@/components/dashboard/EnhancedNoticeBoard';
 import { ClassStatusBox } from '@/components/dashboard/ClassStatusBox';
 import { PomodoroTimer } from '@/components/widgets/PomodoroTimer';
@@ -405,6 +406,12 @@ export function Dashboard() {
         </div>
       </div>
     );
+  }
+
+  // Alumni accounts (backend role 'student' + alumni flag) get a dedicated
+  // alumni dashboard — no admission banner, class status or student shortcuts.
+  if (user?.isAlumni || user?.isAlumniAccount) {
+    return <AlumniDashboard />;
   }
 
   // Admission-not-complete state — show full dashboard shell with a banner

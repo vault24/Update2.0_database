@@ -21,6 +21,8 @@ urlpatterns = [
     path('login/verify-2fa/', views.verify_login_2fa_view, name='verify-login-2fa'),
     
     # Signup Request endpoints
+    path('signup-request/availability/', views.check_signup_availability_view, name='signup-request-availability'),
+    path('signup-request/send-code/', views.send_signup_request_code_view, name='signup-request-send-code'),
     path('signup-request/', views.create_signup_request_view, name='create-signup-request'),
     path('signup-requests/', views.list_signup_requests_view, name='list-signup-requests'),
     path('signup-requests/<uuid:request_id>/', views.get_signup_request_view, name='get-signup-request'),

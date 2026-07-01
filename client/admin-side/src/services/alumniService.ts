@@ -77,6 +77,7 @@ export interface Alumni {
   bio?: string;
   linkedinUrl?: string;
   portfolioUrl?: string;
+  coverImage?: string;
   skills?: SkillData[];
   highlights?: HighlightData[];
   courses?: CourseData[];
@@ -220,6 +221,7 @@ export interface ProfileData {
   bio?: string;
   linkedin?: string;
   portfolio?: string;
+  coverImage?: string;
 }
 
 // Service
@@ -344,10 +346,17 @@ export const alumniService = {
   },
 
   /**
-   * Update profile
+   * Update profile.
+   *
+   * The backend `profile` action reads `linkedinUrl`/`portfolioUrl` (not
+   * `linkedin`/`portfolio`), so we map them here to ensure admin edits persist
+   * and stay in sync with the alumni portal. `coverImage` passes through as-is.
    */
   updateProfile: async (studentId: string, data: ProfileData): Promise<Alumni> => {
-    return await apiClient.patch<Alumni>(`/alumni/${studentId}/profile/`, data);
+    const payload: Record<string, unknown> = { ...data };
+    if (data.linkedin !== undefined) payload.linkedinUrl = data.linkedin;
+    if (data.portfolio !== undefined) payload.portfolioUrl = data.portfolio;
+    return await apiClient.patch<Alumni>(`/alumni/${studentId}/profile/`, payload);
   },
 
   /**
@@ -458,4 +467,68 @@ export const alumniService = {
   ): Promise<Alumni> => {
     return await apiClient.post(API_ENDPOINTS.alumni.review(studentId), { action, notes: notes || '' });
   },
+
+  /**
+   * Profile-completion report: each approved alumnus's completion % + missing
+   * items, plus counts of who is below `threshold` and reachable by email.
+   */
+  getCompletionReport: async (params: CompletionReportParams): Promise<CompletionReport> => {
+    const query: Record<string, string> = { threshold: String(params.threshold ?? 100) };
+    if (params.department) query.department = params.department;
+    if (params.registrationSource) query.registrationSource = params.registrationSource;
+    const qs = new URLSearchParams(query).toString();
+    return await apiClient.get(`${API_ENDPOINTS.alumni.completionReport}?${qs}`);
+  },
+
+  /**
+   * Send (or preview, via dryRun) profile-completion reminder emails to alumni
+   * below the given threshold, optionally filtered or to an explicit list.
+   */
+  sendCompletionReminders: async (body: SendRemindersBody): Promise<SendRemindersResult> => {
+    return await apiClient.post(API_ENDPOINTS.alumni.sendCompletionReminders, body);
+  },
 };
+
+export interface CompletionReportParams {
+  threshold: number;
+  department?: string;
+  registrationSource?: string;
+}
+
+export interface CompletionReportRow {
+  id: string;
+  name: string;
+  department: string;
+  graduationYear: number | null;
+  email: string;
+  hasEmail: boolean;
+  percentage: number;
+  missing: string[];
+  belowThreshold: boolean;
+}
+
+export interface CompletionReport {
+  threshold: number;
+  total: number;
+  belowThreshold: number;
+  eligibleForEmail: number;
+  results: CompletionReportRow[];
+}
+
+export interface SendRemindersBody {
+  threshold: number;
+  department?: string;
+  registrationSource?: string;
+  studentIds?: string[];
+  dryRun?: boolean;
+}
+
+export interface SendRemindersResult {
+  dryRun: boolean;
+  threshold: number;
+  matched: number;
+  sent: number;
+  skippedNoEmail: number;
+  failed: number;
+  recipients: { id: string; name: string; email: string; percentage: number; status?: string }[];
+}

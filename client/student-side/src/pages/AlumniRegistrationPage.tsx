@@ -14,6 +14,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useAuth } from '@/contexts/AuthContext';
 import { alumniService, AlumniDocCategory, AlumniDocUpload } from '@/services/alumniService';
 import departmentService, { Department } from '@/services/departmentService';
+import { divisions, getDistricts } from '@/components/admission/wizard/stepConfig';
+
+// Sessions / graduation years from 2000 up to the current year (newest first).
+const currentYear = new Date().getFullYear();
+const SESSION_OPTIONS = Array.from({ length: currentYear - 1999 }, (_, i) => {
+  const y = currentYear - i;
+  return `${y}-${String((y + 1) % 100).padStart(2, '0')}`;
+});
+const YEAR_OPTIONS = Array.from({ length: currentYear - 1999 }, (_, i) => String(currentYear - i));
 
 interface PendingDoc extends AlumniDocUpload {
   id: string;
@@ -31,6 +40,7 @@ const initialForm = {
   gender: '',
   mobileStudent: '',
   email: '',
+  division: '',
   presentDistrict: '',
   department: '',
   session: '',
@@ -141,7 +151,9 @@ export default function AlumniRegistrationPage() {
       gender: form.gender,
       mobileStudent: form.mobileStudent,
       email: form.email,
-      presentAddress: form.presentDistrict ? { district: form.presentDistrict } : {},
+      presentAddress: (form.division || form.presentDistrict)
+        ? { division: form.division, district: form.presentDistrict }
+        : {},
       department: form.department,
       session: form.session,
       graduationYear: form.graduationYear,
@@ -245,8 +257,26 @@ export default function AlumniRegistrationPage() {
           <Field label="Email">
             <Input type="email" value={form.email} onChange={(e) => setField('email', e.target.value)} />
           </Field>
+          <Field label="Division">
+            <Select
+              value={form.division}
+              onValueChange={(v) => setForm((prev) => ({ ...prev, division: v, presentDistrict: '' }))}
+            >
+              <SelectTrigger><SelectValue placeholder="Select division" /></SelectTrigger>
+              <SelectContent>{divisions.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
+            </Select>
+          </Field>
           <Field label="Present District">
-            <Input value={form.presentDistrict} onChange={(e) => setField('presentDistrict', e.target.value)} />
+            <Select
+              value={form.presentDistrict}
+              onValueChange={(v) => setField('presentDistrict', v)}
+              disabled={!form.division}
+            >
+              <SelectTrigger><SelectValue placeholder={form.division ? 'Select district' : 'Select division first'} /></SelectTrigger>
+              <SelectContent>
+                {getDistricts(form.division).map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </Field>
         </Grid>
       </Section>
@@ -260,18 +290,24 @@ export default function AlumniRegistrationPage() {
             </Select>
           </Field>
           <Field label="Session">
-            <Input value={form.session} onChange={(e) => setField('session', e.target.value)} placeholder="e.g. 2014-2015" />
+            <Select value={form.session} onValueChange={(v) => setField('session', v)}>
+              <SelectTrigger><SelectValue placeholder="Select session" /></SelectTrigger>
+              <SelectContent>{SESSION_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+            </Select>
           </Field>
           <Field label="Graduation Year">
-            <Input type="number" value={form.graduationYear} onChange={(e) => setField('graduationYear', e.target.value)} placeholder="e.g. 2018" />
+            <Select value={form.graduationYear} onValueChange={(v) => setField('graduationYear', v)}>
+              <SelectTrigger><SelectValue placeholder="Select year" /></SelectTrigger>
+              <SelectContent>{YEAR_OPTIONS.map((y) => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+            </Select>
           </Field>
         </Grid>
         <div className="mt-4">
-          <p className="text-sm font-medium text-gray-600 mb-2">Semester GPA (optional)</p>
+          <p className="text-sm font-medium text-muted-foreground mb-2">Semester GPA (optional)</p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
               <div key={sem} className="space-y-1">
-                <Label className="text-xs text-gray-500">Sem {sem}</Label>
+                <Label className="text-xs text-muted-foreground">Sem {sem}</Label>
                 <Input type="number" step="0.01" min="0" max="4" placeholder="—"
                   value={semesterGpas[sem] ?? ''}
                   onChange={(e) => setSemesterGpas((prev) => ({ ...prev, [sem]: e.target.value }))} />
@@ -300,10 +336,10 @@ export default function AlumniRegistrationPage() {
       </Section>
 
       <Section icon={FileText} title={`Documents (${documents.length}/${maxDocuments})`}>
-        <p className="text-sm text-gray-500 mb-3">
+        <p className="text-sm text-muted-foreground mb-3">
           Add certificates, transcripts, photo, or any other document. Choose "Custom Document" to name your own.
         </p>
-        <div className="flex flex-col gap-3 p-4 rounded-2xl bg-blue-50/60 border border-blue-100">
+        <div className="flex flex-col gap-3 p-4 rounded-2xl bg-muted/40 border border-border">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">Category</Label>
@@ -331,16 +367,16 @@ export default function AlumniRegistrationPage() {
         {documents.length > 0 && (
           <div className="mt-3 space-y-2">
             {documents.map((doc) => (
-              <div key={doc.id} className="flex items-center justify-between p-3 rounded-xl border border-gray-200 bg-white">
+              <div key={doc.id} className="flex items-center justify-between p-3 rounded-xl border border-border bg-card">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="p-2 rounded-lg bg-amber-100 shrink-0"><FileText className="w-4 h-4 text-amber-600" /></div>
+                  <div className="p-2 rounded-lg bg-amber-500/15 shrink-0"><FileText className="w-4 h-4 text-amber-600 dark:text-amber-400" /></div>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{doc.categoryDisplay}</p>
-                    <p className="text-xs text-gray-400 truncate">{doc.file.name}</p>
+                    <p className="text-sm font-medium truncate text-foreground">{doc.categoryDisplay}</p>
+                    <p className="text-xs text-muted-foreground truncate">{doc.file.name}</p>
                   </div>
                 </div>
                 <Button variant="ghost" size="icon" onClick={() => removeDocument(doc.id)}>
-                  <Trash2 className="w-4 h-4 text-red-500" />
+                  <Trash2 className="w-4 h-4 text-destructive" />
                 </Button>
               </div>
             ))}
@@ -365,12 +401,12 @@ export default function AlumniRegistrationPage() {
 function Section({ icon: Icon, title, children }: { icon: React.ElementType; title: string; children: React.ReactNode }) {
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-      className="rounded-3xl bg-white border border-gray-100 shadow-sm p-5 sm:p-6">
+      className="rounded-3xl bg-card border border-border shadow-sm p-5 sm:p-6">
       <div className="flex items-center gap-2 mb-4">
-        <div className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center">
-          <Icon className="w-4 h-4 text-blue-600" />
+        <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center">
+          <Icon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
         </div>
-        <h2 className="text-lg font-semibold text-gray-800">{title}</h2>
+        <h2 className="text-lg font-semibold text-foreground">{title}</h2>
       </div>
       {children}
     </motion.div>
@@ -384,7 +420,7 @@ function Grid({ children }: { children: React.ReactNode }) {
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-sm text-gray-600">
+      <Label className="text-sm text-muted-foreground">
         {label}{required && <span className="text-amber-500 ml-0.5">*</span>}
       </Label>
       {children}
