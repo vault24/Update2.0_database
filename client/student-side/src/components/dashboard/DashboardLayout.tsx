@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useState, useEffect } from 'react';
 import { noticeService } from '@/services/noticeService';
+import { connectNotificationsSocket } from '@/lib/notificationsSocket';
 import { useAuth } from '@/contexts/AuthContext';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import ProfileAvatar from '@/components/ProfileAvatar';
@@ -23,11 +24,17 @@ export function DashboardLayout() {
   const { user, logout } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
 
+  // Real-time badge updates over WebSocket (replaces 30s polling). Refresh once
+  // on mount, then whenever the server pushes a notification or the socket
+  // (re)connects — so nothing is missed while offline, without constant polling.
   useEffect(() => {
     if (!user) return;
     loadUnreadCount();
-    const interval = setInterval(loadUnreadCount, 30000);
-    return () => clearInterval(interval);
+    const socket = connectNotificationsSocket({
+      onOpen: () => loadUnreadCount(),
+      onCreated: () => loadUnreadCount(),
+    });
+    return () => socket.close();
   }, [user]);
 
   const loadUnreadCount = async () => {

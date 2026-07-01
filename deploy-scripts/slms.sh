@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# --- Load shared deployment configuration (SERVER_IP, SERVICE_NAME, DB_*) -----
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[ -f "${SCRIPT_DIR}/config.env" ] && source "${SCRIPT_DIR}/config.env"
+SERVER_IP="${SERVER_IP:-192.168.0.100}"
+SERVICE_NAME="${SERVICE_NAME:-sipi}"
+
 # SLMS Master Script
 # Single entry point for all SLMS deployment and maintenance tasks
 
@@ -192,13 +198,13 @@ show_help() {
     echo "   deploy-scripts/troubleshoot.sh - Troubleshooting tools"
     echo ""
     echo "🌐 Application URLs (after deployment):"
-    echo "   Student Frontend: http://47.128.236.25"
-    echo "   Admin Frontend:   http://47.128.236.25:8080"
-    echo "   API Endpoint:     http://47.128.236.25/api/"
+    echo "   Student Frontend: http://${SERVER_IP}"
+    echo "   Admin Frontend:   http://${SERVER_IP}:8080"
+    echo "   API Endpoint:     http://${SERVER_IP}/api/"
     echo ""
     echo "🔧 Manual Commands:"
-    echo "   sudo systemctl status gunicorn nginx postgresql"
-    echo "   sudo journalctl -u gunicorn -f"
+    echo "   sudo systemctl status ${SERVICE_NAME} nginx postgresql"
+    echo "   sudo journalctl -u ${SERVICE_NAME} -f"
     echo "   sudo tail -f /var/log/nginx/error.log"
     echo ""
     echo "📞 Support:"

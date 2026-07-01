@@ -3,12 +3,17 @@ Notification Service Layer
 Handles business logic for creating and managing notifications
 """
 
+import json
+import logging
+
 from django.contrib.auth.models import User
 from django.utils import timezone
 from .models import (
     Notification, NotificationPreference, NotificationPreferenceType,
     DeliveryLog, NOTIFICATION_TYPES
 )
+
+logger = logging.getLogger(__name__)
 
 
 class NotificationService:
@@ -52,7 +57,40 @@ class NotificationService:
             status='pending'
         )
 
+        # Push in real-time to the recipient's WebSocket group so the bell/list
+        # update instantly (this is what lets the frontend stop polling).
+        NotificationService._push_realtime(notification)
+
         return notification
+
+    @staticmethod
+    def _push_realtime(notification):
+        """
+        Send a freshly-created notification to the recipient's Channels group.
+
+        Best-effort: any failure here (e.g. Redis down) is logged and swallowed
+        so it can never break notification creation, the DB record, or emails.
+        """
+        try:
+            from channels.layers import get_channel_layer
+            from asgiref.sync import async_to_sync
+            from .serializers import NotificationSerializer
+
+            channel_layer = get_channel_layer()
+            if channel_layer is None:
+                return
+
+            # json round-trip guarantees only plain JSON types cross the layer.
+            payload = json.loads(json.dumps(NotificationSerializer(notification).data))
+            async_to_sync(channel_layer.group_send)(
+                f"notifications_{notification.recipient_id}",
+                {"type": "notification_created", "notification": payload},
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Real-time push failed for notification %s: %s",
+                getattr(notification, "id", None), exc,
+            )
 
     @staticmethod
     def should_deliver(user, notification_type):

@@ -1,32 +1,36 @@
-# Django and Core Dependencies
+# ============================================================
+# PRODUCTION dependencies — these are installed on the server.
+# Development-only tooling (linters, tests) lives in requirements-dev.txt
+# Pins are kept at the versions this project is verified to run on; do not
+# bump major versions without re-testing migrations and the ASGI stack.
+# ============================================================
+
+# --- Core framework ---
 Django==4.2.7
 djangorestframework==3.14.0
 django-cors-headers==4.3.1
 django-filter==23.5
 
-# Database
+# --- Database ---
 psycopg2-binary==2.9.10
 
-# Environment Configuration
+# --- Environment / configuration ---
 python-decouple==3.8
 
-# Utilities
+# --- Media & utilities ---
 Pillow==12.1.1
 python-dateutil==2.8.2
 
-# Development (optional)
-django-debug-toolbar==4.2.0
-black==23.12.0
-flake8==6.1.0
-pytest==7.4.3
-pytest-django==4.7.0
-hypothesis==6.92.1
-
-# WebSocket Support
+# --- Realtime (WebSocket notifications) via Channels over Redis ---
+# The app defines ASGI_APPLICATION + CHANNEL_LAYERS (Redis), so it MUST be
+# served by an ASGI server and Redis MUST be running in production.
 channels==4.0.0
 channels-redis==4.1.0
 daphne==4.0.0
 
-# Production (optional)
+# --- Production server (ASGI) + static files ---
+# gunicorn manages worker processes; uvicorn workers speak ASGI so both HTTP
+# and WebSockets are served from the same process pool.
 gunicorn==21.2.0
+uvicorn[standard]==0.30.6
 whitenoise==6.6.0

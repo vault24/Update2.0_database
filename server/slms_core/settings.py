@@ -20,7 +20,8 @@ DEBUG = config('DEBUG', default=True, cast=bool)
 
 ALLOWED_HOSTS = config(
     'ALLOWED_HOSTS',
-    default='localhost,127.0.0.1,testserver,13.250.99.61,spiadmin.errorburner.site,spistudent.errorburner.site',
+    # Dev-only default; production hosts come from the .env (no hardcoded hosts).
+    default='localhost,127.0.0.1,testserver',
     cast=Csv()
 )
 
@@ -215,75 +216,78 @@ REST_FRAMEWORK = {
 }
 
 # --------------------------------------------------
-# ✅ CORS (FINAL – NO BUG)
+# CORS / CSRF / PORTAL ORIGINS  — fully env-driven (no hardcoded hosts)
 # --------------------------------------------------
+# Every allowed origin comes from the environment, so a new server or domain
+# needs ZERO code changes — just set the vars in server/.env. Localhost-only
+# defaults keep local development working out of the box.
+#
+#   CORS_ALLOWED_ORIGINS    comma-separated full origins (scheme://host[:port])
+#   STUDENT_PORTAL_ORIGINS  origins that map to the student portal
+#   ADMIN_PORTAL_ORIGINS    origins that map to the admin portal
+#   CSRF_TRUSTED_ORIGINS    (optional) extra CSRF origins; defaults to the CORS set
+#   EXTRA_TRUSTED_ORIGINS   (optional) origins appended to ALL of the above
+#
+# SAFETY: CORS_ALLOW_ALL_ORIGINS stays False. With credentials enabled a
+# wildcard is both forbidden by browsers and insecure, so origins are always
+# an explicit allow-list.
+
+# Localhost dev defaults (used only when the matching env var is unset).
+_DEV_STUDENT_ORIGINS = [
+    "http://localhost:8080", "http://localhost:8081", "http://localhost:8082",
+    "http://127.0.0.1:8080", "http://127.0.0.1:8082",
+]
+_DEV_ADMIN_ORIGINS = [
+    "http://localhost:3000", "http://localhost:5173",
+    "http://127.0.0.1:3000", "http://127.0.0.1:5173",
+]
+
+
+def _origins(*groups):
+    """Flatten, normalise (trim + drop trailing slash) and de-duplicate origins."""
+    seen, out = set(), []
+    for group in groups:
+        for origin in group:
+            o = (origin or "").strip().rstrip("/")
+            if o and o not in seen:
+                seen.add(o)
+                out.append(o)
+    return out
+
+
+# Extra origins are folded into every list, so one env var can authorise a whole
+# new deployment for CORS, CSRF and portal routing at once.
+_EXTRA_ORIGINS = config('EXTRA_TRUSTED_ORIGINS', default='', cast=Csv())
+
+# Portal routing: decides which portal a login targets when the client does not
+# send an explicit `portal` field. Matched EXACTLY against the request Origin —
+# keep the student/admin sets disjoint.
+STUDENT_PORTAL_ORIGINS = _origins(
+    config('STUDENT_PORTAL_ORIGINS', default=','.join(_DEV_STUDENT_ORIGINS), cast=Csv()),
+    _EXTRA_ORIGINS,
+)
+ADMIN_PORTAL_ORIGINS = _origins(
+    config('ADMIN_PORTAL_ORIGINS', default=','.join(_DEV_ADMIN_ORIGINS), cast=Csv()),
+    _EXTRA_ORIGINS,
+)
+
 CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
 
-CORS_ALLOWED_ORIGINS = [
-    # Production URLs - Cloudflare Tunnel
-    "https://spiadmin.errorburner.site",   # admin production
-    "https://spistudent.errorburner.site", # student production
-    # Production URLs - Direct IP
-    "http://13.250.99.61",        # student production
-    "http://13.250.99.61:8080",   # admin production
-    # Development URLs
-    "http://localhost:3000",      # admin dev
-    "http://localhost:5173",      # admin vite dev
-    "http://localhost:8080",      # student dev
-    "http://localhost:8081", 
-    "http://localhost:8082",      # student dev (current)
-    "http://127.0.0.1:3000",      # admin dev
-    "http://127.0.0.1:5173",      # admin vite dev
-    "http://127.0.0.1:8080",      # student dev
-    "http://127.0.0.1:8082",      # student dev (current)
-]
+# CORS allow-list: explicit env value if given, otherwise the union of both
+# portal origin sets (which already include EXTRA + dev defaults).
+CORS_ALLOWED_ORIGINS = _origins(
+    config('CORS_ALLOWED_ORIGINS', default='', cast=Csv()),
+    STUDENT_PORTAL_ORIGINS,
+    ADMIN_PORTAL_ORIGINS,
+)
 
-# --------------------------------------------------
-# PORTAL ORIGINS
-# Used as a fallback to decide which portal a login request targets when the
-# client does not send an explicit `portal` field. Matched EXACTLY against the
-# request Origin (scheme://host[:port]) — keep student/admin lists disjoint.
-# --------------------------------------------------
-STUDENT_PORTAL_ORIGINS = [
-    "https://spistudent.errorburner.site",
-    "http://13.250.99.61",
-    "http://localhost:8080",
-    "http://localhost:8081",
-    "http://localhost:8082",
-    "http://127.0.0.1:8080",
-    "http://127.0.0.1:8082",
-]
-ADMIN_PORTAL_ORIGINS = [
-    "https://spiadmin.errorburner.site",
-    "http://13.250.99.61:8080",
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:5173",
-]
-
-# --------------------------------------------------
-# ✅ CSRF
-# --------------------------------------------------
-CSRF_TRUSTED_ORIGINS = [
-    # Production URLs - Cloudflare Tunnel
-    "https://spiadmin.errorburner.site",   # admin production
-    "https://spistudent.errorburner.site", # student production
-    # Production URLs - Direct IP
-    "http://13.250.99.61",        # student production
-    "http://13.250.99.61:8080",   # admin production
-    # Development URLs
-    "http://localhost:3000",      # admin dev
-    "http://localhost:5173",      # admin vite dev
-    "http://localhost:8080",      # student dev
-    "http://localhost:8081",
-    "http://localhost:8082",      # student dev (current)
-    "http://127.0.0.1:3000",      # admin dev
-    "http://127.0.0.1:5173",      # admin vite dev
-    "http://127.0.0.1:8080",      # student dev
-    "http://127.0.0.1:8082",      # student dev (current)
-]
+# Every origin that can reach the site must also be CSRF-trusted. Default to the
+# CORS set; an explicit CSRF_TRUSTED_ORIGINS env can add more.
+CSRF_TRUSTED_ORIGINS = _origins(
+    config('CSRF_TRUSTED_ORIGINS', default='', cast=Csv()),
+    CORS_ALLOWED_ORIGINS,
+)
 
 CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_SAMESITE = 'Lax'

@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# --- Load shared deployment configuration (SERVER_IP, SERVICE_NAME, DB_*) -----
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[ -f "${SCRIPT_DIR}/config.env" ] && source "${SCRIPT_DIR}/config.env"
+SERVER_IP="${SERVER_IP:-192.168.0.100}"
+SERVICE_NAME="${SERVICE_NAME:-sipi}"
+
 # SLMS Maintenance Script
 # Common maintenance tasks for the deployed SLMS application
 
@@ -7,7 +13,7 @@ set -e
 
 # Configuration
 PROJECT_NAME="SLMS"
-SERVER_IP="47.128.236.25"
+SERVER_IP="${SERVER_IP}"
 DB_NAME="sipi_db"
 DB_USER="sipi_web"
 
@@ -50,7 +56,7 @@ show_usage() {
 check_status() {
     print_step "Checking service status..."
     
-    services=("postgresql" "gunicorn" "nginx")
+    services=("postgresql" "${SERVICE_NAME}" "nginx")
     for service in "${services[@]}"; do
         if sudo systemctl is-active --quiet "$service"; then
             print_status "✅ $service is running"
@@ -94,7 +100,7 @@ view_logs() {
     read -p "Enter choice (1-5): " choice
     
     case $choice in
-        1) sudo journalctl -u gunicorn -f ;;
+        1) sudo journalctl -u ${SERVICE_NAME} -f ;;
         2) sudo tail -f /var/log/nginx/error.log ;;
         3) sudo tail -f /var/log/nginx/access.log ;;
         4) sudo tail -f /var/log/postgresql/postgresql-*.log ;;
@@ -107,7 +113,7 @@ view_logs() {
 restart_services() {
     print_step "Restarting services..."
     
-    services=("gunicorn" "nginx")
+    services=("${SERVICE_NAME}" "nginx")
     for service in "${services[@]}"; do
         print_status "Restarting $service..."
         sudo systemctl restart "$service"
@@ -212,7 +218,7 @@ restore_database() {
     fi
     
     # Stop services
-    sudo systemctl stop gunicorn
+    sudo systemctl stop ${SERVICE_NAME}
     
     # Restore database
     if psql -U "$DB_USER" -h localhost "$DB_NAME" < "$BACKUP_DIR/$backup_file"; then
@@ -223,7 +229,7 @@ restore_database() {
     fi
     
     # Start services
-    sudo systemctl start gunicorn
+    sudo systemctl start ${SERVICE_NAME}
     
     print_status "✅ Database restore completed"
 }
@@ -327,7 +333,7 @@ monitor_system() {
         
         # Service status
         echo "Services:"
-        services=("postgresql" "gunicorn" "nginx")
+        services=("postgresql" "${SERVICE_NAME}" "nginx")
         for service in "${services[@]}"; do
             if sudo systemctl is-active --quiet "$service"; then
                 echo "  ✅ $service"
@@ -348,7 +354,7 @@ monitor_system() {
         
         # Recent log entries
         echo "Recent Errors (last 5 minutes):"
-        sudo journalctl -u gunicorn --since "5 minutes ago" --no-pager -q | tail -3 || echo "  No recent errors"
+        sudo journalctl -u ${SERVICE_NAME} --since "5 minutes ago" --no-pager -q | tail -3 || echo "  No recent errors"
         
         sleep 5
     done

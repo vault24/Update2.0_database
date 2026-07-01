@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# --- Load shared deployment configuration (SERVER_IP, SERVICE_NAME, DB_*) -----
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[ -f "${SCRIPT_DIR}/config.env" ] && source "${SCRIPT_DIR}/config.env"
+SERVER_IP="${SERVER_IP:-192.168.0.100}"
+SERVICE_NAME="${SERVICE_NAME:-sipi}"
+
 # SLMS Troubleshooting Script
 # Automated diagnosis and fixes for common deployment issues
 
@@ -46,7 +52,7 @@ diagnose_system() {
     
     # Check services
     print_step "Checking services..."
-    services=("postgresql" "gunicorn" "nginx")
+    services=("postgresql" "${SERVICE_NAME}" "nginx")
     for service in "${services[@]}"; do
         if sudo systemctl is-active --quiet "$service"; then
             print_status "✅ $service is running"
@@ -114,7 +120,7 @@ diagnose_system() {
     # Check recent errors
     print_step "Checking recent errors..."
     echo "Recent Gunicorn errors:"
-    sudo journalctl -u gunicorn --since "1 hour ago" --no-pager -q | grep -i error | tail -5 || echo "No recent errors"
+    sudo journalctl -u ${SERVICE_NAME} --since "1 hour ago" --no-pager -q | grep -i error | tail -5 || echo "No recent errors"
     
     echo ""
     echo "Recent NGINX errors:"
@@ -182,23 +188,23 @@ fix_502_error() {
     print_step "Fixing 502 Bad Gateway errors..."
     
     # Check if Gunicorn is running
-    if ! sudo systemctl is-active --quiet gunicorn; then
+    if ! sudo systemctl is-active --quiet ${SERVICE_NAME}; then
         print_status "Starting Gunicorn service..."
-        sudo systemctl start gunicorn
+        sudo systemctl start ${SERVICE_NAME}
     fi
     
     # Restart Gunicorn
     print_status "Restarting Gunicorn..."
-    sudo systemctl restart gunicorn
+    sudo systemctl restart ${SERVICE_NAME}
     
     # Check Gunicorn status
     sleep 2
-    if sudo systemctl is-active --quiet gunicorn; then
+    if sudo systemctl is-active --quiet ${SERVICE_NAME}; then
         print_status "✅ Gunicorn is running"
     else
         print_error "❌ Gunicorn failed to start"
         print_status "Checking Gunicorn logs..."
-        sudo journalctl -u gunicorn --no-pager -l -n 10
+        sudo journalctl -u ${SERVICE_NAME} --no-pager -l -n 10
         return 1
     fi
     
@@ -242,8 +248,8 @@ fix_cors_issues() {
 
 # CORS Configuration
 CORS_ALLOWED_ORIGINS = [
-    "http://47.128.236.25",
-    "http://47.128.236.25:8080",
+    "http://${SERVER_IP}",
+    "http://${SERVER_IP}:8080",
     "http://localhost:3000",
     "http://localhost:5173",
 ]
@@ -279,7 +285,7 @@ EOF
     cd ..
     
     # Restart services
-    sudo systemctl restart gunicorn
+    sudo systemctl restart ${SERVICE_NAME}
     sudo systemctl restart nginx
     
     print_status "✅ CORS configuration updated"
@@ -404,7 +410,7 @@ reset_all() {
     print_step "Resetting all services..."
     
     # Stop all services
-    sudo systemctl stop nginx gunicorn
+    sudo systemctl stop nginx ${SERVICE_NAME}
     
     # Fix permissions
     fix_permissions
@@ -422,7 +428,7 @@ reset_all() {
     reset_nginx
     
     # Restart all services
-    sudo systemctl start gunicorn nginx
+    sudo systemctl start ${SERVICE_NAME} nginx
     
     print_status "✅ All services reset"
 }

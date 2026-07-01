@@ -24,6 +24,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { canAccessRoute, resolveAdminRole } from '@/config/permissions';
 import { cn } from '@/lib/utils';
 import { notificationService, Notification } from '@/services/notificationService';
+import { connectNotificationsSocket } from '@/lib/notificationsSocket';
 import { getErrorMessage } from '@/lib/api';
 
 interface TopNavbarProps {
@@ -101,11 +102,23 @@ export function TopNavbar({ onMenuToggle, sidebarOpen }: TopNavbarProps) {
   const currentPage = pageNames[location.pathname] || 'Dashboard';
   const canViewAnalytics = canAccessRoute(resolveAdminRole(user), '/analytics');
 
-  // Fetch unread count on mount and periodically
+  // Real-time notifications over WebSocket (replaces 30s polling).
+  // Initial fetch on mount; then the socket pushes new notifications and we
+  // re-sync the count on every (re)connect so nothing is missed while offline.
   useEffect(() => {
     fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 30000); // Refresh every 30 seconds
-    return () => clearInterval(interval);
+    const socket = connectNotificationsSocket({
+      onOpen: () => fetchUnreadCount(),
+      onCreated: (notification) => {
+        setUnreadCount((prev) => prev + 1);
+        // Prepend to the list only if it's already been loaded, so the
+        // "fetch when dropdown opens" path still works on first open.
+        setNotifications((prev) =>
+          prev.length ? [notification as Notification, ...prev].slice(0, 10) : prev,
+        );
+      },
+    });
+    return () => socket.close();
   }, []);
 
   // Fetch notifications when dropdown opens
