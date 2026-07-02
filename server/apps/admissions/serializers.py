@@ -85,7 +85,10 @@ class AdmissionCreateSerializer(serializers.ModelSerializer):
     """
     Serializer for creating admission applications
     """
-    
+    # Permanent address is mandatory — the form cannot be submitted without it
+    # (the model field stays nullable for legacy rows).
+    permanent_address = serializers.JSONField(required=True)
+
     class Meta:
         model = Admission
         fields = [
@@ -146,19 +149,21 @@ class AdmissionCreateSerializer(serializers.ModelSerializer):
         return value
     
     def validate_present_address(self, value):
-        """Validate present address structure"""
-        required_fields = ['village', 'postOffice', 'upazila', 'district', 'division']
+        """Validate present address structure (village is optional on the form)"""
+        required_fields = ['postOffice', 'upazila', 'district', 'division']
         for field in required_fields:
             if field not in value or not value[field]:
                 raise serializers.ValidationError(f'Address must include {field}')
         return value
-    
+
     def validate_permanent_address(self, value):
-        """Validate permanent address structure"""
-        required_fields = ['village', 'postOffice', 'upazila', 'district', 'division']
+        """Validate the (required) permanent address structure"""
+        if not value or not isinstance(value, dict):
+            raise serializers.ValidationError('Permanent address is required')
+        required_fields = ['postOffice', 'upazila', 'district', 'division']
         for field in required_fields:
             if field not in value or not value[field]:
-                raise serializers.ValidationError(f'Address must include {field}')
+                raise serializers.ValidationError(f'Permanent address must include {field}')
         return value
     
     def create(self, validated_data):

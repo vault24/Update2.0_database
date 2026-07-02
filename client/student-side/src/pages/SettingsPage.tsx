@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { settingsService } from '@/services/settingsService';
-import { getErrorMessage } from '@/lib/api';
+import api, { getErrorMessage } from '@/lib/api';
 import { 
   Settings, Bell, Lock, Palette, Globe, Monitor, Moon, Sun,
   Smartphone, Mail, MessageSquare, Shield,
@@ -143,6 +143,18 @@ export default function SettingsPage() {
         setNotifications(prefs.notifications);
         setPrivacy(prefs.privacy);
         setLanguage(prefs.language);
+
+        // The email preference is authoritative on the server — it controls
+        // whether ANY non-OTP email is sent to this account.
+        try {
+          const me = await api.get<any>('/auth/me/');
+          const serverUser = me?.user ?? me;
+          if (serverUser && typeof serverUser.email_notifications_enabled === 'boolean') {
+            setNotifications((prev) => ({ ...prev, email: serverUser.email_notifications_enabled }));
+          }
+        } catch {
+          // Non-critical: fall back to the locally stored preference.
+        }
         
         const links = await settingsService.getSocialLinks();
         // Add icons to loaded links
@@ -168,10 +180,23 @@ export default function SettingsPage() {
   const handleNotificationChange = async (key: keyof typeof notifications) => {
     const newNotifications = { ...notifications, [key]: !notifications[key] };
     setNotifications(newNotifications);
-    
+
     try {
+      // The email toggle is saved on the server: it disables ALL non-OTP
+      // emails for this account (OTP emails are always delivered).
+      if (key === 'email') {
+        await api.put('/auth/profile/', {
+          email_notifications_enabled: newNotifications.email,
+        });
+      }
       await settingsService.updatePreferences({ notifications: newNotifications });
-      toast.success('Notification preference updated');
+      toast.success(
+        key === 'email'
+          ? newNotifications.email
+            ? 'Email notifications enabled'
+            : 'Email notifications disabled — OTP emails will still be sent'
+          : 'Notification preference updated'
+      );
     } catch (error) {
       toast.error('Failed to update preference');
       // Revert on error
@@ -730,7 +755,9 @@ export default function SettingsPage() {
                   <Mail className="w-5 h-5 text-muted-foreground" />
                   <div>
                     <p className="font-medium">Email Notifications</p>
-                    <p className="text-sm text-muted-foreground">Receive updates via email</p>
+                    <p className="text-sm text-muted-foreground">
+                      Notices, updates and announcements by email. Security (OTP) emails are always sent.
+                    </p>
                   </div>
                 </div>
                 <Switch 

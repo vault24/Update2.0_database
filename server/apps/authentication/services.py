@@ -60,6 +60,7 @@ class EmailService:
                 accent_color='#d97706',
                 accent_soft='#fffbeb',
                 async_send=False,  # password reset should confirm delivery synchronously
+                category='security',  # OTP emails are always sent
             )
         except Exception as e:
             logger.error(f"Error sending OTP email: {e}")
@@ -86,6 +87,7 @@ class EmailService:
                 accent_color='#2563eb',
                 accent_soft='#eff6ff',
                 async_send=False,  # login should confirm delivery synchronously
+                category='security',  # OTP emails are always sent
             )
         except Exception as e:
             logger.error(f"Error sending login OTP email: {e}")
@@ -112,6 +114,7 @@ class EmailService:
                 accent_color='#2563eb',
                 accent_soft='#eff6ff',
                 async_send=False,  # signup should confirm delivery synchronously
+                category='security',  # OTP emails are always sent
             )
         except Exception as e:
             logger.error(f"Error sending signup OTP email: {e}")
@@ -134,6 +137,7 @@ class EmailService:
                 accent_label='Security',
                 accent_color='#16a34a',
                 accent_soft='#ecfdf5',
+                category='security',  # security confirmations are always sent
             )
         except Exception as e:
             logger.error(f"Error sending confirmation email: {e}")

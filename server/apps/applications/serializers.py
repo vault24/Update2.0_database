@@ -44,6 +44,10 @@ class ApplicationSubmitSerializer(serializers.ModelSerializer):
     (initial_assignee / department) is handled in the view.
     """
     template = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    # Document templates are admin-managed and dynamic, so applicationType carries
+    # the chosen template's display name (e.g. "Bonafide Certificate"). Override the
+    # model's fixed ChoiceField so any current/future template name is accepted.
+    applicationType = serializers.CharField(max_length=50)
 
     class Meta:
         model = Application

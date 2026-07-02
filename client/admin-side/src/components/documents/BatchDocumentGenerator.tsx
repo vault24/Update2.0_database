@@ -17,15 +17,16 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { 
-  Search, 
-  Users, 
-  Download, 
-  CheckCircle, 
-  AlertTriangle, 
+import {
+  Search,
+  Users,
+  Download,
+  CheckCircle,
+  AlertTriangle,
   Loader2,
   X,
-  Plus
+  Plus,
+  Eye
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -212,6 +213,27 @@ export const BatchDocumentGenerator: React.FC<BatchDocumentGeneratorProps> = ({
       });
     } finally {
       setIsDownloadingAll(false);
+    }
+  };
+
+  // Preview a single generated document in a new tab (isolated from the app styles).
+  const previewDocument = (doc: GeneratedDocument) => {
+    const blob = new Blob([doc.htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 15000);
+  };
+
+  // Download a single generated document as PDF.
+  const downloadDocument = async (doc: GeneratedDocument) => {
+    try {
+      await DocumentGeneratorService.downloadDocumentPDF(doc.id);
+    } catch (err) {
+      toast({
+        title: 'Download failed',
+        description: err instanceof Error ? err.message : 'Failed to download document',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -466,10 +488,20 @@ export const BatchDocumentGenerator: React.FC<BatchDocumentGeneratorProps> = ({
                 <h4 className="font-medium text-green-600">
                   Successful ({results.successful.length})
                 </h4>
-                <div className="space-y-1 max-h-32 overflow-y-auto">
-                  {results.successful.map((doc) => (
-                    <div key={doc.id} className="text-sm p-2 bg-green-50 rounded">
-                      Document {doc.id.slice(-8)}
+                <div className="space-y-1 max-h-48 overflow-y-auto">
+                  {results.successful.map((doc, i) => (
+                    <div key={doc.id} className="flex items-center justify-between gap-2 text-sm p-2 bg-green-50 dark:bg-green-950/30 rounded">
+                      <span className="truncate">
+                        {selectedTemplate?.name || 'Document'} #{i + 1}
+                      </span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => previewDocument(doc)} title="Preview">
+                          <Eye className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => downloadDocument(doc)} title="Download PDF">
+                          <Download className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Eye, EyeOff, Mail, Lock, User, Phone, GraduationCap,
-  BookOpen, BarChart3, Users, Building2, Briefcase, Award,
+  BookOpen, BarChart3, Building2, Briefcase, Award,
   MapPin, ChevronLeft, Globe, ChevronDown, Lightbulb, TrendingUp
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -39,12 +39,16 @@ function firstValidationError(err: any): string {
 type AuthMode = 'login' | 'signup';
 type MobileView = 'splash' | 'form';
 
+// Only two top-level account types are picked directly. A Student can then
+// additionally mark themselves as a Class Captain or an Alumnus via the
+// mutually-exclusive checkboxes shown under the selector.
 const roleOptions: { value: UserRole; label: string; icon: React.ElementType }[] = [
   { value: 'student', label: 'Student', icon: GraduationCap },
-  { value: 'captain', label: 'Captain', icon: Users },
   { value: 'teacher', label: 'Teacher', icon: BookOpen },
-  { value: 'alumni', label: 'Alumni', icon: Award },
 ];
+
+// A student-family role is anything selected while the "Student" tile is active.
+const isStudentFamily = (role: UserRole) => role === 'student' || role === 'captain' || role === 'alumni';
 
 const splideSlides = [
   {
@@ -364,7 +368,7 @@ function MobileAuthForm({
             {/* Login header */}
             {mode === 'login' && (
               <div className="text-center mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">Welcome back! 👋</h2>
+                <h2 className="text-2xl font-bold text-gray-900">Welcome back! </h2>
                 <p className="text-sm text-gray-400 mt-1">Log in to pick up where you left off</p>
               </div>
             )}
@@ -386,7 +390,7 @@ function MobileAuthForm({
                   <div className="grid grid-cols-2 gap-2 mb-1">
                     {roleOptions.map((opt) => {
                       const Icon = opt.icon;
-                      const sel = selectedRole === opt.value;
+                      const sel = opt.value === 'student' ? isStudentFamily(selectedRole) : selectedRole === opt.value;
                       return (
                         <button key={opt.value} type="button" onClick={() => setSelectedRole(opt.value)}
                           className={cn('flex flex-col items-center gap-1.5 py-3 rounded-xl border-2 transition-all',
@@ -400,6 +404,24 @@ function MobileAuthForm({
                       );
                     })}
                   </div>
+
+                  {/* Student sub-type: captain / alumni (mutually exclusive) */}
+                  {isStudentFamily(selectedRole) && (
+                    <div className="space-y-2 rounded-xl border border-gray-200 bg-gray-50/70 p-3">
+                      <label className="flex items-center gap-2.5 cursor-pointer">
+                        <input type="checkbox" className="h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
+                          checked={selectedRole === 'captain'}
+                          onChange={(e) => setSelectedRole(e.target.checked ? 'captain' : 'student')} />
+                        <span className="text-sm text-gray-700">I am a <span className="font-semibold">Class Captain</span></span>
+                      </label>
+                      <label className="flex items-center gap-2.5 cursor-pointer">
+                        <input type="checkbox" className="h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
+                          checked={selectedRole === 'alumni'}
+                          onChange={(e) => setSelectedRole(e.target.checked ? 'alumni' : 'student')} />
+                        <span className="text-sm text-gray-700">I am an <span className="font-semibold">Alumnus</span> <span className="text-gray-400">(already graduated)</span></span>
+                      </label>
+                    </div>
+                  )}
 
                   {/* Full Name */}
                   <div className="relative">
@@ -827,7 +849,7 @@ export function AuthPage() {
                   </div>
                 </div>
                 <div className="text-center mb-6">
-                  <h2 className="text-2xl font-bold text-gray-900">Welcome Back! 👋</h2>
+                  <h2 className="text-2xl font-bold text-gray-900">Welcome Back! </h2>
                   <p className="text-sm text-gray-500 mt-1.5">Log in to continue your learning journey</p>
                 </div>
               </>
@@ -872,7 +894,7 @@ export function AuthPage() {
                         <div className="grid grid-cols-2 gap-2">
                           {roleOptions.map((opt) => {
                             const Icon = opt.icon;
-                            const sel = selectedRole === opt.value;
+                            const sel = opt.value === 'student' ? isStudentFamily(selectedRole) : selectedRole === opt.value;
                             return (
                               <button key={opt.value} type="button" onClick={() => setSelectedRole(opt.value)}
                                 className={cn('flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border-2 transition-all duration-200',
@@ -886,6 +908,24 @@ export function AuthPage() {
                             );
                           })}
                         </div>
+
+                        {/* Student sub-type: captain / alumni (mutually exclusive) */}
+                        {isStudentFamily(selectedRole) && (
+                          <div className="mt-2 space-y-2 rounded-xl border border-gray-200 bg-gray-50/70 p-3">
+                            <label className="flex items-center gap-2.5 cursor-pointer">
+                              <input type="checkbox" className="h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
+                                checked={selectedRole === 'captain'}
+                                onChange={(e) => setSelectedRole(e.target.checked ? 'captain' : 'student')} />
+                              <span className="text-sm text-gray-700">I am a <span className="font-semibold">Class Captain</span></span>
+                            </label>
+                            <label className="flex items-center gap-2.5 cursor-pointer">
+                              <input type="checkbox" className="h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
+                                checked={selectedRole === 'alumni'}
+                                onChange={(e) => setSelectedRole(e.target.checked ? 'alumni' : 'student')} />
+                              <span className="text-sm text-gray-700">I am an <span className="font-semibold">Alumnus</span> <span className="text-gray-400">(already graduated)</span></span>
+                            </label>
+                          </div>
+                        )}
                       </div>
                       <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Full Name</Label>
                         <div className="relative"><User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />

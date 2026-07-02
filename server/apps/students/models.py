@@ -84,6 +84,10 @@ class Student(models.Model):
     # Academic Records (stored as JSON)
     semesterResults = models.JSONField(default=list, blank=True)
     semesterAttendance = models.JSONField(default=list, blank=True)
+
+    # Final CGPA — the single cumulative GPA for the whole course. Semester
+    # entries in semesterResults carry only their own GPA.
+    finalCgpa = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
     
     # Discontinued Student Fields
     discontinuedReason = models.TextField(blank=True)
@@ -150,9 +154,14 @@ class Student(models.Model):
         return max(completed_semesters) if completed_semesters else 0
     
     def update_current_semester(self):
-        """Update current semester based on completed semester results"""
+        """Update current semester based on completed semester results.
+
+        Result entry only ever *raises* the semester — students promoted
+        manually (bulk promotion without published results) must never be
+        demoted when an older semester's result is entered later.
+        """
         highest_completed = self.get_highest_completed_semester()
-        
+
         # If student has completed results, current semester should be next semester
         # unless they've already completed 8th semester
         if highest_completed > 0:
@@ -166,10 +175,10 @@ class Student(models.Model):
                 new_semester = highest_completed + 1
                 # Ensure we don't go beyond 8th semester
                 new_semester = min(new_semester, 8)
-            
-            # Only update if there's a change
-            if self.semester != new_semester:
+
+            # Only ever promote — never demote below the current semester.
+            if new_semester > self.semester:
                 self.semester = new_semester
                 return True
-        
+
         return False

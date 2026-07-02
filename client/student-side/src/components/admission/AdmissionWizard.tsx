@@ -659,8 +659,24 @@ export function AdmissionWizard() {
   };
 
   const handleSubmit = async () => {
+    // Final safety net: re-validate every step (a restored draft can land past
+    // a step that is no longer valid — e.g. the now-required permanent address).
+    for (let step = 1; step <= 5; step++) {
+      const stepErrors = getStepErrors(step, getCompleteFormData(), satisfiedDocFields);
+      if (Object.keys(stepErrors).length > 0) {
+        setErrors(stepErrors);
+        setCurrentStep(step);
+        const count = Object.keys(stepErrors).length;
+        toast.error(`Please complete ${count} field${count > 1 ? 's' : ''} before submitting`, {
+          description: 'We took you back to the step that needs attention.',
+        });
+        scrollToTop();
+        return;
+      }
+    }
+
     setIsSubmitting(true);
-    
+
     try {
       // Get complete form data including uploaded files
       const completeFormData = getCompleteFormData();

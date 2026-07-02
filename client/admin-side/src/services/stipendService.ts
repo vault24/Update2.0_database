@@ -37,11 +37,20 @@ export interface EligibleStudent {
   photo?: string;
   attendance: number;
   gpa: number;
+  /** The semester the displayed GPA belongs to (null when no results yet). */
+  gpaSemester?: number | null;
   cgpa: number;
   referredSubjects: number;
   totalSubjects: number;
   passedSubjects: number;
   rank?: number;
+}
+
+export interface StipendCriteriaSettings {
+  minAttendance: number;
+  minGpa?: number | null;
+  passRequirement: 'all_pass' | '1_referred' | '2_referred' | 'any';
+  updatedAt?: string;
 }
 
 export interface StipendEligibility {
@@ -106,6 +115,20 @@ export interface BulkApproveData {
 
 // Stipend Service
 export const stipendService = {
+  /**
+   * Get the persisted Stipend Eligible page criteria settings
+   */
+  async getSettings(): Promise<StipendCriteriaSettings> {
+    return apiClient.get<StipendCriteriaSettings>('/stipends/settings/');
+  },
+
+  /**
+   * Persist the Stipend Eligible page criteria settings
+   */
+  async updateSettings(data: Partial<StipendCriteriaSettings>): Promise<StipendCriteriaSettings> {
+    return apiClient.put<StipendCriteriaSettings>('/stipends/settings/', data);
+  },
+
   /**
    * Get list of stipend criteria
    */

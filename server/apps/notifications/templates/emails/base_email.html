@@ -5,52 +5,66 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <title>{{ subject|default:brand_name }}</title>
+  <style>
+    /* Mobile tweaks — clients that support <style> get tighter padding. */
+    @media only screen and (max-width: 620px) {
+      .email-container { width: 100% !important; border-radius: 0 !important; }
+      .email-body { padding: 24px 20px !important; }
+      .email-header { padding: 22px 20px !important; }
+      .email-footer { padding: 18px 20px !important; }
+    }
+  </style>
 </head>
-<body style="margin:0; padding:0; background-color:#eef2f7; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%;">
+<body style="margin:0; padding:0; background-color:#f1f5f9; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%;">
   <!-- Preheader (hidden preview text) -->
-  <div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:#eef2f7;">
+  <div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:#f1f5f9;">
     {{ preheader|default:heading }}
   </div>
 
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#eef2f7; padding:24px 12px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f1f5f9; padding:28px 12px;">
     <tr>
       <td align="center">
-        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px; width:100%; background-color:#ffffff; border-radius:14px; overflow:hidden; box-shadow:0 2px 8px rgba(16,24,40,0.06); font-family:'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" class="email-container" style="max-width:600px; width:100%; background-color:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; font-family:'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
 
-          <!-- Header -->
+          <!-- Header: institute logo + name on a clean white band -->
           <tr>
-            <td style="background:linear-gradient(135deg,#1d4ed8 0%,#1e3a8a 100%); padding:28px 32px;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-                <tr>
-                  <td style="vertical-align:middle;">
-                    <span style="display:inline-block; width:44px; height:44px; line-height:44px; text-align:center; background-color:rgba(255,255,255,0.18); border-radius:10px; color:#ffffff; font-size:20px; font-weight:700;">🎓</span>
-                  </td>
-                  <td style="vertical-align:middle; padding-left:14px;">
-                    <div style="color:#ffffff; font-size:18px; font-weight:700; letter-spacing:0.2px;">{{ brand_name|default:"SIPI" }}</div>
-                    <div style="color:#c7d2fe; font-size:12px;">{{ brand_tagline|default:"Sirajganj Polytechnic Institute" }}</div>
-                  </td>
-                </tr>
-              </table>
+            <td class="email-header" align="center" style="padding:28px 32px 22px; background-color:#ffffff; border-bottom:1px solid #eef2f7;">
+              {% if logo_url %}
+              <img src="{{ logo_url }}" width="56" height="56" alt="{{ brand_tagline|default:'Sirajganj Polytechnic Institute' }} logo"
+                   style="display:block; width:56px; height:56px; margin:0 auto 10px; border:0; outline:none;">
+              {% endif %}
+              <div style="color:#0f172a; font-size:17px; font-weight:700; letter-spacing:0.2px;">
+                {{ brand_tagline|default:"Sirajganj Polytechnic Institute" }}
+              </div>
+              <div style="color:#64748b; font-size:12px; margin-top:2px;">
+                সিরাজগঞ্জ পলিটেকনিক ইনস্টিটিউট
+              </div>
             </td>
           </tr>
 
-          <!-- Accent bar -->
-          {% if accent_label %}
-          <tr><td style="background-color:{{ accent_color|default:'#2563eb' }}; height:4px; line-height:4px; font-size:0;">&nbsp;</td></tr>
-          {% endif %}
+          <!-- Thin accent bar -->
+          <tr><td style="background-color:{{ accent_color|default:'#2563eb' }}; height:3px; line-height:3px; font-size:0;">&nbsp;</td></tr>
 
           <!-- Body -->
           <tr>
-            <td style="padding:32px;">
+            <td class="email-body" style="padding:32px;">
               {% block content %}{% endblock %}
             </td>
           </tr>
 
-          <!-- Footer -->
+          <!-- Footer: support / contact + legal -->
           <tr>
-            <td style="padding:22px 32px; background-color:#f8fafc; border-top:1px solid #e6ebf2;">
+            <td class="email-footer" style="padding:22px 32px; background-color:#f8fafc; border-top:1px solid #e6ebf2;">
+              {% if support_email or support_phone %}
+              <p style="margin:0 0 8px; color:#475569; font-size:12px; line-height:19px;">
+                <strong style="color:#334155;">Need help? / সহায়তা প্রয়োজন?</strong><br>
+                {% if support_email %}Email: <a href="mailto:{{ support_email }}" style="color:#2563eb; text-decoration:none;">{{ support_email }}</a>{% endif %}
+                {% if support_email and support_phone %} &nbsp;•&nbsp; {% endif %}
+                {% if support_phone %}Phone: <span style="color:#334155;">{{ support_phone }}</span>{% endif %}
+              </p>
+              {% endif %}
               <p style="margin:0 0 6px; color:#64748b; font-size:12px; line-height:18px;">
-                {{ footer_note|default:"This is an automated message from the SIPI Management System. Please do not reply to this email." }}
+                {{ footer_note|default:"This is an automated message from the SIPI Management System — please do not reply directly to this email. এটি একটি স্বয়ংক্রিয় ইমেইল — অনুগ্রহ করে সরাসরি উত্তর দেবেন না।" }}
               </p>
               <p style="margin:0; color:#94a3b8; font-size:12px;">
                 &copy; {{ year }} Sirajganj Polytechnic Institute. All rights reserved.

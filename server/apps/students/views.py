@@ -821,26 +821,27 @@ class StudentViewSet(viewsets.ModelViewSet):
         
         # Calculate semester GPA
         semester_gpa = total_grade_points / total_credits if total_credits > 0 else 0.0
-        
-        # Calculate CGPA (simplified - average of all semester GPAs)
+
+        # Update the student-level Final CGPA (simplified - average of all
+        # semester GPAs). Semesters themselves carry only their own GPA.
         existing_results = student.semesterResults or []
         total_gpa_sum = semester_gpa
         semester_count = 1
-        
+
         for result in existing_results:
             if result.get('resultType') == 'gpa' and result.get('gpa') and result.get('semester') != semester:
                 total_gpa_sum += result.get('gpa', 0)
                 semester_count += 1
-        
+
         cgpa = total_gpa_sum / semester_count if semester_count > 0 else semester_gpa
-        
+        student.finalCgpa = round(cgpa, 2)
+
         # Create semester result
         semester_result = {
             'semester': semester,
             'year': year,
             'resultType': 'gpa',
             'gpa': round(semester_gpa, 2),
-            'cgpa': round(cgpa, 2),
             'subjects': subjects
         }
         

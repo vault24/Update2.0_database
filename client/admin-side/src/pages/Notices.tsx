@@ -60,6 +60,7 @@ function NoticeFormDialog({ open, onOpenChange, mode, notice, onSaved }: NoticeF
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const [removeIds, setRemoveIds] = useState<number[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -75,10 +76,29 @@ function NoticeFormDialog({ open, onOpenChange, mode, notice, onSaved }: NoticeF
   const existingAttachments = (notice?.attachments || []).filter((a) => !removeIds.includes(a.id));
   const isHigh = form.priority === 'high';
 
-  const addFiles = (files: FileList | null) => {
+  const MAX_FILE_BYTES = 10 * 1024 * 1024;
+  const isAllowedFile = (f: File) =>
+    f.type === 'application/pdf' || f.type.startsWith('image/');
+
+  const addFiles = (files: FileList | File[] | null) => {
     if (!files) return;
-    setNewFiles((prev) => [...prev, ...Array.from(files)]);
+    const incoming = Array.from(files);
+    const rejected = incoming.filter((f) => !isAllowedFile(f) || f.size > MAX_FILE_BYTES);
+    if (rejected.length > 0) {
+      toast({
+        title: 'Some files were skipped',
+        description: 'Only images and PDF files up to 10 MB are allowed.',
+        variant: 'destructive',
+      });
+    }
+    const accepted = incoming.filter((f) => isAllowedFile(f) && f.size <= MAX_FILE_BYTES);
+    if (accepted.length > 0) setNewFiles((prev) => [...prev, ...accepted]);
     if (fileRef.current) fileRef.current.value = '';
+  };
+
+  const formatSize = (bytes: number) => {
+    if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
   };
 
   const submit = async () => {
@@ -131,7 +151,7 @@ function NoticeFormDialog({ open, onOpenChange, mode, notice, onSaved }: NoticeF
           </div>
 
           {/* Attachments */}
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>Attachments <span className="text-muted-foreground font-normal">(images or PDF, up to 10 MB each)</span></Label>
             <input
               ref={fileRef}
@@ -141,35 +161,58 @@ function NoticeFormDialog({ open, onOpenChange, mode, notice, onSaved }: NoticeF
               className="hidden"
               onChange={(e) => addFiles(e.target.files)}
             />
-            <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => fileRef.current?.click()}>
-              <Paperclip className="w-4 h-4" />
-              Add files
-            </Button>
+
+            {/* Drop zone — click or drag & drop */}
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => { e.preventDefault(); setDragOver(false); addFiles(e.dataTransfer.files); }}
+              className={cn(
+                'w-full rounded-lg border-2 border-dashed p-6 text-center transition-colors',
+                dragOver
+                  ? 'border-primary bg-primary/5'
+                  : 'border-border hover:border-primary/50 hover:bg-muted/40'
+              )}
+            >
+              <div className="flex flex-col items-center gap-1.5">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <Paperclip className="w-5 h-5" />
+                </div>
+                <p className="text-sm font-medium text-foreground">
+                  Drop PDFs or images here, or <span className="text-primary">browse</span>
+                </p>
+                <p className="text-xs text-muted-foreground">PNG, JPG, WEBP, GIF or PDF • max 10 MB each</p>
+              </div>
+            </button>
 
             {(existingAttachments.length > 0 || newFiles.length > 0) && (
-              <div className="flex flex-wrap gap-2 pt-1">
+              <div className="space-y-1.5 pt-1">
                 {existingAttachments.map((att) => {
                   const Icon = isImage(att.name) ? ImageIcon : FileText;
                   return (
-                    <span key={`e-${att.id}`} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1 text-xs max-w-[220px]">
-                      <Icon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                      <span className="truncate" title={att.name}>{att.name}</span>
-                      <button type="button" onClick={() => setRemoveIds((p) => [...p, att.id])} className="text-muted-foreground hover:text-destructive" aria-label="Remove attachment">
-                        <X className="w-3.5 h-3.5" />
+                    <div key={`e-${att.id}`} className="flex items-center gap-2.5 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
+                      <Icon className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <span className="truncate flex-1" title={att.name}>{att.name}</span>
+                      <Badge variant="secondary" className="shrink-0 text-[11px]">uploaded</Badge>
+                      <button type="button" onClick={() => setRemoveIds((p) => [...p, att.id])} className="text-muted-foreground hover:text-destructive shrink-0" aria-label="Remove attachment">
+                        <X className="w-4 h-4" />
                       </button>
-                    </span>
+                    </div>
                   );
                 })}
                 {newFiles.map((f, idx) => {
                   const Icon = isImage(f.name) ? ImageIcon : FileText;
                   return (
-                    <span key={`n-${idx}`} className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-[hsl(var(--primary-muted))] px-2 py-1 text-xs text-primary max-w-[220px]">
-                      <Icon className="w-3.5 h-3.5 shrink-0" />
-                      <span className="truncate" title={f.name}>{f.name}</span>
-                      <button type="button" onClick={() => setNewFiles((p) => p.filter((_, i) => i !== idx))} className="hover:text-destructive" aria-label="Remove file">
-                        <X className="w-3.5 h-3.5" />
+                    <div key={`n-${idx}`} className="flex items-center gap-2.5 rounded-md border border-primary/30 bg-[hsl(var(--primary-muted))] px-3 py-2 text-sm text-primary">
+                      <Icon className="w-4 h-4 shrink-0" />
+                      <span className="truncate flex-1" title={f.name}>{f.name}</span>
+                      <span className="text-xs shrink-0 opacity-80">{formatSize(f.size)}</span>
+                      <button type="button" onClick={() => setNewFiles((p) => p.filter((_, i) => i !== idx))} className="hover:text-destructive shrink-0" aria-label="Remove file">
+                        <X className="w-4 h-4" />
                       </button>
-                    </span>
+                    </div>
                   );
                 })}
               </div>
@@ -204,7 +247,7 @@ function NoticeFormDialog({ open, onOpenChange, mode, notice, onSaved }: NoticeF
             {isHigh ? <Mail className="w-4 h-4 mt-0.5 text-destructive shrink-0" /> : <Bell className="w-4 h-4 mt-0.5 shrink-0" />}
             <p>
               {isHigh
-                ? <>This <span className="font-medium text-foreground">high-priority</span> notice will <span className="font-medium text-foreground">email every active student</span> and send an in-app notification.</>
+                ? <>This <span className="font-medium text-foreground">high-priority</span> notice will <span className="font-medium text-foreground">email every active student</span> (attachments included) and send an in-app notification.</>
                 : <>Low and Normal notices send an <span className="font-medium text-foreground">in-app notification</span> only — no email.</>}
               {!form.is_published && ' Notifications are only sent once the notice is published.'}
             </p>

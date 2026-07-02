@@ -96,6 +96,61 @@ class StipendCriteria(models.Model):
         return self.name
 
 
+class StipendCriteriaSettings(models.Model):
+    """
+    Singleton row holding the Stipend Eligible page's criteria settings so
+    they persist across page refreshes and sessions.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    minAttendance = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        default=75.0,
+    )
+    minGpa = models.DecimalField(
+        max_digits=4,
+        decimal_places=2,
+        validators=[MinValueValidator(0), MaxValueValidator(5)],
+        null=True,
+        blank=True,
+    )
+    passRequirement = models.CharField(
+        max_length=20,
+        choices=[
+            ('all_pass', 'All Subjects Pass'),
+            ('1_referred', 'Max 1 Referred'),
+            ('2_referred', 'Max 2 Referred'),
+            ('any', 'Any (No Restriction)'),
+        ],
+        default='all_pass',
+    )
+    updatedAt = models.DateTimeField(auto_now=True)
+    updatedBy = models.ForeignKey(
+        'authentication.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='updated_stipend_settings',
+    )
+
+    class Meta:
+        db_table = 'stipend_criteria_settings'
+        verbose_name = 'Stipend Criteria Settings'
+        verbose_name_plural = 'Stipend Criteria Settings'
+
+    def __str__(self):
+        return f"Stipend criteria settings (attendance >= {self.minAttendance}%, {self.passRequirement})"
+
+    @classmethod
+    def get_settings(cls):
+        """Get or create the singleton settings row."""
+        obj = cls.objects.first()
+        if obj is None:
+            obj = cls.objects.create()
+        return obj
+
+
 class StipendEligibility(models.Model):
     """
     Tracks stipend eligibility for students

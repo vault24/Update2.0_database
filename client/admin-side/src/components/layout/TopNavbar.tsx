@@ -45,7 +45,7 @@ const pageNames: Record<string, string> = {
   '/applications': 'Applications',
   '/correction-requests': 'Correction Requests',
   '/notices': 'Notices & Updates',
-  '/analytics': 'System Activity & Reports',
+  '/analytics': 'System Reports',
   '/settings': 'Settings',
   '/activity-logs': 'System Activity & Reports',
 };

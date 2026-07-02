@@ -2,9 +2,18 @@
 Stipend Serializers
 """
 from rest_framework import serializers
-from .models import StipendCriteria, StipendEligibility
+from .models import StipendCriteria, StipendEligibility, StipendCriteriaSettings
 from apps.students.models import Student
 from apps.departments.models import Department
+
+
+class StipendCriteriaSettingsSerializer(serializers.ModelSerializer):
+    """Serializer for the persisted Stipend Eligible page criteria settings"""
+
+    class Meta:
+        model = StipendCriteriaSettings
+        fields = ['minAttendance', 'minGpa', 'passRequirement', 'updatedAt']
+        read_only_fields = ['updatedAt']
 
 
 class StipendCriteriaSerializer(serializers.ModelSerializer):

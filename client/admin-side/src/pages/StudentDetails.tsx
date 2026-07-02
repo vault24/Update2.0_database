@@ -93,6 +93,7 @@ export default function StudentDetails() {
   });
   const [attendanceData, setAttendanceData] = useState<SemesterAttendance[]>([]);
   const [resultsData, setResultsData] = useState<SemesterResult[]>([]);
+  const [finalCgpaInput, setFinalCgpaInput] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [documentsLoading, setDocumentsLoading] = useState(false);
@@ -113,6 +114,7 @@ export default function StudentDetails() {
         // Initialize attendance and results data
         setAttendanceData(data.semesterAttendance || []);
         setResultsData(data.semesterResults || []);
+        setFinalCgpaInput(data.finalCgpa != null ? String(data.finalCgpa) : '');
       } catch (err) {
         const errorMessage = getErrorMessage(err);
         setError(errorMessage);
@@ -453,7 +455,6 @@ export default function StudentDetails() {
           // Clear referred subjects when switching to GPA
           delete result.referredSubjects;
           result.gpa = result.gpa || 0;
-          result.cgpa = result.cgpa || 0;
         } else if (value === 'referred') {
           // Clear GPA fields when switching to referred
           delete result.gpa;
@@ -473,7 +474,6 @@ export default function StudentDetails() {
       year: new Date().getFullYear(),
       resultType: 'gpa',
       gpa: 0,
-      cgpa: 0,
       subjects: []
     };
     setResultsData([...resultsData, newResult]);
@@ -494,26 +494,39 @@ export default function StudentDetails() {
         };
         
         if (result.resultType === 'gpa') {
-          // Only include GPA fields for GPA type
+          // Only include the semester's own GPA — CGPA lives once, at the
+          // student level (finalCgpa), not on every semester.
           if (result.gpa !== undefined) cleanedResult.gpa = result.gpa;
-          if (result.cgpa !== undefined) cleanedResult.cgpa = result.cgpa;
           if (result.subjects) cleanedResult.subjects = result.subjects;
         } else if (result.resultType === 'referred') {
           // Only include referred subjects for referred type
           if (result.referredSubjects) cleanedResult.referredSubjects = result.referredSubjects;
         }
-        
+
         return cleanedResult;
       });
-      
+
+      const parsedFinalCgpa = finalCgpaInput.trim() === '' ? null : parseFloat(finalCgpaInput);
+      if (parsedFinalCgpa !== null && (isNaN(parsedFinalCgpa) || parsedFinalCgpa < 0 || parsedFinalCgpa > 5)) {
+        toast({
+          title: "Invalid Final CGPA",
+          description: "Final CGPA must be a number between 0.00 and 5.00.",
+          variant: "destructive"
+        });
+        setIsSaving(false);
+        return;
+      }
+
       await studentService.patchStudent(id, {
-        semesterResults: cleanedResultsData
+        semesterResults: cleanedResultsData,
+        finalCgpa: parsedFinalCgpa,
       });
-      
+
       // Refresh student data
       const updatedStudent = await studentService.getStudent(id);
       setStudent(updatedStudent);
       setResultsData(updatedStudent.semesterResults || []);
+      setFinalCgpaInput(updatedStudent.finalCgpa != null ? String(updatedStudent.finalCgpa) : '');
       
       // Check if 8th semester result was just added
       const has8thSemesterResult = cleanedResultsData.some(result => 
@@ -786,11 +799,13 @@ export default function StudentDetails() {
                   </Card>
                   <Card className="bg-muted/50 border-0 shadow-none">
                     <CardContent className="p-3 text-center">
-                      <p className="text-xs text-muted-foreground">CGPA</p>
+                      <p className="text-xs text-muted-foreground">Final CGPA</p>
                       <p className="text-lg font-bold text-success">
-                        {student.semesterResults && student.semesterResults.length > 0 
-                          ? student.semesterResults[student.semesterResults.length - 1]?.cgpa 
-                          : '-'}
+                        {student.finalCgpa != null
+                          ? Number(student.finalCgpa).toFixed(2)
+                          : (student.semesterResults && student.semesterResults.length > 0
+                              ? student.semesterResults[student.semesterResults.length - 1]?.cgpa ?? '-'
+                              : '-')}
                       </p>
                     </CardContent>
                   </Card>
@@ -972,9 +987,6 @@ export default function StudentDetails() {
                         <Badge className="gradient-primary text-primary-foreground">GPA: {result.gpa}</Badge>
                       )}
                     </div>
-                    {result.cgpa && (
-                      <div className="text-sm text-muted-foreground">CGPA: {result.cgpa}</div>
-                    )}
                     {result.referredSubjects && result.referredSubjects.length > 0 && (
                       <div className="mt-2">
                         <p className="text-xs text-destructive font-medium">Referred Subjects:</p>
@@ -1485,10 +1497,32 @@ export default function StudentDetails() {
               Update Semester Results
             </DialogTitle>
             <DialogDescription>
-              Update semester results and grades for the student.
+              Update semester results and grades for the student. Each semester has its own GPA;
+              the Final CGPA is entered once for the whole course.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+            {/* Final CGPA — the single cumulative result for the whole course */}
+            <div className="border border-primary/30 bg-primary/5 rounded-lg p-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <Label className="text-sm font-semibold">Final CGPA</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Cumulative GPA for the entire course (shown at the top of the academic record).
+                  </p>
+                </div>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="5"
+                  className="w-32"
+                  placeholder="e.g. 3.75"
+                  value={finalCgpaInput}
+                  onChange={(e) => setFinalCgpaInput(e.target.value)}
+                />
+              </div>
+            </div>
             {resultsData.length > 0 ? (
               resultsData.map((result, resultIndex) => (
                 <div key={resultIndex} className="border border-border rounded-lg p-4">
@@ -1518,26 +1552,15 @@ export default function StudentDetails() {
                       </Select>
                     </div>
                     {result.resultType === 'gpa' && (
-                      <>
-                        <div>
-                          <Label className="text-sm">GPA</Label>
-                          <Input 
-                            type="number" 
-                            step="0.01"
-                            value={result.gpa || ''}
-                            onChange={(e) => handleUpdateResult(resultIndex, 'gpa', parseFloat(e.target.value))}
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-sm">CGPA</Label>
-                          <Input 
-                            type="number" 
-                            step="0.01"
-                            value={result.cgpa || ''}
-                            onChange={(e) => handleUpdateResult(resultIndex, 'cgpa', parseFloat(e.target.value))}
-                          />
-                        </div>
-                      </>
+                      <div>
+                        <Label className="text-sm">Semester GPA</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={result.gpa || ''}
+                          onChange={(e) => handleUpdateResult(resultIndex, 'gpa', parseFloat(e.target.value))}
+                        />
+                      </div>
                     )}
                     {result.resultType === 'referred' && (
                       <div className="col-span-2">

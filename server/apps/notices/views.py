@@ -85,8 +85,8 @@ class AdminNoticeListCreateView(generics.ListCreateAPIView):
         if not self.request.user.is_admin():
             return Notice.objects.none()
         
-        queryset = Notice.objects.select_related('created_by').prefetch_related('read_statuses')
-        
+        queryset = Notice.objects.select_related('created_by').prefetch_related('read_statuses', 'attachments')
+
         # Filter by publication status if specified
         is_published = self.request.query_params.get('is_published')
         if is_published is not None:
@@ -124,7 +124,7 @@ class AdminNoticeListCreateView(generics.ListCreateAPIView):
         try:
             if getattr(notice, 'is_published', True):
                 from apps.notifications.dispatch import notify_new_notice
-                notify_new_notice(notice)
+                notify_new_notice(notice, request=self.request)
         except Exception as notify_err:
             import logging
             logging.getLogger(__name__).error("Notice notification failed: %s", notify_err)
@@ -191,7 +191,7 @@ class StudentNoticeListView(generics.ListAPIView):
             return Notice.objects.none()
         
         # Use select_related and prefetch_related for performance
-        queryset = Notice.objects.filter(is_published=True).select_related('created_by')
+        queryset = Notice.objects.filter(is_published=True).select_related('created_by').prefetch_related('attachments')
         
         # Filter by priority if specified
         priority = self.request.query_params.get('priority')

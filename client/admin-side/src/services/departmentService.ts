@@ -110,6 +110,30 @@ class DepartmentService {
   }
 
   /**
+   * Bulk-promote all active students of a semester to the next semester,
+   * optionally excluding selected students. No result entry required.
+   */
+  async promoteStudents(
+    id: string,
+    semester: number,
+    excludeIds: string[] = []
+  ): Promise<{
+    message: string;
+    department: string;
+    fromSemester: number;
+    toSemester: number;
+    totalInSemester: number;
+    promoted: number;
+    excluded: number;
+    promotedIds: string[];
+  }> {
+    return await apiClient.post(`${this.baseURL}/${id}/promote-students/`, {
+      semester,
+      exclude_ids: excludeIds,
+    });
+  }
+
+  /**
    * Get department statistics
    */
   async getDepartmentStats(): Promise<{

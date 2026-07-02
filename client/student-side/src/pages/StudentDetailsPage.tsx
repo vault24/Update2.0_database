@@ -326,11 +326,13 @@ export default function StudentDetailsPage() {
                   </Card>
                   <Card className="bg-muted/50">
                     <CardContent className="p-3 text-center">
-                      <p className="text-xs text-muted-foreground">CGPA</p>
+                      <p className="text-xs text-muted-foreground">Final CGPA</p>
                       <p className="text-lg font-bold text-success">
-                        {student.semesterResults && student.semesterResults.length > 0 
-                          ? student.semesterResults[student.semesterResults.length - 1]?.cgpa || '-'
-                          : '-'}
+                        {student.finalCgpa != null
+                          ? Number(student.finalCgpa).toFixed(2)
+                          : (student.semesterResults && student.semesterResults.length > 0
+                              ? student.semesterResults[student.semesterResults.length - 1]?.cgpa || '-'
+                              : '-')}
                       </p>
                     </CardContent>
                   </Card>
@@ -457,9 +459,6 @@ export default function StudentDetailsPage() {
                           <Badge className="gradient-primary text-primary-foreground">GPA: {result.gpa}</Badge>
                         )}
                       </div>
-                      {result.cgpa && (
-                        <div className="text-sm text-muted-foreground">CGPA: {result.cgpa}</div>
-                      )}
                       {result.referredSubjects && result.referredSubjects.length > 0 && (
                         <div className="mt-2">
                           <p className="text-xs text-destructive font-medium">Referred Subjects:</p>

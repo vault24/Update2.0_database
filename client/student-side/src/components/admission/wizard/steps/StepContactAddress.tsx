@@ -153,6 +153,7 @@ export function StepContactAddress({ formData, onChange, errors = {} }: Props) {
       <SectionCard
         icon={Home}
         title="Permanent Address"
+        description="Required — tick the box if it is the same as your present address."
         action={
           <label className="flex cursor-pointer items-center gap-2 text-sm">
             <Checkbox
@@ -168,7 +169,7 @@ export function StepContactAddress({ formData, onChange, errors = {} }: Props) {
             Your permanent address will be the same as your present address.
           </p>
         ) : (
-          <AddressBlock prefix="permanent" formData={formData} onChange={onChange} errors={errors} required={false} />
+          <AddressBlock prefix="permanent" formData={formData} onChange={onChange} errors={errors} required />
         )}
       </SectionCard>
     </div>

@@ -378,13 +378,14 @@ def get_alumni_account_email(alumni):
 def send_profile_completion_reminder(alumni, completion=None, *, from_email=None):
     """
     Email a single alumnus (at their account email) asking them to finish their
-    profile.
+    profile — a branded, bilingual (English + Bangla) request explaining why
+    their information matters.
 
     Returns True when an email was dispatched, False when skipped (no email on
-    file). Raises on hard send failures so the caller can record them.
+    file, or the user disabled email notifications).
     """
-    from django.conf import settings
-    from django.core.mail import send_mail
+    from apps.notifications.email_service import send_branded_email
+    from apps.notifications.dispatch import student_portal_url
 
     student = alumni.student
     recipient = get_alumni_account_email(alumni)
@@ -393,29 +394,57 @@ def send_profile_completion_reminder(alumni, completion=None, *, from_email=None
 
     completion = completion or compute_profile_completion(alumni)
     name = student.fullNameEnglish or 'there'
-    missing = completion['missing']
-    missing_lines = '\n'.join(f'  • {m}' for m in missing) or '  • (a few finishing touches)'
+    missing = completion['missing'] or ['A few finishing touches']
 
-    subject = 'Complete your alumni profile'
-    body = (
-        f"Dear {name},\n\n"
-        f"Your alumni profile is currently {completion['percentage']}% complete.\n"
-        f"A complete profile helps the institute and fellow alumni stay connected "
-        f"with you and share relevant opportunities.\n\n"
-        f"Still to add:\n{missing_lines}\n\n"
-        f"You can update your profile any time from the alumni portal.\n\n"
-        f"Warm regards,\n"
-        f"Sirajganj Polytechnic Institute — Alumni Office"
-    )
+    sections = [
+        {
+            "title": "Why complete your information? / কেন তথ্য পূরণ করবেন?",
+            "bullets": [
+                "It keeps you connected — the institute can reach you with reunions, events and opportunities relevant to your batch.",
+                "It strengthens the alumni network — fellow graduates can find you in the Alumni Directory.",
+                "এটি আপনাকে যুক্ত রাখে — পুনর্মিলনী, ইভেন্ট ও আপনার ব্যাচের জন্য প্রাসঙ্গিক সুযোগের খবর ইনস্টিটিউট আপনাকে জানাতে পারবে।",
+                "এটি অ্যালামনাই নেটওয়ার্ককে শক্তিশালী করে — সহপাঠীরা অ্যালামনাই ডিরেক্টরিতে আপনাকে খুঁজে পাবেন।",
+            ],
+        },
+        {
+            "title": "How your information helps the institute / আপনার তথ্য কীভাবে ইনস্টিটিউটকে সাহায্য করে",
+            "bullets": [
+                "Success stories of graduates like you inspire and guide current students.",
+                "Accurate alumni records help the institute plan programs, mentorship and career support.",
+                "আপনার মতো গ্র্যাজুয়েটদের সাফল্যের গল্প বর্তমান শিক্ষার্থীদের অনুপ্রাণিত করে ও পথ দেখায়।",
+                "সঠিক অ্যালামনাই তথ্য ইনস্টিটিউটকে বিভিন্ন প্রোগ্রাম, মেন্টরশিপ ও ক্যারিয়ার সহায়তা পরিকল্পনায় সাহায্য করে।",
+            ],
+        },
+        {
+            "title": "Still missing from your profile / আপনার প্রোফাইলে যা এখনো বাকি",
+            "bullets": list(missing),
+        },
+    ]
 
-    send_mail(
-        subject=subject,
-        message=body,
-        from_email=from_email or settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[recipient],
-        fail_silently=False,
+    return send_branded_email(
+        'Please complete your alumni profile — SIPI Alumni Office',
+        recipient,
+        heading='Help us keep your alumni record complete',
+        greeting=f"Dear {name}, / প্রিয় {name},",
+        intro=(
+            f"Your alumni profile is currently {completion['percentage']}% complete. "
+            "Completing it takes only a few minutes, and your participation is truly "
+            "valuable to the SIPI community. "
+            f"আপনার অ্যালামনাই প্রোফাইল বর্তমানে {completion['percentage']}% সম্পূর্ণ — "
+            "বাকি তথ্য পূরণ করতে মাত্র কয়েক মিনিট লাগবে।"
+        ),
+        sections=sections,
+        cta_label='Complete my profile / প্রোফাইল সম্পূর্ণ করুন',
+        cta_url=student_portal_url('/dashboard/alumni-profile'),
+        closing=(
+            "Thank you for being a proud part of the SIPI family. / "
+            "সিপির পরিবারের গর্বিত সদস্য হিসেবে আপনাকে ধন্যবাদ। — Alumni Office, Sirajganj Polytechnic Institute"
+        ),
+        accent_label='Alumni',
+        accent_color='#0f766e',
+        accent_soft='#f0fdfa',
+        async_send=False,  # caller records per-recipient success/failure
     )
-    return True
 
 
 def attach_alumni_documents(alumni, document_items):

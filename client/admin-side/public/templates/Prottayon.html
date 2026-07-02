@@ -5,229 +5,75 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clearance Certificate - Sirajganj Polytechnic Institute</title>
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
         body {
-            font-family: "Times New Roman", Times, serif;
-            background: #e8ebef;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            padding: 24px;
+            font-family: "Times New Roman", Times, serif; color: #111;
+            background: #525659; display: flex; justify-content: center; align-items: flex-start;
+            min-height: 100vh; padding: 24px;
         }
 
         .page {
-            width: 210mm;
-            height: 297mm;
-            background: #fff;
-            padding: 10mm;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+            width: 210mm; height: 297mm; background: #fff; padding: 10mm;
+            box-shadow: 0 0 15px rgba(0,0,0,0.35); margin: auto; overflow: hidden;
         }
+        .frame { width: 100%; height: 100%; border: 2px solid #1f2937; padding: 4px; }
+        .inner { width: 100%; height: 100%; border: 1px solid #1f2937; padding: 12mm 14mm; display: flex; flex-direction: column; }
 
-        .frame {
-            width: 100%;
-            height: 100%;
-            border: 2px solid #1f2937;
-            padding: 4px;
-        }
+        .doc-header { display: grid; grid-template-columns: 88px 1fr 88px; align-items: center; gap: 14px; }
+        .logo-box { width: 88px; height: 88px; display: flex; align-items: center; justify-content: center; }
+        .logo-box img { width: 100%; height: 100%; object-fit: contain; }
+        .header-center { text-align: center; }
+        .gov-line { font-size: 14px; font-family: Arial, sans-serif; }
+        .office-line { font-size: 15px; font-weight: bold; margin-top: 2px; }
+        .institute-name { font-size: 26px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; margin: 3px 0; line-height: 1.1; }
+        .contact-line { font-size: 11.5px; line-height: 1.45; color: #222; font-family: Arial, sans-serif; }
+        .header-divider { border-top: 3px solid #000; border-bottom: 1px solid #000; height: 4px; margin: 10px 0 16px; }
 
-        .inner {
-            width: 100%;
-            height: 100%;
-            border: 1px solid #1f2937;
-            padding: 10mm 12mm;
-            display: flex;
-            flex-direction: column;
-        }
+        .ref-date-row { display: flex; justify-content: space-between; font-size: 15px; font-weight: bold; margin-bottom: 24px; font-family: Arial, sans-serif; }
 
-        .doc-header {
-            display: grid;
-            grid-template-columns: 70px 1fr 70px;
-            align-items: start;
-            gap: 12px;
-            margin-bottom: 10px;
-        }
+        .doc-title { text-align: center; font-size: 26px; font-weight: 700; text-transform: uppercase; text-decoration: underline; text-underline-offset: 5px; letter-spacing: 0.5px; margin-bottom: 28px; }
 
-        .logo-box {
-            width: 70px;
-            height: 70px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
+        .content { font-size: 18px; line-height: 1.85; text-align: justify; flex: 1; }
+        .content p { margin-bottom: 16px; }
+        .field { font-weight: bold; }
 
-        .logo-box img {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-        }
+        .signatures { display: flex; justify-content: space-between; align-items: flex-end; margin-top: auto; padding: 30px 6px 0; }
+        .sig-block { width: 220px; text-align: center; }
+        .sig-slot { height: 60px; display: flex; align-items: flex-end; justify-content: center; }
+        .sig-slot img { max-height: 58px; max-width: 200px; object-fit: contain; }
+        .sig-line { border-top: 1px solid #000; margin-bottom: 6px; }
+        .sig-role { font-size: 16px; font-weight: bold; }
+        .sig-sub { font-size: 13px; line-height: 1.35; color: #333; }
 
-        .header-center {
-            text-align: center;
-        }
-
-        .gov {
-            font-size: 14px;
-            margin-bottom: 2px;
-        }
-
-        .office {
-            font-size: 16px;
-            font-weight: 700;
-            margin-bottom: 2px;
-        }
-
-        .institute {
-            font-size: 24px;
-            font-weight: 800;
-            letter-spacing: 0.4px;
-            text-transform: uppercase;
-            margin-bottom: 2px;
-        }
-
-        .contact {
-            font-size: 12px;
-            line-height: 1.35;
-        }
-
-        .meta-row {
-            display: flex;
-            justify-content: space-between;
-            font-size: 14px;
-            font-weight: 700;
-            margin: 10px 0 18px;
-        }
-
-        .doc-title {
-            text-align: center;
-            font-size: 32px;
-            font-weight: 700;
-            text-transform: uppercase;
-            text-decoration: underline;
-            text-underline-offset: 5px;
-            margin-bottom: 22px;
-        }
-
-        .content {
-            font-size: 18px;
-            line-height: 1.72;
-            text-align: justify;
-        }
-
-        .content p {
-            margin-bottom: 12px;
-        }
-
-        .signatures {
-            margin-top: auto;
-            padding-top: 20mm;
-            display: flex;
-            justify-content: space-between;
-            gap: 20mm;
-        }
-
-        .signature {
-            width: 46%;
-            text-align: center;
-        }
-
-        .signature .line {
-            border-top: 1px solid #111;
-            margin-bottom: 6px;
-        }
-
-        .signature .title {
-            font-size: 16px;
-            font-weight: 700;
-        }
-
-        .signature .sub {
-            font-size: 14px;
-            line-height: 1.35;
-        }
-
-        .controls {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1000;
-        }
-
-        .controls button {
-            border: none;
-            background: #1f2937;
-            color: #fff;
-            padding: 10px 16px;
-            border-radius: 6px;
-            font-weight: 700;
-            cursor: pointer;
-        }
-
-        @page {
-            size: A4;
-            margin: 0;
-        }
-
+        @page { size: A4 portrait; margin: 0; }
         @media print {
-            html, body {
-                width: 210mm;
-                height: 297mm;
-                margin: 0;
-                padding: 0;
-                background: #fff;
-            }
-
-            body {
-                display: block;
-            }
-
-            .page {
-                width: 210mm;
-                height: 297mm;
-                margin: 0 auto;
-                padding: 10mm;
-                box-shadow: none;
-                page-break-after: auto;
-            }
-
-            .no-print {
-                display: none !important;
-            }
+            html, body { width: 210mm; height: 297mm; margin: 0; padding: 0; background: #fff; }
+            body { display: block; }
+            .page { width: 210mm; height: 297mm; margin: 0 auto; padding: 10mm; box-shadow: none; }
+            * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
     </style>
 </head>
 <body>
-    <div class="controls no-print">
-        <button onclick="window.print()">Print</button>
-    </div>
-
     <div class="page">
         <div class="frame">
             <div class="inner">
                 <header class="doc-header">
-                    <div class="logo-box">
-                        <img src="gov.svg" alt="Government Logo">
-                    </div>
+                    <div class="logo-box"><img src="gov.svg" alt="Government Logo"></div>
                     <div class="header-center">
-                        <div class="gov">Government of the People's Republic of Bangladesh</div>
-                        <div class="office">Office of the Principal</div>
-                        <div class="institute">Sirajganj Polytechnic Institute</div>
-                        <div class="contact">Institution Code: 25054, EIIN No-132927</div>
-                        <div class="contact">Web: www.spisg.gov.bd, E-mail: principal.spi@gmail.com</div>
+                        <div class="gov-line">Government of the People's Republic of Bangladesh</div>
+                        <div class="office-line">Office of the Principal</div>
+                        <div class="institute-name">Sirajganj Polytechnic Institute</div>
+                        <div class="contact-line">Fakirtala, Sirajganj-6700 &nbsp;|&nbsp; Institute Code: 25064 &nbsp;|&nbsp; EIIN: 132927</div>
+                        <div class="contact-line">Web: www.spisg.gov.bd &nbsp;|&nbsp; E-mail: principal.spi@gmail.com</div>
                     </div>
-                    <div class="logo-box">
-                        <img src="spi.png" alt="Institute Logo">
-                    </div>
+                    <div class="logo-box"><img src="spi.png" alt="Institute Logo"></div>
                 </header>
 
-                <div class="meta-row">
+                <div class="header-divider"></div>
+
+                <div class="ref-date-row">
                     <span>Ref: {{SERIAL_NUMBER}}</span>
                     <span>Date: {{ISSUE_DATE}}</span>
                 </div>
@@ -236,31 +82,37 @@
 
                 <div class="content">
                     <p>
-                        This is to certify that <strong>{{name}}</strong>, son/daughter of
-                        <strong>{{fatherName}}</strong> and <strong>{{motherName}}</strong>, Roll No
-                        <strong>{{rollNumber}}</strong>, Registration No <strong>{{registrationNumber}}</strong>,
-                        Session <strong>{{session}}</strong>, Department <strong>{{department}}</strong>, is a
-                        student of this institute.
+                        This is to certify that <span class="field">{{name}}</span>,
+                        {{GENDER_PARENT_PREFIX}} <span class="field">{{fatherName}}</span> and
+                        <span class="field">{{motherName}}</span>, bearing Roll No.
+                        <span class="field">{{rollNumber}}</span>, Registration No.
+                        <span class="field">{{registrationNumber}}</span>, Session
+                        <span class="field">{{session}}</span>, was a student of
+                        <span class="field">{{department}}</span> Technology at this institute.
                     </p>
                     <p>
-                        As per available records, the student has completed all required academic and administrative
-                        formalities and has no outstanding dues with the institute.
+                        As per available records, the student has completed all required academic and
+                        administrative formalities and has no outstanding dues with the institute,
+                        including the library, laboratory, hostel, and accounts sections.
                     </p>
                     <p>
-                        This clearance is issued for official use as requested by the student.
+                        This clearance certificate is issued upon {{GENDER_PRONOUN_POSSESSIVE_LOWER}}
+                        request for official use.
                     </p>
                 </div>
 
                 <div class="signatures">
-                    <div class="signature">
-                        <div class="line"></div>
-                        <div class="title">Registrar</div>
-                        <div class="sub">Sirajganj Polytechnic Institute</div>
+                    <div class="sig-block">
+                        <div class="sig-slot">[SIG_REGISTRAR]</div>
+                        <div class="sig-line"></div>
+                        <div class="sig-role">Registrar</div>
+                        <div class="sig-sub">Sirajganj Polytechnic Institute</div>
                     </div>
-                    <div class="signature">
-                        <div class="line"></div>
-                        <div class="title">Principal</div>
-                        <div class="sub">Sirajganj Polytechnic Institute</div>
+                    <div class="sig-block">
+                        <div class="sig-slot">[SIG_PRINCIPAL]</div>
+                        <div class="sig-line"></div>
+                        <div class="sig-role">Principal</div>
+                        <div class="sig-sub">Sirajganj Polytechnic Institute</div>
                     </div>
                 </div>
             </div>

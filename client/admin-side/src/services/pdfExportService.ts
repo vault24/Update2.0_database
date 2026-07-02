@@ -54,8 +54,11 @@ export class PDFExportService {
           height: container.scrollHeight
         });
 
-        // Calculate PDF dimensions
-        const imgWidth = pdfOptions.format === 'A4' ? 210 : 216; // mm
+        // Calculate PDF dimensions (respect page orientation so landscape
+        // documents like the Character Certificate are not clipped/squashed).
+        const portraitWidth = pdfOptions.format === 'A4' ? 210 : 216; // mm
+        const landscapeWidth = pdfOptions.format === 'A4' ? 297 : 279; // mm
+        const imgWidth = pdfOptions.orientation === 'landscape' ? landscapeWidth : portraitWidth;
         const imgHeight = (canvas.height * imgWidth) / canvas.width;
         
         // Create PDF
@@ -617,48 +620,26 @@ export class PDFExportService {
    */
   static getDocumentTypeOptions(documentType: string): PDFOptions {
     const baseOptions = { ...this.DEFAULT_PDF_OPTIONS };
+    // `documentType` may be a template id, category, or display name
+    // (e.g. "Character Certificate"), so match tolerantly by substring.
+    const type = (documentType || '').toLowerCase();
 
-    switch (documentType.toLowerCase()) {
-      case 'idcard':
-        return {
-          ...baseOptions,
-          format: 'A4',
-          orientation: 'portrait',
-          margin: {
-            top: '10mm',
-            right: '10mm',
-            bottom: '10mm',
-            left: '10mm'
-          }
-        };
-      
-      case 'transcript':
-        return {
-          ...baseOptions,
-          format: 'A4',
-          orientation: 'portrait',
-          margin: {
-            top: '25mm',
-            right: '20mm',
-            bottom: '25mm',
-            left: '20mm'
-          }
-        };
-      
-      case 'testimonial':
-      case 'character':
-      case 'clearance':
-      case 'bonafide':
-      case 'eligibility':
-        return {
-          ...baseOptions,
-          format: 'A4',
-          orientation: 'portrait'
-        };
-      
-      default:
-        return baseOptions;
+    // Character Certificate is the only landscape document.
+    if (type.includes('character')) {
+      return { ...baseOptions, format: 'A4', orientation: 'landscape' };
     }
+
+    if (type.includes('idcard') || type.includes('id card') || type.includes('id-card')) {
+      return {
+        ...baseOptions,
+        format: 'A4',
+        orientation: 'portrait',
+        margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' },
+      };
+    }
+
+    // All remaining documents are A4 portrait.
+    return { ...baseOptions, format: 'A4', orientation: 'portrait' };
   }
 
   /**
@@ -667,22 +648,19 @@ export class PDFExportService {
   private static createTemporaryContainer(htmlContent: string): HTMLElement {
     const container = document.createElement('div');
     
-    // Set container styles for proper rendering
+    // Offscreen container that hugs the template's own A4 `.page` element.
+    // The templates already define their exact page size, padding and fonts, so
+    // we must NOT impose our own width/padding/font here or the raster gets
+    // distorted (double padding, squashed landscape, wrong fonts).
     container.style.position = 'absolute';
     container.style.left = '-9999px';
     container.style.top = '0';
-    container.style.width = '210mm'; // A4 width
-    container.style.minHeight = '297mm'; // A4 height
+    container.style.width = 'fit-content';
     container.style.backgroundColor = '#ffffff';
-    container.style.padding = '20mm';
-    container.style.fontFamily = 'Arial, sans-serif';
-    container.style.fontSize = '12pt';
-    container.style.lineHeight = '1.4';
-    container.style.color = '#000000';
-    
+
     // Set content
     container.innerHTML = htmlContent;
-    
+
     return container;
   }
 
@@ -731,8 +709,12 @@ export class PDFExportService {
   /**
    * Open print dialog with optimized content
    */
-  static openPrintDialog(htmlContent: string, documentType?: string, orientation: 'portrait' | 'landscape' = 'portrait'): void {
+  static openPrintDialog(htmlContent: string, documentType?: string, orientation?: 'portrait' | 'landscape'): void {
     try {
+      // When no orientation is given, let preparePrintView auto-detect it from the
+      // template's own CSS (@page size / page dimensions). Forcing 'portrait' here
+      // previously squeezed landscape documents (e.g. the Character Certificate)
+      // onto a portrait sheet.
       const printContent = this.preparePrintView(htmlContent, orientation);
 
       // Use a hidden iframe so only the browser's system print dialog appears.

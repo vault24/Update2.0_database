@@ -136,42 +136,116 @@ def _notify_next_approver(app):
 # Document rendering (on-demand, with composited signatures)
 # ---------------------------------------------------------------------------
 def _signing_approvals(app):
-    """Approvals whose signature should appear (approved + forwarded, in order)."""
+    """Approvals whose signature may appear (approved + forwarded, in order)."""
     return [a for a in app.approvals.all() if a.action in ('approved', 'forwarded')]
 
 
-def _signature_footer(app, request):
-    blocks = []
+# Template signature markers -> the approver role that fills them.
+SIG_MARKERS = {
+    '[SIG_REGISTRAR]': 'registrar',
+    '[SIG_PRINCIPAL]': 'institute_head',
+    '[SIG_DEPARTMENT_HEAD]': 'department_head',
+}
+
+
+def _signature_images(app, request):
+    """Map approver-role -> signature <img> HTML for roles that have signed.
+
+    A role only produces an image if it actually approved/forwarded the
+    application AND the approver has an uploaded signature. Roles that acted
+    without a signature image resolve to '' (blank line above the role label).
+    Roles that never acted are absent from the map, so their marker is blanked.
+    """
+    images = {}
     for appr in _signing_approvals(app):
+        role = appr.approver_role
+        if not role or role in images:
+            continue
         sig_html = ''
         if appr.approver and getattr(appr.approver, 'signature', None):
             url = appr.approver.signature.url
             if request:
                 url = request.build_absolute_uri(url)
-            sig_html = f'<img src="{url}" alt="signature" style="max-height:60px;max-width:180px;object-fit:contain;" />'
-        label = ROLE_LABELS.get(appr.approver_role, appr.approver_role or '')
-        when = appr.created_at.strftime('%d %b %Y') if appr.created_at else ''
-        blocks.append(
-            '<div style="display:inline-block;text-align:center;margin:0 24px;min-width:180px;">'
-            f'<div style="height:64px;display:flex;align-items:flex-end;justify-content:center;">{sig_html}</div>'
-            '<div style="border-top:1px solid #000;margin-top:4px;padding-top:4px;font-size:13px;">'
-            f'<strong>{appr.approver_name}</strong><br/>{label}<br/><span style="font-size:11px;color:#555;">{when}</span>'
-            '</div></div>'
-        )
-    if not blocks:
-        return ''
-    return (
-        '<div style="margin-top:48px;display:flex;flex-wrap:wrap;justify-content:space-around;'
-        'gap:16px;page-break-inside:avoid;">' + ''.join(blocks) + '</div>'
-    )
+            sig_html = (
+                f'<img src="{url}" alt="signature" '
+                'style="max-height:56px;max-width:200px;object-fit:contain;" />'
+            )
+        images[role] = sig_html
+    return images
+
+
+_ASSET_DATA_URI_CACHE = {}
+
+
+def _asset_data_uri(filename, mime):
+    """Read a shared template logo and return it as a base64 data URI (cached).
+
+    The approval-workflow document is served by Django, so the templates' relative
+    `gov.svg` / `spi.png` references cannot resolve. Inlining them guarantees both
+    logos render on the signed document, matching the front-end generation path.
+    """
+    if filename in _ASSET_DATA_URI_CACHE:
+        return _ASSET_DATA_URI_CACHE[filename]
+    uri = ''
+    try:
+        import base64
+        from pathlib import Path
+        from django.conf import settings
+        path = Path(settings.BASE_DIR).parent / 'client' / 'admin-side' / 'public' / 'templates' / filename
+        if path.exists():
+            data = base64.b64encode(path.read_bytes()).decode('ascii')
+            uri = f'data:{mime};base64,{data}'
+    except Exception:
+        uri = ''
+    _ASSET_DATA_URI_CACHE[filename] = uri
+    return uri
+
+
+def _inline_template_assets(html):
+    """Replace relative gov.svg / spi.png logo references with inline data URIs."""
+    gov = _asset_data_uri('gov.svg', 'image/svg+xml')
+    spi = _asset_data_uri('spi.png', 'image/png')
+    if gov:
+        html = re.sub(r'src=([\'"])(?:\./)?gov\.svg\1', f'src="{gov}"', html, flags=re.IGNORECASE)
+    if spi:
+        html = re.sub(r'src=([\'"])(?:\./)?spi\.png\1', f'src="{spi}"', html, flags=re.IGNORECASE)
+    return html
+
+
+def _gender_pronouns(gender):
+    """Pronoun set for document prose. Formal documents avoid singular 'they',
+    so an unspecified gender falls back to the masculine form (editable later)."""
+    g = (gender or '').strip().lower()
+    if g in ('female', 'woman', 'f'):
+        return dict(subject='She', subject_lower='she', object='her',
+                    possessive='Her', possessive_lower='her', parent_prefix='D/o')
+    return dict(subject='He', subject_lower='he', object='him',
+                possessive='His', possessive_lower='his', parent_prefix='S/o')
+
+
+def _address_parts(value):
+    """Best-effort split of a structured/plain address into named components."""
+    parts = {'village': '', 'post_office': '', 'upazila': '', 'district': ''}
+    if isinstance(value, dict):
+        parts['village'] = value.get('village') or value.get('village_road') or value.get('line1') or ''
+        parts['post_office'] = value.get('postOffice') or value.get('post_office') or ''
+        parts['upazila'] = value.get('upazila') or value.get('thana') or value.get('upazila_thana') or ''
+        parts['district'] = value.get('district') or ''
+    elif isinstance(value, str) and value.strip():
+        chunks = [c.strip() for c in value.split(',') if c.strip()]
+        if chunks:
+            parts['village'] = chunks[0]
+            parts['district'] = chunks[-1]
+    return parts
 
 
 def _render_document_html(app, request):
-    """Fill template placeholders from the application and append signatures."""
+    """Fill template placeholders from the application and composite signatures
+    into their designated [SIG_*] markers (no generic appended footer)."""
     template = app.template
     html = (template.html_content if template else '') or ''
 
-    # Institute info
+    # Institute info (system settings override defaults).
     institute_name, institute_address, logo_url = 'Sirajganj Polytechnic Institute', '', ''
     try:
         from apps.system_settings.models import SystemSettings
@@ -191,9 +265,27 @@ def _render_document_html(app, request):
         if appr.approver_role in names and not names[appr.approver_role]:
             names[appr.approver_role] = appr.approver_name
 
-    today = date.today().strftime('%d %B %Y')
+    # Richer fields from the linked student record when available.
+    student = getattr(app, 'student', None)
+    pron = _gender_pronouns(getattr(student, 'gender', '') if student else '')
+    dob = cgpa = passing_year = ''
+    addr = {'village': '', 'post_office': '', 'upazila': '', 'district': ''}
+    if student:
+        if getattr(student, 'dateOfBirth', None):
+            dob = student.dateOfBirth.strftime('%d %B %Y')
+        if getattr(student, 'gpa', None) is not None:
+            cgpa = str(student.gpa)
+        if getattr(student, 'passingYear', None):
+            passing_year = str(student.passingYear)
+        addr = _address_parts(
+            getattr(student, 'presentAddress', None) or getattr(student, 'permanentAddress', None)
+        )
+
+    today = date.today()
+    today_str = today.strftime('%d %B %Y')
     name = app.fullNameEnglish or ''
     dept = app.department or ''
+    serial = app.registrationNumber or str(app.id)[:8]
 
     ctx = {
         'name': name, 'STUDENT_NAME': name, 'studentName': name, 'fullNameEnglish': name,
@@ -204,10 +296,22 @@ def _render_document_html(app, request):
         'registrationNumber': app.registrationNumber or '', 'REGISTRATION_NUMBER': app.registrationNumber or '',
         'session': app.session or '', 'SESSION_YEAR': app.session or '',
         'department': dept, 'TECHNOLOGY': dept, 'shift': app.shift or '',
+        'cgpa': cgpa, 'gpa': cgpa, 'dateOfBirth': dob,
+        'PASSING_YEAR': passing_year, 'passingYear': passing_year,
+        'VILLAGE': addr['village'], 'POST_OFFICE': addr['post_office'],
+        'UPAZILA': addr['upazila'], 'DISTRICT': addr['district'],
+        'GENDER_PRONOUN_SUBJECT': pron['subject'],
+        'GENDER_PRONOUN_SUBJECT_LOWER': pron['subject_lower'],
+        'GENDER_PRONOUN_OBJECT': pron['object'],
+        'GENDER_PRONOUN_POSSESSIVE': pron['possessive'],
+        'GENDER_PRONOUN_POSSESSIVE_LOWER': pron['possessive_lower'],
+        'GENDER_PARENT_PREFIX': pron['parent_prefix'],
         'INSTITUTE_NAME': institute_name, 'INSTITUTE_ADDRESS': institute_address,
         'INSTITUTE_LOGO': logo_url,
         'GOVERNMENT_NAME': "Government of the People's Republic of Bangladesh",
-        'ISSUE_DATE': today, 'currentDate': today, 'Date': today,
+        'OFFICE_NAME': 'Office of the Principal',
+        'ISSUE_DATE': today_str, 'currentDate': today_str, 'Date': today_str,
+        'ISSUE_YEAR': str(today.year), 'SERIAL_NUMBER': serial,
         'REGISTRAR_NAME': names['registrar'], 'PRINCIPAL_NAME': names['institute_head'],
     }
 
@@ -220,21 +324,23 @@ def _render_document_html(app, request):
         '[Student Name]': name, '[Father Name]': app.fatherName or '', '[Mother Name]': app.motherName or '',
         '[Roll No]': app.rollNumber or '', '[Reg No]': app.registrationNumber or '',
         '[Session]': app.session or '', '[Technology Name]': dept, '[Department]': dept,
-        '[Date]': today,
+        '[Date]': today_str,
     }
     for token, val in bracket_map.items():
         html = html.replace(token, str(val))
 
+    # Composite signatures into their designated markers, then strip any unfilled ones.
+    sig_images = _signature_images(app, request)
+    for marker, role in SIG_MARKERS.items():
+        html = html.replace(marker, sig_images.get(role, ''))
+    html = re.sub(r'\[SIG_[A-Z_]+\]', '', html)
+
     # Blank any remaining mustache placeholders so the document looks clean.
     html = re.sub(r'\{\{[^}]+\}\}', '', html)
 
-    footer = _signature_footer(app, request)
-    if footer:
-        if '</body>' in html.lower():
-            idx = html.lower().rindex('</body>')
-            html = html[:idx] + footer + html[idx:]
-        else:
-            html += footer
+    # Inline the shared logo assets so they render on the Django-served document.
+    html = _inline_template_assets(html)
+
     return html
 
 

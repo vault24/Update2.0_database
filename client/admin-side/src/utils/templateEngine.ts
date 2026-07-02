@@ -127,7 +127,14 @@ const FIELD_MAPPING: Record<string, keyof DocumentStudentData | ((data?: Documen
   'GENDER_PRONOUN_SUBJECT': (data) => getGenderPronouns(data.gender).subject,
   'GENDER_PRONOUN_SUBJECT_LOWER': (data) => getGenderPronouns(data.gender).subjectLower,
   'GENDER_PRONOUN_OBJECT': (data) => getGenderPronouns(data.gender).object,
+  'GENDER_PRONOUN_POSSESSIVE': (data) => getGenderPronouns(data.gender).possessive,
   'GENDER_PRONOUN_POSSESSIVE_LOWER': (data) => getGenderPronouns(data.gender).possessiveLower,
+  'GENDER_PARENT_PREFIX': (data) => getGenderPronouns(data.gender).parentPrefix,
+
+  // Signature slot markers — filled server-side from approvals; blank for direct admin generation.
+  'SIG_REGISTRAR': () => '',
+  'SIG_PRINCIPAL': () => '',
+  'SIG_DEPARTMENT_HEAD': () => '',
   
   // System/Institute fields (using defaults, can be enhanced with system settings)
   'GOVERNMENT_NAME': () => 'Government of Bangladesh',
@@ -140,6 +147,7 @@ const FIELD_MAPPING: Record<string, keyof DocumentStudentData | ((data?: Documen
   
   // Date and serial number fields
   'ISSUE_DATE': () => getCurrentDate(),
+  'ISSUE_YEAR': () => new Date().getFullYear().toString(),
   'SERIAL_NUMBER': () => getSerialNumber(),
 };
 
@@ -159,7 +167,9 @@ function getGenderPronouns(gender?: string): {
   subject: string;
   subjectLower: string;
   object: string;
+  possessive: string;
   possessiveLower: string;
+  parentPrefix: string;
 } {
   const lowerGender = (gender || '').toLowerCase();
   if (lowerGender.includes('female') || lowerGender.includes('woman') || lowerGender === 'f') {
@@ -167,21 +177,27 @@ function getGenderPronouns(gender?: string): {
       subject: 'She',
       subjectLower: 'she',
       object: 'her',
-      possessiveLower: 'her'
+      possessive: 'Her',
+      possessiveLower: 'her',
+      parentPrefix: 'D/o'
     };
   } else if (lowerGender.includes('male') || lowerGender.includes('man') || lowerGender === 'm') {
     return {
       subject: 'He',
       subjectLower: 'he',
       object: 'him',
-      possessiveLower: 'his'
+      possessive: 'His',
+      possessiveLower: 'his',
+      parentPrefix: 'S/o'
     };
   } else {
     return {
-      subject: 'They',
-      subjectLower: 'they',
-      object: 'them',
-      possessiveLower: 'their'
+      subject: 'He',
+      subjectLower: 'he',
+      object: 'him',
+      possessive: 'His',
+      possessiveLower: 'his',
+      parentPrefix: 'S/o'
     };
   }
 }
@@ -570,8 +586,16 @@ export class TemplateEngine {
     try {
       const populatedContent = this.populateTemplate(templateContent, studentData);
       const placeholders = this.extractPlaceholders(templateContent);
-      
-      const editableFields: EditableField[] = placeholders.map(placeholder => {
+
+      // Auto-generated / system tokens should not appear as user-editable fields.
+      const nonEditable = (key: string) =>
+        /^SIG_/.test(key) ||
+        /^GENDER_/.test(key) ||
+        ['ISSUE_DATE', 'ISSUE_YEAR', 'SERIAL_NUMBER', 'GOVERNMENT_NAME', 'OFFICE_NAME',
+         'INSTITUTE_NAME', 'INSTITUTE_ADDRESS', 'INSTITUTE_LOGO', 'REGISTRAR_NAME',
+         'PRINCIPAL_NAME'].includes(key);
+
+      const editableFields: EditableField[] = placeholders.filter(p => !nonEditable(p)).map(placeholder => {
         const mapping = FIELD_MAPPING[placeholder];
         let value = '';
         

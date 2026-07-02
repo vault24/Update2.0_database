@@ -3,249 +3,132 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Course Completion Certificate - Single File</title>
-    
+    <title>Course Completion Certificate - Sirajganj Polytechnic Institute</title>
     <style>
-        /* General Setup */
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
         body {
-            font-family: 'Times New Roman', serif;
-            background-color: #f4f4f4;
-            display: flex;
-            justify-content: center;
-            padding: 30px;
+            font-family: "Times New Roman", Times, serif; color: #111;
+            background: #525659; display: flex; justify-content: center; align-items: flex-start;
+            min-height: 100vh; padding: 24px;
         }
 
-        /* Certificate Paper Styling */
-        .certificate-container {
-            width: 900px; /* A standard paper width for display */
-            padding: 40px;
-            background-color: white;
-            /* Simple placeholder border: replace with CSS 'border-image' for the ornate pattern */
-            border: 15px solid #000; 
-            position: relative;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        .page {
+            width: 210mm; height: 297mm; background: #fff; padding: 10mm;
+            box-shadow: 0 0 15px rgba(0,0,0,0.35); margin: auto; overflow: hidden;
         }
+        .frame { width: 100%; height: 100%; border: 3px solid #1a1a1a; padding: 5px; }
+        .inner { width: 100%; height: 100%; border: 1px solid #1a1a1a; padding: 12mm 14mm; display: flex; flex-direction: column; position: relative; }
 
-        /* --- Watermark/Seal --- */
-        .seal-placeholder {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 350px;
-            height: 350px;
-            /* Use your actual seal image path here */
-            /* background: url('path/to/your/seal_watermark.png') no-repeat center center; */ 
-            background-size: contain;
-            opacity: 0.1; /* Light watermark effect */
-            z-index: 0;
-        }
-        
-        /* --- Header Styling --- */
-        .certificate-header {
-            text-align: center;
-            position: relative;
-            margin-bottom: 25px;
-            overflow: hidden; /* Clear floats */
-        }
+        .watermark { position: absolute; top: 52%; left: 50%; transform: translate(-50%, -50%); width: 340px; height: 340px; opacity: 0.06; pointer-events: none; z-index: 0; }
+        .watermark img { width: 100%; height: 100%; object-fit: contain; filter: grayscale(100%); }
 
-        .header-left {
-            position: absolute;
-            top: 0;
-            left: 0;
-            font-size: 14px;
-            font-weight: bold;
-        }
+        .doc-header { display: grid; grid-template-columns: 88px 1fr 88px; align-items: center; gap: 14px; position: relative; z-index: 1; }
+        .logo-box { width: 88px; height: 88px; display: flex; align-items: center; justify-content: center; }
+        .logo-box img { width: 100%; height: 100%; object-fit: contain; }
+        .header-center { text-align: center; }
+        .gov-line { font-size: 14px; font-family: Arial, sans-serif; }
+        .office-line { font-size: 15px; font-weight: bold; margin-top: 2px; }
+        .institute-name { font-size: 26px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; margin: 3px 0; line-height: 1.1; }
+        .contact-line { font-size: 11.5px; line-height: 1.45; color: #222; font-family: Arial, sans-serif; }
+        .header-divider { border-top: 3px solid #000; border-bottom: 1px solid #000; height: 4px; margin: 10px 0 14px; position: relative; z-index: 1; }
 
-        .header-right {
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 80px; /* Space for logo */
-            height: 80px;
-            /* Add your institute's logo image here */
-        }
+        .title-box { text-align: center; margin-bottom: 20px; position: relative; z-index: 1; }
+        .title-box span { display: inline-block; border: 2px solid #000; padding: 6px 26px; font-size: 22px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
 
-        .header-center {
-            padding-top: 15px;
-        }
+        .serial-row { display: flex; justify-content: space-between; font-size: 15px; font-weight: bold; margin-bottom: 16px; font-family: Arial, sans-serif; position: relative; z-index: 1; }
 
-        .govt-line {
-            margin: 0;
-            font-size: 14px;
-        }
+        .content { font-size: 18px; line-height: 1.9; text-align: justify; flex: 1; position: relative; z-index: 1; }
+        .field { font-weight: bold; }
 
-        .certificate-header h1 {
-            margin: 5px 0 10px 0;
-            font-size: 26px;
-            letter-spacing: 1px;
-            font-weight: 900;
-        }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 24px; margin: 18px 0; font-size: 17px; }
+        .info-grid .label { color: #444; }
 
-        .certificate-title-box {
-            display: inline-block;
-            border: 3px solid #000;
-            padding: 5px 25px;
-            margin-top: 5px;
-        }
+        .signatures { display: flex; justify-content: space-between; align-items: flex-end; margin-top: auto; padding: 30px 6px 0; position: relative; z-index: 1; }
+        .sig-block { width: 220px; text-align: center; }
+        .sig-slot { height: 60px; display: flex; align-items: flex-end; justify-content: center; }
+        .sig-slot img { max-height: 58px; max-width: 200px; object-fit: contain; }
+        .sig-line { border-top: 1px solid #000; margin-bottom: 6px; }
+        .sig-role { font-size: 16px; font-weight: bold; }
+        .sig-sub { font-size: 13px; line-height: 1.35; color: #333; }
 
-        .certificate-title-box h2 {
-            margin: 0;
-            font-size: 22px;
-            font-weight: 700;
-        }
-
-        /* --- Body Styling --- */
-        .certificate-body {
-            line-height: 1.8;
-            font-size: 17px;
-            padding: 0 10px;
-            position: relative;
-            z-index: 1; /* Keep text above the watermark */
-        }
-
-        .certificate-body p {
-            margin-top: 10px;
-        }
-
-        /* Data Fields - Crucial for mimicking the lines */
-        .data-fill-long, .data-fill-med, .data-fill-short, .data-fill-tiny {
-            /* Mimic the dotted lines using a repeated background image */
-            background: linear-gradient(to right, black 33%, rgba(255, 255, 255, 0) 0%);
-            background-position: bottom;
-            background-size: 6px 1px; /* Dotted line thickness and spacing */
-            background-repeat: repeat-x;
-            padding-bottom: 2px;
-            display: inline-block;
-            min-height: 20px; /* Ensure line visibility */
-            font-weight: bold; /* Make the student data stand out */
-            color: #333;
-            padding-left: 5px;
-            padding-right: 5px;
-            text-transform: capitalize;
-        }
-
-        /* Adjusting the lengths based on context */
-        .data-fill-long { width: 60%; }
-        .data-fill-med { width: 30%; }
-        .data-fill-short { width: 15%; }
-        .data-fill-tiny { width: 8%; }
-
-
-        /* Grid for names/roll numbers */
-        .info-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr; /* Two columns */
-            gap: 15px 20px;
-            margin-top: 20px;
-            line-height: 2; /* Increased line-height for better spacing */
-        }
-
-        .info-item {
-            white-space: nowrap; /* Prevents the label and span from wrapping */
-        }
-
-        .info-item label {
-            font-weight: normal;
-        }
-
-        .discipline-text, .success-wish {
-            margin-top: 35px;
-            font-style: italic;
-        }
-
-        /* --- Footer Styling --- */
-        .certificate-footer {
-            display: flex;
-            justify-content: space-between;
-            padding: 40px 10px 0 10px;
-            margin-top: 60px;
-            z-index: 1;
-            position: relative;
-        }
-
-        .signature-block {
-            width: 30%;
-            border-top: 1px solid #000; 
-            padding-top: 5px;
-            text-align: left;
-            font-size: 15px;
-        }
-
-        .signature-block p {
-            margin: 0;
-        }
-
-        .signature-block .title {
-            font-weight: bold;
-            font-size: 17px;
-        }
-
-        .principal-block {
-            text-align: right;
+        @page { size: A4 portrait; margin: 0; }
+        @media print {
+            html, body { width: 210mm; height: 297mm; margin: 0; padding: 0; background: #fff; }
+            body { display: block; }
+            .page { width: 210mm; height: 297mm; margin: 0 auto; padding: 10mm; box-shadow: none; }
+            * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
     </style>
 </head>
 <body>
-    <div class="certificate-container">
-        <div class="seal-placeholder"></div>
+    <div class="page">
+        <div class="frame">
+            <div class="inner">
+                <div class="watermark"><img src="spi.png" alt=""></div>
 
-        <header class="certificate-header">
-            <div class="header-left">
-                <p>Serial No - <span class="data-serial"> [563] </span></p>
-            </div>
-            <div class="header-right">
-                [attachment_0](attachment)
-            </div>
+                <header class="doc-header">
+                    <div class="logo-box"><img src="gov.svg" alt="Government Logo"></div>
+                    <div class="header-center">
+                        <div class="gov-line">Government of the People's Republic of Bangladesh</div>
+                        <div class="office-line">Office of the Principal</div>
+                        <div class="institute-name">Sirajganj Polytechnic Institute</div>
+                        <div class="contact-line">Fakirtala, Sirajganj-6700 &nbsp;|&nbsp; Institute Code: 25064 &nbsp;|&nbsp; EIIN: 132927</div>
+                        <div class="contact-line">Web: www.spisg.gov.bd &nbsp;|&nbsp; E-mail: principal.spi@gmail.com</div>
+                    </div>
+                    <div class="logo-box"><img src="spi.png" alt="Institute Logo"></div>
+                </header>
 
-            <div class="header-center">
-                <p class="govt-line">Government of the People's Republic of Bangladesh</p>
-                <h1>SIRAJGANJ POLYTECHNIC INSTITUTE, SIRAJGANJ</h1>
-                <div class="certificate-title-box">
-                    <h2>Course Completion Certificate</h2>
+                <div class="header-divider"></div>
+
+                <div class="title-box"><span>Course Completion Certificate</span></div>
+
+                <div class="serial-row">
+                    <span>Serial No: {{SERIAL_NUMBER}}</span>
+                    <span>Date: {{ISSUE_DATE}}</span>
+                </div>
+
+                <div class="content">
+                    <p>This is to certify that <span class="field">{{name}}</span>,</p>
+
+                    <div class="info-grid">
+                        <div><span class="label">Father's Name:</span> <span class="field">{{fatherName}}</span></div>
+                        <div><span class="label">Mother's Name:</span> <span class="field">{{motherName}}</span></div>
+                        <div><span class="label">Registration No:</span> <span class="field">{{registrationNumber}}</span></div>
+                        <div><span class="label">Board Roll No:</span> <span class="field">{{rollNumber}}</span></div>
+                    </div>
+
+                    <p>
+                        was a student of <span class="field">{{department}}</span> Technology in this
+                        institution during the academic session <span class="field">{{session}}</span>.
+                        {{GENDER_PRONOUN_SUBJECT}} has completed the Diploma-in-Engineering course and
+                        obtained CGPA <span class="field">{{cgpa}}</span> out of 4.00 under the
+                        Bangladesh Technical Education Board.
+                    </p>
+
+                    <p style="margin-top:14px;">
+                        During {{GENDER_PRONOUN_POSSESSIVE_LOWER}} study in this institution there is
+                        nothing on record against {{GENDER_PRONOUN_POSSESSIVE_LOWER}} character or
+                        discipline. I wish {{GENDER_PRONOUN_OBJECT}} every success in life.
+                    </p>
+                </div>
+
+                <div class="signatures">
+                    <div class="sig-block">
+                        <div class="sig-slot">[SIG_REGISTRAR]</div>
+                        <div class="sig-line"></div>
+                        <div class="sig-role">Registrar</div>
+                        <div class="sig-sub">Sirajganj Polytechnic Institute</div>
+                    </div>
+                    <div class="sig-block">
+                        <div class="sig-slot">[SIG_PRINCIPAL]</div>
+                        <div class="sig-line"></div>
+                        <div class="sig-role">Principal</div>
+                        <div class="sig-sub">Sirajganj Polytechnic Institute</div>
+                    </div>
                 </div>
             </div>
-        </header>
-
-        <main class="certificate-body">
-            <p>This is to certify that Md./Mst.<span class="data-fill-long"> [Student Name] </span></p>
-
-            <div class="info-grid">
-                <div class="info-item">
-                    <label>Father's Name</label>
-                    <span class="data-fill-long"> [Father's Name] </span>
-                </div>
-                <div class="info-item">
-                    <label>Mother's Name</label>
-                    <span class="data-fill-long"> [Mother's Name] </span>
-                </div>
-                <div class="info-item">
-                    <label>Bearing Registration No</label>
-                    <span class="data-fill-short"> [Reg. No] </span>
-                </div>
-                <div class="info-item">
-                    <label>Board Roll No</label>
-                    <span class="data-fill-short"> [Roll No] </span>
-                </div>
-            </div>
-
-            <p class="paragraph-spacing">was a student of <span class="data-fill-med"> [Technology Name] </span> Technology in this Institution from the academic session <span class="data-fill-tiny"> [Start Year] </span> to <span class="data-fill-tiny"> [End Year] </span>. He/She has completed the **Diploma-in-Engineering** course in the month of <span class="data-fill-med"> [Month of Completion] </span> 20<span class="data-fill-tiny"> [Year] </span>.</p>
-            
-            <p class="paragraph-spacing discipline-text">During his/her study in this Institution there is nothing on record against his/her **character or discipline**.</p>
-            <p class="paragraph-spacing success-wish">I wish him/her every success in life.</p>
-        </main>
-
-        <footer class="certificate-footer">
-            <div class="signature-block">
-                <p class="title">Registrar</p>
-                <p class="date">Dated <span class="data-fill-tiny"> [Date] </span></p>
-            </div>
-            <div class="signature-block principal-block">
-                <p class="title">Principal</p>
-                <p>Sirajganj Polytechnic Institute</p>
-                <p>Sirajganj</p>
-            </div>
-        </footer>
+        </div>
     </div>
 </body>
 </html>

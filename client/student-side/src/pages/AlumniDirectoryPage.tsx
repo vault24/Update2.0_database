@@ -270,6 +270,11 @@ export default function AlumniDirectoryPage() {
       {/* Detail modal */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden p-0">
+          {/* Always present so the dialog stays accessible in every state */}
+          <DialogHeader className="sr-only">
+            <DialogTitle>{detail?.name || 'Alumni profile'}</DialogTitle>
+            <DialogDescription>Alumni profile details and contact information.</DialogDescription>
+          </DialogHeader>
           {detailLoading ? (
             <div className="flex items-center justify-center py-24">
               <Loader2 className="h-7 w-7 animate-spin text-primary" />
@@ -281,9 +286,6 @@ export default function AlumniDirectoryPage() {
             </div>
           ) : (
             <div className="max-h-[90vh] overflow-y-auto">
-              <DialogHeader className="sr-only">
-                <DialogTitle>{detail.name}</DialogTitle>
-              </DialogHeader>
 
               {/* Cover + avatar — fixed institute banner */}
               <div className="relative h-28 bg-gradient-to-br from-blue-700 via-blue-600 to-blue-500">

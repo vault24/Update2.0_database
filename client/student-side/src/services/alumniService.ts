@@ -134,6 +134,10 @@ function toNumber(value: unknown): number | null {
 }
 
 function getStudentCgpa(student: any): number {
+  // The student-level Final CGPA is authoritative when present.
+  const finalCgpa = toNumber(student?.finalCgpa);
+  if (finalCgpa !== null && finalCgpa > 0) return finalCgpa;
+
   const semesterResults = Array.isArray(student?.semesterResults) ? student.semesterResults : [];
   if (semesterResults.length > 0) {
     const sortedResults = [...semesterResults].sort(

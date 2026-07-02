@@ -134,6 +134,10 @@ export default function PublicStudentProfilePage() {
   
   // Calculate CGPA from semester results
   const calculateCGPA = () => {
+    // The student-level Final CGPA is authoritative when present.
+    if (student.finalCgpa != null && Number(student.finalCgpa) > 0) {
+      return Number(student.finalCgpa);
+    }
     if (!student.semesterResults || student.semesterResults.length === 0) {
       return 0;
     }

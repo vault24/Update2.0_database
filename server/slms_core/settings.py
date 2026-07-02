@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     'apps.motivations',
     'apps.stipends',
     'apps.complaints',
+    'apps.system_reports',
 ]
 
 # --------------------------------------------------
@@ -85,6 +86,7 @@ MIDDLEWARE = [
 
     'apps.authentication.middleware.RoleBasedAccessMiddleware',
     'apps.activity_logs.middleware.ActivityLogMiddleware',
+    'apps.system_reports.middleware.SystemReportMiddleware',
 ]
 
 # --------------------------------------------------
@@ -236,10 +238,12 @@ REST_FRAMEWORK = {
 _DEV_STUDENT_ORIGINS = [
     "http://localhost:8080", "http://localhost:8081", "http://localhost:8082",
     "http://127.0.0.1:8080", "http://127.0.0.1:8082",
+    "http://localhost:5199", "http://127.0.0.1:5199",  # .claude/launch.json student-dev
 ]
 _DEV_ADMIN_ORIGINS = [
     "http://localhost:3000", "http://localhost:5173",
     "http://127.0.0.1:3000", "http://127.0.0.1:5173",
+    "http://localhost:5198", "http://127.0.0.1:5198",  # .claude/launch.json admin-dev
 ]
 
 
@@ -335,6 +339,41 @@ EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@example.com')
 EMAIL_TIMEOUT = config('EMAIL_TIMEOUT', default=30, cast=int)
+
+# Public URLs used inside outgoing emails (logo, call-to-action links).
+STUDENT_PORTAL_URL = config('STUDENT_PORTAL_URL', default='https://spistudent.errorburner.site').rstrip('/')
+ADMIN_PORTAL_URL = config('ADMIN_PORTAL_URL', default='https://spiadmin.errorburner.site').rstrip('/')
+# The institute logo shown at the top of every email. Served by the student
+# SPA (public/spi-logo.png) so it is always reachable from email clients.
+EMAIL_LOGO_URL = config('EMAIL_LOGO_URL', default=f'{STUDENT_PORTAL_URL}/spi-logo.png')
+
+# --------------------------------------------------
+# LOGGING — ERROR+ records become System Reports (admin dashboard)
+# --------------------------------------------------
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+        'system_reports': {
+            'level': 'ERROR',
+            'class': 'apps.system_reports.log_handler.SystemReportLogHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console', 'system_reports'],
+        'level': 'INFO',
+    },
+}
+
+# System Reports thresholds (all overridable via env-less settings)
+SYSTEM_REPORTS_SLOW_REQUEST_SECONDS = 3.0
+SYSTEM_REPORTS_SLOW_QUERY_SECONDS = 1.0
+SYSTEM_REPORTS_CPU_ALERT_PERCENT = 90
+SYSTEM_REPORTS_MEMORY_ALERT_PERCENT = 90
+SYSTEM_REPORTS_DISK_ALERT_PERCENT = 90
 
 # --------------------------------------------------
 # OTP CONFIGURATION

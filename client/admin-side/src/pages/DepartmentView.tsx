@@ -2,12 +2,21 @@ import { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Users, GraduationCap, Building2, Search, Eye, Edit, X,
+  TrendingUp, Loader2, CheckSquare, Square, ArrowRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Table,
   TableBody,
@@ -54,6 +63,86 @@ export default function DepartmentView() {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Bulk semester promotion (no result entry required)
+  const [promoteOpen, setPromoteOpen] = useState(false);
+  const [promoteSemester, setPromoteSemester] = useState<number | null>(null);
+  const [promoteStudents, setPromoteStudents] = useState<Student[]>([]);
+  const [promoteLoading, setPromoteLoading] = useState(false);
+  const [promoting, setPromoting] = useState(false);
+  const [excludedIds, setExcludedIds] = useState<Set<string>>(new Set());
+
+  const openPromoteDialog = () => {
+    setPromoteSemester(selectedSemester ?? null);
+    setExcludedIds(new Set());
+    setPromoteStudents([]);
+    setPromoteOpen(true);
+  };
+
+  // Load the active students of the chosen semester whenever it changes.
+  useEffect(() => {
+    const loadPromoteStudents = async () => {
+      if (!promoteOpen || !id || promoteSemester === null) return;
+      setPromoteLoading(true);
+      try {
+        const response = await studentService.getStudents({
+          department: id,
+          semester: promoteSemester,
+          status: 'active',
+          page_size: 1000,
+        } as any);
+        setPromoteStudents(response.results || []);
+      } catch {
+        toast({
+          title: 'Error',
+          description: 'Failed to load students for promotion',
+          variant: 'destructive',
+        });
+        setPromoteStudents([]);
+      } finally {
+        setPromoteLoading(false);
+      }
+    };
+    loadPromoteStudents();
+  }, [promoteOpen, promoteSemester, id, toast]);
+
+  const toggleExcluded = (studentId: string) => {
+    setExcludedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(studentId)) next.delete(studentId);
+      else next.add(studentId);
+      return next;
+    });
+  };
+
+  const handlePromote = async () => {
+    if (!id || promoteSemester === null) return;
+    setPromoting(true);
+    try {
+      const result = await departmentService.promoteStudents(
+        id,
+        promoteSemester,
+        Array.from(excludedIds)
+      );
+      toast({
+        title: 'Students promoted',
+        description: `${result.promoted} student(s) promoted to semester ${result.toSemester}` +
+          (result.excluded > 0 ? ` (${result.excluded} excluded).` : '.'),
+      });
+      setPromoteOpen(false);
+      // Refresh the table so the new semesters show everywhere.
+      setRefreshKey((k) => k + 1);
+    } catch (err: any) {
+      toast({
+        title: 'Promotion failed',
+        description: err?.response?.data?.error || err?.message || 'Failed to promote students',
+        variant: 'destructive',
+      });
+    } finally {
+      setPromoting(false);
+    }
+  };
 
   // Fetch department details if not passed via state
   useEffect(() => {
@@ -117,7 +206,7 @@ export default function DepartmentView() {
     };
 
     fetchStudents();
-  }, [id, selectedSemester, selectedShift, search, toast]);
+  }, [id, selectedSemester, selectedShift, search, toast, refreshKey]);
 
   if (!department) {
     return <LoadingState />;
@@ -160,22 +249,28 @@ export default function DepartmentView() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/departments')} className="shrink-0" aria-label="Back to departments">
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
-        <div className="flex items-center gap-4 min-w-0">
-          <div className="w-14 h-14 rounded-xl bg-primary flex items-center justify-center shrink-0">
-            <span className="text-xl font-semibold text-primary-foreground">{department.short_name}</span>
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-xl md:text-2xl font-semibold text-foreground truncate">{department.name}</h1>
-            <p className="text-sm text-muted-foreground">
-              {department.established_year && `Established ${department.established_year}`}
-              {department.head && `${department.established_year ? ' • ' : ''}Head: ${department.head}`}
-            </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <Button variant="ghost" size="icon" onClick={() => navigate('/departments')} className="shrink-0" aria-label="Back to departments">
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <div className="flex items-center gap-4 min-w-0">
+            <div className="w-14 h-14 rounded-xl bg-primary flex items-center justify-center shrink-0">
+              <span className="text-xl font-semibold text-primary-foreground">{department.short_name}</span>
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl md:text-2xl font-semibold text-foreground truncate">{department.name}</h1>
+              <p className="text-sm text-muted-foreground">
+                {department.established_year && `Established ${department.established_year}`}
+                {department.head && `${department.established_year ? ' • ' : ''}Head: ${department.head}`}
+              </p>
+            </div>
           </div>
         </div>
+        <Button className="shrink-0" onClick={openPromoteDialog}>
+          <TrendingUp className="w-4 h-4 mr-1.5" />
+          Promote students
+        </Button>
       </div>
 
       {/* Stats */}
@@ -338,6 +433,135 @@ export default function DepartmentView() {
           </div>
         )}
       </div>
+
+      {/* Bulk semester promotion dialog */}
+      <Dialog open={promoteOpen} onOpenChange={setPromoteOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-primary" />
+              Bulk semester promotion
+            </DialogTitle>
+            <DialogDescription>
+              Promote all active students of a semester to the next semester — no result entry
+              required. Untick any students you want to exclude.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
+            {/* Semester picker */}
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-2">Promote from semester</p>
+              <div className="flex flex-wrap gap-1.5">
+                {semesters.filter((s) => s < 8).map((semester) => (
+                  <button
+                    key={semester}
+                    onClick={() => { setPromoteSemester(semester); setExcludedIds(new Set()); }}
+                    className={cn(
+                      'h-9 w-9 rounded-md border text-sm font-medium transition-colors',
+                      promoteSemester === semester
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-border bg-card text-foreground hover:bg-accent hover:border-primary/40'
+                    )}
+                  >
+                    {semester}
+                  </button>
+                ))}
+              </div>
+              {promoteSemester !== null && (
+                <p className="mt-2 text-sm text-muted-foreground flex items-center gap-1.5">
+                  Semester {promoteSemester}
+                  <ArrowRight className="w-3.5 h-3.5" />
+                  <span className="font-medium text-foreground">Semester {promoteSemester + 1}</span>
+                </p>
+              )}
+            </div>
+
+            {/* Student list */}
+            {promoteSemester === null ? (
+              <div className="border-2 border-dashed border-border rounded-lg p-8 text-center text-sm text-muted-foreground">
+                Select a semester to load its students.
+              </div>
+            ) : promoteLoading ? (
+              <div className="flex items-center justify-center p-8 text-muted-foreground">
+                <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading students…
+              </div>
+            ) : promoteStudents.length === 0 ? (
+              <div className="border-2 border-dashed border-border rounded-lg p-8 text-center text-sm text-muted-foreground">
+                No active students found in semester {promoteSemester}.
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">
+                    {promoteStudents.length - excludedIds.size} of {promoteStudents.length} students
+                    will be promoted
+                  </span>
+                  {excludedIds.size > 0 && (
+                    <button
+                      className="text-primary hover:underline"
+                      onClick={() => setExcludedIds(new Set())}
+                    >
+                      Include all
+                    </button>
+                  )}
+                </div>
+                <div className="border border-border rounded-lg overflow-y-auto max-h-[320px] divide-y divide-border">
+                  {promoteStudents.map((student) => {
+                    const excluded = excludedIds.has(student.id);
+                    return (
+                      <button
+                        key={student.id}
+                        onClick={() => toggleExcluded(student.id)}
+                        className={cn(
+                          'w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-accent',
+                          excluded && 'opacity-50'
+                        )}
+                      >
+                        {excluded ? (
+                          <Square className="w-4 h-4 text-muted-foreground shrink-0" />
+                        ) : (
+                          <CheckSquare className="w-4 h-4 text-primary shrink-0" />
+                        )}
+                        <span className="font-mono text-sm text-muted-foreground w-32 shrink-0 truncate">
+                          {student.currentRollNumber}
+                        </span>
+                        <span className="text-sm font-medium truncate flex-1">{student.fullNameEnglish}</span>
+                        {excluded && <Badge variant="outline" className="shrink-0">Excluded</Badge>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPromoteOpen(false)} disabled={promoting}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handlePromote}
+              disabled={
+                promoting ||
+                promoteSemester === null ||
+                promoteLoading ||
+                promoteStudents.length === 0 ||
+                promoteStudents.length - excludedIds.size === 0
+              }
+            >
+              {promoting ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Promoting…</>
+              ) : (
+                <>
+                  <TrendingUp className="w-4 h-4 mr-2" />
+                  Promote {promoteSemester !== null ? promoteStudents.length - excludedIds.size : ''} student{promoteStudents.length - excludedIds.size === 1 ? '' : 's'}
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -56,7 +56,8 @@ export interface Student {
   profilePhoto?: string;
   semesterResults?: SemesterResult[];
   semesterAttendance?: SemesterAttendance[];
-  
+  finalCgpa?: number | string | null;
+
   // Timestamps
   createdAt: string;
   updatedAt: string;
@@ -174,7 +175,8 @@ export interface StudentUpdateData extends Partial<StudentCreateData> {
   enrollmentDate?: string;
   semesterResults?: SemesterResult[];
   semesterAttendance?: SemesterAttendance[];
-  
+  finalCgpa?: number | null;
+
   // Media
   profilePhoto?: string;
 }

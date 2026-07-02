@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, Calendar, AlertTriangle, Info, Megaphone, Loader2, Eye,
   CheckSquare, Square, Bell, ChevronDown, CheckCheck, Inbox, User,
+  Paperclip, FileText, Download, ExternalLink,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,6 +49,83 @@ const priorityConfig: Record<Priority, {
 
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+
+const isImageAttachment = (name: string) => /\.(png|jpe?g|webp|gif)$/i.test(name);
+
+/** Inline attachment viewer: images render as previews, PDFs as file cards. */
+function NoticeAttachments({ attachments }: { attachments: NonNullable<Notice['attachments']> }) {
+  const images = attachments.filter((a) => a.file_url && isImageAttachment(a.name));
+  const files = attachments.filter((a) => a.file_url && !isImageAttachment(a.name));
+
+  return (
+    <div className="mt-4 space-y-3">
+      <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <Paperclip className="h-3.5 w-3.5" />
+        Attachments ({attachments.length})
+      </p>
+
+      {/* Image previews */}
+      {images.length > 0 && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {images.map((att) => (
+            <a
+              key={att.id}
+              href={att.file_url!}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group relative overflow-hidden rounded-xl border border-border/70 bg-muted/30"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img
+                src={att.file_url!}
+                alt={att.name}
+                loading="lazy"
+                className="h-44 w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
+              />
+              <span className="absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-black/70 to-transparent px-3 pb-2 pt-6 text-xs font-medium text-white">
+                <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{att.name}</span>
+              </span>
+            </a>
+          ))}
+        </div>
+      )}
+
+      {/* PDF / other file cards */}
+      {files.length > 0 && (
+        <div className="space-y-2">
+          {files.map((att) => (
+            <div
+              key={att.id}
+              className="flex items-center gap-3 rounded-xl border border-border/70 bg-muted/30 p-3"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+                <FileText className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{att.name}</p>
+                <p className="text-xs text-muted-foreground">PDF document</p>
+              </div>
+              <div className="flex flex-shrink-0 items-center gap-1.5">
+                <Button asChild variant="outline" size="sm" className="gap-1.5">
+                  <a href={att.file_url!} target="_blank" rel="noopener noreferrer">
+                    <Eye className="h-4 w-4" /> View
+                  </a>
+                </Button>
+                <Button asChild variant="ghost" size="sm" className="gap-1.5">
+                  <a href={att.file_url!} download={att.name} target="_blank" rel="noopener noreferrer">
+                    <Download className="h-4 w-4" />
+                  </a>
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function NoticesPage() {
   const [notices, setNotices] = useState<Notice[]>([]);
@@ -370,6 +448,12 @@ export default function NoticesPage() {
                         <User className="h-3.5 w-3.5" />
                         {notice.created_by_name}
                       </span>
+                      {(notice.attachments?.length ?? 0) > 0 && (
+                        <span className="inline-flex items-center gap-1 text-primary">
+                          <Paperclip className="h-3.5 w-3.5" />
+                          {notice.attachments!.length} attachment{notice.attachments!.length === 1 ? '' : 's'}
+                        </span>
+                      )}
                       {notice.is_read && (
                         <span className="inline-flex items-center gap-1 text-success">
                           <Eye className="h-3.5 w-3.5" /> Read
@@ -398,6 +482,9 @@ export default function NoticesPage() {
                         <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
                           {notice.content}
                         </p>
+                        {(notice.attachments?.length ?? 0) > 0 && (
+                          <NoticeAttachments attachments={notice.attachments!} />
+                        )}
                         <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
                           <p className="text-xs text-muted-foreground">
                             Last updated: {new Date(notice.updated_at).toLocaleString()}

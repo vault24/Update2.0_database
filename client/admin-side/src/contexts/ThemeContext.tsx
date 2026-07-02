@@ -15,7 +15,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('theme') as Theme;
       if (saved) return saved;
-      return 'system';
+      // Default to Light Mode (admins can still switch to dark/system).
+      return 'light';
     }
     return 'light';
   });

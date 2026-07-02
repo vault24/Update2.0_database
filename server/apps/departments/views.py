@@ -6,6 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import ProtectedError
 from django.conf import settings
+from django.utils import timezone
 from .models import Department
 from .serializers import DepartmentSerializer, DepartmentListSerializer
 
@@ -233,4 +234,109 @@ class DepartmentViewSet(viewsets.ModelViewSet):
                 'shift': shift,
                 'status': status_filter
             }
+        })
+
+    @action(detail=True, methods=['post'], url_path='promote-students')
+    def promote_students(self, request, pk=None):
+        """
+        Bulk-promote students of a department to the next semester WITHOUT
+        requiring semester results/marks entry.
+
+        POST /api/departments/{id}/promote-students/
+        Body: {
+            "semester": 3,                       # current semester to promote FROM
+            "exclude_ids": ["uuid", ...]         # optional students to leave out
+        }
+        """
+        from apps.students.models import Student
+
+        if not (request.user.is_authenticated and request.user.is_admin()):
+            return Response(
+                {'error': 'Only administrators can promote students.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        department = self.get_object()
+
+        try:
+            semester = int(request.data.get('semester'))
+        except (TypeError, ValueError):
+            return Response(
+                {'error': 'A valid semester (1-8) is required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if semester < 1 or semester > 8:
+            return Response(
+                {'error': 'Semester must be between 1 and 8.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if semester == 8:
+            return Response(
+                {'error': '8th semester students cannot be promoted further. '
+                          'Use the alumni transition instead.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        exclude_ids = request.data.get('exclude_ids') or []
+        if not isinstance(exclude_ids, list):
+            return Response(
+                {'error': 'exclude_ids must be a list of student IDs.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        # Keep only well-formed UUIDs so a bad value cannot crash the query.
+        import uuid as _uuid
+        valid_exclude_ids = []
+        for raw in exclude_ids:
+            try:
+                valid_exclude_ids.append(_uuid.UUID(str(raw)))
+            except (ValueError, AttributeError, TypeError):
+                continue
+        exclude_ids = valid_exclude_ids
+
+        students = Student.objects.filter(
+            department=department,
+            semester=semester,
+            status='active',
+        )
+        total_in_semester = students.count()
+
+        to_promote = students.exclude(id__in=exclude_ids)
+        promoted_ids = list(to_promote.values_list('id', flat=True))
+        promoted_count = to_promote.update(
+            semester=semester + 1,
+            updatedAt=timezone.now(),
+        )
+
+        # Activity log (best-effort, never blocks the promotion).
+        try:
+            from apps.activity_logs.signals import log_activity
+            log_activity(
+                user=request.user,
+                action_type='update',
+                entity_type='Student',
+                entity_id=str(department.id),
+                description=(
+                    f"Bulk promotion: promoted {promoted_count} student(s) of {department.name} "
+                    f"from semester {semester} to {semester + 1} "
+                    f"({len(exclude_ids)} excluded)"
+                ),
+                changes={
+                    'fromSemester': semester,
+                    'toSemester': semester + 1,
+                    'promotedIds': [str(pk_) for pk_ in promoted_ids],
+                    'excludedIds': [str(x) for x in exclude_ids],
+                },
+            )
+        except Exception:  # noqa: BLE001 - logging must never break promotion
+            pass
+
+        return Response({
+            'message': f'Successfully promoted {promoted_count} student(s) to semester {semester + 1}.',
+            'department': department.name,
+            'fromSemester': semester,
+            'toSemester': semester + 1,
+            'totalInSemester': total_in_semester,
+            'promoted': promoted_count,
+            'excluded': total_in_semester - promoted_count,
+            'promotedIds': [str(pk_) for pk_ in promoted_ids],
         })

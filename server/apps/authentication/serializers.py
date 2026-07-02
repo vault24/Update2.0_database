@@ -602,7 +602,7 @@ class UserSerializer(serializers.ModelSerializer):
             'related_profile_id', 'student_id', 'admission_status', 'account_status',
             'mobile_number', 'semester', 'student_status', 'is_alumni', 'is_alumni_account',
             'shift', 'profile_photo_url', 'signature_url', 'two_factor_enabled',
-            'last_login', 'date_joined'
+            'email_notifications_enabled', 'last_login', 'date_joined'
         ]
         read_only_fields = [
             'id', 'username', 'role', 'is_superuser', 'student_id',

@@ -1,5 +1,12 @@
 import api from '@/lib/api';
 
+export interface NoticeAttachment {
+  id: number;
+  name: string;
+  file_url: string | null;
+  uploaded_at: string;
+}
+
 export interface Notice {
   id: number;
   title: string;
@@ -9,6 +16,7 @@ export interface Notice {
   updated_at: string;
   created_by_name: string;
   is_read: boolean;
+  attachments?: NoticeAttachment[];
 }
 
 export interface NoticeListResponse {

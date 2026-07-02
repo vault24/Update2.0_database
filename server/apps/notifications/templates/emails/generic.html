@@ -7,7 +7,7 @@
   </p>
   {% endif %}
 
-  <h1 style="margin:0 0 14px; color:#0f172a; font-size:22px; line-height:30px; font-weight:700;">
+  <h1 style="margin:0 0 14px; color:#0f172a; font-size:21px; line-height:29px; font-weight:700;">
     {{ heading }}
   </h1>
 
@@ -21,6 +21,37 @@
 
   {% for line in body_lines %}
   <p style="margin:0 0 16px; color:#334155; font-size:15px; line-height:24px;">{{ line }}</p>
+  {% endfor %}
+
+  {# Structured, titled sections — used for detailed guidance (next steps, #}
+  {# documents to prepare, বাংলা নির্দেশনা, contact info, …). #}
+  {% for section in sections %}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px;">
+    {% if section.title %}
+    <tr>
+      <td style="padding:0 0 8px;">
+        <span style="color:#0f172a; font-size:14px; font-weight:700;">{{ section.title }}</span>
+      </td>
+    </tr>
+    {% endif %}
+    {% for line in section.lines %}
+    <tr>
+      <td style="padding:0 0 8px; color:#334155; font-size:14px; line-height:22px;">{{ line }}</td>
+    </tr>
+    {% endfor %}
+    {% for item in section.bullets %}
+    <tr>
+      <td style="padding:0 0 6px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+          <tr>
+            <td width="18" style="color:{{ accent_color|default:'#2563eb' }}; font-size:14px; line-height:22px; vertical-align:top;">&#8226;</td>
+            <td style="color:#334155; font-size:14px; line-height:22px;">{{ item }}</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
   {% endfor %}
 
   {% if details %}
@@ -44,11 +75,28 @@
   </table>
   {% endif %}
 
+  {% if attachment_links %}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px; border:1px solid #e6ebf2; border-radius:10px; overflow:hidden;">
+    <tr>
+      <td style="padding:11px 16px; background-color:#f8fafc; color:#64748b; font-size:12px; font-weight:700; letter-spacing:0.3px; text-transform:uppercase; border-bottom:1px solid #eef2f7;">
+        Attachments
+      </td>
+    </tr>
+    {% for link in attachment_links %}
+    <tr>
+      <td style="padding:11px 16px; background-color:#ffffff; font-size:13px; border-bottom:1px solid #eef2f7;">
+        <a href="{{ link.url }}" target="_blank" style="color:#2563eb; text-decoration:none; font-weight:600;">&#128206; {{ link.name }}</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
   {% if cta_url and cta_label %}
   <table role="presentation" cellpadding="0" cellspacing="0" style="margin:6px 0 12px;">
     <tr>
-      <td style="border-radius:8px; background:linear-gradient(135deg,#2563eb 0%,#1d4ed8 100%);">
-        <a href="{{ cta_url }}" target="_blank" style="display:inline-block; padding:12px 26px; color:#ffffff; font-size:14px; font-weight:600; text-decoration:none; border-radius:8px;">{{ cta_label }}</a>
+      <td style="border-radius:8px; background-color:{{ accent_color|default:'#2563eb' }};">
+        <a href="{{ cta_url }}" target="_blank" style="display:inline-block; padding:12px 28px; color:#ffffff; font-size:14px; font-weight:600; text-decoration:none; border-radius:8px;">{{ cta_label }}</a>
       </td>
     </tr>
   </table>

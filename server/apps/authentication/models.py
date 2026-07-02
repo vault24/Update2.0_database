@@ -179,6 +179,14 @@ class User(AbstractUser):
         help_text='Require an email OTP code at login'
     )
 
+    # Email notification preference. When disabled, the user receives NO
+    # notification emails (notices, updates, announcements, status changes…).
+    # OTP / security emails are ALWAYS sent regardless of this flag.
+    email_notifications_enabled = models.BooleanField(
+        default=True,
+        help_text='Receive non-OTP notification emails (OTP emails are always sent)'
+    )
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

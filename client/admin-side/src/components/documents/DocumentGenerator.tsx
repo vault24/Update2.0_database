@@ -655,17 +655,13 @@ export const DocumentGeneratorComponent: React.FC<DocumentGeneratorProps> = ({
                 </div>
               </CardHeader>
               <CardContent>
-                <div 
-                  className="border rounded-lg p-4 bg-white dark:bg-gray-900 shadow-sm overflow-auto"
-                  style={{ maxHeight: '70vh' }}
-                >
-                  <div
-                    dangerouslySetInnerHTML={{ __html: generatedDocument.htmlContent }}
-                    style={{
-                      width: '100%',
-                      boxSizing: 'border-box',
-                      minHeight: '400px'
-                    }}
+                <div className="border rounded-lg overflow-hidden bg-muted/40">
+                  <iframe
+                    title="Generated document preview"
+                    srcDoc={generatedDocument.htmlContent}
+                    sandbox="allow-same-origin"
+                    className="w-full block bg-white"
+                    style={{ height: '75vh', border: 'none' }}
                   />
                 </div>
               </CardContent>

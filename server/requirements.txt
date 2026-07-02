@@ -34,3 +34,7 @@ daphne==4.0.0
 gunicorn==21.2.0
 uvicorn[standard]==0.30.6
 whitenoise==6.6.0
+
+# --- System monitoring (System Reports dashboard: CPU / memory metrics) ---
+# Optional at runtime: the health endpoint degrades gracefully if missing.
+psutil==5.9.8

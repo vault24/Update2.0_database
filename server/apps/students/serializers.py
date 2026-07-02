@@ -205,6 +205,7 @@ class StudentCreateSerializer(serializers.ModelSerializer):
             # Academic Records
             'semesterResults',
             'semesterAttendance',
+            'finalCgpa',
             # Media
             'profilePhoto',
         ]
@@ -298,6 +299,7 @@ class StudentUpdateSerializer(serializers.ModelSerializer):
             # Academic Records
             'semesterResults',
             'semesterAttendance',
+            'finalCgpa',
             # Discontinued Fields
             'discontinuedReason',
             'lastSemester',

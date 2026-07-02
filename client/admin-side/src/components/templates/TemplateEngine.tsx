@@ -348,10 +348,15 @@ export const TemplateEngineComponent: React.FC<TemplateEngineProps> = ({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div 
-              className="border rounded-lg p-4 bg-white shadow-sm overflow-auto max-h-96"
-              dangerouslySetInnerHTML={{ __html: preview.htmlContent }}
-            />
+            <div className="border rounded-lg overflow-hidden bg-muted/40">
+              <iframe
+                title="Template preview"
+                srcDoc={preview.htmlContent}
+                sandbox="allow-same-origin"
+                className="w-full block bg-white"
+                style={{ height: '24rem', border: 'none' }}
+              />
+            </div>
           </CardContent>
         </Card>
       )}

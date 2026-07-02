@@ -209,6 +209,10 @@ export default function Settings() {
       });
       setTwoFactorEnabled(!!userData.two_factor_enabled);
       setSignatureUrl(userData.signature_url || null);
+      // Per-user email preference (controls ALL non-OTP emails for this account)
+      if (typeof userData.email_notifications_enabled === 'boolean') {
+        setNotifications((prev) => ({ ...prev, emailNotifications: userData.email_notifications_enabled }));
+      }
     } catch (err) {
       console.error('Failed to fetch profile:', err);
       // Don't show error toast if we already have user data from AuthContext
@@ -247,19 +251,26 @@ export default function Settings() {
         maintenanceMode: data.maintenance_mode ?? prev.maintenanceMode,
       }));
 
-      // Populate notification channels from backend (merge with local-only prefs)
-      setNotifications((prev) => ({
-        ...prev,
-        ...loadLocalPrefs(NOTIF_PREFS_KEY, {}),
-        emailNotifications: data.enable_email_notifications ?? prev.emailNotifications,
-        smsNotifications: data.enable_sms_notifications ?? prev.smsNotifications,
-      }));
+      // Populate notification channels from backend (merge with local-only
+      // prefs). Email is a per-user preference loaded from the profile, so it
+      // must never be overwritten by stale local values here.
+      setNotifications((prev) => {
+        const { emailNotifications: _ignored, ...localPrefs } = loadLocalPrefs(NOTIF_PREFS_KEY, {}) as any;
+        return {
+          ...prev,
+          ...localPrefs,
+          smsNotifications: data.enable_sms_notifications ?? prev.smsNotifications,
+        };
+      });
     } catch (err) {
       const errorMsg = getErrorMessage(err);
       setError(errorMsg);
       // Backend unreachable — fall back to any locally saved preferences
       setSystemSettings((prev) => ({ ...prev, ...loadLocalPrefs(SYSTEM_PREFS_KEY, {}) }));
-      setNotifications((prev) => ({ ...prev, ...loadLocalPrefs(NOTIF_PREFS_KEY, {}) }));
+      setNotifications((prev) => {
+        const { emailNotifications: _ignored, ...localPrefs } = loadLocalPrefs(NOTIF_PREFS_KEY, {}) as any;
+        return { ...prev, ...localPrefs };
+      });
     } finally {
       setLoading(false);
     }
@@ -398,15 +409,21 @@ export default function Settings() {
   const handleSaveNotifications = async () => {
     try {
       setSaving(true);
-      // Persist channels backed by the API; keep the rest locally
+      // Email is a per-user preference: disabling it stops ALL non-OTP emails
+      // for this account (OTP / security emails are always delivered).
+      await apiClient.put('auth/profile/', {
+        email_notifications_enabled: notifications.emailNotifications,
+      });
+      // Persist the remaining channels backed by the API; keep the rest locally
       await settingsService.updateSettings({
-        enable_email_notifications: notifications.emailNotifications,
         enable_sms_notifications: notifications.smsNotifications,
       });
       localStorage.setItem(NOTIF_PREFS_KEY, JSON.stringify(notifications));
       toast({
         title: "Notifications Updated",
-        description: "Your notification preferences have been saved.",
+        description: notifications.emailNotifications
+          ? "Your notification preferences have been saved."
+          : "Email notifications disabled — OTP emails will still be sent.",
       });
       await fetchSettings();
     } catch (err) {
@@ -1213,7 +1230,9 @@ export default function Settings() {
                     <Mail className="w-5 h-5 text-muted-foreground" />
                     <div>
                       <p className="font-medium">Email Notifications</p>
-                      <p className="text-sm text-muted-foreground">Receive updates via email</p>
+                      <p className="text-sm text-muted-foreground">
+                        Notices, updates and announcements by email. Security (OTP) emails are always sent.
+                      </p>
                     </div>
                   </div>
                   <Switch

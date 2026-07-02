@@ -5,13 +5,15 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
 from django.db.models import Q, Avg, Count, F
 from django.utils import timezone
 from decimal import Decimal
 
-from .models import StipendCriteria, StipendEligibility
+from .models import StipendCriteria, StipendEligibility, StipendCriteriaSettings
 from .serializers import (
     StipendCriteriaSerializer,
+    StipendCriteriaSettingsSerializer,
     StipendEligibilitySerializer,
     StipendEligibilityDetailSerializer,
     EligibleStudentSerializer
@@ -35,6 +37,29 @@ class StipendCriteriaViewSet(viewsets.ModelViewSet):
         """Get all active criteria"""
         criteria = self.queryset.filter(isActive=True)
         serializer = self.get_serializer(criteria, many=True)
+        return Response(serializer.data)
+
+
+class StipendCriteriaSettingsView(APIView):
+    """
+    GET/PUT the persisted Stipend Eligible page criteria settings (singleton).
+
+    GET /api/stipends/settings/  -> current settings
+    PUT /api/stipends/settings/  -> update and persist settings
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        settings_obj = StipendCriteriaSettings.get_settings()
+        return Response(StipendCriteriaSettingsSerializer(settings_obj).data)
+
+    def put(self, request):
+        settings_obj = StipendCriteriaSettings.get_settings()
+        serializer = StipendCriteriaSettingsSerializer(
+            settings_obj, data=request.data, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save(updatedBy=request.user)
         return Response(serializer.data)
 
 
@@ -110,8 +135,8 @@ class StipendEligibilityViewSet(viewsets.ModelViewSet):
             # Calculate attendance
             attendance = self._calculate_attendance(student)
             
-            # Get latest GPA and CGPA
-            gpa, cgpa = self._get_latest_gpa(student)
+            # Get semester GPA (of the corresponding semester) and Final CGPA
+            gpa, cgpa, gpa_semester = self._get_latest_gpa(student)
             
             # Get referred subjects count
             referred_count, total_subjects, passed_subjects = self._get_subject_status(student)
@@ -129,6 +154,7 @@ class StipendEligibilityViewSet(viewsets.ModelViewSet):
                 'student': student,
                 'attendance': attendance,
                 'gpa': gpa,
+                'gpaSemester': gpa_semester,
                 'cgpa': cgpa,
                 'referredSubjects': referred_count,
                 'totalSubjects': total_subjects,
@@ -156,6 +182,7 @@ class StipendEligibilityViewSet(viewsets.ModelViewSet):
                 'photo': student_obj.profilePhoto,
                 'attendance': float(student_data['attendance']),
                 'gpa': float(student_data['gpa']),
+                'gpaSemester': student_data['gpaSemester'],
                 'cgpa': float(student_data['cgpa']),
                 'referredSubjects': student_data['referredSubjects'],
                 'totalSubjects': student_data['totalSubjects'],
@@ -220,7 +247,7 @@ class StipendEligibilityViewSet(viewsets.ModelViewSet):
                 
                 # Calculate student data
                 attendance = self._calculate_attendance(student)
-                gpa, cgpa = self._get_latest_gpa(student)
+                gpa, cgpa, _gpa_semester = self._get_latest_gpa(student)
                 referred_count, total_subjects, passed_subjects = self._get_subject_status(student)
                 
                 # Create or update eligibility record
@@ -326,43 +353,64 @@ class StipendEligibilityViewSet(viewsets.ModelViewSet):
         return Decimal('0.00')
     
     def _get_latest_gpa(self, student):
-        """Get latest GPA and CGPA for a student"""
+        """
+        Get the student's semester GPA, the semester that GPA belongs to, and
+        their Final CGPA.
+
+        The GPA shown is always the GPA of the corresponding (most recently
+        completed) semester — students promoted without published results keep
+        the GPA of their latest completed semester.
+        """
+        final_cgpa = Decimal(str(student.finalCgpa)) if student.finalCgpa is not None else None
+
         if not student.semesterResults:
-            return Decimal('0.00'), Decimal('0.00')
-        
-        # Get latest semester result
-        latest_semester = student.semester
-        for result in student.semesterResults:
-            if result.get('semester') == latest_semester:
-                gpa = Decimal(str(result.get('gpa', 0)))
-                cgpa = Decimal(str(result.get('cgpa', gpa)))
-                return gpa, cgpa
-        
-        # If no result for current semester, get the most recent
-        if student.semesterResults:
-            latest_result = student.semesterResults[-1]
-            gpa = Decimal(str(latest_result.get('gpa', 0)))
-            cgpa = Decimal(str(latest_result.get('cgpa', gpa)))
-            return gpa, cgpa
-        
-        return Decimal('0.00'), Decimal('0.00')
+            return Decimal('0.00'), final_cgpa or Decimal('0.00'), None
+
+        def _to_decimal(value):
+            try:
+                return Decimal(str(value))
+            except Exception:  # noqa: BLE001 - tolerate malformed legacy data
+                return Decimal('0.00')
+
+        # Prefer the current semester's own result when it exists; otherwise
+        # fall back to the highest completed semester with a GPA result.
+        gpa_results = [
+            r for r in student.semesterResults
+            if r.get('gpa') is not None and r.get('semester') is not None
+        ]
+        if not gpa_results:
+            return Decimal('0.00'), final_cgpa or Decimal('0.00'), None
+
+        current = next(
+            (r for r in gpa_results if r.get('semester') == student.semester), None
+        )
+        result = current or max(gpa_results, key=lambda r: r.get('semester') or 0)
+
+        gpa = _to_decimal(result.get('gpa', 0))
+        # Final CGPA field wins; legacy per-semester cgpa is only a fallback.
+        cgpa = final_cgpa if final_cgpa is not None else _to_decimal(result.get('cgpa') or gpa)
+        return gpa, cgpa, result.get('semester')
     
     def _get_subject_status(self, student):
-        """Get referred subjects count for a student"""
+        """Get referred subjects count for a student's corresponding semester"""
         if not student.semesterResults:
             return 0, 0, 0
-        
-        # Get latest semester result
-        latest_semester = student.semester
-        for result in student.semesterResults:
-            if result.get('semester') == latest_semester:
-                referred = len(result.get('referredSubjects', []))
-                subjects = result.get('subjects', [])
-                total = len(subjects)
-                passed = total - referred
-                return referred, total, passed
-        
-        return 0, 6, 6  # Default: 6 subjects, all passed
+
+        results = [r for r in student.semesterResults if r.get('semester') is not None]
+        if not results:
+            return 0, 6, 6  # Default: 6 subjects, all passed
+
+        # Same "corresponding semester" rule as the GPA lookup: prefer the
+        # current semester's result, otherwise the latest completed one.
+        result = next(
+            (r for r in results if r.get('semester') == student.semester), None
+        ) or max(results, key=lambda r: r.get('semester') or 0)
+
+        referred = len(result.get('referredSubjects') or [])
+        subjects = result.get('subjects') or []
+        total = len(subjects)
+        passed = max(total - referred, 0)
+        return referred, total, passed
     
     def _check_pass_requirement(self, referred_count, pass_requirement):
         """Check if student meets pass requirement"""

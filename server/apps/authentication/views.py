@@ -509,6 +509,13 @@ def update_profile_view(request):
             )
         user.interface_mode = interface_mode
 
+    # Email notification preference (OTP emails are always sent regardless).
+    email_notifications_enabled = request.data.get('email_notifications_enabled')
+    if email_notifications_enabled is not None:
+        if isinstance(email_notifications_enabled, str):
+            email_notifications_enabled = email_notifications_enabled.lower() in ('true', '1', 'yes')
+        user.email_notifications_enabled = bool(email_notifications_enabled)
+
     # Department Heads can set/update the department they manage
     if department_id is not None and user.role == 'department_head':
         if department_id == '' or department_id is None:

@@ -81,13 +81,18 @@ export default function Documents() {
   // Backend-managed catalog + student availability
   const [catalog, setCatalog] = useState<BackendDocumentTemplate[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const loadCatalog = async () => {
     try {
       setCatalogLoading(true);
+      setCatalogError(null);
       setCatalog(await documentTemplateService.list());
-    } catch {
+    } catch (err) {
+      // A failed fetch is NOT the same as "no templates" — surface the real
+      // error (auth/network) with a retry instead of the misleading empty state.
+      setCatalogError(getErrorMessage(err));
       setCatalog([]);
     } finally {
       setCatalogLoading(false);
@@ -578,6 +583,26 @@ export default function Documents() {
     });
   };
 
+  // Preview an already-generated document in the quick-preview dialog.
+  const handlePreviewGenerated = (doc: GeneratedDocument) => {
+    setQuickGeneratedDocument(doc);
+    setIsQuickPreviewOpen(true);
+  };
+
+  // Download an already-generated document as PDF (filename resolved by the service).
+  const handleDownloadGenerated = async (doc: GeneratedDocument) => {
+    try {
+      await DocumentGenerator.downloadDocumentPDF(doc.id);
+      toast({ title: 'Success', description: 'PDF downloaded successfully.' });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: `Failed to download PDF: ${getErrorMessage(error)}`,
+        variant: 'destructive',
+      });
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -910,49 +935,6 @@ export default function Documents() {
               <div className="mb-8">
                 <h3 className="text-lg font-semibold mb-4">Document Templates</h3>
 
-                {/* Student availability — controls which documents students can apply for */}
-                <Card className="glass-card mb-6">
-                  <CardContent className="p-5">
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <h4 className="font-medium text-sm">Student Application Availability</h4>
-                        <p className="text-xs text-muted-foreground">
-                          Toggle which document templates students can apply for from their Applications page.
-                        </p>
-                      </div>
-                    </div>
-                    {catalogLoading ? (
-                      <div className="text-sm text-muted-foreground">Loading…</div>
-                    ) : catalog.length === 0 ? (
-                      <div className="text-sm text-muted-foreground">
-                        No templates found. Run <code>seed_document_templates</code> on the server.
-                      </div>
-                    ) : (
-                      <div className="divide-y divide-border">
-                        {catalog.map((tpl) => (
-                          <div key={tpl.id} className="flex items-center justify-between py-2.5">
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium truncate">{tpl.name}</p>
-                              <p className="text-xs text-muted-foreground capitalize">{tpl.category}</p>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <span className="text-xs text-muted-foreground">
-                                {tpl.available_to_students ? 'Available' : 'Hidden'}
-                              </span>
-                              <Switch
-                                checked={tpl.available_to_students}
-                                onCheckedChange={(v) => handleToggleAvailability(tpl, v)}
-                                disabled={togglingId === tpl.id}
-                                aria-label={`Toggle ${tpl.name} availability`}
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
               {templatesLoading ? (
                 <div className="text-sm text-muted-foreground">Loading templates...</div>
               ) : templateError ? (
@@ -1009,6 +991,59 @@ export default function Documents() {
                     </div>
                   </div>
                 </div>
+
+                {/* Student availability — controls which documents students can apply for (kept at the bottom) */}
+                <Card className="glass-card mt-6">
+                  <CardContent className="p-5">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h4 className="font-medium text-sm">Student Application Availability</h4>
+                        <p className="text-xs text-muted-foreground">
+                          Toggle which document templates students can apply for from their Applications page.
+                        </p>
+                      </div>
+                    </div>
+                    {catalogLoading ? (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+                      </div>
+                    ) : catalogError ? (
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm text-destructive">Couldn't load templates: {catalogError}</p>
+                        <Button variant="outline" size="sm" onClick={loadCatalog}>Retry</Button>
+                      </div>
+                    ) : catalog.length === 0 ? (
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm text-muted-foreground">
+                          No templates found. Run <code>seed_document_templates</code> on the server.
+                        </p>
+                        <Button variant="outline" size="sm" onClick={loadCatalog}>Refresh</Button>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-border">
+                        {catalog.map((tpl) => (
+                          <div key={tpl.id} className="flex items-center justify-between py-2.5">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium truncate">{tpl.name}</p>
+                              <p className="text-xs text-muted-foreground capitalize">{tpl.category}</p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-xs text-muted-foreground">
+                                {tpl.available_to_students ? 'Available' : 'Hidden'}
+                              </span>
+                              <Switch
+                                checked={tpl.available_to_students}
+                                onCheckedChange={(v) => handleToggleAvailability(tpl, v)}
+                                disabled={togglingId === tpl.id}
+                                aria-label={`Toggle ${tpl.name} availability`}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               </div>
 
               {/* Generated Documents Section */}
@@ -1062,10 +1097,10 @@ export default function Documents() {
                                 <Badge variant={doc.status === 'final' ? 'default' : 'secondary'}>
                                   {doc.status}
                                 </Badge>
-                                <Button variant="ghost" size="sm">
+                                <Button variant="ghost" size="sm" onClick={() => handlePreviewGenerated(doc)} title="Preview">
                                   <Eye className="w-4 h-4" />
                                 </Button>
-                                <Button variant="ghost" size="sm">
+                                <Button variant="ghost" size="sm" onClick={() => handleDownloadGenerated(doc)} title="Download PDF">
                                   <Download className="w-4 h-4" />
                                 </Button>
                               </div>
@@ -1802,7 +1837,7 @@ export default function Documents() {
                     </Button>
                     <Button
                       onClick={async () => {
-                        if (!quickGeneratedDocument || !selectedStudent || !selectedTemplate) {
+                        if (!quickGeneratedDocument) {
                           toast({
                             title: 'Error',
                             description: 'Missing document data for PDF generation',
@@ -1813,10 +1848,13 @@ export default function Documents() {
 
                         try {
                           setLoading(true);
+                          // Name/type are optional — the service resolves them from the
+                          // document's student/template when not provided (e.g. previewing
+                          // an item from the generated list).
                           await DocumentGenerator.downloadDocumentPDF(
                             quickGeneratedDocument.id,
-                            selectedStudent.fullNameEnglish,
-                            selectedTemplate.name
+                            selectedStudent?.fullNameEnglish,
+                            selectedTemplate?.name
                           );
                           toast({
                             title: 'Success',
@@ -1849,20 +1887,13 @@ export default function Documents() {
                       This is how your document will appear when printed or downloaded
                     </p>
                   </div>
-                  <div className="p-6 overflow-auto" style={{ maxHeight: 'calc(90vh - 250px)' }}>
-                    <div 
-                      className="document-preview prose prose-sm max-w-none dark:prose-invert"
-                      dangerouslySetInnerHTML={{ __html: quickGeneratedDocument.htmlContent }}
-                      style={{
-                        fontFamily: 'Arial, sans-serif',
-                        lineHeight: '1.6',
-                        color: '#000',
-                        backgroundColor: '#fff',
-                        padding: '20px',
-                        minHeight: '400px',
-                        width: '100%',
-                        boxSizing: 'border-box'
-                      }}
+                  <div className="overflow-auto bg-muted/40" style={{ maxHeight: 'calc(90vh - 250px)' }}>
+                    <iframe
+                      title="Document preview"
+                      srcDoc={quickGeneratedDocument.htmlContent}
+                      sandbox="allow-same-origin"
+                      className="w-full block bg-white"
+                      style={{ height: 'calc(90vh - 250px)', border: 'none' }}
                     />
                   </div>
                 </div>

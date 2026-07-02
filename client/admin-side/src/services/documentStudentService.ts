@@ -348,8 +348,10 @@ export class DocumentStudentService {
       ? student.department.code 
       : '';
 
-    // Calculate CGPA from semester results
-    const cgpa = this.calculateCGPA(student.semesterResults);
+    // Final CGPA (student-level field), falling back to legacy per-semester data
+    const cgpa = student.finalCgpa != null
+      ? Number(student.finalCgpa)
+      : this.calculateCGPA(student.semesterResults);
 
     // Calculate total credits
     const totalCredits = this.calculateTotalCredits(student.semesterResults);
@@ -436,18 +438,20 @@ export class DocumentStudentService {
   private static calculateCGPA(semesterResults?: any[]): number | undefined {
     if (!semesterResults || semesterResults.length === 0) return undefined;
 
-    const validResults = semesterResults.filter(result => 
-      result.resultType === 'gpa' && result.cgpa !== undefined
+    // Legacy records stored a cgpa per semester; newer records carry only the
+    // semester GPA (the cumulative value lives in student.finalCgpa).
+    const validResults = semesterResults.filter(result =>
+      result.resultType === 'gpa' && (result.cgpa !== undefined || result.gpa !== undefined)
     );
 
     if (validResults.length === 0) return undefined;
 
     // Get the latest CGPA
-    const latestResult = validResults.sort((a, b) => 
+    const latestResult = validResults.sort((a, b) =>
       (b.year * 10 + b.semester) - (a.year * 10 + a.semester)
     )[0];
 
-    return latestResult.cgpa;
+    return latestResult.cgpa ?? latestResult.gpa;
   }
 
   /**

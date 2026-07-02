@@ -56,6 +56,19 @@ const REQUIRED_BY_STEP: Record<number, { field: keyof AdmissionFormState; label:
 
 const isEmpty = (v: any) => v === undefined || v === null || (typeof v === 'string' && v.trim() === '');
 
+// Permanent address is mandatory. When "Same as present" is ticked the present
+// address is copied on submit; otherwise every core permanent field must be
+// filled in explicitly.
+const PERMANENT_ADDRESS_REQUIRED: { field: keyof AdmissionFormState; label: string }[] = [
+  { field: 'permanentAddress', label: 'Permanent address' },
+  { field: 'permanentDivision', label: 'Division (permanent)' },
+  { field: 'permanentDistrict', label: 'District (permanent)' },
+  { field: 'permanentUpazila', label: 'Upazila (permanent)' },
+  { field: 'permanentPoliceStation', label: 'Police station (permanent)' },
+  { field: 'permanentPostOffice', label: 'Post office (permanent)' },
+  { field: 'permanentWard', label: 'Ward number (permanent)' },
+];
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MOBILE_RE = /^01\d{9}$/;
 
@@ -80,6 +93,15 @@ export function getStepErrors(
       // A required document already uploaded on the server counts as satisfied.
       if (step === 5 && satisfiedDocs?.has(field as string)) continue;
       errors[field] = `${label} is required`;
+    }
+  }
+
+  // Permanent address is required unless it mirrors the present address.
+  if (step === 2 && !data.sameAsPresent) {
+    for (const { field, label } of PERMANENT_ADDRESS_REQUIRED) {
+      if (isEmpty(data[field])) {
+        errors[field] = `${label} is required`;
+      }
     }
   }
 

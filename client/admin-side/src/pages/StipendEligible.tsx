@@ -44,25 +44,6 @@ const PASS_REQUIREMENT_OPTIONS = [
   { value: 'any', label: 'Any (No Restriction)' },
 ];
 
-interface EligibleStudent {
-  id: string;
-  name: string;
-  nameBangla?: string;
-  roll: string;
-  department: string;
-  semester: number;
-  session: string;
-  shift: string;
-  photo?: string;
-  attendance: number;
-  gpa: number;
-  referredSubjects: number;
-  totalSubjects: number;
-  passedSubjects: number;
-  cgpa: number;
-  rank?: number;
-}
-
 type SortField = 'name' | 'roll' | 'attendance' | 'gpa' | 'semester' | 'department';
 type SortOrder = 'asc' | 'desc';
 
@@ -90,10 +71,11 @@ export default function StipendEligible() {
   const [shiftFilter, setShiftFilter] = useState('all');
   const [sessionFilter, setSessionFilter] = useState('all');
   
-  // Eligibility criteria (customizable)
+  // Eligibility criteria (customizable, persisted to the database)
   const [minAttendance, setMinAttendance] = useState(75);
   const [passRequirement, setPassRequirement] = useState('all_pass');
   const [showCriteriaDialog, setShowCriteriaDialog] = useState(false);
+  const [savingCriteria, setSavingCriteria] = useState(false);
   
   // Sorting
   const [sortField, setSortField] = useState<SortField>('gpa');
@@ -108,7 +90,23 @@ export default function StipendEligible() {
   const shifts = ['Morning', 'Day', 'Evening']; // Static as these are standard shifts
 
   useEffect(() => {
-    fetchEligibleStudents();
+    // Load the saved criteria settings first, then calculate with them so the
+    // page always reflects what is stored in the database.
+    const init = async () => {
+      let attendance = 75;
+      let requirement = 'all_pass';
+      try {
+        const saved = await stipendService.getSettings();
+        attendance = Number(saved.minAttendance) || 75;
+        requirement = saved.passRequirement || 'all_pass';
+        setMinAttendance(attendance);
+        setPassRequirement(requirement);
+      } catch (err) {
+        console.error('Failed to load stipend criteria settings:', err);
+      }
+      fetchEligibleStudents(attendance, requirement);
+    };
+    init();
     loadFilterOptions();
   }, []);
 
@@ -140,14 +138,14 @@ export default function StipendEligible() {
     setSessions(generatedSessions);
   };
 
-  const fetchEligibleStudents = async () => {
+  const fetchEligibleStudents = async (attendance?: number, requirement?: string) => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const response = await stipendService.calculateEligibility({
-        minAttendance,
-        passRequirement,
+        minAttendance: attendance ?? minAttendance,
+        passRequirement: requirement ?? passRequirement,
       });
       
       setStudents(response.students);
@@ -271,8 +269,26 @@ export default function StipendEligible() {
     setMinAttendance(75);
     setPassRequirement('all_pass');
   };
-  
-  const applyCriteria = () => {
+
+  const applyCriteria = async () => {
+    // Persist the settings so they survive page refreshes and future visits.
+    try {
+      setSavingCriteria(true);
+      await stipendService.updateSettings({ minAttendance, passRequirement: passRequirement as any });
+      toast({
+        title: 'Criteria saved',
+        description: 'The criteria settings were saved and will persist across sessions.',
+      });
+    } catch (err) {
+      toast({
+        title: 'Could not save criteria',
+        description: getErrorMessage(err),
+        variant: 'destructive',
+      });
+      setSavingCriteria(false);
+      return;
+    }
+    setSavingCriteria(false);
     setShowCriteriaDialog(false);
     fetchEligibleStudents();
   };
@@ -418,8 +434,12 @@ export default function StipendEligible() {
                     <Button variant="outline" onClick={resetCriteria}>
                       Reset to Default
                     </Button>
-                    <Button onClick={applyCriteria}>
-                      Apply Criteria
+                    <Button onClick={applyCriteria} disabled={savingCriteria}>
+                      {savingCriteria ? (
+                        <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving…</>
+                      ) : (
+                        'Save & Apply'
+                      )}
                     </Button>
                   </div>
                 </div>
@@ -741,11 +761,20 @@ export default function StipendEligible() {
                             <TableCell className="text-center">
                               <Tooltip>
                                 <TooltipTrigger>
-                                  <Badge variant={getGpaBadgeVariant(student.gpa)}>
-                                    {student.gpa.toFixed(2)}
-                                  </Badge>
+                                  <div className="flex flex-col items-center gap-0.5">
+                                    <Badge variant={getGpaBadgeVariant(student.gpa)}>
+                                      {student.gpa.toFixed(2)}
+                                    </Badge>
+                                    {student.gpaSemester != null && (
+                                      <span className="text-[11px] text-muted-foreground">Sem {student.gpaSemester}</span>
+                                    )}
+                                  </div>
                                 </TooltipTrigger>
-                                <TooltipContent>CGPA: {student.cgpa.toFixed(2)}</TooltipContent>
+                                <TooltipContent>
+                                  {student.gpaSemester != null
+                                    ? `Semester ${student.gpaSemester} GPA • Final CGPA: ${student.cgpa.toFixed(2)}`
+                                    : `Final CGPA: ${student.cgpa.toFixed(2)}`}
+                                </TooltipContent>
                               </Tooltip>
                             </TableCell>
                             <TableCell className="text-center">
@@ -842,7 +871,7 @@ export default function StipendEligible() {
                                   {student.attendance}%
                                 </Badge>
                                 <Badge variant={getGpaBadgeVariant(student.gpa)}>
-                                  GPA {student.gpa.toFixed(2)}
+                                  GPA {student.gpa.toFixed(2)}{student.gpaSemester != null ? ` (Sem ${student.gpaSemester})` : ''}
                                 </Badge>
                               </div>
                               {getPassStatusBadge(student)}

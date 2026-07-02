@@ -85,7 +85,8 @@ export interface Student {
   profilePhoto?: string;
   semesterResults?: SemesterResult[];
   semesterAttendance?: SemesterAttendance[];
-  
+  finalCgpa?: number | string | null;
+
   // Timestamps
   createdAt: string;
   updatedAt: string;

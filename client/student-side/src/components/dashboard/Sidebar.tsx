@@ -99,10 +99,18 @@ export function Sidebar() {
   const userRole: UserRole = isAlumni ? 'alumni' : (user?.role || 'student');
   const portalLabel = userRole === 'teacher' ? 'Teacher Portal' : userRole === 'alumni' ? 'Alumni Portal' : 'Student Portal';
 
+  // Once admission is approved the Admission section is no longer relevant —
+  // admitted students only see items that apply to them.
+  const isAdmitted = user?.admissionStatus === 'approved';
+
   // Alumni get a dedicated menu and no "Explore" group.
   const filteredMainItems = isAlumni
     ? alumniMenuItems
-    : mainMenuItems.filter((item) => item.roles.includes(userRole));
+    : mainMenuItems.filter(
+        (item) =>
+          item.roles.includes(userRole) &&
+          !(item.path === '/dashboard/admission' && isAdmitted)
+      );
   const filteredUpcomingItems = isAlumni
     ? []
     : upcomingMenuItems.filter((item) => item.roles.includes(userRole));
