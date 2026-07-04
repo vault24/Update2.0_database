@@ -842,7 +842,7 @@ export function DocumentsPage() {
                       <p>• Category: {selectedDoc.category}</p>
                       <p>• File integrity: Verified</p>
                       {selectedDoc.category === 'Photo' && (
-                        <p>• Can be used as profile picture</p>
+                        <p>• Your first photo is set as your profile picture automatically — use the button below to switch to this one</p>
                       )}
                     </div>
                   </div>

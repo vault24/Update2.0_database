@@ -363,7 +363,26 @@ class AdmissionViewSet(viewsets.ModelViewSet):
         
         try:
             student = Student.objects.create(**student_data)
-            
+
+            # Link this admission's uploaded documents to the new student record
+            # and auto-assign the passport photo as the profile picture, so no
+            # manual "Make it Profile" step is ever needed.
+            try:
+                from apps.documents.models import Document
+                admission_docs = Document.objects.filter(
+                    source_type='admission', source_id=admission.id
+                )
+                admission_docs.filter(student__isnull=True).update(student=student)
+                photo_doc = admission_docs.filter(category='Photo').order_by('uploadDate').first()
+                if photo_doc:
+                    photo_doc.refresh_from_db()
+                    photo_doc.assign_as_profile_photo(student)
+            except Exception as doc_err:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "Admission profile-photo assignment failed: %s", doc_err
+                )
+
             # Update admission status
             admission.status = 'approved'
             admission.reviewed_at = timezone.now()

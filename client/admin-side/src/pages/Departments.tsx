@@ -3,10 +3,11 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus, Edit, Trash2, Users, GraduationCap, BookOpen, Building2,
-  Search, MoreVertical, ChevronRight, UserCheck,
+  Search, MoreVertical, ChevronRight, UserCheck, RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -31,6 +32,7 @@ interface Department {
   faculty: number;
   established: string | null;
   photo_url: string | null;
+  autoAttendanceSync: boolean;
 }
 
 function StatTile({ label, value, icon: Icon, tint }: { label: string; value: number; icon: typeof Users; tint: string }) {
@@ -109,6 +111,7 @@ export default function Departments() {
         photo_url: dept.photo_url
           ? (dept.photo_url.startsWith('http') ? dept.photo_url : `${baseURL}${dept.photo_url}`)
           : null,
+        autoAttendanceSync: !!dept.autoAttendanceSync,
       }));
       setDepartments(mappedDepts);
     } catch (error) {
@@ -221,6 +224,23 @@ export default function Departments() {
   const openDelete = (dept: Department) => {
     setSelectedDept(dept);
     setIsDeleteOpen(true);
+  };
+
+  const handleToggleSync = async (dept: Department, enabled: boolean) => {
+    // Optimistic update — revert on failure.
+    setDepartments(prev => prev.map(d => (d.id === dept.id ? { ...d, autoAttendanceSync: enabled } : d)));
+    try {
+      await departmentService.setAutoAttendanceSync(dept.id, enabled);
+      toast({
+        title: enabled ? 'Automatic attendance sync enabled' : 'Automatic attendance sync disabled',
+        description: enabled
+          ? `Teacher attendance for ${dept.name} will now sync into student profiles automatically.`
+          : `${dept.name} is back to the manual attendance workflow.`,
+      });
+    } catch (error) {
+      setDepartments(prev => prev.map(d => (d.id === dept.id ? { ...d, autoAttendanceSync: !enabled } : d)));
+      toast({ title: 'Error', description: 'Failed to update the sync setting. Please try again.', variant: 'destructive' });
+    }
   };
 
   const handleDepartmentClick = (dept: Department) => {
@@ -349,6 +369,29 @@ export default function Departments() {
                     <span className="text-xs text-muted-foreground">No department head assigned</span>
                   </div>
                 )}
+
+                {/* Automatic attendance sync toggle */}
+                <div
+                  className="mt-3 flex items-center justify-between gap-3 rounded-lg bg-muted/50 px-3 py-2.5"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <RefreshCw className={cn('w-4 h-4 shrink-0', dept.autoAttendanceSync ? 'text-success' : 'text-muted-foreground')} />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground leading-tight">Automatic Attendance Sync</p>
+                      <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">
+                        {dept.autoAttendanceSync
+                          ? 'Teacher attendance syncs to student profiles'
+                          : 'Manual attendance workflow'}
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={dept.autoAttendanceSync}
+                    onCheckedChange={(checked) => handleToggleSync(dept, checked)}
+                    aria-label="Toggle automatic attendance sync"
+                  />
+                </div>
 
                 <div className="mt-3 flex items-center justify-end text-primary text-sm font-medium">
                   <span>View details</span>

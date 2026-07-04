@@ -2,13 +2,16 @@ import { Outlet, useNavigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { Footer } from '@/components/layout/Footer';
-import { Bell, Search, User, Settings, LogOut, ChevronDown } from 'lucide-react';
+import { Search, User, Settings, LogOut, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useState, useEffect } from 'react';
 import { noticeService } from '@/services/noticeService';
 import { connectNotificationsSocket } from '@/lib/notificationsSocket';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTeacherClassNotifications } from '@/hooks/useTeacherClassNotifications';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { MaintenanceNoticeBanner } from '@/components/layout/MaintenanceNoticeBanner';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import {
@@ -23,6 +26,9 @@ export function DashboardLayout() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
+
+  // Teachers get class-start alerts (5 min before + at start) on every page.
+  useTeacherClassNotifications();
 
   // Real-time badge updates over WebSocket (replaces 30s polling). Refresh once
   // on mount, then whenever the server pushes a notification or the socket
@@ -94,21 +100,8 @@ export function DashboardLayout() {
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2">
-            {/* Notifications */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="relative rounded-xl"
-              onClick={() => navigate('/dashboard/notifications')}
-              title="View Notifications"
-            >
-              <Bell className="h-5 w-5" />
-              {unreadCount > 0 && (
-                <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[0.625rem] font-bold leading-none text-destructive-foreground ring-2 ring-card">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
-              )}
-            </Button>
+            {/* Notifications dropdown */}
+            <NotificationBell unreadCount={unreadCount} onCountChange={loadUnreadCount} />
 
             <ThemeToggle />
 
@@ -188,6 +181,9 @@ export function DashboardLayout() {
             </DropdownMenu>
           </div>
         </header>
+
+        {/* Maintenance notice banner (scrolling, under the top bar, all users) */}
+        <MaintenanceNoticeBanner />
 
         {/* Main Content */}
         <main className="flex-1 overflow-x-hidden overflow-y-auto p-4 md:p-6 lg:p-8">

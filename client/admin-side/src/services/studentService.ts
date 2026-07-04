@@ -270,17 +270,17 @@ export const studentService = {
   async uploadPhoto(id: string, photoFile: File): Promise<Student> {
     const formData = new FormData();
     formData.append('photo', photoFile);
+    // apiClient.post auto-detects FormData and sets the right headers; no extra flag needed.
     return apiClient.post<Student>(
       API_ENDPOINTS.students.uploadPhoto(id),
-      formData,
-      true // isFormData
+      formData
     );
   },
 
   /**
    * Transition student to alumni
    */
-  async transitionToAlumni(id: string, data?: TransitionToAlumniData): Promise<any> {
+  async transitionToAlumni(id: string, data?: TransitionToAlumniData): Promise<unknown> {
     return apiClient.post(API_ENDPOINTS.students.transitionToAlumni(id), data);
   },
 
@@ -357,7 +357,7 @@ export const studentService = {
   }): Promise<{
     message: string;
     student: Student;
-    updatedResult: any;
+    updatedResult: unknown;
   }> {
     return apiClient.post(API_ENDPOINTS.students.updateSemesterResults(id), data);
   },
@@ -370,7 +370,7 @@ export const studentService = {
     year: number;
   }): Promise<{
     message: string;
-    semesterResult: any;
+    semesterResult: unknown;
     currentSemester: number;
     status: string;
   }> {

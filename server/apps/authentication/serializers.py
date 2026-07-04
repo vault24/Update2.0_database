@@ -25,6 +25,10 @@ class RegisterSerializer(serializers.ModelSerializer):
     # their alumni details through the self-registration wizard after login.
     account_type = serializers.CharField(required=False, allow_blank=True)
 
+    # Captain-specific field: which shift the captain belongs to. Used together
+    # with `department` to route the captain request to the right Department Head.
+    shift = serializers.CharField(required=False, allow_blank=True)
+
     # Teacher-specific fields
     full_name_english = serializers.CharField(required=False, allow_blank=True)
     full_name_bangla = serializers.CharField(required=False, allow_blank=True)
@@ -38,10 +42,10 @@ class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            'username', 'email', 'password', 'confirm_password', 
+            'username', 'email', 'password', 'confirm_password',
             'first_name', 'last_name', 'role', 'mobile_number',
             # Student-specific fields
-            'ssc_board_roll', 'account_type',
+            'ssc_board_roll', 'account_type', 'shift',
             # Teacher-specific fields
             'full_name_english', 'full_name_bangla', 'designation',
             'department', 'qualifications', 'specializations', 'office_location'
@@ -80,6 +84,18 @@ class RegisterSerializer(serializers.ModelSerializer):
                     'ssc_board_roll': 'This SSC Board Roll is already registered. Please contact admin if this is an error.'
                 })
         
+        # Captain signups must say which department + shift they belong to so
+        # the request can be routed to the right Department Head.
+        if attrs.get('role') == 'captain':
+            if not attrs.get('department'):
+                raise serializers.ValidationError({
+                    'department': 'Please select your department so your captain request reaches the right Department Head.'
+                })
+            if attrs.get('shift') not in ('Morning', 'Day'):
+                raise serializers.ValidationError({
+                    'shift': 'Please select your shift (Morning / 1st or Day / 2nd).'
+                })
+
         # Validate teacher-specific fields if role is teacher.
         # `department` is OPTIONAL — a teacher may register with no department.
         if attrs.get('role') == 'teacher':
@@ -98,6 +114,9 @@ class RegisterSerializer(serializers.ModelSerializer):
         ssc_board_roll = validated_data.pop('ssc_board_roll', '')
         account_type = (validated_data.pop('account_type', '') or '').lower()
         is_alumni_account = account_type == 'alumni'
+        # Captain-specific routing info (never stored on the User directly;
+        # User.shift is reserved for Department Head accounts).
+        captain_shift = validated_data.pop('shift', '')
 
         # Extract teacher-specific fields
         teacher_fields = {
@@ -128,8 +147,54 @@ class RegisterSerializer(serializers.ModelSerializer):
         elif validated_data.get('role') in ['student', 'captain'] and ssc_board_roll:
             validated_data['student_id'] = f"SIPI-{ssc_board_roll}"
 
+        # Captain signups start as regular students. A CaptainAccountRequest is
+        # created below and the role is upgraded to 'captain' only after the
+        # matching Department Head approves the request.
+        requested_captain = validated_data.get('role') == 'captain'
+        if requested_captain:
+            validated_data['role'] = 'student'
+
         # Create user
         user = User.objects.create_user(**validated_data)
+
+        # Create the pending captain request and notify the responsible
+        # Department Head(s) (matched by department + shift).
+        if requested_captain:
+            from .models import CaptainAccountRequest
+            from apps.departments.models import Department
+
+            department = None
+            if teacher_fields['department']:
+                department = Department.objects.filter(id=teacher_fields['department']).first()
+
+            captain_request = CaptainAccountRequest.objects.create(
+                user=user,
+                department=department,
+                shift=captain_shift,
+                status='pending',
+            )
+
+            try:
+                from apps.notifications.models import Notification
+                dept_name = department.name if department else 'Unknown department'
+                for head in captain_request.matching_department_heads():
+                    Notification.objects.create(
+                        recipient=head,
+                        notification_type='signup_request',
+                        title='New Captain Account Request',
+                        message=(
+                            f"{user.first_name} {user.last_name}".strip() or user.username
+                        ) + f" has requested a Class Captain account for {dept_name} ({captain_shift} shift).",
+                        data={
+                            'captain_request_id': str(captain_request.id),
+                            'department': str(department.id) if department else None,
+                            'shift': captain_shift,
+                        },
+                        status='unread',
+                    )
+            except Exception:
+                import logging
+                logging.getLogger(__name__).exception("Failed to notify department head about captain request")
         
         # Create TeacherSignupRequest if role is teacher
         if user.role == 'teacher':
@@ -590,6 +655,7 @@ class UserSerializer(serializers.ModelSerializer):
     semester = serializers.SerializerMethodField()
     student_status = serializers.SerializerMethodField()
     is_alumni = serializers.SerializerMethodField()
+    alumni_review_status = serializers.SerializerMethodField()
     department_name = serializers.CharField(source='department.name', read_only=True, default=None)
     profile_photo_url = serializers.SerializerMethodField()
     signature_url = serializers.SerializerMethodField()
@@ -601,7 +667,7 @@ class UserSerializer(serializers.ModelSerializer):
             'is_superuser', 'interface_mode', 'department', 'department_name',
             'related_profile_id', 'student_id', 'admission_status', 'account_status',
             'mobile_number', 'semester', 'student_status', 'is_alumni', 'is_alumni_account',
-            'shift', 'profile_photo_url', 'signature_url', 'two_factor_enabled',
+            'alumni_review_status', 'shift', 'profile_photo_url', 'signature_url', 'two_factor_enabled',
             'email_notifications_enabled', 'last_login', 'date_joined'
         ]
         read_only_fields = [
@@ -662,7 +728,21 @@ class UserSerializer(serializers.ModelSerializer):
         elif obj.role == 'alumni':
             return True
         return False
-    
+
+    def get_alumni_review_status(self, obj):
+        """Review state of the linked alumni record (null when there is none).
+        Lets the frontend keep self-registered alumni out of the full alumni
+        portal until an admin approves their application."""
+        if obj.role in ['student', 'captain'] and obj.related_profile_id:
+            try:
+                from apps.alumni.models import Alumni
+                alumni = Alumni.objects.filter(student_id=obj.related_profile_id).only('reviewStatus').first()
+                return alumni.reviewStatus if alumni else None
+            except Exception:
+                return None
+        return None
+
+
     def to_representation(self, instance):
         """Customize the representation based on user role"""
         data = super().to_representation(instance)
@@ -674,6 +754,7 @@ class UserSerializer(serializers.ModelSerializer):
             data.pop('semester', None)
             data.pop('student_status', None)
             data.pop('is_alumni', None)
+            data.pop('alumni_review_status', None)
         # Remove student-specific fields for other non-student users.
         elif instance.role not in ['student', 'captain', 'alumni']:
             data.pop('student_id', None)
@@ -681,6 +762,7 @@ class UserSerializer(serializers.ModelSerializer):
             data.pop('semester', None)
             data.pop('student_status', None)
             data.pop('is_alumni', None)
+            data.pop('alumni_review_status', None)
             data.pop('related_profile_id', None)
         else:
             # For students, if related_profile_id is null, use the user's ID as fallback

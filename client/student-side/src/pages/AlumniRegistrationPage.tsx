@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import {
-  GraduationCap, Loader2, Plus, Trash2, FileText, User, Phone, BookOpen,
-  Briefcase, CheckCircle2, Award,
+  GraduationCap, Loader2, FileText, User, Phone, BookOpen,
+  Briefcase, CheckCircle2, Award, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { alumniService, AlumniDocCategory, AlumniDocUpload } from '@/services/alumniService';
 import departmentService, { Department } from '@/services/departmentService';
 import { divisions, getDistricts } from '@/components/admission/wizard/stepConfig';
+import { AlumniDocumentUpload, type AlumniDoc } from '@/components/alumni/AlumniDocumentUpload';
+import { cn } from '@/lib/utils';
 
 // Sessions / graduation years from 2000 up to the current year (newest first).
 const currentYear = new Date().getFullYear();
@@ -23,11 +25,6 @@ const SESSION_OPTIONS = Array.from({ length: currentYear - 1999 }, (_, i) => {
   return `${y}-${String((y + 1) % 100).padStart(2, '0')}`;
 });
 const YEAR_OPTIONS = Array.from({ length: currentYear - 1999 }, (_, i) => String(currentYear - i));
-
-interface PendingDoc extends AlumniDocUpload {
-  id: string;
-  categoryDisplay: string;
-}
 
 const GENDERS = ['Male', 'Female', 'Other'];
 
@@ -49,22 +46,25 @@ const initialForm = {
   organizationName: '',
   bio: '',
   linkedinUrl: '',
+  portfolioUrl: '',
 };
+
+const STEPS = [
+  { id: 1, label: 'Personal & Academic', icon: User },
+  { id: 2, label: 'Alumni Info & Documents', icon: GraduationCap },
+];
 
 export default function AlumniRegistrationPage() {
   const navigate = useNavigate();
   const { user, refreshUser } = useAuth();
 
+  const [step, setStep] = useState(1);
   const [form, setForm] = useState(initialForm);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [semesterGpas, setSemesterGpas] = useState<Record<number, string>>({});
   const [docCategories, setDocCategories] = useState<AlumniDocCategory[]>([]);
   const [maxDocuments, setMaxDocuments] = useState(20);
-  const [documents, setDocuments] = useState<PendingDoc[]>([]);
-
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [customName, setCustomName] = useState('');
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [documents, setDocuments] = useState<AlumniDoc[]>([]);
 
   const [submitting, setSubmitting] = useState(false);
   const [loadingMeta, setLoadingMeta] = useState(true);
@@ -99,43 +99,28 @@ export default function AlumniRegistrationPage() {
   const setField = (key: keyof typeof initialForm, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
-  const isCustomCategory = useMemo(
-    () => docCategories.find((c) => c.key === selectedCategory)?.isCustom ?? false,
-    [docCategories, selectedCategory],
-  );
-
-  const addDocument = () => {
-    if (!selectedCategory || !pendingFile) {
-      toast.error('Select a category and choose a file.');
-      return;
+  const validateStep1 = (): boolean => {
+    if (!form.fullNameEnglish.trim()) {
+      toast.error('Please enter your full name.');
+      return false;
     }
-    if (isCustomCategory && !customName.trim()) {
-      toast.error('Enter a name for the custom document.');
-      return;
+    if (!form.department) {
+      toast.error('Please select your department.');
+      return false;
     }
-    if (documents.length >= maxDocuments) {
-      toast.error(`You can upload up to ${maxDocuments} documents.`);
-      return;
-    }
-    const cat = docCategories.find((c) => c.key === selectedCategory);
-    setDocuments((prev) => [
-      ...prev,
-      {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        file: pendingFile,
-        category: selectedCategory,
-        customName: isCustomCategory ? customName.trim() : '',
-        categoryDisplay: isCustomCategory ? customName.trim() : cat?.display || selectedCategory,
-      },
-    ]);
-    setSelectedCategory('');
-    setCustomName('');
-    setPendingFile(null);
-    const input = document.getElementById('alumni-reg-file') as HTMLInputElement | null;
-    if (input) input.value = '';
+    return true;
   };
 
-  const removeDocument = (id: string) => setDocuments((prev) => prev.filter((d) => d.id !== id));
+  const goNext = () => {
+    if (step === 1 && !validateStep1()) return;
+    setStep((s) => Math.min(2, s + 1));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const goBack = () => {
+    setStep((s) => Math.max(1, s - 1));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const buildPayload = () => {
     const semesterResults = Object.entries(semesterGpas)
@@ -162,17 +147,14 @@ export default function AlumniRegistrationPage() {
         : null,
       bio: form.bio,
       linkedinUrl: form.linkedinUrl,
+      portfolioUrl: form.portfolioUrl,
       semesterResults,
     };
   };
 
   const handleSubmit = async () => {
-    if (!form.fullNameEnglish.trim()) {
-      toast.error('Please enter your full name.');
-      return;
-    }
-    if (!form.department) {
-      toast.error('Please select your department.');
+    if (!validateStep1()) {
+      setStep(1);
       return;
     }
     setSubmitting(true);
@@ -223,6 +205,33 @@ export default function AlumniRegistrationPage() {
         </p>
       </motion.div>
 
+      {/* Stepper */}
+      <div className="flex items-center justify-center gap-3">
+        {STEPS.map((s, i) => {
+          const active = step === s.id;
+          const done = step > s.id;
+          return (
+            <div key={s.id} className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <div className={cn(
+                  'w-9 h-9 rounded-full flex items-center justify-center font-semibold text-sm transition-colors',
+                  active ? 'bg-blue-500 text-white' : done ? 'bg-success text-white' : 'bg-muted text-muted-foreground'
+                )}>
+                  {done ? <CheckCircle2 className="w-5 h-5" /> : s.id}
+                </div>
+                <span className={cn('text-sm font-medium hidden sm:block', active ? 'text-foreground' : 'text-muted-foreground')}>
+                  {s.label}
+                </span>
+              </div>
+              {i < STEPS.length - 1 && <div className={cn('w-8 sm:w-12 h-0.5 rounded', done ? 'bg-success' : 'bg-border')} />}
+            </div>
+          );
+        })}
+      </div>
+
+      <AnimatePresence mode="wait">
+      {step === 1 && (
+      <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
       <Section icon={User} title="Personal Information">
         <Grid>
           <Field label="Full Name (English)" required>
@@ -295,12 +304,6 @@ export default function AlumniRegistrationPage() {
               <SelectContent>{SESSION_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
             </Select>
           </Field>
-          <Field label="Graduation Year">
-            <Select value={form.graduationYear} onValueChange={(v) => setField('graduationYear', v)}>
-              <SelectTrigger><SelectValue placeholder="Select year" /></SelectTrigger>
-              <SelectContent>{YEAR_OPTIONS.map((y) => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
-            </Select>
-          </Field>
         </Grid>
         <div className="mt-4">
           <p className="text-sm font-medium text-muted-foreground mb-2">Semester GPA (optional)</p>
@@ -317,74 +320,58 @@ export default function AlumniRegistrationPage() {
         </div>
       </Section>
 
-      <Section icon={Briefcase} title="Career (optional)">
+      {/* Step 1 navigation */}
+      <div className="flex justify-end">
+        <Button onClick={goNext} className="min-w-[160px] h-12 rounded-2xl bg-blue-500 hover:bg-blue-600 text-white font-semibold gap-2">
+          Next: Alumni Info <ChevronRight className="w-5 h-5" />
+        </Button>
+      </div>
+      </motion.div>
+      )}
+
+      {step === 2 && (
+      <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
+      <Section icon={Briefcase} title="Alumni Information">
         <Grid>
-          <Field label="Current Position">
+          <Field label="Graduation Year">
+            <Select value={form.graduationYear} onValueChange={(v) => setField('graduationYear', v)}>
+              <SelectTrigger><SelectValue placeholder="Select year" /></SelectTrigger>
+              <SelectContent>{YEAR_OPTIONS.map((y) => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+            </Select>
+          </Field>
+          <Field label="Current Position / Title">
             <Input value={form.positionTitle} onChange={(e) => setField('positionTitle', e.target.value)} placeholder="e.g. Software Engineer" />
           </Field>
-          <Field label="Organization">
+          <Field label="Organization / Company">
             <Input value={form.organizationName} onChange={(e) => setField('organizationName', e.target.value)} placeholder="e.g. Google" />
           </Field>
           <Field label="LinkedIn URL">
             <Input value={form.linkedinUrl} onChange={(e) => setField('linkedinUrl', e.target.value)} placeholder="https://linkedin.com/in/..." />
           </Field>
+          <Field label="Portfolio URL">
+            <Input value={form.portfolioUrl} onChange={(e) => setField('portfolioUrl', e.target.value)} placeholder="https://..." />
+          </Field>
         </Grid>
         <div className="mt-4 space-y-1.5">
           <Label className="text-sm">Short Bio</Label>
-          <Textarea value={form.bio} onChange={(e) => setField('bio', e.target.value)} rows={3} />
+          <Textarea value={form.bio} onChange={(e) => setField('bio', e.target.value)} rows={3} placeholder="Short biography..." />
         </div>
       </Section>
 
-      <Section icon={FileText} title={`Documents (${documents.length}/${maxDocuments})`}>
-        <p className="text-sm text-muted-foreground mb-3">
-          Add certificates, transcripts, photo, or any other document. Choose "Custom Document" to name your own.
-        </p>
-        <div className="flex flex-col gap-3 p-4 rounded-2xl bg-muted/40 border border-border">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs">Category</Label>
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-                <SelectContent>{docCategories.map((c) => <SelectItem key={c.key} value={c.key}>{c.display}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            {isCustomCategory && (
-              <div className="space-y-1">
-                <Label className="text-xs">Custom Name</Label>
-                <Input value={customName} onChange={(e) => setCustomName(e.target.value)} placeholder="e.g. Award Letter" />
-              </div>
-            )}
-            <div className="space-y-1">
-              <Label className="text-xs">File</Label>
-              <Input id="alumni-reg-file" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                onChange={(e) => setPendingFile(e.target.files?.[0] ?? null)} />
-            </div>
-          </div>
-          <Button type="button" onClick={addDocument} disabled={documents.length >= maxDocuments} className="self-start bg-blue-500 hover:bg-blue-600">
-            <Plus className="w-4 h-4 mr-1" /> Add Document
-          </Button>
-        </div>
-        {documents.length > 0 && (
-          <div className="mt-3 space-y-2">
-            {documents.map((doc) => (
-              <div key={doc.id} className="flex items-center justify-between p-3 rounded-xl border border-border bg-card">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="p-2 rounded-lg bg-amber-500/15 shrink-0"><FileText className="w-4 h-4 text-amber-600 dark:text-amber-400" /></div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate text-foreground">{doc.categoryDisplay}</p>
-                    <p className="text-xs text-muted-foreground truncate">{doc.file.name}</p>
-                  </div>
-                </div>
-                <Button variant="ghost" size="icon" onClick={() => removeDocument(doc.id)}>
-                  <Trash2 className="w-4 h-4 text-destructive" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
+      <Section icon={FileText} title="Documents">
+        <AlumniDocumentUpload
+          docCategories={docCategories}
+          maxDocuments={maxDocuments}
+          documents={documents}
+          onChange={setDocuments}
+        />
       </Section>
 
-      <div className="flex justify-end">
+      {/* Step 2 navigation */}
+      <div className="flex items-center justify-between gap-3">
+        <Button variant="outline" onClick={goBack} disabled={submitting} className="h-12 rounded-2xl gap-2">
+          <ChevronLeft className="w-5 h-5" /> Back
+        </Button>
         <Button onClick={handleSubmit} disabled={submitting} className="min-w-[200px] h-12 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-semibold">
           {submitting ? (
             <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting...</>
@@ -393,6 +380,9 @@ export default function AlumniRegistrationPage() {
           )}
         </Button>
       </div>
+      </motion.div>
+      )}
+      </AnimatePresence>
     </div>
   );
 }

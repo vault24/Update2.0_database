@@ -1697,4 +1697,30 @@ class AlumniViewSet(viewsets.ModelViewSet):
         else:
             return Response({'error': "action must be 'approve' or 'reject'."}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Tell the alumnus about the decision (in-app; best-effort).
+        try:
+            from django.contrib.auth import get_user_model
+            from apps.notifications.models import Notification
+            User = get_user_model()
+            account = User.objects.filter(related_profile_id=alumni.student_id).first()
+            if account:
+                if decision == 'approve':
+                    title = 'Alumni Application Approved'
+                    message = 'Congratulations! Your alumni application has been approved. The full alumni portal is now available.'
+                else:
+                    title = 'Alumni Application Rejected'
+                    message = 'Your alumni application was not approved.'
+                    if notes:
+                        message += f' Reason: {notes}'
+                Notification.objects.create(
+                    recipient=account,
+                    notification_type='account_activity',
+                    title=title,
+                    message=message,
+                    data={'alumni_student_id': str(alumni.student_id), 'decision': decision},
+                    status='unread',
+                )
+        except Exception:
+            logger.exception("Failed to notify alumnus about review decision")
+
         return Response(AlumniSerializer(alumni).data)

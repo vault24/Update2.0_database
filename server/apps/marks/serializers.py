@@ -11,9 +11,18 @@ class MarksRecordSerializer(serializers.ModelSerializer):
         model = MarksRecord
         fields = '__all__'
         read_only_fields = ['id', 'recorded_at']
-    
+
     def get_percentage(self, obj):
         return obj.percentage()
+
+    def validate(self, data):
+        marks_obtained = data.get('marks_obtained', getattr(self.instance, 'marks_obtained', 0))
+        total_marks = data.get('total_marks', getattr(self.instance, 'total_marks', 0))
+        if marks_obtained is not None and marks_obtained < 0:
+            raise serializers.ValidationError("Marks obtained cannot be negative")
+        if marks_obtained and total_marks and marks_obtained > total_marks:
+            raise serializers.ValidationError("Marks obtained cannot exceed total marks")
+        return data
 
 
 class MarksCreateSerializer(serializers.ModelSerializer):

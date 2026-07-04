@@ -505,28 +505,84 @@ class TeacherDashboardView(APIView):
                 {'error': 'Valid teacher ID required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         try:
+            from django.utils import timezone as dj_timezone
+
             teacher = Teacher.objects.get(id=resolved_teacher_id)
-            
+
             # Assigned classes
-            assigned_classes = ClassRoutine.objects.filter(teacher=teacher)
-            
+            assigned_classes = ClassRoutine.objects.filter(teacher=teacher, is_active=True)
+
             # Get unique departments and semesters
             departments = assigned_classes.values('department__name').distinct()
             semesters = assigned_classes.values('semester').distinct()
-            
-            # Count students in assigned classes
-            total_students = 0
-            for routine in assigned_classes:
-                student_count = Student.objects.filter(
-                    department=routine.department,
-                    semester=routine.semester,
-                    shift=routine.shift,
-                    status='active'
-                ).count()
-                total_students += student_count
-            
+
+            # Count students across the teacher's distinct class cohorts
+            # (department + semester + shift) with a single query.
+            cohorts = set(assigned_classes.values_list('department_id', 'semester', 'shift'))
+            cohort_filter = Q(pk__in=[])
+            for dept_id, semester, shift in cohorts:
+                cohort_filter |= Q(department_id=dept_id, semester=semester, shift=shift)
+            total_students = (
+                Student.objects.filter(cohort_filter, status='active').count()
+                if cohorts else 0
+            )
+
+            # --- Attendance statistics (verified records for this teacher's classes) ---
+            attendance_qs = AttendanceRecord.objects.filter(
+                class_routine__in=assigned_classes,
+                status__in=['approved', 'direct'],
+            )
+            attendance_agg = attendance_qs.aggregate(
+                total=Count('id'),
+                present=Count('id', filter=Q(is_present=True)),
+            )
+            attendance_total = attendance_agg['total'] or 0
+            attendance_rate = (
+                round(attendance_agg['present'] / attendance_total * 100, 1)
+                if attendance_total else None
+            )
+
+            # Total lectures actually delivered = distinct (routine, date) sessions.
+            total_lectures = (
+                attendance_qs.values('class_routine_id', 'date').distinct().count()
+            )
+
+            # --- Today's classes ---
+            today = dj_timezone.localdate()
+            day_name = today.strftime('%A')
+            todays_classes_qs = assigned_classes.filter(day_of_week=day_name)
+            todays_classes = todays_classes_qs.count()
+
+            # --- Performance: average marks percentage across teacher's subjects ---
+            performance = None
+            try:
+                subject_codes = list(
+                    assigned_classes.values_list('subject_code', flat=True).distinct()
+                )
+                if subject_codes:
+                    from django.db.models import Sum
+                    marks_agg = MarksRecord.objects.filter(
+                        subject_code__in=subject_codes,
+                        total_marks__gt=0,
+                    ).aggregate(
+                        obtained=Sum('marks_obtained'),
+                        total=Sum('total_marks'),
+                    )
+                    if marks_agg['total']:
+                        performance = round(
+                            float(marks_agg['obtained']) / float(marks_agg['total']) * 100, 1
+                        )
+            except Exception:
+                performance = None
+
+            # Pending captain submissions awaiting this teacher's approval.
+            pending_approvals = AttendanceRecord.objects.filter(
+                class_routine__in=assigned_classes,
+                status='pending',
+            ).count()
+
             data = {
                 'teacher': {
                     'id': str(teacher.id),
@@ -541,9 +597,19 @@ class TeacherDashboardView(APIView):
                 },
                 'students': {
                     'total': total_students,
-                }
+                },
+                'attendance': {
+                    'rate': attendance_rate,
+                    'totalRecords': attendance_total,
+                    'totalLectures': total_lectures,
+                    'pendingApprovals': pending_approvals,
+                },
+                'todaysClasses': todays_classes,
+                'performance': {
+                    'averageMarksPercentage': performance,
+                },
             }
-            
+
             return Response(data, status=status.HTTP_200_OK)
         except Teacher.DoesNotExist:
             return Response(

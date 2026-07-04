@@ -50,15 +50,30 @@ type DisplayClassPeriod = {
   labName?: string;
   room: string;
   teacher: string;
+  departmentName?: string;
+  semester?: number;
+  shift?: string;
 };
 
-const subjectColors: Record<string, string> = {
-  Mathematics: 'from-blue-500/20 to-indigo-500/20 border-blue-500/30 text-blue-700 dark:text-blue-300',
-  Physics: 'from-purple-500/20 to-violet-500/20 border-purple-500/30 text-purple-700 dark:text-purple-300',
-  Chemistry: 'from-emerald-500/20 to-teal-500/20 border-emerald-500/30 text-emerald-700 dark:text-emerald-300',
-  English: 'from-orange-500/20 to-amber-500/20 border-orange-500/30 text-orange-700 dark:text-orange-300',
-  Computer: 'from-cyan-500/20 to-sky-500/20 border-cyan-500/30 text-cyan-700 dark:text-cyan-300',
-  Break: 'from-muted to-muted border-border text-muted-foreground',
+// Stable color palette — each subject gets a consistent color via hashing,
+// so every distinct subject is visually distinguishable in the timetable.
+const SUBJECT_PALETTE = [
+  'from-blue-500/20 to-indigo-500/20 border-blue-500/30 text-blue-700 dark:text-blue-300',
+  'from-purple-500/20 to-violet-500/20 border-purple-500/30 text-purple-700 dark:text-purple-300',
+  'from-emerald-500/20 to-teal-500/20 border-emerald-500/30 text-emerald-700 dark:text-emerald-300',
+  'from-orange-500/20 to-amber-500/20 border-orange-500/30 text-orange-700 dark:text-orange-300',
+  'from-cyan-500/20 to-sky-500/20 border-cyan-500/30 text-cyan-700 dark:text-cyan-300',
+  'from-pink-500/20 to-rose-500/20 border-pink-500/30 text-pink-700 dark:text-pink-300',
+  'from-lime-500/20 to-green-500/20 border-lime-500/30 text-lime-700 dark:text-lime-300',
+  'from-fuchsia-500/20 to-purple-500/20 border-fuchsia-500/30 text-fuchsia-700 dark:text-fuchsia-300',
+];
+
+const subjectColorFor = (key: string): string => {
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) {
+    hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+  }
+  return SUBJECT_PALETTE[hash % SUBJECT_PALETTE.length];
 };
 
 const getSubjectIcon = (subject: string, classType?: 'Theory' | 'Lab') => {
@@ -296,6 +311,9 @@ export default function ClassRoutinePage() {
         labName: routineItem.lab_name || '',
         room: routineItem.room_number || 'TBA',
         teacher: routineItem.teacher?.fullNameEnglish || 'TBA',
+        departmentName: routineItem.department?.name || '',
+        semester: routineItem.semester,
+        shift: routineItem.shift,
       }));
 
     let slotKeys = timeSlotUtils.generateTimeSlots(routines);
@@ -479,8 +497,10 @@ export default function ClassRoutinePage() {
 
   const now = currentTime;
   const dayIndex = now.getDay();
-  const currentDay = (dayIndex >= 0 && dayIndex < days.length) ? days[dayIndex] : days[0];
-  const todayRoutineItems = routine.filter((r) => r.day_of_week === currentDay);
+  // Friday/Saturday are weekend — no day should be highlighted as "Today".
+  const isWeekend = dayIndex >= days.length;
+  const currentDay = !isWeekend ? days[dayIndex] : days[0];
+  const todayRoutineItems = isWeekend ? [] : routine.filter((r) => r.day_of_week === currentDay);
   const statsSource = todayRoutineItems.length > 0 ? todayRoutineItems : routine;
   const statsLabel = todayRoutineItems.length > 0 ? 'Today' : 'This Week';
   const totalClasses = statsSource.length;
@@ -712,11 +732,11 @@ export default function ClassRoutinePage() {
                   {days.map((day) => (
                     <th key={day} className={cn(
                       "py-3 px-2 md:px-3 text-center text-sm md:text-base font-semibold",
-                      day === currentDay ? "text-primary bg-primary/5" : "text-muted-foreground"
+                      !isWeekend && day === currentDay ? "text-primary bg-primary/5" : "text-muted-foreground"
                     )}>
                       <span className="md:hidden">{day.slice(0, 3)}</span>
                       <span className="hidden md:inline">{day}</span>
-                      {day === currentDay && (
+                      {!isWeekend && day === currentDay && (
                         <span className="block text-[10px] md:text-xs font-normal text-primary/70">Today</span>
                       )}
                     </th>
@@ -739,7 +759,7 @@ export default function ClassRoutinePage() {
                         );
                       }
                       const Icon = getSubjectIcon(period.subject, period.classType);
-                      const colorClass = subjectColors[period.subject.split(' ')[0]] || subjectColors.Computer;
+                      const colorClass = subjectColorFor(period.subjectCode || period.subject);
                       const isRunning = runningClass?.id === period.id;
                       
                       return (
@@ -774,7 +794,11 @@ export default function ClassRoutinePage() {
                                   <p className="text-[10px] md:text-xs opacity-70 truncate">Lab: {period.labName}</p>
                                 )}
                                 <p className="text-[10px] md:text-xs opacity-70 truncate">{period.room}</p>
-                                <p className="text-[10px] md:text-xs opacity-70 truncate">{period.teacher}</p>
+                                <p className="text-[10px] md:text-xs opacity-70 truncate">
+                                  {user?.role === 'teacher'
+                                    ? `${period.departmentName || ''}${period.semester ? ` · Sem ${period.semester}` : ''}${period.shift ? ` · ${period.shift}` : ''}`
+                                    : period.teacher}
+                                </p>
                               </div>
                             </div>
                           </div>
@@ -796,12 +820,20 @@ export default function ClassRoutinePage() {
         transition={{ delay: 0.25 }}
         className="bg-card rounded-lg md:rounded-xl border border-border p-3 md:p-4"
       >
-        <h4 className="text-xs md:text-sm font-semibold mb-2 md:mb-3">Legend</h4>
+        <h4 className="text-xs md:text-sm font-semibold mb-2 md:mb-3">Subjects</h4>
         <div className="flex flex-wrap gap-2 md:gap-3">
-          {Object.entries(subjectColors).filter(([k]) => k !== 'Break').map(([subject, colorClass]) => (
-            <div key={subject} className={cn("flex items-center gap-1.5 px-2.5 py-1 md:py-1.5 rounded-lg border bg-gradient-to-r text-[10px] md:text-xs font-medium", colorClass)}>
+          {Array.from(
+            new Map(routine.map(r => [r.subject_code || r.subject_name, r.subject_name])).entries()
+          ).map(([code, name]) => (
+            <div
+              key={code}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1 md:py-1.5 rounded-lg border bg-gradient-to-r text-[10px] md:text-xs font-medium",
+                subjectColorFor(code)
+              )}
+            >
               <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-current" />
-              {subject}
+              {name}
             </div>
           ))}
         </div>
@@ -844,6 +876,16 @@ export default function ClassRoutinePage() {
                 <p className="text-muted-foreground">Teacher</p>
                 <p className="font-medium">{selectedPeriod.teacher}</p>
               </div>
+              {selectedPeriod.departmentName && (
+                <div>
+                  <p className="text-muted-foreground">Class</p>
+                  <p className="font-medium">
+                    {selectedPeriod.departmentName}
+                    {selectedPeriod.semester ? ` · Semester ${selectedPeriod.semester}` : ''}
+                    {selectedPeriod.shift ? ` · ${selectedPeriod.shift} Shift` : ''}
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>

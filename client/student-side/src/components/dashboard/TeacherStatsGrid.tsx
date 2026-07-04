@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
-import { 
-  BookOpen, Users, GraduationCap, TrendingUp, 
-  ClipboardCheck, Award, Calendar, BarChart3 
+import {
+  BookOpen, Users, GraduationCap, TrendingUp,
+  ClipboardCheck, Award, Calendar, BarChart3
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -11,10 +11,10 @@ interface TeacherStatsGridProps {
     totalStudents: number;
     departments: number;
     semesters: number;
-    attendanceRate?: number;
-    pendingTasks?: number;
-    upcomingClasses?: number;
-    totalLectures?: number;
+    attendanceRate: number | null;
+    todaysClasses: number;
+    totalLectures: number;
+    averageMarksPercentage: number | null;
   };
 }
 
@@ -55,15 +55,15 @@ export function TeacherStatsGrid({ stats }: TeacherStatsGridProps) {
     {
       icon: ClipboardCheck,
       label: 'Attendance Rate',
-      value: `${stats.attendanceRate || 85}%`,
-      subtext: 'Average class attendance',
+      value: stats.attendanceRate !== null ? `${stats.attendanceRate}%` : '—',
+      subtext: stats.attendanceRate !== null ? 'Average class attendance' : 'No attendance yet',
       color: 'from-blue-500 to-indigo-600',
       bgColor: 'bg-blue-500/10',
     },
     {
       icon: Calendar,
-      label: 'Today\'s Classes',
-      value: (stats.upcomingClasses || 4).toString(),
+      label: "Today's Classes",
+      value: stats.todaysClasses.toString(),
       subtext: 'Scheduled for today',
       color: 'from-cyan-500 to-blue-600',
       bgColor: 'bg-cyan-500/10',
@@ -71,16 +71,16 @@ export function TeacherStatsGrid({ stats }: TeacherStatsGridProps) {
     {
       icon: Award,
       label: 'Total Lectures',
-      value: (stats.totalLectures || 127).toString(),
-      subtext: 'This semester',
+      value: stats.totalLectures.toString(),
+      subtext: 'Classes conducted',
       color: 'from-amber-500 to-yellow-600',
       bgColor: 'bg-amber-500/10',
     },
     {
       icon: TrendingUp,
       label: 'Performance',
-      value: 'A+',
-      subtext: 'Student avg grade',
+      value: stats.averageMarksPercentage !== null ? `${stats.averageMarksPercentage}%` : '—',
+      subtext: stats.averageMarksPercentage !== null ? 'Student avg marks' : 'No marks yet',
       color: 'from-green-500 to-emerald-600',
       bgColor: 'bg-green-500/10',
     },

@@ -23,7 +23,8 @@ class SystemSettingsUpdateSerializer(serializers.ModelSerializer):
             'allow_student_registration', 'allow_teacher_registration', 'allow_admission_submission',
             'institute_name', 'institute_address', 'institute_phone', 'institute_email',
             'institute_logo',
-            'maintenance_mode', 'maintenance_message'
+            'maintenance_mode', 'maintenance_message',
+            'maintenance_notice_enabled', 'maintenance_notice_text',
         ]
     
     def validate_current_semester(self, value):

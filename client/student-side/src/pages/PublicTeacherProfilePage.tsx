@@ -10,7 +10,7 @@ import { settingsService } from '@/services/settingsService';
 
 export default function PublicTeacherProfilePage() {
   const { teacherId } = useParams<{ teacherId: string }>();
-  const [instituteName, setInstituteName] = useState('Sylhet Polytechnic Institute');
+  const [instituteName, setInstituteName] = useState('Sirajganj Polytechnic Institute');
 
   useEffect(() => {
     const fetchSettings = async () => {

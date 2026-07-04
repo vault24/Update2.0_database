@@ -121,6 +121,33 @@ class EmailService:
             return False
 
     @staticmethod
+    def send_account_action_otp_email(user, otp, action_label='confirm this account change'):
+        """Send a branded OTP for sensitive account actions (switch / delete)."""
+        try:
+            from apps.notifications.email_service import send_branded_email
+            expiry = getattr(settings, 'OTP_EXPIRY_MINUTES', 10)
+            return send_branded_email(
+                'Account Verification Code - SIPI',
+                user.email,
+                heading='Your Account Verification Code',
+                greeting=f"Hello {user.first_name or user.username},",
+                intro=f'Use the verification code below to {action_label}.',
+                highlight=otp,
+                body_lines=[
+                    f'This code will expire in {expiry} minutes.',
+                    "If you didn't request this change, please change your password immediately.",
+                ],
+                accent_label='Security',
+                accent_color='#dc2626',
+                accent_soft='#fef2f2',
+                async_send=False,  # the user is waiting on this code
+                category='security',  # OTP emails are always sent
+            )
+        except Exception as e:
+            logger.error(f"Error sending account action OTP email: {e}")
+            return False
+
+    @staticmethod
     def send_password_reset_confirmation(user):
         """Confirm a successful password reset (security notification)."""
         try:

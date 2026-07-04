@@ -255,3 +255,9 @@
   @apply bg-muted-foreground/40;
   background-clip: padding-box;
 }
+
+/* Maintenance notice banner — continuous scrolling marquee. */
+@keyframes marquee {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}

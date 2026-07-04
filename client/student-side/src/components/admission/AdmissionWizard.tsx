@@ -19,7 +19,7 @@ import { StepEducation } from './wizard/steps/StepEducation';
 import { StepAcademic } from './wizard/steps/StepAcademic';
 import { StepDocuments } from './wizard/steps/StepDocuments';
 import { StepReview } from './wizard/steps/StepReview';
-import { generateAdmissionPDF } from './wizard/pdf';
+import { downloadAdmissionPDF, printAdmissionForm } from './wizard/pdf';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { CheckCircle } from 'lucide-react';
@@ -900,7 +900,8 @@ export function AdmissionWizard() {
     }
   };
 
-  const generatePDF = () => generateAdmissionPDF(formData, applicationId, departments);
+  const downloadPDF = () => downloadAdmissionPDF(formData, applicationId, departments);
+  const printForm = () => printAdmissionForm(formData, applicationId, departments);
 
   const handleReapply = async () => {
     try {
@@ -943,7 +944,8 @@ export function AdmissionWizard() {
     return (
       <AdmissionSuccess
         applicationId={applicationId}
-        onGeneratePdf={generatePDF}
+        onDownloadPdf={downloadPDF}
+        onPrint={printForm}
         onGoDashboard={() => navigate('/dashboard')}
       />
     );

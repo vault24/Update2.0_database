@@ -152,7 +152,15 @@ class DocumentViewSet(viewsets.ModelViewSet):
                     request=request,
                     success=True
                 )
-                
+
+                # Auto-assign the first uploaded passport/profile photo as the
+                # student's profile picture — no manual "Make it Profile" step.
+                if student_id and validated_data['category'] == 'Photo':
+                    try:
+                        document.assign_as_profile_photo(student)
+                    except Exception as photo_err:
+                        logger.warning(f"Auto profile-photo assignment failed: {photo_err}")
+
                 serializer = DocumentSerializer(document)
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
                 
@@ -703,7 +711,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
                         )
                         
                         created_documents.append(document)
-                        
+
                         # Log upload
                         self._log_document_access(
                             document=document,
@@ -712,7 +720,14 @@ class DocumentViewSet(viewsets.ModelViewSet):
                             request=request,
                             success=True
                         )
-                        
+
+                        # First passport/profile photo auto-becomes the profile picture.
+                        if student and doc_data['category'] == 'Photo':
+                            try:
+                                document.assign_as_profile_photo(student)
+                            except Exception as photo_err:
+                                logger.warning(f"Auto profile-photo assignment failed: {photo_err}")
+
                     except Exception as e:
                         errors.append(f"Document {i+1} ({doc_data['file'].name}): {str(e)}")
                         logger.error(f"Batch upload error for document {i+1}: {str(e)}")

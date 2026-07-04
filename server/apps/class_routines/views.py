@@ -43,6 +43,26 @@ def _routine_recipients(routine):
     return recipients
 
 
+def _sync_routine_cohorts(routines):
+    """
+    After routine changes, refresh student-profile attendance subjects for the
+    affected cohorts (only acts on departments with autoAttendanceSync on).
+    Best-effort — routine saving never fails because of sync.
+    """
+    try:
+        from apps.attendance.sync import sync_cohort
+        seen = set()
+        for routine in routines:
+            key = (routine.department_id, routine.semester, routine.shift)
+            if key in seen:
+                continue
+            seen.add(key)
+            sync_cohort(routine.department, routine.semester, routine.shift)
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("Routine cohort attendance sync failed: %s", exc)
+
+
 def _notify_routine(routine, is_update):
     """Send class-routine notification (email + in-app) to relevant users."""
     try:
@@ -116,6 +136,9 @@ class ClassRoutineViewSet(viewsets.ModelViewSet):
         if is_first:
             _notify_routine(routine, is_update=False)
 
+        # New routine subject should appear in student profile attendance.
+        _sync_routine_cohorts([routine])
+
         response_serializer = ClassRoutineSerializer(routine)
 
         return Response(
@@ -134,6 +157,7 @@ class ClassRoutineViewSet(viewsets.ModelViewSet):
         # Return complete routine data
         routine = ClassRoutine.objects.get(pk=instance.pk)
         _notify_routine(routine, is_update=True)
+        _sync_routine_cohorts([routine])
         response_serializer = ClassRoutineSerializer(routine)
 
         return Response(response_serializer.data)
@@ -340,6 +364,20 @@ class ClassRoutineViewSet(viewsets.ModelViewSet):
                     'id': str(routine_id) if routine_id else None
                 })
         
+        # Sync student-profile attendance subjects for all affected cohorts.
+        touched = []
+        for result in results:
+            data = result.get('data')
+            if not data:
+                continue
+            try:
+                routine = ClassRoutine.objects.select_related('department').get(pk=data['id'])
+                touched.append(routine)
+            except ClassRoutine.DoesNotExist:
+                continue
+        if touched:
+            _sync_routine_cohorts(touched)
+
         # Return success even if some operations failed (partial success)
         success_count = len(results)
         total_count = len(operations)

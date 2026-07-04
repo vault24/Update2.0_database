@@ -21,6 +21,7 @@ export interface AttendanceRecord {
   date: string;
   isPresent: boolean;
   is_present?: boolean;   // Backend uses snake_case
+  attendance_type?: 'present' | 'absent' | 'late' | 'leave' | '';
   status: 'draft' | 'pending' | 'approved' | 'rejected' | 'direct';
   recordedBy?: string;
   recorded_by?: string;   // Backend uses snake_case
@@ -67,10 +68,126 @@ export interface AttendanceCreateData {
   semester: number;
   date: string;
   isPresent: boolean;
+  attendanceType?: 'present' | 'absent' | 'late' | 'leave';
   status?: 'draft' | 'pending' | 'direct';
   notes?: string;
   classRoutineId?: string;
   recordedBy?: string;
+}
+
+export interface TeacherRecordsFilters {
+  page?: number;
+  page_size?: number;
+  department?: string;
+  semester?: number | string;
+  shift?: string;
+  session?: string;
+  subject_code?: string;
+  class_routine?: string;
+  date?: string;
+  date_from?: string;
+  date_to?: string;
+  status?: string;
+  is_present?: 'true' | 'false';
+  attendance_type?: string;
+  search?: string;
+  ordering?: string;
+}
+
+export interface StudentAttendanceProfile {
+  student: {
+    id: string;
+    name: string;
+    roll: string;
+    registration: string;
+    department: string | null;
+    semester: number;
+    shift: string;
+    session: string;
+    status: string;
+    profilePhoto: string | null;
+  };
+  summary: {
+    totalClasses: number;
+    present: number;
+    absent: number;
+    late: number;
+    leave: number;
+    percentage: number;
+  };
+  monthly: Array<{
+    month: string;
+    label: string;
+    total: number;
+    present: number;
+    absent: number;
+    late: number;
+    leave: number;
+    percentage: number;
+  }>;
+  subjects: Array<{
+    subject_code: string;
+    subject_name: string;
+    total: number;
+    present: number;
+    absent: number;
+    late: number;
+    leave: number;
+    percentage: number;
+  }>;
+}
+
+export interface AttendanceRegister {
+  subject: {
+    subject_code: string;
+    subject_name: string;
+    department: string;
+    semester: number;
+    shift: string;
+    session: string;
+  };
+  dates: string[];
+  students: Array<{
+    student_id: string;
+    name: string;
+    roll: string;
+    cells: Record<string, 'present' | 'absent' | 'late' | 'leave'>;
+    present: number;
+    absent: number;
+    late: number;
+    leave: number;
+    total: number;
+    percentage: number;
+  }>;
+  totalsByDate: Record<string, { present: number; absent: number }>;
+}
+
+export interface TeacherAnalytics {
+  overall: {
+    totalRecords: number;
+    present: number;
+    absent: number;
+    late: number;
+    leave: number;
+    percentage: number;
+  };
+  monthlyTrend: Array<{ key: string; label: string; total: number; present: number; absent: number; percentage: number }>;
+  weeklyTrend: Array<{ key: string; label: string; total: number; present: number; absent: number; percentage: number }>;
+  bySubject: Array<{
+    subject_code: string;
+    subject_name: string;
+    'class_routine__department__name': string;
+    semester: number;
+    'class_routine__shift': string;
+    total: number;
+    present: number;
+    absent: number;
+    percentage: number;
+    students: number;
+    class_days: number;
+  }>;
+  bySemester: Array<{ semester: number; total: number; present: number; absent: number; percentage: number; students: number; class_days: number }>;
+  byDepartment: Array<{ 'class_routine__department__name': string; total: number; present: number; absent: number; percentage: number; students: number; class_days: number }>;
 }
 
 export interface BulkAttendanceData {
@@ -162,6 +279,7 @@ export const attendanceService = {
         semester: record.semester,
         date: record.date,
         is_present: record.isPresent,
+        attendance_type: record.attendanceType,
         status: record.status,
         recorded_by: record.recordedBy,
         notes: record.notes,
@@ -187,6 +305,7 @@ export const attendanceService = {
     if (data.semester !== undefined) payload.semester = data.semester;
     if (data.date !== undefined) payload.date = data.date;
     if (data.isPresent !== undefined) payload.is_present = data.isPresent;
+    if (data.attendanceType !== undefined) payload.attendance_type = data.attendanceType;
     if (data.status !== undefined) payload.status = data.status;
     if (data.notes !== undefined) payload.notes = data.notes;
     if (data.classRoutineId !== undefined) payload.class_routine_id = data.classRoutineId;
@@ -249,6 +368,66 @@ export const attendanceService = {
     }
     const response = await apiClient.get<AttendanceRecord[]>('attendance/by_routine/', params);
     return normalizeAttendanceRecords(response);
+  },
+
+  /**
+   * Delete an attendance record (teacher-owned records only)
+   */
+  deleteAttendance: async (id: string): Promise<void> => {
+    await apiClient.delete(`attendance/${id}/`);
+  },
+
+  /**
+   * Get paginated, server-side filtered records for the logged-in teacher
+   */
+  getTeacherRecords: async (filters?: TeacherRecordsFilters): Promise<PaginatedResponse<AttendanceRecord>> => {
+    const response = await apiClient.get<PaginatedResponse<AttendanceRecord>>('attendance/teacher_records/', filters);
+    return {
+      ...response,
+      results: normalizeAttendanceRecords(response.results),
+    };
+  },
+
+  /**
+   * Get a student's full attendance profile (teacher view)
+   */
+  getStudentProfile: async (
+    studentId: string,
+    filters?: { subject_code?: string; date_from?: string; date_to?: string }
+  ): Promise<StudentAttendanceProfile> => {
+    return await apiClient.get<StudentAttendanceProfile>('attendance/student_profile/', {
+      student: studentId,
+      ...filters,
+    });
+  },
+
+  /**
+   * Get the attendance register (student × date matrix) for one subject/class
+   */
+  getAttendanceRegister: async (filters: {
+    department: string;
+    semester: number | string;
+    shift: string;
+    subject_code: string;
+    session?: string;
+    date_from?: string;
+    date_to?: string;
+  }): Promise<AttendanceRegister> => {
+    return await apiClient.get<AttendanceRegister>('attendance/attendance_register/', filters);
+  },
+
+  /**
+   * Get aggregated analytics for the logged-in teacher's classes
+   */
+  getTeacherAnalytics: async (filters?: {
+    department?: string;
+    semester?: number | string;
+    shift?: string;
+    subject_code?: string;
+    date_from?: string;
+    date_to?: string;
+  }): Promise<TeacherAnalytics> => {
+    return await apiClient.get<TeacherAnalytics>('attendance/teacher_analytics/', filters);
   },
 
   /**

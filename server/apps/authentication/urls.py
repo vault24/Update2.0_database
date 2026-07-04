@@ -19,6 +19,15 @@ urlpatterns = [
     path('2fa/toggle/', views.toggle_2fa_view, name='toggle-2fa'),
     path('sessions/revoke-others/', views.revoke_other_sessions_view, name='revoke-other-sessions'),
     path('login/verify-2fa/', views.verify_login_2fa_view, name='verify-login-2fa'),
+
+    # Account switching / deletion (OTP-verified)
+    path('account/send-otp/', views.account_send_otp_view, name='account-send-otp'),
+    path('account/switch/', views.switch_account_view, name='account-switch'),
+    path('account/delete/', views.delete_account_view, name='account-delete'),
+
+    # Captain account requests (reviewed by Department Heads)
+    path('captain-requests/', views.list_captain_requests_view, name='list-captain-requests'),
+    path('captain-requests/<uuid:request_id>/review/', views.review_captain_request_view, name='review-captain-request'),
     
     # Signup Request endpoints
     path('signup-request/availability/', views.check_signup_availability_view, name='signup-request-availability'),

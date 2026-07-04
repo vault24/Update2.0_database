@@ -253,6 +253,44 @@ class Document(models.Model):
         """Check if file is a PDF"""
         return self.fileType.lower() == 'pdf'
     
+    def profile_photo_path(self):
+        """
+        Relative (/files/...) path suitable for Student.profilePhoto, derived
+        from this document. Returns '' when no path can be resolved.
+        """
+        import re
+        url = self.file_url
+        if url:
+            if url.startswith('/files/'):
+                return url
+            if url.startswith('http'):
+                match = re.search(r'/files/(.+)$', url)
+                return f'/files/{match.group(1)}' if match else url
+            return f'/files/{url}'
+        if self.filePath:
+            return f'/files/{self.filePath}'
+        return ''
+
+    def assign_as_profile_photo(self, student, force=False):
+        """
+        Auto-assign this photo document as the student's profile picture.
+
+        By default only fills an empty profilePhoto (so the *first* uploaded
+        passport photo becomes the picture and a later manual choice is never
+        silently overwritten). Pass force=True to always replace.
+        Returns True when the student's profilePhoto was updated.
+        """
+        if not student or self.category != 'Photo':
+            return False
+        if student.profilePhoto and not force:
+            return False
+        path = self.profile_photo_path()
+        if not path:
+            return False
+        student.profilePhoto = path
+        student.save(update_fields=['profilePhoto'])
+        return True
+
     def get_file_info(self):
         """Get detailed file information from structured storage."""
         from utils.structured_file_storage import structured_storage

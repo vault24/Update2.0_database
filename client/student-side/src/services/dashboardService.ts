@@ -51,6 +51,16 @@ export interface TeacherDashboardData {
   students: {
     total: number;
   };
+  attendance?: {
+    rate: number | null;
+    totalRecords: number;
+    totalLectures: number;
+    pendingApprovals: number;
+  };
+  todaysClasses?: number;
+  performance?: {
+    averageMarksPercentage: number | null;
+  };
 }
 
 // Service

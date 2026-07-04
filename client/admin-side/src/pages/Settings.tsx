@@ -4,11 +4,12 @@ import {
   Settings as SettingsIcon, Building, GraduationCap, Calendar, Users, Save, Plus, Trash2, Upload, 
   Loader2, AlertCircle, User, Lock, Bell, Palette, Shield, Eye, EyeOff, Moon, Sun, Monitor,
   Mail, Phone, Camera, Key, Smartphone, Globe, Database, Server, Clock, CheckCircle2, XCircle,
-  Heart, MessageSquare
+  Heart, MessageSquare, Megaphone
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -124,6 +125,8 @@ export default function Settings() {
   // System settings
   const [systemSettings, setSystemSettings] = useState({
     maintenanceMode: false,
+    maintenanceNoticeEnabled: false,
+    maintenanceNoticeText: '',
     allowRegistration: true,
     allowAdmission: true,
     autoBackup: true,
@@ -249,6 +252,8 @@ export default function Settings() {
         allowRegistration: data.allow_student_registration ?? prev.allowRegistration,
         allowAdmission: data.allow_admission_submission ?? prev.allowAdmission,
         maintenanceMode: data.maintenance_mode ?? prev.maintenanceMode,
+        maintenanceNoticeEnabled: data.maintenance_notice_enabled ?? prev.maintenanceNoticeEnabled,
+        maintenanceNoticeText: data.maintenance_notice_text ?? prev.maintenanceNoticeText,
       }));
 
       // Populate notification channels from backend (merge with local-only
@@ -446,6 +451,8 @@ export default function Settings() {
         allow_student_registration: systemSettings.allowRegistration,
         allow_admission_submission: systemSettings.allowAdmission,
         maintenance_mode: systemSettings.maintenanceMode,
+        maintenance_notice_enabled: systemSettings.maintenanceNoticeEnabled,
+        maintenance_notice_text: systemSettings.maintenanceNoticeText,
       });
       localStorage.setItem(SYSTEM_PREFS_KEY, JSON.stringify(systemSettings));
       toast({
@@ -1672,6 +1679,69 @@ export default function Settings() {
                     <p className="text-sm text-muted-foreground">
                       The system is currently offline. Only administrators can access the dashboard.
                     </p>
+                  </motion.div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Maintenance Notice Banner (scrolling notice, site stays online) */}
+            <Card className={`glass-card ${systemSettings.maintenanceNoticeEnabled ? 'border-primary/40' : ''}`}>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Megaphone className={`w-5 h-5 ${systemSettings.maintenanceNoticeEnabled ? 'text-primary' : 'text-muted-foreground'}`} />
+                  Maintenance Notice Banner
+                </CardTitle>
+                <CardDescription>
+                  Show a scrolling notice under the top bar for every user (the site stays fully usable).
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between p-4 bg-primary/5 rounded-lg border border-primary/15">
+                  <div>
+                    <p className="font-medium">Show Notice Banner</p>
+                    <p className="text-sm text-muted-foreground">All users will see your message scrolling under the top bar.</p>
+                  </div>
+                  <Switch
+                    checked={systemSettings.maintenanceNoticeEnabled}
+                    onCheckedChange={(checked) => setSystemSettings({ ...systemSettings, maintenanceNoticeEnabled: checked })}
+                  />
+                </div>
+
+                {systemSettings.maintenanceNoticeEnabled && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="mt-4 space-y-3"
+                  >
+                    <div className="space-y-1.5">
+                      <Label htmlFor="maintenanceNoticeText">Notice Message</Label>
+                      <Textarea
+                        id="maintenanceNoticeText"
+                        rows={3}
+                        maxLength={500}
+                        placeholder="e.g. Our site is under maintenance — some features may be temporarily unavailable. Thank you for your patience."
+                        value={systemSettings.maintenanceNoticeText}
+                        onChange={(e) => setSystemSettings({ ...systemSettings, maintenanceNoticeText: e.target.value })}
+                      />
+                      <p className="text-xs text-muted-foreground text-right">
+                        {systemSettings.maintenanceNoticeText.length}/500
+                      </p>
+                    </div>
+
+                    {/* Live preview of the scrolling banner */}
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1.5">Preview</p>
+                      <div className="relative overflow-hidden rounded-lg bg-amber-500/15 border border-amber-500/30 py-2">
+                        <div className="flex items-center gap-2 px-3 text-amber-700 dark:text-amber-400">
+                          <Megaphone className="w-4 h-4 shrink-0" />
+                          <div className="overflow-hidden flex-1">
+                            <div className="whitespace-nowrap text-sm font-medium animate-[marquee_18s_linear_infinite]">
+                              {systemSettings.maintenanceNoticeText || 'Your notice message will scroll here…'}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </motion.div>
                 )}
               </CardContent>

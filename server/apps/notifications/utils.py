@@ -2,7 +2,11 @@
 Notification Utilities
 Helper functions for creating and sending notifications
 """
+import logging
+
 from .models import Notification
+
+logger = logging.getLogger(__name__)
 
 
 def create_attendance_notification(student_user, attendance_record, action='marked'):
@@ -74,19 +78,12 @@ def send_bulk_attendance_notifications(attendance_records, action='marked'):
         action: 'marked', 'updated', 'approved', 'rejected'
     """
     notifications = []
-    
-    print(f"Attempting to send notifications for {len(attendance_records)} records")
-    
-    for idx, record in enumerate(attendance_records):
+
+    for record in attendance_records:
         # Get the student's user account
         try:
-            print(f"\n  Processing notification {idx + 1}/{len(attendance_records)}")
-            print(f"    Student ID: {record.student.id}")
-            print(f"    Student Name: {record.student.fullNameEnglish}")
-            
             student_user = record.student.user if hasattr(record.student, 'user') else None
-            print(f"    Direct user relation: {student_user}")
-            
+
             # If student doesn't have a direct user relation, try to find by related_profile_id
             if not student_user:
                 from apps.authentication.models import User
@@ -94,20 +91,15 @@ def send_bulk_attendance_notifications(attendance_records, action='marked'):
                     related_profile_id=record.student.id,
                     role__in=['student', 'captain']
                 ).first()
-                print(f"    Found user by related_profile_id: {student_user}")
-            
+
             if student_user:
-                print(f"    Creating notification for user: {student_user.username} (ID: {student_user.id})")
                 notification = create_attendance_notification(student_user, record, action)
                 notifications.append(notification)
-                print(f"    ✓ Notification created: {notification.id}")
             else:
-                print(f"    ✗ No user account found for student {record.student.id}")
-        except Exception as e:
-            print(f"    ✗ Failed to create notification for student {record.student.id}: {str(e)}")
-            import traceback
-            traceback.print_exc()
+                logger.info("No user account found for student %s", record.student.id)
+        except Exception:
+            logger.exception("Failed to create attendance notification for student %s", record.student_id)
             continue
-    
-    print(f"\nTotal notifications created: {len(notifications)}")
+
+    logger.info("Created %d attendance notifications", len(notifications))
     return notifications

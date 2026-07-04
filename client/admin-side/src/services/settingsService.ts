@@ -22,6 +22,8 @@ export interface SystemSettings {
   institute_email: string;
   maintenance_mode: boolean;
   maintenance_message: string;
+  maintenance_notice_enabled: boolean;
+  maintenance_notice_text: string;
   institute_logo?: string | null;
   updated_at: string;
   updated_by?: string;
@@ -43,6 +45,8 @@ export interface SystemSettingsUpdateData {
   institute_email?: string;
   maintenance_mode?: boolean;
   maintenance_message?: string;
+  maintenance_notice_enabled?: boolean;
+  maintenance_notice_text?: string;
 }
 
 // Service

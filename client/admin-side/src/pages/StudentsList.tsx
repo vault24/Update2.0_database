@@ -32,15 +32,16 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { studentService, Student, StudentFilters } from '@/services/studentService';
+import { alumniService } from '@/services/alumniService';
+import departmentService, { Department as APIDepartment } from '@/services/departmentService';
 import { getErrorMessage } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 
-const departments = ['All', 'Computer', 'Electrical', 'Civil', 'Mechanical', 'Electronics', 'Power'];
 const semesters = ['All', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
-const statuses = ['All', 'Active', 'Discontinued', 'Alumni'];
+const statuses = ['All', 'Active', 'Graduated', 'Discontinued', 'Alumni'];
 const sessions = ['All', '2023-2024', '2022-2023', '2021-2022', '2020-2021'];
 
-// Mock data removed - will fetch from backend
+// Departments are fetched live from the backend (see `departments` state).
 
 const getStatusColor = (status: string) => {
   switch (status) {
@@ -48,6 +49,7 @@ const getStatusColor = (status: string) => {
       return 'bg-success/10 text-success border-success/20';
     case 'Discontinued':
       return 'bg-warning/10 text-warning border-warning/20';
+    case 'Graduated':
     case 'Alumni':
       return 'bg-info/10 text-info border-info/20';
     default:
@@ -55,11 +57,14 @@ const getStatusColor = (status: string) => {
   }
 };
 
+const ordinal = (n: number) => `${n}${n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'}`;
+
 export default function StudentsList() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDept, setSelectedDept] = useState('All');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [selectedDept, setSelectedDept] = useState('all');
   const [selectedSemester, setSelectedSemester] = useState('All');
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [selectedSession, setSelectedSession] = useState('All');
@@ -69,74 +74,133 @@ export default function StudentsList() {
   const [showFilters, setShowFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  
-  // Backend data states
-  const [students, setStudents] = useState<Student[]>([]);
+
+  // Department options fetched live from the backend (no more hardcoded list).
+  const [departments, setDepartments] = useState<APIDepartment[]>([]);
+
+  // Backend data states — rows are already normalized to the display shape so
+  // students and alumni can share the same table.
+  const [rows, setRows] = useState<Array<{
+    id: string;
+    name: string;
+    roll: string;
+    department: string;
+    semester: string;
+    status: string;
+    session: string;
+    photo?: string;
+  }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState(0);
 
-  // Fetch students from backend
+  // Load real departments once.
+  useEffect(() => {
+    departmentService
+      .getDepartments({ page_size: 100 })
+      .then((res) => setDepartments(res.results || []))
+      .catch(() => setDepartments([]));
+  }, []);
+
+  // Debounce the search box so typing doesn't fire a request per keystroke.
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Reset to page 1 whenever a filter/search changes.
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedDept, selectedSemester, selectedStatus, selectedSession, debouncedSearch, pageSize]);
+
+  // Fetch data from backend when filters/pagination change.
   useEffect(() => {
     fetchStudents();
-  }, [selectedDept, selectedSemester, selectedStatus, selectedSession, currentPage, pageSize]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDept, selectedSemester, selectedStatus, selectedSession, currentPage, pageSize, debouncedSearch]);
 
-  const fetchStudents = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const filters: StudentFilters = {
-        page: currentPage,
-        page_size: pageSize,
-      };
-      
-      if (selectedDept !== 'All') filters.department = selectedDept;
-      if (selectedSemester !== 'All') filters.semester = parseInt(selectedSemester.replace(/\D/g, ''));
-      if (selectedStatus !== 'All') filters.status = selectedStatus.toLowerCase() as any;
-      if (searchQuery) filters.search = searchQuery;
-      
-      console.log('Fetching students with filters:', filters);
-      const response = await studentService.getStudents(filters);
-      console.log('Students response:', response);
-      
-      setStudents(response.results || []);
-      setTotalCount(response.count || 0);
-    } catch (err: any) {
-      console.error('Error fetching students:', err);
-      const errorMsg = getErrorMessage(err);
-      setError(errorMsg);
-      toast({
-        title: 'Error',
-        description: errorMsg,
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Map students to display format
-  const mappedStudents = students.map((student) => {
-    // Handle department - can be string or object
+  const mapStudentRow = (student: any, forceStatusLabel?: string) => {
     let departmentName = '';
     if (typeof student.department === 'string') {
       departmentName = student.departmentName || student.department;
     } else if (student.department && typeof student.department === 'object') {
       departmentName = student.department.name || student.department.code || '';
     }
-    
+    const rawStatus = forceStatusLabel || student.status || '';
     return {
       id: student.id,
-      name: student.fullNameEnglish,
-      roll: student.currentRollNumber,
+      name: student.fullNameEnglish || 'N/A',
+      roll: student.currentRollNumber || 'N/A',
       department: departmentName,
-      semester: `${student.semester}${student.semester === 1 ? 'st' : student.semester === 2 ? 'nd' : student.semester === 3 ? 'rd' : 'th'}`,
-      status: student.status.charAt(0).toUpperCase() + student.status.slice(1),
-      session: student.session,
+      semester: student.semester ? ordinal(Number(student.semester)) : '—',
+      status: rawStatus ? rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1) : '—',
+      session: student.session || '—',
       photo: student.profilePhoto,
     };
-  });
+  };
+
+  const fetchStudents = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const deptId = selectedDept !== 'all' ? selectedDept : undefined;
+
+      // --- Alumni are a separate model (Student + Alumni one-to-one). The
+      // student endpoint has no "alumni" status, so route this filter to the
+      // alumni API and normalize the nested student into the shared row shape.
+      if (selectedStatus === 'Alumni') {
+        if (debouncedSearch) {
+          // Alumni search endpoint returns all matches (unpaginated) — page it client-side.
+          const res = await alumniService.searchAlumni({ q: debouncedSearch, department: deptId });
+          const all = (res.results || []).filter((a) => a.student);
+          setTotalCount(all.length);
+          const start = (currentPage - 1) * pageSize;
+          setRows(all.slice(start, start + pageSize).map((a) => mapStudentRow(a.student, 'Alumni')));
+        } else {
+          const res = await alumniService.getAlumni({
+            page: currentPage,
+            page_size: pageSize,
+            ...(deptId ? { student__department: deptId } : {}),
+          });
+          setTotalCount(res.count || 0);
+          setRows((res.results || []).filter((a) => a.student).map((a) => mapStudentRow(a.student, 'Alumni')));
+        }
+        return;
+      }
+
+      // --- Regular students ---
+      const filters: StudentFilters = {
+        page: currentPage,
+        page_size: pageSize,
+      };
+      if (deptId) filters.department = deptId;
+      if (selectedSemester !== 'All') filters.semester = parseInt(selectedSemester.replace(/\D/g, ''));
+      if (selectedSession !== 'All') filters.session = selectedSession;
+      if (debouncedSearch) filters.search = debouncedSearch;
+
+      if (selectedStatus !== 'All') {
+        filters.status = selectedStatus.toLowerCase();
+      } else if (selectedSemester !== 'All') {
+        // Semester filtering targets currently-enrolled students only, so a bare
+        // semester filter must exclude graduated/discontinued (and alumni, who
+        // are graduated) students.
+        filters.status = 'active';
+      }
+
+      const response = await studentService.getStudents(filters);
+      setTotalCount(response.count || 0);
+      setRows((response.results || []).map((s) => mapStudentRow(s)));
+    } catch (err: any) {
+      const errorMsg = getErrorMessage(err);
+      setError(errorMsg);
+      toast({ title: 'Error', description: errorMsg, variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const mappedStudents = rows;
 
   const sortedStudents = [...mappedStudents].sort((a, b) => {
     const aVal = sortBy === 'name' ? a.name : a.roll;
@@ -160,16 +224,6 @@ export default function StudentsList() {
       prev.includes(id) ? prev.filter((sid) => sid !== id) : [...prev, id]
     );
   };
-
-  // Handle search with debounce
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (searchQuery) {
-        fetchStudents();
-      }
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
 
   return (
     <div className="space-y-6">
@@ -234,9 +288,10 @@ export default function StudentsList() {
                     <SelectValue placeholder="Department" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="all">All Departments</SelectItem>
                     {departments.map((dept) => (
-                      <SelectItem key={dept} value={dept}>
-                        {dept}
+                      <SelectItem key={dept.id} value={dept.id}>
+                        {dept.name}
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -4,13 +4,15 @@ import { CheckCircle, Download, Home, Printer } from 'lucide-react';
 
 interface AdmissionSuccessProps {
   applicationId: string;
-  onGeneratePdf: () => void;
+  onDownloadPdf: () => void;
+  onPrint: () => void;
   onGoDashboard: () => void;
 }
 
 export function AdmissionSuccess({
   applicationId,
-  onGeneratePdf,
+  onDownloadPdf,
+  onPrint,
   onGoDashboard,
 }: AdmissionSuccessProps) {
   return (
@@ -38,11 +40,11 @@ export function AdmissionSuccess({
       </div>
 
       <div className="flex flex-col sm:flex-row gap-2 md:gap-3 justify-center px-4 md:px-0">
-        <Button variant="outline" onClick={onGeneratePdf} className="gap-2 text-sm md:text-base">
+        <Button variant="outline" onClick={onDownloadPdf} className="gap-2 text-sm md:text-base">
           <Download className="w-4 h-4" />
           Download PDF
         </Button>
-        <Button variant="outline" onClick={onGeneratePdf} className="gap-2 text-sm md:text-base">
+        <Button variant="outline" onClick={onPrint} className="gap-2 text-sm md:text-base">
           <Printer className="w-4 h-4" />
           Print Application
         </Button>

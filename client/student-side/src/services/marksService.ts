@@ -101,9 +101,12 @@ export const marksService = {
   },
 
   /**
-   * Bulk create marks records (for teachers)
+   * Bulk create/update marks records in one request (for teachers).
+   * Records that include an `id` are updated; the rest are created.
    */
-  bulkCreateMarks: async (records: MarksCreateData[]): Promise<MarksRecord[]> => {
-    return await apiClient.post<MarksRecord[]>('marks/bulk_create/', { records });
+  bulkUpsertMarks: async (
+    records: Array<Partial<MarksCreateData> & { id?: string }>
+  ): Promise<{ saved: number; errors: Array<{ index: number; student: string; error: string }>; records: MarksRecord[] }> => {
+    return await apiClient.post('marks/bulk_upsert/', { records });
   },
 };

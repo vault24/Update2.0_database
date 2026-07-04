@@ -446,6 +446,38 @@ function MobileAuthForm({
                     </div>
                   )}
 
+                  {/* Captain: department + shift (routes the request to the right Department Head) */}
+                  {selectedRole === 'captain' && (
+                    <>
+                      <div className="relative">
+                        <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
+                        <Select value={formData.department} onValueChange={(v) => setFormData({ ...formData, department: v })}>
+                          <SelectTrigger className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400">
+                            <SelectValue placeholder="Select your department" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="relative">
+                        <BarChart3 className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
+                        <Select value={formData.shift} onValueChange={(v) => setFormData({ ...formData, shift: v })}>
+                          <SelectTrigger className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400">
+                            <SelectValue placeholder="Select your shift" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Morning">1st Shift (Morning)</SelectItem>
+                            <SelectItem value="Day">2nd Shift (Day)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <p className="text-[11px] text-gray-400 -mt-1 px-1">
+                        Your captain request will be sent to your Department Head for approval.
+                      </p>
+                    </>
+                  )}
+
                   {/* Email */}
                   <div className="relative">
                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -610,14 +642,16 @@ export function AuthPage() {
   const [formData, setFormData] = useState({
     studentId: '', email: '', password: '', fullName: '',
     mobile: '', sscBoardRoll: '', fullNameBangla: '',
-    designation: '', department: '',
+    designation: '', department: '', shift: '',
     qualifications: [] as string[],
     specializations: [] as string[],
     officeLocation: '',
   });
 
   useEffect(() => {
-    if (selectedRole === 'teacher' && mode === 'signup') {
+    // Teachers and captains both pick a department at signup (captains also
+    // pick a shift so the request reaches the right Department Head).
+    if ((selectedRole === 'teacher' || selectedRole === 'captain') && mode === 'signup') {
       departmentService.getAll().then(setDepartments).catch(() => {});
     }
   }, [selectedRole, mode]);
@@ -629,6 +663,10 @@ export function AuthPage() {
       mobile: formData.mobile, password: formData.password, role: selectedRole,
     };
     if (selectedRole === 'student' || selectedRole === 'captain') signupData.sscBoardRoll = formData.sscBoardRoll;
+    if (selectedRole === 'captain') {
+      signupData.department = formData.department;
+      signupData.shift = formData.shift;
+    }
     if (selectedRole === 'teacher') {
       signupData.fullNameBangla = formData.fullNameBangla;
       signupData.designation = formData.designation;
@@ -649,6 +687,12 @@ export function AuthPage() {
         toast.success('Welcome back!');
         navigate('/dashboard');
       } else {
+        // Captains must pick a department + shift so the request can be routed.
+        if (selectedRole === 'captain' && (!formData.department || !formData.shift)) {
+          toast.error('Please select your department and shift so your captain request reaches the right Department Head.');
+          setIsLoading(false);
+          return;
+        }
         // Step 1 of sign-up: validate + send the email verification code.
         const signupData = buildSignupData();
         await requestSignupOtp(signupData);
@@ -680,6 +724,9 @@ export function AuthPage() {
         setPendingSignup(null);
         setMode('login');
         setMobileView('form');
+      } else if (pendingSignup?.role === 'captain') {
+        toast.success('Account created! Your captain request was sent to your Department Head — you can use the portal as a student until it is approved.');
+        navigate('/dashboard');
       } else {
         toast.success('Account created successfully!');
         navigate('/dashboard');
@@ -941,6 +988,29 @@ export function AuthPage() {
                             <Input placeholder="e.g., 679377" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
                               value={formData.sscBoardRoll} onChange={(e) => setFormData({ ...formData, sscBoardRoll: e.target.value })} required /></div>
                           <p className="text-xs text-gray-400 mt-1">Student ID will be: SIPI-{formData.sscBoardRoll || 'XXXXXX'}</p></div>
+                      )}
+                      {/* Captain: department + shift (routes the request to the right Department Head) */}
+                      {selectedRole === 'captain' && (
+                        <>
+                          <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Department <span className="text-red-500">*</span></Label>
+                            <div className="relative"><Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
+                              <Select value={formData.department} onValueChange={(v) => setFormData({ ...formData, department: v })}>
+                                <SelectTrigger className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"><SelectValue placeholder="Select your department" /></SelectTrigger>
+                                <SelectContent>
+                                  {departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                                </SelectContent>
+                              </Select></div></div>
+                          <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Shift <span className="text-red-500">*</span></Label>
+                            <div className="relative"><BarChart3 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
+                              <Select value={formData.shift} onValueChange={(v) => setFormData({ ...formData, shift: v })}>
+                                <SelectTrigger className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"><SelectValue placeholder="Select your shift" /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="Morning">1st Shift (Morning)</SelectItem>
+                                  <SelectItem value="Day">2nd Shift (Day)</SelectItem>
+                                </SelectContent>
+                              </Select></div>
+                            <p className="text-xs text-gray-400 mt-1">Your captain request will be sent to your Department Head for approval.</p></div>
+                        </>
                       )}
                       <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Email Address</Label>
                         <div className="relative"><Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />

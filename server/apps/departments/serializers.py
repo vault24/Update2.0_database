@@ -53,9 +53,9 @@ class DepartmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Department
         fields = [
-            'id', 'name', 'code', 'short_name', 'head', 
-            'established_year', 'photo', 'photo_url',
-            'total_students', 'active_students', 
+            'id', 'name', 'code', 'short_name', 'head',
+            'established_year', 'photo', 'photo_url', 'autoAttendanceSync',
+            'total_students', 'active_students',
             'faculty_count', 'created_at', 'updated_at', 'createdAt', 'updatedAt'
         ]
         read_only_fields = ['id', 'createdAt', 'updatedAt', 'created_at', 'updated_at', 
@@ -142,7 +142,7 @@ class DepartmentListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Department
         fields = [
-            'id', 'name', 'code', 'short_name', 'head', 
-            'established_year', 'photo_url',
+            'id', 'name', 'code', 'short_name', 'head',
+            'established_year', 'photo_url', 'autoAttendanceSync',
             'total_students', 'active_students', 'faculty_count'
         ]

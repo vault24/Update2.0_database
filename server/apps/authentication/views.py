@@ -1105,6 +1105,407 @@ def reject_signup_request_view(request, request_id):
     )
 
 
+# ---------------------------------------------------------------------------
+# Account switching & deletion (student portal, OTP-verified)
+# ---------------------------------------------------------------------------
+
+def _get_linked_alumni(user):
+    """The Alumni record linked to this account's student profile, or None."""
+    if not user.related_profile_id:
+        return None
+    from apps.alumni.models import Alumni
+    return Alumni.objects.filter(student_id=user.related_profile_id).first()
+
+
+def _account_switch_state(user):
+    """
+    Whether this account may be switched, and in which direction.
+    Returns (eligible, direction 'to_student'|'to_alumni'|None, reason).
+    """
+    if user.is_superuser or user.role not in ('student', 'captain'):
+        return False, None, 'Only student-portal accounts can be switched.'
+    if user.is_alumni_account:
+        alumni = _get_linked_alumni(user)
+        if alumni and alumni.reviewStatus == 'approved':
+            return False, None, (
+                'Your alumni application has already been approved, '
+                'so this account can no longer be switched.'
+            )
+        return True, 'to_student', ''
+    if user.admission_status == 'approved':
+        return False, None, (
+            'Your admission is already complete, so this account can no longer be switched.'
+        )
+    return True, 'to_alumni', ''
+
+
+def _account_delete_state(user):
+    """Whether this account may delete itself. Returns (eligible, reason)."""
+    if user.is_superuser or user.role not in ('student', 'captain'):
+        return False, 'This account cannot be deleted from the portal.'
+    if user.is_alumni_account:
+        alumni = _get_linked_alumni(user)
+        if alumni and alumni.reviewStatus == 'approved':
+            return False, (
+                'Approved alumni accounts cannot be deleted. Please contact administration.'
+            )
+        return True, ''
+    if user.admission_status == 'approved':
+        return False, (
+            'Accounts with a completed admission cannot be deleted. Please contact administration.'
+        )
+    return True, ''
+
+
+def _remove_linked_alumni_profile(user):
+    """
+    Delete the (pending / rejected) self-registered Alumni record and its
+    background Student row. Alumni has a PROTECT FK to Student, so the alumni
+    row must go first.
+    """
+    alumni = _get_linked_alumni(user)
+    if not alumni:
+        return
+    student = alumni.student
+    alumni.delete()
+    student.delete()
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def account_send_otp_view(request):
+    """
+    Email a verification code for a sensitive account action (switch / delete).
+    POST /api/auth/account/send-otp/   body: {"action": "switch" | "delete"}
+    """
+    action = (request.data.get('action') or 'switch').lower()
+
+    # Fail early with the real reason instead of sending a useless code.
+    if action == 'delete':
+        eligible, reason = _account_delete_state(request.user)
+    else:
+        eligible, _, reason = _account_switch_state(request.user)
+    if not eligible:
+        return Response({'error': reason}, status=status.HTTP_400_BAD_REQUEST)
+
+    labels = {
+        'switch': 'confirm switching your account type',
+        'delete': 'confirm deleting your account',
+    }
+    try:
+        otp_token = OTPService.create_otp_token(request.user)
+        sent = EmailService.send_account_action_otp_email(
+            request.user, otp_token.token, labels.get(action, labels['switch'])
+        )
+        if not sent:
+            return Response(
+                {'error': 'Could not send the verification email. Please try again.'},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        return Response(
+            {'message': 'A verification code has been sent to your email.', 'email': request.user.email},
+            status=status.HTTP_200_OK,
+        )
+    except Exception as e:
+        return Response(
+            {'error': 'Failed to send verification code', 'details': str(e) if settings.DEBUG else None},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def switch_account_view(request):
+    """
+    Switch between a General Student account and an Alumni account.
+    POST /api/auth/account/switch/   body: {"otp": "123456"}
+
+    Allowed while the account is still "unfinished":
+      - Alumni account -> Student: as long as the alumni application has not
+        been approved (pending / rejected / not yet submitted).
+      - Student account -> Alumni: as long as admission is not completed.
+    Requires the emailed OTP from /account/send-otp/.
+    """
+    user = request.user
+
+    eligible, direction, reason = _account_switch_state(user)
+    if not eligible:
+        return Response({'error': reason}, status=status.HTTP_400_BAD_REQUEST)
+
+    otp = (request.data.get('otp') or '').strip()
+    if not otp:
+        return Response({'otp': ['Verification code is required.']}, status=status.HTTP_400_BAD_REQUEST)
+    valid, message = OTPService.verify_otp(user.email, otp)
+    if not valid:
+        return Response({'otp': [message]}, status=status.HTTP_400_BAD_REQUEST)
+    OTPService.mark_otp_as_used(user.email, otp)
+
+    try:
+        with transaction.atomic():
+            if direction == 'to_student':
+                # Withdraw the pending alumni application and its background
+                # student profile, then reset the account to the normal
+                # (pre-admission) student flow.
+                _remove_linked_alumni_profile(user)
+                user.is_alumni_account = False
+                user.related_profile_id = None
+                user.admission_status = 'not_started'
+                user.save(update_fields=['is_alumni_account', 'related_profile_id', 'admission_status'])
+                message = 'Your account is now a General Student account. You can start your admission any time.'
+            else:
+                # Abandon the (incomplete) student path: cancel pending captain
+                # requests and any in-progress admission application, then flag
+                # the account as an alumni self-registration account.
+                from .models import CaptainAccountRequest
+                CaptainAccountRequest.objects.filter(user=user, status='pending').delete()
+                from apps.admissions.models import Admission
+                Admission.objects.filter(user=user).delete()
+                user.role = 'student'
+                user.is_alumni_account = True
+                user.related_profile_id = None
+                user.admission_status = 'approved'  # alumni accounts skip admission
+                user.save(update_fields=['role', 'is_alumni_account', 'related_profile_id', 'admission_status'])
+                message = 'Your account is now an Alumni account. Please submit your alumni information.'
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).exception("Account switch failed for user %s", user.id)
+        return Response(
+            {'error': 'Failed to switch account.', 'details': str(e) if settings.DEBUG else None},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    return Response(
+        {'message': message, 'user': UserSerializer(user, context={'request': request}).data},
+        status=status.HTTP_200_OK,
+    )
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def delete_account_view(request):
+    """
+    Permanently delete the current account (Settings page only).
+    POST /api/auth/account/delete/   body: {"password": "...", "otp": "123456"}
+
+    Only allowed while the account is still "unfinished": a student who has not
+    completed admission, or an alumni account whose application is not approved.
+    Requires the account password AND the emailed OTP.
+    """
+    user = request.user
+
+    eligible, reason = _account_delete_state(user)
+    if not eligible:
+        return Response({'error': reason}, status=status.HTTP_400_BAD_REQUEST)
+
+    password = request.data.get('password') or ''
+    if not user.check_password(password):
+        return Response({'password': ['Password is incorrect.']}, status=status.HTTP_400_BAD_REQUEST)
+
+    otp = (request.data.get('otp') or '').strip()
+    if not otp:
+        return Response({'otp': ['Verification code is required.']}, status=status.HTTP_400_BAD_REQUEST)
+    valid, message = OTPService.verify_otp(user.email, otp)
+    if not valid:
+        return Response({'otp': [message]}, status=status.HTTP_400_BAD_REQUEST)
+    OTPService.mark_otp_as_used(user.email, otp)
+
+    try:
+        with transaction.atomic():
+            # Remove the not-yet-approved alumni profile created by
+            # self-registration (approved alumni are blocked above).
+            if user.is_alumni_account:
+                _remove_linked_alumni_profile(user)
+            # OTP tokens, notifications, captain requests and the admission
+            # application all cascade from the user row.
+            logout(request)
+            user.delete()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).exception("Account deletion failed for user %s", user.id)
+        return Response(
+            {'error': 'Failed to delete account.', 'details': str(e) if settings.DEBUG else None},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    response = Response({'message': 'Your account has been deleted.'}, status=status.HTTP_200_OK)
+    response.delete_cookie('sessionid')
+    return response
+
+
+# ---------------------------------------------------------------------------
+# Captain account requests (approved by the Department Head of dept + shift)
+# ---------------------------------------------------------------------------
+
+# Reverse of CaptainAccountRequest.SHIFT_TO_HEAD_SHIFT: which student-side
+# shift a Department Head account is responsible for.
+HEAD_SHIFT_TO_STUDENT_SHIFT = {'1st_shift': 'Morning', '2nd_shift': 'Day'}
+
+
+def _serialize_captain_request(req):
+    return {
+        'id': str(req.id),
+        'name': f"{req.user.first_name} {req.user.last_name}".strip() or req.user.username,
+        'username': req.user.username,
+        'email': req.user.email,
+        'mobile_number': req.user.mobile_number,
+        'student_id': req.user.student_id,
+        'department': str(req.department_id) if req.department_id else None,
+        'department_name': req.department.name if req.department_id else None,
+        'shift': req.shift,
+        'status': req.status,
+        'rejection_reason': req.rejection_reason,
+        'created_at': req.created_at,
+        'reviewed_at': req.reviewed_at,
+    }
+
+
+def _captain_request_visible_to(user, req):
+    """Whether this admin may act on the given captain request."""
+    if user.is_superuser or user.role in ('registrar', 'institute_head'):
+        return True
+    if user.role != 'department_head':
+        return False
+    if not user.department_id or str(user.department_id) != str(req.department_id):
+        return False
+    # A head with an assigned shift only handles that shift's requests.
+    if user.shift and HEAD_SHIFT_TO_STUDENT_SHIFT.get(user.shift) != req.shift:
+        return False
+    return True
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def list_captain_requests_view(request):
+    """
+    List captain account requests.
+    GET /api/auth/captain-requests/?status=pending&department=<id>&shift=Morning
+
+    Department Heads are automatically scoped to their own department (and to
+    their shift when one is set on their account).
+    """
+    user = request.user
+    if not (user.is_superuser or user.is_admin()):
+        return Response(
+            {'detail': 'You do not have permission to perform this action.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    from .models import CaptainAccountRequest
+    queryset = CaptainAccountRequest.objects.select_related('user', 'department').all()
+
+    status_filter = request.query_params.get('status')
+    if status_filter:
+        queryset = queryset.filter(status=status_filter)
+    department = request.query_params.get('department')
+    if department:
+        queryset = queryset.filter(department_id=department)
+    shift = request.query_params.get('shift')
+    if shift:
+        queryset = queryset.filter(shift=shift)
+
+    # Department Heads only see their own department + shift.
+    if user.role == 'department_head' and not user.is_superuser:
+        if not user.department_id:
+            return Response({'count': 0, 'results': []}, status=status.HTTP_200_OK)
+        queryset = queryset.filter(department_id=user.department_id)
+        if user.shift:
+            queryset = queryset.filter(shift=HEAD_SHIFT_TO_STUDENT_SHIFT.get(user.shift, ''))
+
+    results = [_serialize_captain_request(req) for req in queryset]
+    return Response({'count': len(results), 'results': results}, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def review_captain_request_view(request, request_id):
+    """
+    Approve or reject a captain account request.
+    POST /api/auth/captain-requests/<id>/review/
+    Body: { "action": "approve" | "reject", "reason": "..." }
+
+    On approval the requester's role is upgraded to 'captain'.
+    """
+    user = request.user
+    if not (user.is_superuser or user.is_admin()):
+        return Response(
+            {'detail': 'You do not have permission to perform this action.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    from .models import CaptainAccountRequest
+    try:
+        captain_request = CaptainAccountRequest.objects.select_related('user', 'department').get(id=request_id)
+    except CaptainAccountRequest.DoesNotExist:
+        return Response({'detail': 'Captain request not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if not _captain_request_visible_to(user, captain_request):
+        return Response(
+            {'detail': 'This request belongs to another department or shift.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    if captain_request.status != 'pending':
+        return Response(
+            {'detail': 'This request has already been reviewed.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    decision = (request.data.get('action') or '').lower()
+    reason = (request.data.get('reason') or request.data.get('rejection_reason') or '').strip()
+    if decision not in ('approve', 'reject'):
+        return Response({'detail': "action must be 'approve' or 'reject'."}, status=status.HTTP_400_BAD_REQUEST)
+
+    requester = captain_request.user
+    if decision == 'approve' and (requester.is_alumni_account or requester.role not in ('student', 'captain')):
+        return Response(
+            {'detail': 'This account is no longer a student account, so it cannot become a captain.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    with transaction.atomic():
+        if decision == 'approve':
+            requester.role = 'captain'
+            requester.save(update_fields=['role'])
+            captain_request.status = 'approved'
+        else:
+            captain_request.status = 'rejected'
+            captain_request.rejection_reason = reason
+        captain_request.reviewed_by = user
+        captain_request.reviewed_at = timezone.now()
+        captain_request.save()
+
+    # Tell the requester what happened (in-app; best-effort).
+    try:
+        from apps.notifications.models import Notification
+        if decision == 'approve':
+            title = 'Captain Account Approved'
+            message = 'Your Class Captain account request has been approved. Captain features are now available.'
+        else:
+            title = 'Captain Account Request Rejected'
+            message = 'Your Class Captain account request was not approved. Your account continues as a regular student.'
+            if reason:
+                message += f' Reason: {reason}'
+        Notification.objects.create(
+            recipient=requester,
+            notification_type='account_activity',
+            title=title,
+            message=message,
+            data={'captain_request_id': str(captain_request.id), 'decision': decision},
+            status='unread',
+        )
+    except Exception as notify_err:
+        import logging
+        logging.getLogger(__name__).error("Captain request decision notification failed: %s", notify_err)
+
+    return Response(
+        {
+            'message': f"Captain request {'approved' if decision == 'approve' else 'rejected'} successfully.",
+            'request': _serialize_captain_request(captain_request),
+        },
+        status=status.HTTP_200_OK,
+    )
+
+
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
 def check_signup_request_status_view(request, username):

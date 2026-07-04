@@ -16,7 +16,7 @@ import { TeacherWelcomeCard } from '@/components/dashboard/TeacherWelcomeCard';
 import { TeacherQuickActions } from '@/components/dashboard/TeacherQuickActions';
 import { TeacherScheduleWidget } from '@/components/dashboard/TeacherScheduleWidget';
 import { TeacherStatsGrid } from '@/components/dashboard/TeacherStatsGrid';
-import { TeacherActivityFeed } from '@/components/dashboard/TeacherActivityFeed';
+import { TeacherClassStatusBox } from '@/components/dashboard/TeacherClassStatusBox';
 import { BarChart3, Users, BookOpen, Award, Loader2, AlertCircle } from 'lucide-react';
 import { AdmissionBanner, useAdmissionIncomplete, useValidProfileId } from '@/components/auth/AdmissionGuard';
 import { dashboardService, type StudentDashboardData, type TeacherDashboardData } from '@/services/dashboardService';
@@ -488,16 +488,23 @@ export function Dashboard() {
   if (user?.role === 'teacher') {
     const teacherData = dashboardData as TeacherDashboardData;
     const teacherStats = {
-      assignedClasses: teacherData.assignedClasses?.total || 0,
-      totalStudents: teacherData.students?.total || 0,
-      departments: teacherData.assignedClasses?.departments?.length || 0,
-      semesters: teacherData.assignedClasses?.semesters?.length || 0,
+      assignedClasses: teacherData?.assignedClasses?.total || 0,
+      totalStudents: teacherData?.students?.total || 0,
+      departments: teacherData?.assignedClasses?.departments?.length || 0,
+      semesters: teacherData?.assignedClasses?.semesters?.length || 0,
+      attendanceRate: teacherData?.attendance?.rate ?? null,
+      todaysClasses: teacherData?.todaysClasses ?? 0,
+      totalLectures: teacherData?.attendance?.totalLectures ?? 0,
+      averageMarksPercentage: teacherData?.performance?.averageMarksPercentage ?? null,
     };
 
     return (
       <div className="space-y-4 md:space-y-6 max-w-full overflow-x-hidden">
         {/* Teacher Welcome Card with embedded stats */}
         <TeacherWelcomeCard stats={teacherStats} />
+
+        {/* Current / Next class status with class notifications */}
+        <TeacherClassStatusBox />
 
         {/* Enhanced Stats Grid */}
         <TeacherStatsGrid stats={teacherStats} />
@@ -507,21 +514,18 @@ export function Dashboard() {
           <div className="lg:col-span-2 space-y-4 md:space-y-6">
             {/* Quick Actions for Teachers */}
             <TeacherQuickActions />
-            
+
             {/* Widgets Grid */}
             <div className="grid md:grid-cols-2 gap-4">
               <PomodoroTimer />
               <QuickNotes />
             </div>
           </div>
-          
+
           <div className="space-y-4 md:space-y-6">
             {/* Today's Schedule */}
             <TeacherScheduleWidget />
-            
-            {/* Recent Activity Feed */}
-            <TeacherActivityFeed />
-            
+
             {/* Notice Board */}
             <EnhancedNoticeBoard />
           </div>

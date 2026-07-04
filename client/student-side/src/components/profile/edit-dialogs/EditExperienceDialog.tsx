@@ -71,7 +71,7 @@ export function EditExperienceDialog({ open, onOpenChange, experience, onSave, i
               id="institution"
               value={form.institution}
               onChange={(e) => setForm({ ...form, institution: e.target.value })}
-              placeholder="e.g., Sylhet Polytechnic Institute"
+              placeholder="e.g., Sirajganj Polytechnic Institute"
             />
           </div>
           <div className="space-y-2">

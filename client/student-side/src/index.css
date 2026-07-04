@@ -374,3 +374,17 @@
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+/* Maintenance notice banner — seamless continuous scrolling marquee.
+   Content is duplicated in the markup, so translating by -50% loops gaplessly. */
+@keyframes marquee-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.marquee-content {
+  animation: marquee-scroll 18s linear infinite;
+  min-width: 100%;
+  will-change: transform;
+}
+.marquee-track:hover .marquee-content {
+  animation-play-state: paused;
+}

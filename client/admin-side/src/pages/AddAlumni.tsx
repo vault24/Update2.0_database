@@ -1,16 +1,15 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
-  GraduationCap, ArrowLeft, Loader2, Plus, Trash2, Upload, FileText, User,
-  Phone, BookOpen, Briefcase, ShieldCheck, AlertCircle, CheckCircle2,
+  GraduationCap, ArrowLeft, Loader2, FileText, User,
+  Phone, BookOpen, Briefcase, AlertCircle, CheckCircle2,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
@@ -22,11 +21,9 @@ import departmentService, { Department } from '@/services/departmentService';
 import {
   religionOptions, sscGroups, getSessionsRange, getYearsRange, districtsByDivision,
 } from '@/components/add-student/config';
+import { AlumniDocumentUpload as AlumniDocumentUploadCards, type AlumniDoc } from '@/components/alumni/AlumniDocumentUpload';
 
-interface PendingDocument extends AlumniDocumentUpload {
-  id: string;
-  categoryDisplay: string;
-}
+type PendingDocument = AlumniDoc;
 
 // Flattened, de-duplicated district list (the form has no division selector).
 const ALL_DISTRICTS = Array.from(new Set(Object.values(districtsByDivision).flat())).sort();
@@ -98,11 +95,6 @@ export default function AddAlumni() {
   const [maxDocuments, setMaxDocuments] = useState(20);
   const [documents, setDocuments] = useState<PendingDocument[]>([]);
 
-  // Document picker state
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [customName, setCustomName] = useState('');
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
-
   const [submitting, setSubmitting] = useState(false);
   const [loadingMeta, setLoadingMeta] = useState(true);
 
@@ -126,46 +118,6 @@ export default function AddAlumni() {
 
   const setField = (key: keyof typeof initialForm, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
-
-  const isCustomCategory = useMemo(
-    () => docCategories.find((c) => c.key === selectedCategory)?.isCustom ?? false,
-    [docCategories, selectedCategory],
-  );
-
-  const addDocument = () => {
-    if (!selectedCategory || !pendingFile) {
-      toast({ title: 'Select a category and a file', variant: 'destructive' });
-      return;
-    }
-    if (isCustomCategory && !customName.trim()) {
-      toast({ title: 'Enter a name for the custom document', variant: 'destructive' });
-      return;
-    }
-    if (documents.length >= maxDocuments) {
-      toast({ title: `Maximum ${maxDocuments} documents allowed`, variant: 'destructive' });
-      return;
-    }
-    const cat = docCategories.find((c) => c.key === selectedCategory);
-    setDocuments((prev) => [
-      ...prev,
-      {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        file: pendingFile,
-        category: selectedCategory,
-        customName: isCustomCategory ? customName.trim() : '',
-        categoryDisplay: isCustomCategory ? customName.trim() : cat?.display || selectedCategory,
-      },
-    ]);
-    setSelectedCategory('');
-    setCustomName('');
-    setPendingFile(null);
-    // Reset the native file input
-    const input = document.getElementById('alumni-doc-file') as HTMLInputElement | null;
-    if (input) input.value = '';
-  };
-
-  const removeDocument = (id: string) =>
-    setDocuments((prev) => prev.filter((d) => d.id !== id));
 
   const buildPayload = () => {
     const semesterResults = Object.entries(semesterGpas)
@@ -499,60 +451,13 @@ export default function AddAlumni() {
       </SectionCard>
 
       {/* Documents */}
-      <SectionCard icon={FileText} title={`Documents (${documents.length}/${maxDocuments})`}>
-        <p className="text-sm text-muted-foreground mb-4">
-          Choose a category (or "Custom Document" to name your own), pick a file, then add it. Up to {maxDocuments} documents.
-        </p>
-        <div className="flex flex-col lg:flex-row gap-3 lg:items-end p-4 rounded-lg bg-muted/40 border border-border/50">
-          <div className="space-y-1.5 flex-1">
-            <Label className="text-xs">Category</Label>
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-              <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-              <SelectContent>
-                {docCategories.map((c) => <SelectItem key={c.key} value={c.key}>{c.display}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          {isCustomCategory && (
-            <div className="space-y-1.5 flex-1">
-              <Label className="text-xs">Custom Name</Label>
-              <Input value={customName} onChange={(e) => setCustomName(e.target.value)} placeholder="e.g. Award Letter" />
-            </div>
-          )}
-          <div className="space-y-1.5 flex-1">
-            <Label className="text-xs">File</Label>
-            <Input
-              id="alumni-doc-file"
-              type="file"
-              accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-              onChange={(e) => setPendingFile(e.target.files?.[0] ?? null)}
-            />
-          </div>
-          <Button type="button" onClick={addDocument} disabled={documents.length >= maxDocuments}>
-            <Plus className="w-4 h-4 mr-1" /> Add
-          </Button>
-        </div>
-
-        {documents.length > 0 && (
-          <div className="mt-4 space-y-2">
-            {documents.map((doc) => (
-              <div key={doc.id} className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-card">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="p-2 rounded-md bg-primary/10 shrink-0">
-                    <FileText className="w-4 h-4 text-primary" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{doc.categoryDisplay}</p>
-                    <p className="text-xs text-muted-foreground truncate">{doc.file.name}</p>
-                  </div>
-                </div>
-                <Button variant="ghost" size="icon" onClick={() => removeDocument(doc.id)}>
-                  <Trash2 className="w-4 h-4 text-destructive" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
+      <SectionCard icon={FileText} title="Documents">
+        <AlumniDocumentUploadCards
+          docCategories={docCategories}
+          maxDocuments={maxDocuments}
+          documents={documents}
+          onChange={setDocuments}
+        />
       </SectionCard>
 
       {/* Actions */}

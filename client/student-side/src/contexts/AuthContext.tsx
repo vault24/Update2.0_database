@@ -19,6 +19,8 @@ interface User {
   isAlumni?: boolean;
   /** True when the account was created via the "Alumni Account" signup option. */
   isAlumniAccount?: boolean;
+  /** Review state of a submitted alumni application (null until submitted). */
+  alumniReviewStatus?: 'pending' | 'approved' | 'rejected' | null;
 }
 
 interface AuthContextType {
@@ -58,6 +60,7 @@ interface SignupData {
   password: string;
   role: UserRole;
   sscBoardRoll?: string; // For students and captains
+  shift?: string; // For captains ('Morning' | 'Day') — routes the request to the right Department Head
   fullNameBangla?: string;
   designation?: string;
   department?: string;
@@ -177,6 +180,7 @@ async function buildUserFromResponse(userData: any): Promise<User> {
     studentStatus: userData.student_status,
     isAlumni: userData.is_alumni,
     isAlumniAccount: userData.is_alumni_account,
+    alumniReviewStatus: userData.alumni_review_status ?? null,
   };
 }
 
@@ -244,6 +248,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           current.studentStatus === built.studentStatus &&
           current.isAlumni === built.isAlumni &&
           current.isAlumniAccount === built.isAlumniAccount &&
+          current.alumniReviewStatus === built.alumniReviewStatus &&
           current.name === built.name &&
           current.studentId === built.studentId;
         if (!unchanged) {
@@ -425,6 +430,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // SSC Board Roll for students and captains
     if ((data.role === 'student' || data.role === 'captain') && data.sscBoardRoll) {
       registrationData.ssc_board_roll = data.sscBoardRoll;
+    }
+
+    // Captains must say which department + shift they belong to so the request
+    // is routed to the right Department Head.
+    if (data.role === 'captain') {
+      registrationData.department = data.department && data.department !== 'none' ? data.department : null;
+      registrationData.shift = data.shift || '';
     }
 
     if (data.role === 'teacher') {

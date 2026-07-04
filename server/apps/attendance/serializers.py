@@ -69,14 +69,15 @@ class AttendanceCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = AttendanceRecord
         fields = [
-            'student', 'subject_code', 'subject_name', 'semester', 
-            'date', 'is_present', 'recorded_by', 'notes', 'status',
+            'student', 'subject_code', 'subject_name', 'semester',
+            'date', 'is_present', 'attendance_type', 'recorded_by', 'notes', 'status',
             'class_routine_id'
         ]
         extra_kwargs = {
             'recorded_by': {'required': False, 'allow_null': True},
             'notes': {'required': False, 'allow_blank': True, 'allow_null': True},
             'status': {'required': False},
+            'attendance_type': {'required': False},
         }
     
     def validate(self, attrs):

@@ -19,6 +19,8 @@ import { studentService, type Student } from '@/services/studentService';
 import { attendanceService, type AttendanceRecord, type AttendanceCreateData } from '@/services/attendanceService';
 import { routineService, type ClassRoutine, type DayOfWeek } from '@/services/routineService';
 import { getErrorMessage } from '@/lib/api';
+import { AttendanceRecordsTab } from '@/components/attendance/AttendanceRecordsTab';
+import { AttendanceAnalyticsTab } from '@/components/attendance/AttendanceAnalyticsTab';
 
 type AttendanceStatusType = 'present' | 'absent' | 'late' | 'unmarked';
 
@@ -116,7 +118,7 @@ function SwipeableStudentCard({
 
 export default function TeacherAttendancePage() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'take' | 'history' | 'pending'>('take');
+  const [activeTab, setActiveTab] = useState<'take' | 'pending' | 'records' | 'analytics'>('take');
   const [currentStep, setCurrentStep] = useState<Step>('setup');
   
   // Setup state
@@ -137,18 +139,14 @@ export default function TeacherAttendancePage() {
   const [showUnmarkedOnly, setShowUnmarkedOnly] = useState(false);
   const [lastAction, setLastAction] = useState<{ studentId: string; prevStatus: AttendanceStatusType } | null>(null);
   
-  // History & Pending
-  const [historyRecords, setHistoryRecords] = useState<AttendanceRecord[]>([]);
-  const [subjectSummary, setSubjectSummary] = useState<any[]>([]);
+  // Pending approvals
   const [pendingRecords, setPendingRecords] = useState<AttendanceRecord[]>([]);
   const [selectedSubmissionKeys, setSelectedSubmissionKeys] = useState<Set<string>>(new Set());
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
-  const [showHistoryDetail, setShowHistoryDetail] = useState<string | null>(null);
-  
+
   // Loading states
   const [loadingRoutines, setLoadingRoutines] = useState(false);
   const [loadingStudents, setLoadingStudents] = useState(false);
-  const [loadingHistory, setLoadingHistory] = useState(false);
   const [loadingPending, setLoadingPending] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [processingRecordId, setProcessingRecordId] = useState<string | null>(null);
@@ -175,9 +173,7 @@ export default function TeacherAttendancePage() {
   }, [selectedDate]);
 
   useEffect(() => {
-    if (activeTab === 'history') {
-      fetchHistory();
-    } else if (activeTab === 'pending') {
+    if (activeTab === 'pending') {
       fetchPending();
     }
   }, [activeTab]);
@@ -249,34 +245,10 @@ export default function TeacherAttendancePage() {
     }
   };
 
-  const fetchHistory = async () => {
-    try {
-      setLoadingHistory(true);
-      console.log('Fetching teacher subject summary...');
-      const response = await attendanceService.getTeacherSubjectSummary();
-      console.log('Teacher subject summary response:', response);
-      console.log('Subjects detail:', response.subjects?.map(s => ({
-        code: s.subject_code,
-        name: s.subject_name,
-        total_classes: s.total_classes,
-        students_count: s.students?.length
-      })));
-      setSubjectSummary(response.subjects || []);
-    } catch (err) {
-      console.error('Failed to load history:', err);
-      toast.error('Failed to load history', { description: getErrorMessage(err) });
-      setSubjectSummary([]);
-    } finally {
-      setLoadingHistory(false);
-    }
-  };
-
   const fetchPending = async () => {
     try {
       setLoadingPending(true);
-      console.log('Fetching pending approvals...');
       const response = await attendanceService.getPendingApprovals({});
-      console.log('Pending approvals response:', response);
       setPendingRecords(response.records || []);
       setSelectedSubmissionKeys(new Set()); // Clear selection when refreshing
     } catch (err) {
@@ -341,15 +313,36 @@ export default function TeacherAttendancePage() {
     
     try {
       setLoadingStudents(true);
-      const response = await studentService.getStudents({
+
+      // Fetch every page so large cohorts aren't cut off, and filter by the
+      // routine's shift so students from the other shift never get mixed in.
+      const baseFilters = {
         status: 'active',
         department: selectedRoutine.department.id,
         semester: selectedRoutine.semester,
+        shift: selectedRoutine.shift,
         page_size: 200,
         ordering: 'currentRollNumber',
-      });
-      
-      setStudents(response.results.map(s => ({ ...s, attendanceStatus: 'unmarked' })));
+      } as const;
+
+      let pageNum = 1;
+      let hasMore = true;
+      const allStudents: Student[] = [];
+      while (hasMore) {
+        const response = await studentService.getStudents({ ...baseFilters, page: pageNum });
+        allStudents.push(...response.results);
+        hasMore = !!response.next && allStudents.length < response.count;
+        pageNum += 1;
+      }
+
+      if (allStudents.length === 0) {
+        toast.error('No students found for this class', {
+          description: `${selectedRoutine.department.name} · Semester ${selectedRoutine.semester} · ${selectedRoutine.shift} shift`,
+        });
+        return;
+      }
+
+      setStudents(allStudents.map(s => ({ ...s, attendanceStatus: 'unmarked' })));
       setCurrentStep('marking');
     } catch (err) {
       toast.error('Failed to load students', { description: getErrorMessage(err) });
@@ -428,17 +421,13 @@ export default function TeacherAttendancePage() {
         semester: freshRoutine.semester,
         date: selectedDate,
         isPresent: student.attendanceStatus === 'present' || student.attendanceStatus === 'late',
+        attendanceType: student.attendanceStatus === 'unmarked' ? 'absent' : student.attendanceStatus,
         status: 'direct',
         classRoutineId: freshRoutine.id,
         recordedBy: user?.id,
       }));
 
-      console.log('Submitting attendance:', { records, classRoutineId: freshRoutine.id });
-      console.log('User ID:', user?.id);
-      console.log('First record sample:', records[0]);
-
       const response = await attendanceService.bulkMarkAttendance({ records, classRoutineId: freshRoutine.id });
-      console.log('Attendance submission response:', response);
 
       const totalRecords = records.length;
       const savedRecords = response?.created ?? 0;
@@ -463,9 +452,6 @@ export default function TeacherAttendancePage() {
       setCurrentStep('setup');
       setStudents([]);
       setSelectedRoutine(null);
-      
-      // Refresh history data first (this is the most important)
-      await fetchHistory();
 
       // Refresh completed status from server
       await fetchTodayRoutines();
@@ -487,7 +473,6 @@ export default function TeacherAttendancePage() {
   const handleApprove = async (recordIds: string[]) => {
     try {
       setProcessingRecordId(recordIds[0]);
-      console.log('Approving records:', recordIds);
       await attendanceService.approveAttendance({ action: 'approve', attendanceIds: recordIds });
       toast.success(`${recordIds.length} attendance record(s) approved successfully`);
       fetchPending();
@@ -502,7 +487,6 @@ export default function TeacherAttendancePage() {
   const handleReject = async (recordIds: string[], reason: string) => {
     try {
       setProcessingRecordId(recordIds[0]);
-      console.log('Rejecting records:', recordIds, 'Reason:', reason);
       await attendanceService.approveAttendance({ action: 'reject', attendanceIds: recordIds, rejectionReason: reason });
       toast.success(`${recordIds.length} attendance record(s) rejected successfully`);
       fetchPending();
@@ -578,8 +562,8 @@ export default function TeacherAttendancePage() {
           <ClipboardCheck className="w-7 h-7 text-primary" />
         </div>
         <div className="flex-1">
-          <h1 className="text-xl md:text-2xl font-bold">Take Attendance (Teacher)</h1>
-          <p className="text-sm text-muted-foreground">Direct entry or approve captain submissions</p>
+          <h1 className="text-xl md:text-2xl font-bold">Manage Attendance</h1>
+          <p className="text-sm text-muted-foreground">Take attendance, review records, analyze and export</p>
         </div>
         {currentStep === 'marking' && (
           <div className="text-right">
@@ -590,13 +574,20 @@ export default function TeacherAttendancePage() {
       </motion.div>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-        <TabsList className="w-full grid grid-cols-3 h-12">
-          <TabsTrigger value="take" className="gap-2 h-10"><ClipboardCheck className="w-4 h-4" />Take</TabsTrigger>
-          <TabsTrigger value="pending" className="gap-2 h-10">
-            <AlertCircle className="w-4 h-4" />Pending
-            {groupedPendingSubmissions.length > 0 && <Badge variant="destructive" className="ml-1">{groupedPendingSubmissions.length}</Badge>}
+        <TabsList className="w-full grid grid-cols-4 h-12">
+          <TabsTrigger value="take" className="gap-1.5 h-10 px-1.5 md:px-3">
+            <ClipboardCheck className="w-4 h-4 flex-shrink-0" /><span className="truncate">Take</span>
           </TabsTrigger>
-          <TabsTrigger value="history" className="gap-2 h-10"><History className="w-4 h-4" />History</TabsTrigger>
+          <TabsTrigger value="pending" className="gap-1.5 h-10 px-1.5 md:px-3">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" /><span className="truncate">Pending</span>
+            {groupedPendingSubmissions.length > 0 && <Badge variant="destructive" className="ml-0.5 px-1.5">{groupedPendingSubmissions.length}</Badge>}
+          </TabsTrigger>
+          <TabsTrigger value="records" className="gap-1.5 h-10 px-1.5 md:px-3">
+            <Eye className="w-4 h-4 flex-shrink-0" /><span className="truncate">Records</span>
+          </TabsTrigger>
+          <TabsTrigger value="analytics" className="gap-1.5 h-10 px-1.5 md:px-3">
+            <BarChart3 className="w-4 h-4 flex-shrink-0" /><span className="truncate">Analytics</span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="take" className="mt-4">
@@ -1129,178 +1120,14 @@ export default function TeacherAttendancePage() {
           )}
         </TabsContent>
 
-        <TabsContent value="history" className="mt-4">
-          {loadingHistory ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            </div>
-          ) : subjectSummary.length === 0 ? (
-            <div className="bg-card rounded-2xl border border-border p-12 text-center">
-              <History className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-              <p className="font-semibold mb-1">No History</p>
-              <p className="text-sm text-muted-foreground">Your attendance history will appear here</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {subjectSummary.map((subject, index) => (
-                <motion.div
-                  key={`${subject.subject_code}-${subject.department}-${subject.semester}-${subject.shift}-${subject.session || ''}-${index}`}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="bg-card rounded-2xl border border-border overflow-hidden shadow-card"
-                >
-                  {/* Subject Header */}
-                  <div className="bg-gradient-to-r from-primary/10 to-primary/5 p-4 border-b border-border">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="font-bold text-lg">{subject.subject_name}</h3>
-                        <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <BookOpen className="w-3.5 h-3.5" />
-                            {subject.subject_code}
-                          </span>
-                          <span>•</span>
-                          <span>{subject.department}</span>
-                          <span>•</span>
-                          <span>Semester {subject.semester}</span>
-                          <span>•</span>
-                          <span>{subject.shift}</span>
-                          {subject.session && (
-                            <>
-                              <span>-</span>
-                              <span>{subject.session}</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-2xl font-bold text-primary">{subject.total_classes}</div>
-                        <div className="text-xs text-muted-foreground">Total Classes</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Student Attendance Table */}
-                  {(subject.students || []).length === 0 ? (
-                    <div className="p-8 text-center text-muted-foreground">
-                      <Users className="w-12 h-12 mx-auto mb-2 opacity-40" />
-                      <p>No attendance records yet</p>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead className="bg-secondary/50">
-                          <tr>
-                            <th className="text-left p-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                              Roll
-                            </th>
-                            <th className="text-left p-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                              Student Name
-                            </th>
-                            <th className="text-center p-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                              Present
-                            </th>
-                            <th className="text-center p-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                              Absent
-                            </th>
-                            <th className="text-center p-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                              Total
-                            </th>
-                            <th className="text-center p-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                              Percentage
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border">
-                          {(subject.students || []).map((student: any, idx: number) => {
-                            const percentageColor = 
-                              student.percentage >= 75 ? 'text-success' :
-                              student.percentage >= 60 ? 'text-warning' :
-                              'text-destructive';
-                            
-                            return (
-                              <motion.tr
-                                key={student.student_id}
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                transition={{ delay: idx * 0.01 }}
-                                className="hover:bg-secondary/30 transition-colors"
-                              >
-                                <td className="p-3">
-                                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
-                                    {student.student_roll}
-                                  </div>
-                                </td>
-                                <td className="p-3">
-                                  <p className="font-medium">{student.student_name}</p>
-                                </td>
-                                <td className="p-3 text-center">
-                                  <div className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-success/10 text-success font-semibold">
-                                    <CheckCircle2 className="w-3.5 h-3.5" />
-                                    {student.present}
-                                  </div>
-                                </td>
-                                <td className="p-3 text-center">
-                                  <div className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-destructive/10 text-destructive font-semibold">
-                                    <X className="w-3.5 h-3.5" />
-                                    {student.absent}
-                                  </div>
-                                </td>
-                                <td className="p-3 text-center">
-                                  <span className="font-semibold">{student.total}</span>
-                                  <span className="text-muted-foreground text-sm"> / {subject.total_classes}</span>
-                                </td>
-                                <td className="p-3 text-center">
-                                  <div className="flex items-center justify-center gap-2">
-                                    <div className="w-16 h-2 bg-secondary rounded-full overflow-hidden">
-                                      <div
-                                        className={cn("h-full transition-all", 
-                                          student.percentage >= 75 ? 'bg-success' :
-                                          student.percentage >= 60 ? 'bg-warning' :
-                                          'bg-destructive'
-                                        )}
-                                        style={{ width: `${student.percentage}%` }}
-                                      />
-                                    </div>
-                                    <span className={cn("font-bold text-sm", percentageColor)}>
-                                      {student.percentage}%
-                                    </span>
-                                  </div>
-                                </td>
-                              </motion.tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
-                  {/* Summary Footer */}
-                  {subject.students.length > 0 && (
-                    <div className="bg-secondary/30 p-3 border-t border-border">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">
-                          Total Students: <span className="font-semibold text-foreground">{subject.students.length}</span>
-                        </span>
-                        <span className="text-muted-foreground">
-                          Average Attendance: <span className="font-semibold text-foreground">
-                            {subject.students.length > 0
-                              ? Math.round(
-                                  subject.students.reduce((sum: number, s: any) => sum + s.percentage, 0) /
-                                  subject.students.length
-                                )
-                              : 0}%
-                          </span>
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </motion.div>
-              ))}
-            </div>
-          )}
+        <TabsContent value="records" className="mt-4">
+          <AttendanceRecordsTab />
         </TabsContent>
+
+        <TabsContent value="analytics" className="mt-4">
+          <AttendanceAnalyticsTab />
+        </TabsContent>
+
       </Tabs>
     </div>
   );

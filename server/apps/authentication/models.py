@@ -370,6 +370,86 @@ class SignupRequest(models.Model):
         return f"{self.username} - {self.get_status_display()}"
 
 
+class CaptainAccountRequest(models.Model):
+    """
+    A student's request to become a Class Captain.
+
+    Created at signup when the person registers as a Captain. The account is
+    created as a regular student and is upgraded to the captain role only after
+    the Department Head responsible for the request's department + shift
+    approves it.
+    """
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+
+    # Shifts use the student-side vocabulary (Morning = 1st shift, Day = 2nd).
+    SHIFT_CHOICES = [
+        ('Morning', 'Morning'),
+        ('Day', 'Day'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='captain_requests'
+    )
+    department = models.ForeignKey(
+        'departments.Department',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='captain_requests'
+    )
+    shift = models.CharField(max_length=20, choices=SHIFT_CHOICES)
+
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    reviewed_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='reviewed_captain_requests'
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'auth_captain_account_request'
+        ordering = ['-created_at']
+        verbose_name = 'Captain Account Request'
+        verbose_name_plural = 'Captain Account Requests'
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['department', 'shift', 'status']),
+        ]
+
+    def __str__(self):
+        return f"Captain request: {self.user.username} ({self.get_status_display()})"
+
+    # Map the student-side shift vocabulary to the Department Head account's
+    # shift field ('1st_shift' / '2nd_shift') for routing.
+    SHIFT_TO_HEAD_SHIFT = {'Morning': '1st_shift', 'Day': '2nd_shift'}
+
+    def matching_department_heads(self):
+        """Department Head accounts responsible for this request's dept + shift.
+        Falls back to every head of the department when no head matches the
+        exact shift, so requests are never silently lost."""
+        if not self.department_id:
+            return User.objects.none()
+        heads = User.objects.filter(
+            role='department_head', is_active=True, department_id=self.department_id
+        )
+        shift_scoped = heads.filter(shift=self.SHIFT_TO_HEAD_SHIFT.get(self.shift, ''))
+        return shift_scoped if shift_scoped.exists() else heads
+
+
 class OTPToken(models.Model):
     """
     Model to store OTP tokens for password reset functionality

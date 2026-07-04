@@ -15,6 +15,10 @@ class Department(models.Model):
     head = models.CharField(max_length=255, blank=True, null=True)
     established_year = models.CharField(max_length=4, blank=True, null=True)
     photo = models.ImageField(upload_to='departments/', blank=True, null=True)
+    # When enabled, teacher-taken attendance automatically syncs into each
+    # student's profile attendance (semesterAttendance), and routine subjects
+    # auto-appear there. When disabled, the manual admin workflow is unchanged.
+    autoAttendanceSync = models.BooleanField(default=False)
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
 

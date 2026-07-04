@@ -937,7 +937,13 @@ export default function ManageMarksPage() {
       s.percentage.toFixed(2) + '%'
     ]);
     
-    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const escapeCsv = (value: unknown) => {
+      const str = String(value ?? '');
+      return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+    };
+    const csvContent = [headers, ...rows]
+      .map(r => r.map(escapeCsv).join(','))
+      .join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -978,42 +984,33 @@ export default function ManageMarksPage() {
         });
       });
       
-      console.log('Saving marks:', marksToSave.length, 'records');
-      
-      const savePromises = marksToSave.map(mark => {
-        if (mark.id) {
-          // Update existing mark
-          return marksService.updateMarks(mark.id, { 
-            marks_obtained: mark.marks_obtained, 
-            total_marks: mark.total_marks,
-            remarks: mark.remarks 
-          }).catch(err => {
-            console.error('Failed to update mark:', mark.id, err);
-            throw err;
-          });
-        } else {
-          // Create new mark
-          return marksService.createMarks({
-            student: mark.student,
-            subject_code: mark.subject_code,
-            subject_name: mark.subject_name,
-            semester: mark.semester,
-            exam_type: mark.exam_type,
-            marks_obtained: mark.marks_obtained,
-            total_marks: mark.total_marks,
-            remarks: mark.remarks
-          }).catch(err => {
-            console.error('Failed to create mark:', mark, err);
-            throw err;
-          });
-        }
-      });
-      
-      await Promise.all(savePromises);
-      
-      console.log('All marks saved successfully');
-      toast.success('All marks saved successfully!');
-      setHasChanges(false);
+      if (marksToSave.length === 0) {
+        toast.info('No marks to save');
+        return;
+      }
+
+      // Client-side validation before hitting the API.
+      const invalid = marksToSave.filter(m => m.marks_obtained < 0 || m.marks_obtained > m.total_marks);
+      if (invalid.length > 0) {
+        const first = invalid[0];
+        const student = students.find(s => s.studentId === first.student);
+        toast.error('Invalid marks found', {
+          description: `${student?.studentName || 'A student'} has ${first.marks_obtained} in "${first.remarks}" (max ${first.total_marks}). Fix highlighted values before saving.`,
+        });
+        return;
+      }
+
+      // Single bulk request instead of one request per cell.
+      const response = await marksService.bulkUpsertMarks(marksToSave);
+
+      if (response.errors && response.errors.length > 0) {
+        toast.error(`Saved ${response.saved} records, ${response.errors.length} failed`, {
+          description: response.errors[0]?.error || 'Please review and retry.',
+        });
+      } else {
+        toast.success(`All marks saved successfully! (${response.saved} records)`);
+        setHasChanges(false);
+      }
       await fetchMarks();
     } catch (err) {
       const errorMsg = getErrorMessage(err);
@@ -1543,19 +1540,29 @@ export default function ManageMarksPage() {
                         </div>
                       </div>
                     </TableCell>
-                    {markColumns.map(col => (
-                      <TableCell key={col.id} className="text-center p-2">
-                        <Input
-                          type="number"
-                          min="0"
-                          max={col.maxMarks}
-                          value={student.customMarks[col.id] ?? ''}
-                          onChange={(e) => handleMarkChange(student.studentId, col.id, e.target.value)}
-                          className="w-14 h-8 text-center text-sm mx-auto"
-                          placeholder="-"
-                        />
-                      </TableCell>
-                    ))}
+                    {markColumns.map(col => {
+                      const cellValue = student.customMarks[col.id];
+                      const isInvalid = cellValue !== null && cellValue !== undefined &&
+                        (cellValue < 0 || cellValue > col.maxMarks);
+                      return (
+                        <TableCell key={col.id} className="text-center p-2">
+                          <Input
+                            type="number"
+                            min="0"
+                            max={col.maxMarks}
+                            value={cellValue ?? ''}
+                            onChange={(e) => handleMarkChange(student.studentId, col.id, e.target.value)}
+                            title={isInvalid ? `Must be between 0 and ${col.maxMarks}` : undefined}
+                            className={`w-14 h-8 text-center text-sm mx-auto ${
+                              isInvalid
+                                ? 'border-destructive bg-destructive/10 text-destructive focus-visible:ring-destructive'
+                                : ''
+                            }`}
+                            placeholder="-"
+                          />
+                        </TableCell>
+                      );
+                    })}
                     <TableCell className="text-center p-2 bg-primary/10">
                       <span className="font-bold text-base text-primary">{Number(student.total).toFixed(2)}</span>
                     </TableCell>

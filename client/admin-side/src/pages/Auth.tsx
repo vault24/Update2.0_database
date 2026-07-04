@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import signupRequestService from '@/services/signupRequestService';
+import { OTPVerificationForm } from '@/components/auth/OTPVerificationForm';
 import { API_BASE_URL } from '@/config/api';
 
 interface DepartmentOption {
@@ -157,10 +158,10 @@ export default function Auth() {
 
   // Live username availability ('idle' | 'checking' | 'available' | 'taken')
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
-  // Email verification (code sent to the requester's email before submitting)
-  const [verificationCode, setVerificationCode] = useState('');
-  const [codeSent, setCodeSent] = useState(false);
-  const [sendingCode, setSendingCode] = useState(false);
+  // Two-step sign-up: step 1 fills the info, step 2 verifies the emailed OTP.
+  const [signupOtpStep, setSignupOtpStep] = useState(false);
+  const [signupOtpError, setSignupOtpError] = useState<string | undefined>();
+  const [submittingSignup, setSubmittingSignup] = useState(false);
 
   // Debounced username availability check while signing up.
   useEffect(() => {
@@ -182,22 +183,46 @@ export default function Auth() {
     return () => clearTimeout(t);
   }, [formData.username, isLogin]);
 
-  const handleSendCode = async () => {
-    if (!formData.email) {
-      toast({ title: 'Enter your email first', variant: 'destructive' });
-      return;
-    }
-    setSendingCode(true);
+  // Build the createSignupRequest payload from the current form (shared by
+  // the OTP verify + resend handlers).
+  const buildSignupPayload = (verificationCode?: string) => ({
+    username: formData.username,
+    email: formData.email,
+    first_name: formData.firstName,
+    last_name: formData.lastName,
+    mobile_number: formData.mobileNumber,
+    requested_role: formData.requestedRole,
+    department: formData.requestedRole === 'department_head' ? formData.department : undefined,
+    shift: formData.requestedRole === 'department_head' ? (formData.shift || undefined) : undefined,
+    password: formData.password,
+    password_confirm: formData.confirmPassword,
+    ...(verificationCode ? { verification_code: verificationCode } : {}),
+  });
+
+  // Step 2 of sign-up: verify the emailed OTP and submit the signup request.
+  const handleVerifySignupOtp = async (otp: string) => {
+    setSubmittingSignup(true);
+    setSignupOtpError(undefined);
     try {
-      await signupRequestService.sendSignupCode(formData.email, formData.firstName);
-      setCodeSent(true);
-      toast({ title: 'Verification code sent', description: `Check ${formData.email} for a 6-digit code.` });
+      await signupRequestService.createSignupRequest(buildSignupPayload(otp));
+      setSignupOtpStep(false);
+      setSignupRequestSubmitted(true);
+      toast({
+        title: 'Signup Request Submitted!',
+        description: 'Your request is pending approval from an administrator.',
+      });
     } catch (err: any) {
-      const msg = err?.details?.email?.[0] || err?.message || 'Could not send the code.';
-      toast({ title: 'Failed to send code', description: msg, variant: 'destructive' });
+      const msg = err?.details?.verification_code?.[0] || err?.message || 'The code is incorrect or has expired.';
+      setSignupOtpError(msg);
+      throw err;
     } finally {
-      setSendingCode(false);
+      setSubmittingSignup(false);
     }
+  };
+
+  // Resend the sign-up verification code (used from the OTP step).
+  const handleResendSignupCode = async () => {
+    await signupRequestService.sendSignupCode(formData.email, formData.firstName);
   };
 
   // Load departments (needed for Department Head signup requests)
@@ -273,36 +298,17 @@ export default function Auth() {
           setIsLoading(false);
           return;
         }
-        if (!verificationCode.trim()) {
-          toast({
-            title: "Verify your email",
-            description: codeSent ? "Enter the code we emailed you." : "Click \"Send code\" and enter the code we email you.",
-            variant: "destructive",
-          });
-          setIsLoading(false);
-          return;
-        }
 
-        // Submit signup request
-        await signupRequestService.createSignupRequest({
-          username: formData.username,
-          email: formData.email,
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          mobile_number: formData.mobileNumber,
-          requested_role: formData.requestedRole,
-          department: formData.requestedRole === 'department_head' ? formData.department : undefined,
-          shift: formData.requestedRole === 'department_head' ? (formData.shift || undefined) : undefined,
-          password: formData.password,
-          password_confirm: formData.confirmPassword,
-          verification_code: verificationCode.trim(),
-        });
-
-        setSignupRequestSubmitted(true);
+        // Step 1 complete — email a verification code, then move to the OTP step.
+        await signupRequestService.sendSignupCode(formData.email, formData.firstName);
+        setSignupOtpError(undefined);
+        setSignupOtpStep(true);
         toast({
-          title: "Signup Request Submitted!",
-          description: "Your request is pending approval from an administrator.",
+          title: "Verify your email",
+          description: `We've sent a 6-digit code to ${formData.email}.`,
         });
+        setIsLoading(false);
+        return;
       } else {
         // Login logic
         try {
@@ -373,12 +379,29 @@ export default function Auth() {
       console.error('Auth error:', error);
       let errorMessage = "An error occurred. Please try again.";
 
+      // Field-level validation errors (e.g. { email: ["This email is already
+      // registered."] }) may arrive either nested under `details` or as the
+      // thrown object itself (DRF serializer errors). Surface them plainly.
+      const fieldErrorSource =
+        error?.details && typeof error.details === 'object' && !Array.isArray(error.details)
+          ? (error.details as Record<string, unknown>)
+          : error && typeof error === 'object' && !error.error && !error.message && !error.detail
+            ? (error as Record<string, unknown>)
+            : null;
+      const fieldErrors = fieldErrorSource
+        ? Object.values(fieldErrorSource)
+            .flat()
+            .filter((v): v is string => typeof v === 'string')
+        : [];
+
       // Handle different error formats
-      if (error.message) {
+      if (fieldErrors.length > 0) {
+        errorMessage = fieldErrors.join(' ');
+      } else if (error.message) {
         errorMessage = error.message;
       } else if (error.error) {
         // ApiError format from apiClient
-        errorMessage = error.details || error.error;
+        errorMessage = typeof error.details === 'string' ? error.details : error.error;
       } else if (error.response?.data) {
         const data = error.response.data;
         errorMessage = data.message || data.detail || data.error || data.details || JSON.stringify(data);
@@ -471,6 +494,28 @@ export default function Auth() {
     );
   }
 
+  // Sign-up step 2 — email OTP verification (info was filled in step 1).
+  if (signupOtpStep) {
+    return (
+      <PageChrome>
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-card relative z-10 w-full max-w-md rounded-3xl border border-white/20 bg-card/90 p-6 shadow-2xl sm:p-8"
+        >
+          <OTPVerificationForm
+            email={formData.email}
+            onSubmit={handleVerifySignupOtp}
+            onBack={() => { setSignupOtpStep(false); setSignupOtpError(undefined); }}
+            onResend={handleResendSignupCode}
+            loading={submittingSignup}
+            error={signupOtpError}
+          />
+        </motion.div>
+      </PageChrome>
+    );
+  }
+
   return (
     <PageChrome>
       <motion.div
@@ -526,8 +571,8 @@ export default function Auth() {
               onClick={() => {
                 setSignupRequestSubmitted(false);
                 setIsLogin(true);
-                setVerificationCode('');
-                setCodeSent(false);
+                setSignupOtpStep(false);
+                setSignupOtpError(undefined);
                 setUsernameStatus('idle');
                 setFormData({
                   username: '',
@@ -737,38 +782,6 @@ export default function Auth() {
               </div>
             </div>
 
-            {!isLogin && (
-              <div className="space-y-2">
-                <Label htmlFor="verificationCode">Email Verification</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="verificationCode"
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={6}
-                    placeholder="6-digit code"
-                    value={verificationCode}
-                    onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))}
-                    disabled={!codeSent}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="shrink-0"
-                    onClick={handleSendCode}
-                    disabled={sendingCode || !formData.email}
-                  >
-                    {sendingCode ? 'Sending…' : codeSent ? 'Resend code' : 'Send code'}
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {codeSent
-                    ? `Enter the code we emailed to ${formData.email}.`
-                    : 'We will email a code to verify your address before submitting.'}
-                </p>
-              </div>
-            )}
-
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <div className="relative">
@@ -861,7 +874,7 @@ export default function Auth() {
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  {isLogin ? 'Sign In' : 'Submit Signup Request'}
+                  {isLogin ? 'Sign In' : 'Continue'}
                   <ArrowRight className="h-4 w-4" />
                 </div>
               )}

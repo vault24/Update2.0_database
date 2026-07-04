@@ -8,6 +8,8 @@ export interface SystemSettings {
   institute_address: string;
   institute_phone: string;
   institute_email: string;
+  maintenance_notice_enabled?: boolean;
+  maintenance_notice_text?: string;
   updated_at: string;
 }
 

@@ -53,7 +53,7 @@ const mainMenuItems: MenuItem[] = [
   { icon: Phone, label: 'Teacher Contacts', path: '/dashboard/teacher-contacts', roles: ['captain'] },
   // Teacher-specific
   { icon: Users, label: 'Student List', path: '/dashboard/students', roles: ['teacher'] },
-  { icon: ClipboardCheck, label: 'Take Attendance', path: '/dashboard/teacher-attendance', roles: ['teacher'] },
+  { icon: ClipboardCheck, label: 'Manage Attendance', path: '/dashboard/teacher-attendance', roles: ['teacher'] },
   { icon: BookOpen, label: 'Manage Marks', path: '/dashboard/manage-marks', roles: ['teacher'] },
   { icon: Shield, label: 'Allegations', path: '/dashboard/allegations', roles: ['teacher'] },
 ];

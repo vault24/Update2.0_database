@@ -99,7 +99,7 @@ export function EditProfileHeaderDialog({ open, onOpenChange, data, onSave }: Ed
               id="university"
               value={form.university}
               onChange={(e) => setForm({ ...form, university: e.target.value })}
-              placeholder="Sylhet Polytechnic Institute"
+              placeholder="Sirajganj Polytechnic Institute"
             />
           </div>
           <div className="space-y-2">

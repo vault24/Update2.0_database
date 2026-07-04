@@ -33,10 +33,16 @@ class SystemSettings(models.Model):
     institute_email = models.EmailField(blank=True)
     institute_logo = models.ImageField(upload_to='institute/', null=True, blank=True)
     
-    # Maintenance Mode
+    # Maintenance Mode (takes the whole system offline)
     maintenance_mode = models.BooleanField(default=False)
     maintenance_message = models.TextField(blank=True)
-    
+
+    # Maintenance Notice Banner — a scrolling notice shown under the top bar to
+    # every user while the site stays fully usable (distinct from the offline
+    # maintenance_mode above).
+    maintenance_notice_enabled = models.BooleanField(default=False)
+    maintenance_notice_text = models.TextField(blank=True)
+
     # Timestamps
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(

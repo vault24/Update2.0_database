@@ -19,6 +19,7 @@ export interface Department {
   total_students: number;
   active_students: number;
   faculty_count: number;
+  autoAttendanceSync?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -107,6 +108,15 @@ class DepartmentService {
    */
   async deleteDepartment(id: string): Promise<void> {
     return await apiClient.delete<void>(`${this.baseURL}/${id}/`);
+  }
+
+  /**
+   * Toggle automatic teacher→student attendance synchronization
+   */
+  async setAutoAttendanceSync(id: string, enabled: boolean): Promise<Department> {
+    return await apiClient.patch<Department>(`${this.baseURL}/${id}/`, {
+      autoAttendanceSync: enabled,
+    });
   }
 
   /**
