@@ -9,7 +9,7 @@ import {
   Smartphone, Mail, MessageSquare, Shield,
   Key, Eye, EyeOff, Loader2, Check, UserCog, LogOut, Link2,
   Facebook, Twitter, Linkedin, Github, Instagram, Globe2, Plus, Trash2,
-  ArrowRightLeft, AlertCircle
+  ArrowRightLeft, AlertCircle, AlertTriangle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -128,6 +128,15 @@ export default function SettingsPage() {
 
   // Logout from all devices
   const [loggingOutAll, setLoggingOutAll] = useState(false);
+
+  // Account deletion (password + OTP)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [showDeletePassword, setShowDeletePassword] = useState(false);
+  const [deleteOtp, setDeleteOtp] = useState('');
+  const [deleteOtpSent, setDeleteOtpSent] = useState(false);
+  const [sendingDeleteOtp, setSendingDeleteOtp] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   // Social links
   const [socialLinks, setSocialLinks] = useState<SocialLink[]>([]);
@@ -369,6 +378,67 @@ export default function SettingsPage() {
       toast.error(errorMsg || 'Failed to save links');
     } finally {
       setSavingSocialLinks(false);
+    }
+  };
+
+  // Deletion is only possible while the account is still "unfinished":
+  // a student who hasn't completed admission, or an alumni account whose
+  // application has not been approved. (The server enforces this too.)
+  const canDeleteAccount =
+    (user?.role === 'student' || user?.role === 'captain') &&
+    (user?.isAlumniAccount
+      ? user?.alumniReviewStatus !== 'approved'
+      : user?.admissionStatus !== 'approved');
+
+  const resetDeleteDialog = () => {
+    setDeletePassword('');
+    setDeleteOtp('');
+    setDeleteOtpSent(false);
+    setSendingDeleteOtp(false);
+    setDeletingAccount(false);
+  };
+
+  const handleSendDeleteOtp = async () => {
+    setSendingDeleteOtp(true);
+    try {
+      await api.post('/auth/account/send-otp/', { action: 'delete' });
+      setDeleteOtpSent(true);
+      toast.success('A verification code was sent to your email.');
+    } catch (error) {
+      toast.error(getErrorMessage(error) || 'Failed to send verification code');
+    } finally {
+      setSendingDeleteOtp(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!deletePassword) {
+      toast.error('Please enter your password');
+      return;
+    }
+    if (deleteOtp.trim().length !== 6) {
+      toast.error('Please enter the 6-digit verification code');
+      return;
+    }
+    setDeletingAccount(true);
+    try {
+      await api.post('/auth/account/delete/', {
+        password: deletePassword,
+        otp: deleteOtp.trim(),
+      });
+      toast.success('Your account has been deleted.');
+      setDeleteDialogOpen(false);
+      logout();
+    } catch (error: any) {
+      if (error?.password) {
+        toast.error(Array.isArray(error.password) ? error.password[0] : error.password);
+      } else if (error?.otp) {
+        toast.error(Array.isArray(error.otp) ? error.otp[0] : error.otp);
+      } else {
+        toast.error(getErrorMessage(error) || 'Failed to delete account');
+      }
+    } finally {
+      setDeletingAccount(false);
     }
   };
 
@@ -1123,6 +1193,140 @@ export default function SettingsPage() {
             </Select>
           </div>
         </motion.div>
+
+        {/* Danger Zone — account deletion (only while the account is still "unfinished") */}
+        {canDeleteAccount && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.45 }}
+            className="bg-card rounded-xl border border-destructive/40 p-4 sm:p-6 shadow-card"
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-lg bg-destructive/10 flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-destructive" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-destructive">Danger Zone</h3>
+                <p className="text-sm text-muted-foreground">Permanently delete this account</p>
+              </div>
+            </div>
+
+            <Separator className="my-4" />
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <p className="font-medium">Delete Account</p>
+                <p className="text-sm text-muted-foreground">
+                  {user?.isAlumniAccount
+                    ? 'Your alumni application has not been approved yet, so this account can still be deleted.'
+                    : 'Your admission is not complete yet, so this account can still be deleted.'}{' '}
+                  This cannot be undone.
+                </p>
+              </div>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="shrink-0"
+                onClick={() => { resetDeleteDialog(); setDeleteDialogOpen(true); }}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete Account
+              </Button>
+            </div>
+
+            <Dialog
+              open={deleteDialogOpen}
+              onOpenChange={(open) => { if (!open) resetDeleteDialog(); setDeleteDialogOpen(open); }}
+            >
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="text-destructive flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5" />
+                    Delete your account?
+                  </DialogTitle>
+                  <DialogDescription>
+                    This permanently removes your account and any submitted information.
+                    Confirm with your password and the verification code emailed to{' '}
+                    <span className="font-medium text-foreground">{user?.email}</span>.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 py-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="delete-password">Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="delete-password"
+                        type={showDeletePassword ? 'text' : 'password'}
+                        value={deletePassword}
+                        onChange={(e) => setDeletePassword(e.target.value)}
+                        placeholder="Enter your password"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-0 top-0 h-full px-3"
+                        onClick={() => setShowDeletePassword((v) => !v)}
+                      >
+                        {showDeletePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="delete-otp">Email verification code</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="delete-otp"
+                        inputMode="numeric"
+                        maxLength={6}
+                        placeholder="6-digit code"
+                        value={deleteOtp}
+                        onChange={(e) => setDeleteOtp(e.target.value.replace(/\D/g, ''))}
+                        className="text-center tracking-[0.3em] font-semibold"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleSendDeleteOtp}
+                        disabled={sendingDeleteOtp}
+                        className="shrink-0"
+                      >
+                        {sendingDeleteOtp ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : deleteOtpSent ? 'Resend code' : 'Send code'}
+                      </Button>
+                    </div>
+                    {deleteOtpSent && (
+                      <p className="text-xs text-muted-foreground">
+                        Code sent — check your inbox (valid for a few minutes).
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={deletingAccount}>
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={handleDeleteAccount}
+                    disabled={deletingAccount || !deletePassword || deleteOtp.trim().length !== 6}
+                  >
+                    {deletingAccount ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Deleting…</>
+                    ) : (
+                      <><Trash2 className="w-4 h-4 mr-2" /> Delete permanently</>
+                    )}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </motion.div>
+        )}
       </div>
     </div>
   );

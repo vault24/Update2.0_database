@@ -21,6 +21,8 @@ import {
 import departmentService, { type Department } from '@/services/departmentService';
 import { teacherService, type Teacher } from '@/services/teacherService';
 import { getErrorMessage } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
+import { useUnsavedChangesGuard, UnsavedChangesDialog } from '@/hooks/useUnsavedChangesGuard';
 
 type RoutineViewMode = 'student' | 'teacher';
 
@@ -77,13 +79,22 @@ const subjectColors: Record<string, string> = {
 };
 
 export default function ClassRoutine() {
+  const { user } = useAuth();
+  // Department Heads default to their own department + shift.
+  const isDeptHead = user?.role === 'department_head';
+  const headDefaultShift: Shift = user?.shift === '2nd_shift' ? 'Day' : 'Morning';
+
   const [viewMode, setViewMode] = useState<RoutineViewMode>('student');
   const [departments, setDepartments] = useState<Department[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [selectedTeacher, setSelectedTeacher] = useState('');
   const [department, setDepartment] = useState('');
   const [semester, setSemester] = useState(4);
-  const [shift, setShift] = useState<Shift>('Morning');
+  const [shift, setShift] = useState<Shift>(isDeptHead ? headDefaultShift : 'Morning');
+  // Tracks edits to the routine grid that have not been saved yet — used to
+  // warn before navigating away (professional-editor style protection).
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const unsavedGuard = useUnsavedChangesGuard(hasUnsavedChanges);
   const [session, setSession] = useState('2024-25');
   const [routineGrid, setRoutineGrid] = useState<RoutineGridData>(() => buildEmptyGrid(timeSlotsByShift['Morning']));
   const [routineData, setRoutineData] = useState<ClassRoutine[]>([]);
@@ -135,7 +146,13 @@ export default function ClassRoutine() {
         ]);
         setDepartments(deptResponse.results);
         setTeachers(teacherResponse.results);
-        if (deptResponse.results.length > 0) {
+        // Department Heads land on their own department's routine by default.
+        const headDept = isDeptHead && user?.department
+          ? deptResponse.results.find((d) => String(d.id) === String(user.department))
+          : undefined;
+        if (headDept) {
+          setDepartment(headDept.id);
+        } else if (deptResponse.results.length > 0) {
           setDepartment(deptResponse.results[0].id);
         }
         if (teacherResponse.results.length > 0) {
@@ -490,7 +507,8 @@ export default function ClassRoutine() {
     
     setIsAddDialogOpen(false);
     setSlotFormErrors({});
-    toast({ title: "Slot Updated", description: "Class routine has been updated." });
+    setHasUnsavedChanges(true);
+    toast({ title: "Slot Updated", description: "Remember to save your changes before leaving." });
   };
 
   const handleDeleteSlot = () => {
@@ -504,7 +522,8 @@ export default function ClassRoutine() {
       }
     }));
     setIsAddDialogOpen(false);
-    toast({ title: "Slot Removed", description: "The class has been removed from the routine." });
+    setHasUnsavedChanges(true);
+    toast({ title: "Slot Removed", description: "Remember to save your changes before leaving." });
   };
 
   const handleRetryFetch = async () => {
@@ -599,6 +618,9 @@ export default function ClassRoutine() {
         await fetchTeacherRoutine();
         setIsTeacherEditMode(false);
       }
+
+      // Everything is persisted — navigation is safe again.
+      setHasUnsavedChanges(false);
       
       // Notify about successful save with refresh confirmation
       toast({ 
@@ -719,13 +741,18 @@ export default function ClassRoutine() {
           {/* Student Edit Mode Actions */}
           {viewMode === 'student' && isEditMode ? (
             <>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => {
                   setIsEditMode(false);
                   setValidationErrors({});
                   setError(null);
-                }} 
+                  // Discard unsaved edits and restore the saved routine.
+                  if (hasUnsavedChanges) {
+                    setHasUnsavedChanges(false);
+                    fetchRoutine(true);
+                  }
+                }}
                 disabled={saving}
               >
                 <X className="w-4 h-4 mr-2" />
@@ -774,13 +801,18 @@ export default function ClassRoutine() {
           {/* Teacher Edit Mode Actions */}
           {viewMode === 'teacher' && isTeacherEditMode ? (
             <>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => {
                   setIsTeacherEditMode(false);
                   setValidationErrors({});
                   setError(null);
-                }} 
+                  // Discard unsaved edits and restore the saved routine.
+                  if (hasUnsavedChanges) {
+                    setHasUnsavedChanges(false);
+                    fetchTeacherRoutine(true);
+                  }
+                }}
                 disabled={saving}
               >
                 <X className="w-4 h-4 mr-2" />
@@ -1285,8 +1317,8 @@ export default function ClassRoutine() {
             >
               Cancel
             </Button>
-            <Button 
-              onClick={handleSaveSlot} 
+            <Button
+              onClick={handleSaveSlot}
                            disabled={saving || (slotForm.subject && Object.keys(slotFormErrors).length > 0)}
             >
               <Save className="w-4 h-4 mr-2" />
@@ -1295,6 +1327,9 @@ export default function ClassRoutine() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Warn before leaving the page with unsaved routine edits */}
+      <UnsavedChangesDialog guard={unsavedGuard} />
     </div>
   );
 }

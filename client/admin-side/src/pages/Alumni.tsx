@@ -5,6 +5,7 @@ import {
   Search, Eye, GraduationCap, Briefcase, Calendar, Users, TrendingUp, Clock,
   Heart, HeartHandshake, ShieldCheck, ShieldAlert, Loader2, AlertCircle, RefreshCw,
   UserPlus, X, SlidersHorizontal, Building2, Layers, UserCheck, BadgeCheck, Mail,
+  Check,
 } from 'lucide-react';
 import { AlumniReminderDialog } from '@/components/alumni/AlumniReminderDialog';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,6 +14,11 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { toast } from 'sonner';
 import { alumniService, Alumni as AlumniType } from '@/services/alumniService';
 import { getErrorMessage } from '@/lib/api';
 import { API_BASE_URL } from '@/config/api';
@@ -87,6 +93,12 @@ export default function Alumni() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Pending self-registration review actions
+  const [reviewActionId, setReviewActionId] = useState<string | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<DisplayAlumni | null>(null);
+  const [rejectNotes, setRejectNotes] = useState('');
+  const [rejecting, setRejecting] = useState(false);
+
   useEffect(() => {
     fetchAlumni();
   }, []);
@@ -118,6 +130,41 @@ export default function Alumni() {
       setError(getErrorMessage(err));
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Self-registered alumni waiting for an admin decision.
+  const pendingRequests = useMemo(
+    () => alumniData.filter((a) => a.reviewStatus === 'pending'),
+    [alumniData],
+  );
+
+  const handleApproveRequest = async (alumni: DisplayAlumni) => {
+    setReviewActionId(alumni.id);
+    try {
+      await alumniService.reviewAlumni(alumni.id, 'approve');
+      toast.success(`${alumni.name} is now an approved alumnus.`);
+      await fetchAlumni();
+    } catch (err) {
+      toast.error(getErrorMessage(err) || 'Failed to approve the request.');
+    } finally {
+      setReviewActionId(null);
+    }
+  };
+
+  const handleRejectRequest = async () => {
+    if (!rejectTarget) return;
+    setRejecting(true);
+    try {
+      await alumniService.reviewAlumni(rejectTarget.id, 'reject', rejectNotes.trim());
+      toast.success(`${rejectTarget.name}'s alumni request was rejected.`);
+      setRejectTarget(null);
+      setRejectNotes('');
+      await fetchAlumni();
+    } catch (err) {
+      toast.error(getErrorMessage(err) || 'Failed to reject the request.');
+    } finally {
+      setRejecting(false);
     }
   };
 
@@ -269,6 +316,79 @@ export default function Alumni() {
           </div>
         </div>
       </motion.div>
+
+      {/* Pending self-registration requests — approve or reject before they
+          gain alumni privileges */}
+      {pendingRequests.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+          <Card className="border-2 border-orange-500/40 bg-orange-500/5">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-9 h-9 rounded-lg bg-orange-500/15 text-orange-600 dark:text-orange-300 flex items-center justify-center">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="font-semibold text-foreground">Pending Alumni Requests</h2>
+                    <p className="text-xs text-muted-foreground">
+                      Self-registered alumni awaiting review — they have no alumni access until approved.
+                    </p>
+                  </div>
+                </div>
+                <Badge className="bg-orange-500 text-white">{pendingRequests.length}</Badge>
+              </div>
+
+              <div className="divide-y divide-border rounded-lg border border-border bg-card">
+                {pendingRequests.map((request) => (
+                  <div key={request.id} className="px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+                    <Avatar className="w-10 h-10 border border-border shrink-0">
+                      <AvatarImage src={request.avatar} />
+                      <AvatarFallback className="bg-orange-500/15 text-orange-700 dark:text-orange-300 text-sm font-bold">
+                        {request.name.split(' ').map((n) => n[0]).join('').slice(0, 2)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-foreground truncate">{request.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {request.department}
+                        {request.graduationYear !== 'N/A' ? ` • Class of ${request.graduationYear}` : ''}
+                        {request.currentJob !== 'Not specified' ? ` • ${request.currentJob}` : ''}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button size="sm" variant="ghost" onClick={() => navigate(`/alumni/${request.id}`)}>
+                        <Eye className="w-4 h-4 mr-1.5" /> Review
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                        onClick={() => handleApproveRequest(request)}
+                        disabled={reviewActionId === request.id}
+                      >
+                        {reviewActionId === request.id ? (
+                          <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                        ) : (
+                          <Check className="w-4 h-4 mr-1.5" />
+                        )}
+                        Approve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => { setRejectTarget(request); setRejectNotes(''); }}
+                        disabled={reviewActionId === request.id}
+                      >
+                        <X className="w-4 h-4 mr-1.5" /> Reject
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
 
       {/* Quick-filter stat cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -464,6 +584,40 @@ export default function Alumni() {
       )}
 
       <AlumniReminderDialog open={reminderOpen} onOpenChange={setReminderOpen} />
+
+      {/* Reject alumni request dialog */}
+      <Dialog open={!!rejectTarget} onOpenChange={(open) => { if (!open) { setRejectTarget(null); setRejectNotes(''); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <ShieldAlert className="w-5 h-5" />
+              Reject alumni request
+            </DialogTitle>
+            <DialogDescription>
+              {rejectTarget ? `${rejectTarget.name} will not receive alumni access.` : ''}
+              {' '}You can add a note explaining the decision — it is shared with the applicant.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={rejectNotes}
+            onChange={(e) => setRejectNotes(e.target.value)}
+            placeholder="Reason / notes (optional)…"
+            rows={3}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectTarget(null)} disabled={rejecting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleRejectRequest} disabled={rejecting}>
+              {rejecting ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Rejecting…</>
+              ) : (
+                'Reject request'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

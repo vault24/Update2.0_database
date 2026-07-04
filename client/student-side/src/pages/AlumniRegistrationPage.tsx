@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
+import { SwitchAccountDialog, canSwitchAccount } from '@/components/account/SwitchAccountDialog';
 import { alumniService, AlumniDocCategory, AlumniDocUpload } from '@/services/alumniService';
 import departmentService, { Department } from '@/services/departmentService';
 import { divisions, getDistricts } from '@/components/admission/wizard/stepConfig';
@@ -68,6 +69,7 @@ export default function AlumniRegistrationPage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [loadingMeta, setLoadingMeta] = useState(true);
+  const [switchOpen, setSwitchOpen] = useState(false);
 
   useEffect(() => {
     // Prefill name & email from the account.
@@ -172,7 +174,9 @@ export default function AlumniRegistrationPage() {
         toast.success('Your alumni information was submitted for verification.');
       }
       await refreshUser();
-      navigate('/dashboard/alumni-profile');
+      // The application starts as "pending" — the status page explains the
+      // review process and offers account switching until approval.
+      navigate('/dashboard/alumni-application-status');
     } catch (err: any) {
       toast.error(err?.message || 'Failed to submit. Please try again.');
     } finally {
@@ -204,6 +208,29 @@ export default function AlumniRegistrationPage() {
           An administrator will verify your details after you submit.
         </p>
       </motion.div>
+
+      {/* Wrong account type? Switch before filling anything in. */}
+      {canSwitchAccount(user) && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+        >
+          <p className="text-sm text-amber-800 dark:text-amber-200">
+            <span className="font-semibold">Not an alumnus?</span> If you created this account by mistake,
+            you can switch to a General Student account instead.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setSwitchOpen(true)}
+            className="shrink-0 border-amber-300 text-amber-800 hover:bg-amber-100 dark:border-amber-500/40 dark:text-amber-200 dark:hover:bg-amber-500/20"
+          >
+            Switch Account
+          </Button>
+        </motion.div>
+      )}
+      <SwitchAccountDialog open={switchOpen} onOpenChange={setSwitchOpen} />
 
       {/* Stepper */}
       <div className="flex items-center justify-center gap-3">

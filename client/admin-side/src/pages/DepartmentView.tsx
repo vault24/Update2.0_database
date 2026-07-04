@@ -2,9 +2,13 @@ import { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Users, GraduationCap, Building2, Search, Eye, Edit, X,
-  TrendingUp, Loader2, CheckSquare, Square, ArrowRight,
+  TrendingUp, Loader2, CheckSquare, Square, ArrowRight, UserCheck,
+  Check, Clock, ShieldAlert,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import { Textarea } from '@/components/ui/textarea';
+import captainRequestService, { CaptainRequest } from '@/services/captainRequestService';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -50,15 +54,33 @@ const semesters = [1, 2, 3, 4, 5, 6, 7, 8];
 // The institute runs Morning and Day shifts only.
 const shifts = ['Morning', 'Day'];
 
+// A Department Head account's shift ('1st_shift'/'2nd_shift') expressed in the
+// student-side vocabulary used by filters and captain requests.
+const headShiftToStudentShift = (shift?: string): string | null =>
+  shift === '1st_shift' ? 'Morning' : shift === '2nd_shift' ? 'Day' : null;
+
 export default function DepartmentView() {
   const { id } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
-  
+  const { user } = useAuth();
+  const isDeptHead = user?.role === 'department_head';
+
   const [department, setDepartment] = useState<Department | null>(location.state?.department || null);
   const [selectedSemester, setSelectedSemester] = useState<number | null>(null);
-  const [selectedShift, setSelectedShift] = useState<string | null>(null);
+  // Department Heads start with their own shift pre-selected.
+  const [selectedShift, setSelectedShift] = useState<string | null>(
+    isDeptHead ? headShiftToStudentShift(user?.shift) : null
+  );
+
+  // Captain account requests for this department
+  const [captainRequests, setCaptainRequests] = useState<CaptainRequest[]>([]);
+  const [captainLoading, setCaptainLoading] = useState(true);
+  const [captainActionId, setCaptainActionId] = useState<string | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<CaptainRequest | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejecting, setRejecting] = useState(false);
   const [search, setSearch] = useState('');
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
@@ -141,6 +163,74 @@ export default function DepartmentView() {
       });
     } finally {
       setPromoting(false);
+    }
+  };
+
+  // Load pending captain account requests for this department. The backend
+  // additionally scopes Department Heads to their own department + shift.
+  const fetchCaptainRequests = async () => {
+    if (!id) return;
+    setCaptainLoading(true);
+    try {
+      const response = await captainRequestService.getRequests({ status: 'pending', department: id });
+      setCaptainRequests(response.results || []);
+    } catch {
+      toast({
+        title: 'Error',
+        description: 'Failed to load captain account requests',
+        variant: 'destructive',
+      });
+      setCaptainRequests([]);
+    } finally {
+      setCaptainLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCaptainRequests();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  const handleApproveCaptain = async (request: CaptainRequest) => {
+    setCaptainActionId(request.id);
+    try {
+      await captainRequestService.review(request.id, 'approve');
+      toast({
+        title: 'Captain request approved',
+        description: `${request.name} is now a Class Captain.`,
+      });
+      setCaptainRequests((prev) => prev.filter((r) => r.id !== request.id));
+    } catch (err: any) {
+      toast({
+        title: 'Approval failed',
+        description: err?.detail || err?.message || 'Failed to approve the request.',
+        variant: 'destructive',
+      });
+    } finally {
+      setCaptainActionId(null);
+    }
+  };
+
+  const handleRejectCaptain = async () => {
+    if (!rejectTarget) return;
+    setRejecting(true);
+    try {
+      await captainRequestService.review(rejectTarget.id, 'reject', rejectReason.trim());
+      toast({
+        title: 'Captain request rejected',
+        description: `${rejectTarget.name}'s account continues as a regular student.`,
+      });
+      setCaptainRequests((prev) => prev.filter((r) => r.id !== rejectTarget.id));
+      setRejectTarget(null);
+      setRejectReason('');
+    } catch (err: any) {
+      toast({
+        title: 'Rejection failed',
+        description: err?.detail || err?.message || 'Failed to reject the request.',
+        variant: 'destructive',
+      });
+    } finally {
+      setRejecting(false);
     }
   };
 
@@ -291,11 +381,77 @@ export default function DepartmentView() {
         </div>
         <div className="surface p-4">
           <div className="flex items-center justify-between">
-            <p className="text-[13px] font-medium text-muted-foreground">Filtered students</p>
-            <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center"><Building2 className="w-[18px] h-[18px]" /></div>
+            <p className="text-[13px] font-medium text-muted-foreground">Captain requests</p>
+            <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center"><UserCheck className="w-[18px] h-[18px]" /></div>
           </div>
-          <p className="mt-3 text-[26px] leading-none font-semibold text-foreground tabular-nums">{students.length || 0}</p>
+          <p className="mt-3 text-[26px] leading-none font-semibold text-foreground tabular-nums">{captainRequests.length || 0}</p>
         </div>
+      </div>
+
+      {/* Captain account requests — routed here by department + shift */}
+      <div className="surface overflow-hidden">
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <UserCheck className="w-4 h-4 text-primary" />
+            <h3 className="text-[15px] font-semibold text-foreground">Captain account requests</h3>
+          </div>
+          <span className="text-sm text-muted-foreground">{captainRequests.length} pending</span>
+        </div>
+        {captainLoading ? (
+          <div className="p-8 flex items-center justify-center text-muted-foreground">
+            <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading requests…
+          </div>
+        ) : captainRequests.length === 0 ? (
+          <div className="p-8 text-center">
+            <div className="w-11 h-11 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+              <Clock className="w-5 h-5 text-muted-foreground" />
+            </div>
+            <p className="text-sm text-muted-foreground">No pending captain requests for this department.</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-border">
+            {captainRequests.map((request) => (
+              <div key={request.id} className="px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-medium text-foreground truncate">{request.name}</p>
+                    <Badge variant="secondary">{request.shift === 'Morning' ? '1st Shift (Morning)' : '2nd Shift (Day)'}</Badge>
+                    {request.student_id && <Badge variant="outline" className="font-mono">{request.student_id}</Badge>}
+                  </div>
+                  <p className="text-sm text-muted-foreground truncate mt-0.5">
+                    {request.email}
+                    {request.mobile_number ? ` • ${request.mobile_number}` : ''}
+                    {' • '}Requested {new Date(request.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    size="sm"
+                    onClick={() => handleApproveCaptain(request)}
+                    disabled={captainActionId === request.id}
+                  >
+                    {captainActionId === request.id ? (
+                      <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                    ) : (
+                      <Check className="w-4 h-4 mr-1.5" />
+                    )}
+                    Approve
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => { setRejectTarget(request); setRejectReason(''); }}
+                    disabled={captainActionId === request.id}
+                  >
+                    <X className="w-4 h-4 mr-1.5" />
+                    Reject
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Filters — semester + shift + search in one box */}
@@ -557,6 +713,40 @@ export default function DepartmentView() {
                   <TrendingUp className="w-4 h-4 mr-2" />
                   Promote {promoteSemester !== null ? promoteStudents.length - excludedIds.size : ''} student{promoteStudents.length - excludedIds.size === 1 ? '' : 's'}
                 </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reject captain request dialog */}
+      <Dialog open={!!rejectTarget} onOpenChange={(open) => { if (!open) { setRejectTarget(null); setRejectReason(''); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <ShieldAlert className="w-5 h-5" />
+              Reject captain request
+            </DialogTitle>
+            <DialogDescription>
+              {rejectTarget ? `${rejectTarget.name}'s account will continue as a regular student.` : ''}
+              {' '}You can optionally include a reason — it is shared with the requester.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            placeholder="Reason (optional)…"
+            rows={3}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectTarget(null)} disabled={rejecting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleRejectCaptain} disabled={rejecting}>
+              {rejecting ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Rejecting…</>
+              ) : (
+                'Reject request'
               )}
             </Button>
           </DialogFooter>

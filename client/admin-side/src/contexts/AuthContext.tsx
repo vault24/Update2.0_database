@@ -13,6 +13,8 @@ interface User {
   interface_mode?: 'simple' | 'advanced';
   department?: string | null;
   department_name?: string | null;
+  /** Shift managed by a Department Head ('1st_shift' | '2nd_shift' | ''). */
+  shift?: string;
 }
 
 export interface LoginResult {

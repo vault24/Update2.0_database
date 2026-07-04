@@ -17,6 +17,12 @@ export const API_ENDPOINTS = {
     me: '/auth/me/',
     changePassword: '/auth/change-password/',
   },
+
+  // Captain account requests (reviewed by Department Heads)
+  captainRequests: {
+    list: '/auth/captain-requests/',
+    review: (id: string) => `/auth/captain-requests/${id}/review/`,
+  },
   
   // Students
   students: {

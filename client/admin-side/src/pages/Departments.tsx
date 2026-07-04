@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils';
 import { API_BASE_URL } from '@/config/api';
 import departmentService, { Department as APIDepartment } from '@/services/departmentService';
 import { LoadingState } from '@/components/LoadingState';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Department {
   id: string;
@@ -72,6 +73,10 @@ function DeptThumb({ photoUrl, code }: { photoUrl: string | null; code: string }
 
 export default function Departments() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  // Department Heads only work with their own department.
+  const isDeptHead = user?.role === 'department_head';
+  const headDepartmentId = isDeptHead ? user?.department || null : null;
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -99,7 +104,12 @@ export default function Departments() {
       const response = await departmentService.getDepartments();
       const baseURL = API_BASE_URL.replace('/api', '');
 
-      const mappedDepts = response.results.map((dept: APIDepartment) => ({
+      // Department Heads only see the department they manage.
+      const visibleResults = headDepartmentId
+        ? response.results.filter((dept: APIDepartment) => String(dept.id) === String(headDepartmentId))
+        : response.results;
+
+      const mappedDepts = visibleResults.map((dept: APIDepartment) => ({
         id: dept.id,
         name: dept.name,
         code: dept.code || dept.short_name,
@@ -256,13 +266,21 @@ export default function Departments() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-xl md:text-2xl font-semibold text-foreground">Departments</h1>
-          <p className="text-sm text-muted-foreground mt-1">Manage academic departments and their resources.</p>
+          <h1 className="text-xl md:text-2xl font-semibold text-foreground">
+            {isDeptHead ? 'My Department' : 'Departments'}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {isDeptHead
+              ? 'Manage the department you are responsible for.'
+              : 'Manage academic departments and their resources.'}
+          </p>
         </div>
-        <Button onClick={() => { resetForm(); setIsAddOpen(true); }} className="shrink-0">
-          <Plus className="w-4 h-4 mr-1.5" />
-          Add department
-        </Button>
+        {!isDeptHead && (
+          <Button onClick={() => { resetForm(); setIsAddOpen(true); }} className="shrink-0">
+            <Plus className="w-4 h-4 mr-1.5" />
+            Add department
+          </Button>
+        )}
       </div>
 
       {/* Stats */}

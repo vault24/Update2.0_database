@@ -23,10 +23,14 @@ import {
   Sparkles,
   ChevronDown,
   X,
+  Settings,
+  ArrowRightLeft,
+  ClipboardList,
 } from 'lucide-react';
 import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import ProfileAvatar from '@/components/ProfileAvatar';
+import { SwitchAccountDialog, canSwitchAccount } from '@/components/account/SwitchAccountDialog';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 
@@ -78,6 +82,17 @@ const alumniMenuItems: MenuItem[] = [
   { icon: Send, label: 'Applications', path: '/dashboard/applications', roles: ['alumni'] },
   { icon: Shield, label: 'Complaints', path: '/dashboard/complaints', roles: ['alumni'] },
   { icon: MessageCircle, label: 'Messages', path: '/dashboard/messages', roles: ['alumni'] },
+  { icon: Settings, label: 'Settings', path: '/dashboard/settings', roles: ['alumni'] },
+];
+
+// Minimal menu for alumni accounts that have not been approved yet: the
+// registration wizard (before submitting) or the application-status page
+// (while pending / rejected), plus Settings for account switching / deletion.
+const pendingAlumniMenuItems = (submitted: boolean): MenuItem[] => [
+  submitted
+    ? { icon: ClipboardList, label: 'Application Status', path: '/dashboard/alumni-application-status', roles: ['alumni'] }
+    : { icon: GraduationCap, label: 'Alumni Registration', path: '/dashboard/alumni-registration', roles: ['alumni'] },
+  { icon: Settings, label: 'Settings', path: '/dashboard/settings', roles: ['alumni'] },
 ];
 
 export function Sidebar() {
@@ -87,6 +102,7 @@ export function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isUpcomingOpen, setIsUpcomingOpen] = useState(true);
+  const [isSwitchOpen, setIsSwitchOpen] = useState(false);
 
   const handleLogout = async () => {
     await logout();
@@ -99,13 +115,18 @@ export function Sidebar() {
   const userRole: UserRole = isAlumni ? 'alumni' : (user?.role || 'student');
   const portalLabel = userRole === 'teacher' ? 'Teacher Portal' : userRole === 'alumni' ? 'Alumni Portal' : 'Student Portal';
 
+  // Self-registered alumni only unlock the full alumni menu after an admin
+  // approves their application; until then they get a minimal holding menu.
+  const isApprovedAlumni =
+    isAlumni && (!user?.isAlumniAccount || user?.alumniReviewStatus === 'approved');
+
   // Once admission is approved the Admission section is no longer relevant —
   // admitted students only see items that apply to them.
   const isAdmitted = user?.admissionStatus === 'approved';
 
   // Alumni get a dedicated menu and no "Explore" group.
   const filteredMainItems = isAlumni
-    ? alumniMenuItems
+    ? (isApprovedAlumni ? alumniMenuItems : pendingAlumniMenuItems(!!user?.isAlumni))
     : mainMenuItems.filter(
         (item) =>
           item.roles.includes(userRole) &&
@@ -114,6 +135,10 @@ export function Sidebar() {
   const filteredUpcomingItems = isAlumni
     ? []
     : upcomingMenuItems.filter((item) => item.roles.includes(userRole));
+
+  // "Switch Account" stays easily reachable while the account is still
+  // switchable (alumni not yet approved / student not yet admitted).
+  const showSwitchAccount = canSwitchAccount(user);
 
   const renderNavItem = (item: MenuItem) => {
     const isActive = location.pathname === item.path;
@@ -271,8 +296,23 @@ export function Sidebar() {
           )}
         </nav>
 
-        {/* Footer: profile + logout */}
+        {/* Footer: switch account + profile + logout */}
         <div className="border-t border-sidebar-border p-3">
+          {showSwitchAccount && (
+            <button
+              onClick={() => setIsSwitchOpen(true)}
+              title="Switch Account"
+              aria-label="Switch Account"
+              className={cn(
+                'mb-2 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium',
+                'text-amber-700 dark:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 transition-colors',
+                isCollapsed && 'justify-center px-0',
+              )}
+            >
+              <ArrowRightLeft className="h-4 w-4 flex-shrink-0" />
+              {!isCollapsed && <span className="truncate">Switch Account</span>}
+            </button>
+          )}
           <div
             className={cn(
               'flex items-center gap-3 rounded-xl p-2',
@@ -320,6 +360,8 @@ export function Sidebar() {
           <ChevronLeft className={cn('h-4 w-4 transition-transform duration-300', isCollapsed && 'rotate-180')} />
         </Button>
       </motion.aside>
+
+      <SwitchAccountDialog open={isSwitchOpen} onOpenChange={setIsSwitchOpen} />
     </>
   );
 }

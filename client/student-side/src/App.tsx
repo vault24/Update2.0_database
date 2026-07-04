@@ -37,6 +37,7 @@ import PublicTeacherProfilePage from "./pages/PublicTeacherProfilePage";
 import AlumniProfilePage from "./pages/AlumniProfilePage";
 import AlumniRegistrationPage from "./pages/AlumniRegistrationPage";
 import AlumniDirectoryPage from "./pages/AlumniDirectoryPage";
+import AlumniApplicationStatusPage from "./pages/AlumniApplicationStatusPage";
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
@@ -91,21 +92,43 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 /**
- * Routes a freshly-created "Alumni Account" to the alumni self-registration
- * wizard until they have submitted their alumni information. Once registered
- * (isAlumni === true) they use the normal alumni profile.
+ * Routes a freshly-created "Alumni Account" through its lifecycle:
+ *  1. Not yet submitted  -> locked to the self-registration wizard.
+ *  2. Submitted, pending / rejected -> locked to the application-status page
+ *     (no alumni privileges until an admin approves).
+ *  3. Approved -> full alumni portal.
+ * Settings stays reachable at every stage (account switching / deletion live
+ * there), and users on the wrong holding page are redirected to the right one.
  */
 const AlumniAccountGate = ({ children }: { children: React.ReactNode }) => {
   const { user } = useAuth();
   const location = useLocation();
   const regPath = "/dashboard/alumni-registration";
+  const statusPath = "/dashboard/alumni-application-status";
+  const settingsPath = "/dashboard/settings";
 
-  if (user?.isAlumniAccount && !user?.isAlumni && location.pathname !== regPath) {
-    return <Navigate to={regPath} replace />;
-  }
-  // Already registered alumni shouldn't sit on the registration page.
-  if (user?.isAlumniAccount && user?.isAlumni && location.pathname === regPath) {
-    return <Navigate to="/dashboard/alumni-profile" replace />;
+  if (user?.isAlumniAccount) {
+    const submitted = !!user.isAlumni;
+    const approved = submitted && user.alumniReviewStatus === "approved";
+    const onAllowedPage = location.pathname === settingsPath;
+
+    if (!submitted) {
+      // Stage 1: only the registration wizard (and Settings) are available.
+      if (location.pathname !== regPath && !onAllowedPage) {
+        return <Navigate to={regPath} replace />;
+      }
+    } else if (!approved) {
+      // Stage 2: application under review (or rejected) — no alumni
+      // privileges yet; only the status page (and Settings) are available.
+      if (location.pathname !== statusPath && !onAllowedPage) {
+        return <Navigate to={statusPath} replace />;
+      }
+    } else {
+      // Stage 3: approved alumni shouldn't sit on the holding pages.
+      if (location.pathname === regPath || location.pathname === statusPath) {
+        return <Navigate to="/dashboard/alumni-profile" replace />;
+      }
+    }
   }
   return <>{children}</>;
 };
@@ -171,6 +194,7 @@ const App = () => (
         <Route path="alumni-profile" element={<AlumniProfilePage />} />
         <Route path="alumni-directory" element={<AlumniDirectoryPage />} />
         <Route path="alumni-registration" element={<AlumniRegistrationPage />} />
+        <Route path="alumni-application-status" element={<AlumniApplicationStatusPage />} />
       </Route>
       
       <Route path="*" element={<div>Page not found</div>} />

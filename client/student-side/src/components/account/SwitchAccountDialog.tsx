@@ -15,7 +15,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import api, { getErrorMessage } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
-import type { User } from '@/contexts/AuthContext';
 
 /**
  * Whether the account may still be switched between Student and Alumni:
