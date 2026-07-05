@@ -23,13 +23,13 @@ User = get_user_model()
 
 def student_portal_url(path=""):
     """Absolute Student Portal URL for email CTAs."""
-    base = getattr(settings, 'STUDENT_PORTAL_URL', 'https://spistudent.errorburner.site')
+    base = getattr(settings, 'STUDENT_PORTAL_URL', 'https://spisg.gov.bd')
     return f"{base}{path}"
 
 
 def admin_portal_url(path=""):
     """Absolute Admin Portal URL for email CTAs."""
-    base = getattr(settings, 'ADMIN_PORTAL_URL', 'https://spiadmin.errorburner.site')
+    base = getattr(settings, 'ADMIN_PORTAL_URL', 'https://su.spisg.gov.bd')
     return f"{base}{path}"
 
 # Accent presets: (color, soft background, pill label)

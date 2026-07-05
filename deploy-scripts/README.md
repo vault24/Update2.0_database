@@ -25,6 +25,7 @@ Vite single-page apps, with automatic HTTPS via Let's Encrypt.
 10. [Day-2 operations](#10-day-2-operations)
 11. [Security model](#11-security-model)
 12. [Troubleshooting](#12-troubleshooting)
+13. [Backup & Restore](#13-backup--restore)
 
 ---
 
@@ -129,13 +130,20 @@ sudo bash deploy-scripts/deploy.sh --skip-apt   # skip system package install
 
 | File | Purpose |
 |---|---|
-| `config.env` | **Central configuration — the file you edit.** |
+| `config.env` | **Central deployment configuration — the file you edit.** |
 | `secrets.env.example` | Template for `secrets.env` (auto-copied on first run). |
 | `deploy.sh` | One-command idempotent production deployment. |
+| `backup.conf` | **Central backup configuration** (repository location, retention, schedule). |
+| `backup.sh` | Full-system backup (Restic). Independent of deployment. |
+| `restore.sh` | Interactive disaster recovery from a snapshot. |
 | `slms.sh` | Interactive menu (status, logs, backup, restore, monitor). |
 | `maintenance.sh` | Non-interactive maintenance commands. |
 | `troubleshoot.sh` | Automated diagnosis & fixes. |
 | `generated/` | Machine-generated configs (gitignored, do not edit). |
+
+> **Backups are a completely separate system** from deployment — `deploy.sh`
+> never touches backups, and `backup.sh` never touches the deployment. See the
+> full [Backup & Restore](#13-backup--restore) section below.
 
 ---
 
@@ -680,3 +688,281 @@ sudo bash deploy-scripts/deploy.sh
   show status `101 Switching Protocols`.
 - The Nginx `/ws/` block handles the upgrade; if it was edited manually,
   regenerate it: `sudo bash deploy-scripts/deploy.sh --nginx`
+
+---
+
+## 13. Backup & Restore
+
+The backup system is **completely independent** of deployment. `deploy.sh`
+never creates a backup; backups happen only when **you** run `backup.sh`, or
+via the daily timer it installs. Everything is powered by
+**[Restic](https://restic.net)** — a single, production-grade, open-source tool
+that gives you incremental backups, deduplication, snapshots, compression and
+encryption at once.
+
+### Why Restic
+
+| Feature | What it means for you |
+|---|---|
+| **Incremental** | Only changed data is stored after the first backup — a daily run adds megabytes, not gigabytes. |
+| **Deduplication** | Identical data (across files *and* across snapshots) is stored once. Keeping 30 snapshots costs barely more than one. |
+| **Snapshots** | Every backup is a point-in-time snapshot you can browse and restore individually. |
+| **Compression** | Data is compressed (zstd) before storage. |
+| **Encryption** | The whole repository is AES-encrypted — safe on an external HDD, NAS, or cloud. |
+| **Fast restore** | Restore a single file or the whole system quickly. |
+
+### What gets backed up
+
+A snapshot is a **complete picture of the production server**:
+
+- PostgreSQL database (dumped with `pg_dump -Fc`)
+- Django project environment (`server/.env`)
+- Uploaded documents (`server/storage`), media (`server/media`), collected static
+- Front-end build envs (`client/*/.env`)
+- All deployment scripts + config (`deploy-scripts/`, incl. `config.env`, `secrets.env`)
+- Nginx site + snippets + `conf.d`
+- Gunicorn config + systemd unit (`sipi.service`)
+- SSL certificates & renewal config (`/etc/letsencrypt`)
+- (optional) server logs
+
+Everything needed to bring the server back from zero. The Python venv, Node
+`node_modules`, and SPA `dist/` are intentionally **excluded** — they are
+rebuilt by `deploy.sh` and would only bloat the repository.
+
+### 13.1 First-time setup (initialize the repository)
+
+1. **Choose where backups live.** Edit `deploy-scripts/backup.conf` and set the
+   one value that matters:
+
+   ```bash
+   sudo nano deploy-scripts/backup.conf
+   ```
+   ```bash
+   RESTIC_REPOSITORY="/var/backups/sipi-restic"   # local disk (default)
+   # or an external HDD / NAS / remote — see examples in the file
+   ```
+
+2. **Initialize + take the first backup** (Restic and the repository are set up
+   automatically on first run):
+
+   ```bash
+   sudo bash deploy-scripts/backup.sh
+   ```
+
+   On the first run the script installs Restic, generates a strong repository
+   **encryption password** at `/etc/sipi/backup-password`, initializes the
+   repository, and creates the first (full) snapshot.
+
+3. **⚠️ Save the password file somewhere safe** (a password manager, another
+   machine). Without `/etc/sipi/backup-password` the backups **cannot be
+   decrypted or restored**.
+
+   ```bash
+   sudo cat /etc/sipi/backup-password    # copy this to a safe place
+   ```
+
+### 13.2 Configure the backup location
+
+The destination is **not hardcoded** — it lives in one place,
+`backup.conf → RESTIC_REPOSITORY`. Change that single value and all future
+backups go to the new location. Examples:
+
+```bash
+RESTIC_REPOSITORY="/var/backups/sipi-restic"          # local disk
+RESTIC_REPOSITORY="/mnt/backup-hdd/sipi-restic"       # mounted external HDD
+RESTIC_REPOSITORY="/media/usb/sipi-restic"            # USB drive
+RESTIC_REPOSITORY="/mnt/nas/sipi-restic"              # network mount
+RESTIC_REPOSITORY="sftp:user@203.0.113.9:/backups/sipi"   # remote over SSH
+RESTIC_REPOSITORY="s3:s3.amazonaws.com/my-bucket/sipi"    # S3 / compatible
+```
+
+If the repository is on a **removable or network mount**, also set
+`REQUIRE_MOUNT` (e.g. `"/mnt/backup-hdd"`). `backup.sh` then refuses to run
+when the drive is not mounted — so you never silently fill the OS disk.
+
+For `sftp` / `rest` / `s3` backends, set the credentials in
+`backup.conf → section 6`.
+
+### 13.3 Run a manual backup
+
+```bash
+sudo bash deploy-scripts/backup.sh
+```
+
+What happens each run: precheck → dump PostgreSQL → snapshot all paths →
+apply the retention policy (prune old snapshots) → verify repository integrity.
+Live progress is shown, and everything is logged to
+`/var/log/sipi-backup/latest.log`. The exit status is `0` only on full success.
+
+Other commands:
+
+```bash
+sudo bash deploy-scripts/backup.sh --list      # list snapshots
+sudo bash deploy-scripts/backup.sh --verify    # integrity check only
+sudo bash deploy-scripts/backup.sh --init      # create/verify repo only
+sudo bash deploy-scripts/backup.sh --unlock    # clear a stale lock
+```
+
+### 13.4 Automatic daily backups
+
+Install the scheduled timer once:
+
+```bash
+sudo bash deploy-scripts/backup.sh --install-timer
+```
+
+This installs a **systemd timer** that runs `backup.sh` every day at the time
+set in `backup.conf` (default **03:30**, with a randomized delay). The first
+run is a full snapshot; every run after that is incremental — only changed
+data is added, never a full duplicate.
+
+```bash
+systemctl list-timers sipi-backup.timer     # see the next scheduled run
+journalctl -u sipi-backup.service -n 50     # see the last run's output
+cat /var/log/sipi-backup/latest.log         # detailed log of the last backup
+```
+
+To change the schedule, edit `BACKUP_SCHEDULE` in `backup.conf` and re-run
+`--install-timer`.
+
+### 13.5 How snapshots, incremental & deduplication work
+
+- **Snapshot** — each backup records a point in time. `--list` shows them all
+  with a short ID and timestamp; you can restore any one independently.
+- **Incremental** — Restic compares against what's already in the repository
+  and uploads only new/changed chunks. The backup summary prints
+  *"Added to the repository: X MiB"* — that's the real incremental size.
+- **Deduplication** — files are split into content-defined chunks; identical
+  chunks (within a file, across files, or across snapshots) are stored once.
+  That's why keeping many daily snapshots barely grows the repository.
+
+### 13.6 Restore
+
+Interactive (recommended — lists snapshots and lets you pick one):
+
+```bash
+sudo bash deploy-scripts/restore.sh
+```
+
+Restore the **latest** snapshot non-interactively:
+
+```bash
+sudo bash deploy-scripts/restore.sh --latest
+```
+
+Restore a **specific** snapshot (get IDs from `backup.sh --list`):
+
+```bash
+sudo bash deploy-scripts/restore.sh --snapshot 1a2b3c4d
+```
+
+Partial restores:
+
+```bash
+sudo bash deploy-scripts/restore.sh --files-only   # files, not the database
+sudo bash deploy-scripts/restore.sh --db-only      # only the database
+```
+
+The restore asks for confirmation (you must type `RESTORE`), then: stops the
+backend → restores files to their original locations (media, uploads, static,
+`.env`, Nginx/systemd configs, SSL certs) → recreates and reloads the
+PostgreSQL database → re-syncs the DB password → restarts all services →
+verifies they're healthy.
+
+### 13.7 Full disaster recovery (server destroyed) — ~10–15 min
+
+On a brand-new Ubuntu server:
+
+```bash
+# 1. Get the code
+sudo git clone <YOUR_GIT_REMOTE_URL> /var/www/Update2.0_database
+cd /var/www/Update2.0_database
+
+# 2. Restore the backup password + point at the repository
+sudo mkdir -p /etc/sipi
+sudo nano /etc/sipi/backup-password        # paste your saved password
+sudo nano deploy-scripts/backup.conf       # set RESTIC_REPOSITORY (+ mount the disk)
+
+# 3. Build the base system (packages, venv, front-ends, services)
+sudo bash deploy-scripts/deploy.sh
+
+# 4. Restore all data + exact saved configs on top
+sudo bash deploy-scripts/restore.sh --latest
+```
+
+Step 3 provisions the machine; step 4 puts your real data, certificates and
+configuration back. Total time is typically 10–15 minutes.
+
+### 13.8 Move backups to another disk
+
+Because the repository is just a self-contained directory, moving it is a copy
++ a one-line config change:
+
+```bash
+# 1. Copy the existing repository to the new location (preserve everything)
+sudo rsync -a /var/backups/sipi-restic/ /mnt/backup-hdd/sipi-restic/
+
+# 2. Point the config at the new location
+sudo nano deploy-scripts/backup.conf
+#   RESTIC_REPOSITORY="/mnt/backup-hdd/sipi-restic"
+#   REQUIRE_MOUNT="/mnt/backup-hdd"     # if it's a mount
+
+# 3. Verify the new copy is intact, then continue backing up as usual
+sudo bash deploy-scripts/backup.sh --verify
+sudo bash deploy-scripts/backup.sh
+```
+
+All history (every snapshot) moves with it. Once verified, you can delete the
+old directory.
+
+### 13.9 Verify backup integrity
+
+```bash
+sudo bash deploy-scripts/backup.sh --verify
+```
+
+`--verify` runs `restic check` on the repository structure. For a deeper check
+that re-reads a sample of the actual data, set `VERIFY_MODE="full"` in
+`backup.conf` (slower; fine to run weekly). Every scheduled backup already runs
+the quick check automatically.
+
+### 13.10 Backup troubleshooting
+
+**"Backup drive is NOT mounted at …"**
+The repository is on a mount (`REQUIRE_MOUNT`) that isn't mounted. Mount it
+(`sudo mount /mnt/backup-hdd`) and re-run, or fix the path in `backup.conf`.
+
+**"repository is already locked" / a previous run crashed**
+```bash
+sudo bash deploy-scripts/backup.sh --unlock
+```
+
+**"wrong password" / cannot open repository on restore**
+The password file at `RESTIC_PASSWORD_FILE` doesn't match the repository. Put
+back the exact `/etc/sipi/backup-password` you saved when the repo was created.
+
+**Restore says the database dump is missing**
+That snapshot was taken with `BACKUP_DB="false"` (files only). Restore files
+with `--files-only`, or pick a snapshot that included the database.
+
+**Repository is growing too fast**
+Check the retention policy (`KEEP_*` in `backup.conf`) and confirm large
+regenerable paths aren't included. Run `restic stats` (with the repo env) to
+inspect sizes. Deduplication only helps if excludes like `node_modules`,
+`venv`, and `dist` remain in place.
+
+**Check what a backup actually stored**
+```bash
+cat /var/log/sipi-backup/latest.log
+sudo bash deploy-scripts/backup.sh --list
+```
+
+**Manually inspect the repository** (advanced) — export the env and use Restic
+directly:
+```bash
+export RESTIC_REPOSITORY="/var/backups/sipi-restic"
+export RESTIC_PASSWORD_FILE="/etc/sipi/backup-password"
+restic snapshots         # list
+restic stats             # repo size & dedup ratio
+restic ls latest         # browse files in the latest snapshot
+```

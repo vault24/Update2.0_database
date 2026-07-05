@@ -41,7 +41,7 @@ export function setAuthErrorHandler(handler: AuthErrorHandler | null): void {
 // Endpoints that are part of the auth flow — a 401/403 here must NOT trigger
 // the global session-expiry path (login uses 400 for bad creds; /auth/me/ is
 // how we validate, so reacting to its own failure would loop).
-const AUTH_FLOW_ENDPOINTS = ['/auth/me/', '/auth/csrf/', '/auth/login/', '/auth/logout/', '/auth/register/'];
+const AUTH_FLOW_ENDPOINTS = ['/auth/me/', '/auth/csrf/', '/auth/login/', '/auth/logout/', '/auth/register/', '/auth/google/'];
 
 function isAuthFlowEndpoint(endpoint: string): boolean {
   const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;

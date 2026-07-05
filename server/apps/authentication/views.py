@@ -174,20 +174,38 @@ def register_view(request):
     serializer = RegisterSerializer(data=request.data)
 
     if serializer.is_valid():
-        # Email-verification gate: an account is created ONLY after the emailed
-        # OTP (sent by /register/send-otp/) is verified.
-        otp = (request.data.get('otp') or '').strip()
-        if not otp:
-            return Response(
-                {'otp': ['Email verification code is required. Please verify your email to continue.']},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        from .services import EmailVerificationService
         email = serializer.validated_data.get('email')
-        valid, message = EmailVerificationService.verify_code(email, otp, consume=True)
-        if not valid:
-            return Response({'otp': [message]}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Email-verification gate: an account is created ONLY after the email is
+        # proven. There are two accepted proofs:
+        #   1. A Google access token (`google_token`) whose verified email matches
+        #      the registration email — Google already vouches for the address, so
+        #      no OTP is needed ("Continue with Google" signup).
+        #   2. Otherwise, the emailed OTP sent by /register/send-otp/.
+        google_token = (request.data.get('google_token') or '').strip()
+        if google_token:
+            from .services import GoogleAuthService, GoogleAuthError
+            try:
+                identity = GoogleAuthService.verify_access_token(google_token)
+            except GoogleAuthError as exc:
+                return Response({'google_token': [str(exc)]}, status=status.HTTP_400_BAD_REQUEST)
+            if identity['email'] != (email or '').strip().lower():
+                return Response(
+                    {'google_token': ['This Google account does not match the email being registered.']},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            otp = (request.data.get('otp') or '').strip()
+            if not otp:
+                return Response(
+                    {'otp': ['Email verification code is required. Please verify your email to continue.']},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            from .services import EmailVerificationService
+            valid, message = EmailVerificationService.verify_code(email, otp, consume=True)
+            if not valid:
+                return Response({'otp': [message]}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             user = serializer.save()
@@ -333,6 +351,96 @@ def login_view(request):
             },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def google_auth_view(request):
+    """
+    "Continue with Google" for the student portal.
+    POST /api/auth/google/
+
+    Body: { "token": "<google access token>", "remember_me": bool (optional) }
+
+    Behaviour (see the signup/login design):
+    - Verify the Google token and read the verified email + name.
+    - If a student-portal account already uses that email -> log the user in and
+      return the user (no password needed).
+    - If no account exists yet -> return `needs_signup: true` with the email/name
+      so the client opens the signup form pre-filled (and skips the OTP step,
+      re-sending this token to /register/).
+    - If the email only maps to an admin account -> refuse (wrong portal).
+
+    Returns:
+    - 200 with `user` (logged in) OR `needs_signup: true`
+    - 400 on an invalid/misconfigured token
+    """
+    from .services import GoogleAuthService, GoogleAuthError
+    from django.db.models import Q
+
+    token = request.data.get('token') or request.data.get('access_token')
+    try:
+        identity = GoogleAuthService.verify_access_token(token)
+    except GoogleAuthError as exc:
+        return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    email = identity['email']
+
+    # All accounts sharing this email (email is not unique in this schema).
+    candidates = list(User.objects.filter(Q(username__iexact=email) | Q(email__iexact=email)))
+
+    # Prefer a student-portal account that is allowed to sign in right now.
+    student_accounts = [u for u in candidates if u.can_access_student_portal()]
+    loginable = [u for u in student_accounts if u.can_login()]
+
+    if loginable:
+        user = loginable[0]
+        user.last_login = timezone.now()
+        user.save(update_fields=['last_login'])
+        login(request, user)
+
+        remember_me = bool(request.data.get('remember_me', False))
+        request.session.set_expiry(
+            settings.REMEMBER_ME_SESSION_AGE if remember_me else settings.SESSION_COOKIE_AGE
+        )
+
+        user_serializer = UserSerializer(user, context={'request': request})
+        response_data = {
+            'message': 'Login successful',
+            'user': user_serializer.data,
+            'auto_logged_in': True,
+            'remember_me': remember_me,
+        }
+        if user.needs_admission():
+            response_data['redirect_to_admission'] = True
+        return Response(response_data, status=status.HTTP_200_OK)
+
+    # A student account exists but cannot log in (e.g. teacher pending / suspended).
+    if student_accounts:
+        blocked = student_accounts[0]
+        return Response(
+            {'error': blocked.get_login_error_message()},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    # The email belongs only to an admin account — keep it out of this portal.
+    if candidates:
+        return Response(
+            {'error': 'This Google account is linked to an admin account and cannot sign in here.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    # No account yet -> the client should open the pre-filled signup form.
+    return Response(
+        {
+            'needs_signup': True,
+            'email': email,
+            'name': identity['name'],
+            'first_name': identity['first_name'],
+            'last_name': identity['last_name'],
+        },
+        status=status.HTTP_200_OK,
+    )
 
 
 @api_view(['POST'])

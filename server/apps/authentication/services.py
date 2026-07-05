@@ -301,3 +301,93 @@ class SecurityService:
     @staticmethod
     def get_user_agent(request):
         return request.META.get('HTTP_USER_AGENT', '')
+
+
+class GoogleAuthError(Exception):
+    """Raised when a Google access token cannot be verified."""
+
+
+class GoogleAuthService:
+    """
+    Verifies the OAuth 2.0 access token produced by the "Continue with Google"
+    button on the student portal, using only the Python standard library (no
+    extra dependency).
+
+    Two Google endpoints are consulted:
+      1. tokeninfo  — confirms the token's audience (`aud`) is OUR client ID.
+        This is the critical check that stops an access token minted for some
+        other app from being replayed here (the "token substitution" attack).
+      2. userinfo   — returns the verified email and the person's name, which we
+        use to log in an existing account or pre-fill the signup form.
+    """
+
+    TOKENINFO_URL = 'https://oauth2.googleapis.com/tokeninfo'
+    USERINFO_URL = 'https://www.googleapis.com/oauth2/v3/userinfo'
+    _TIMEOUT = 10  # seconds
+
+    @staticmethod
+    def _get_json(url, headers=None):
+        import json
+        import urllib.request
+        import urllib.error
+
+        req = urllib.request.Request(url, headers=headers or {})
+        try:
+            with urllib.request.urlopen(req, timeout=GoogleAuthService._TIMEOUT) as resp:
+                return json.loads(resp.read().decode('utf-8'))
+        except urllib.error.HTTPError as exc:
+            raise GoogleAuthError('Google rejected the sign-in token.') from exc
+        except Exception as exc:  # network / timeout / parse
+            logger.warning("Google token verification request failed: %s", exc)
+            raise GoogleAuthError('Could not reach Google to verify your sign-in.') from exc
+
+    @staticmethod
+    def verify_access_token(access_token):
+        """
+        Verify a Google access token and return the person's identity.
+
+        Returns a dict: {email, email_verified, name, first_name, last_name}.
+        Raises GoogleAuthError on any problem (mis-configuration, wrong audience,
+        unverified email, network failure, invalid token).
+        """
+        client_id = (getattr(settings, 'GOOGLE_OAUTH_CLIENT_ID', '') or '').strip()
+        if not client_id:
+            raise GoogleAuthError('Google sign-in is not configured on the server.')
+
+        access_token = (access_token or '').strip()
+        if not access_token:
+            raise GoogleAuthError('Missing Google sign-in token.')
+
+        from urllib.parse import urlencode
+
+        # 1) Audience check — the token MUST have been issued for this app.
+        info = GoogleAuthService._get_json(
+            f"{GoogleAuthService.TOKENINFO_URL}?{urlencode({'access_token': access_token})}"
+        )
+        audience = info.get('aud') or info.get('azp')
+        if audience != client_id:
+            logger.warning("Google token audience mismatch (got %r).", audience)
+            raise GoogleAuthError('This Google sign-in was not issued for this application.')
+
+        # 2) Profile — verified email + name.
+        profile = GoogleAuthService._get_json(
+            GoogleAuthService.USERINFO_URL,
+            headers={'Authorization': f'Bearer {access_token}'},
+        )
+
+        email = (profile.get('email') or '').strip().lower()
+        if not email:
+            raise GoogleAuthError('Your Google account did not share an email address.')
+
+        # userinfo returns a real boolean; tokeninfo returns the string 'true'.
+        email_verified = profile.get('email_verified')
+        if email_verified in (False, 'false'):
+            raise GoogleAuthError('Your Google email address is not verified.')
+
+        return {
+            'email': email,
+            'email_verified': True,
+            'name': (profile.get('name') or '').strip(),
+            'first_name': (profile.get('given_name') or '').strip(),
+            'last_name': (profile.get('family_name') or '').strip(),
+        }

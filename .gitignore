@@ -53,6 +53,11 @@ build/
 deploy-scripts/secrets.env
 deploy-scripts/generated/
 
+# Backup system: repository password + any local staging (never commit these)
+deploy-scripts/backup-password
+backup-password
+*.restic-password
+
 # IDEs
 .vscode/
 .idea/

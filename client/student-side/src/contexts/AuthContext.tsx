@@ -29,8 +29,18 @@ interface AuthContextType {
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   /** Step 1 of sign-up: validate data + email an OTP. No account is created yet. */
   requestSignupOtp: (data: SignupData) => Promise<void>;
-  /** Step 2 of sign-up: verify the OTP and create the account. */
-  signup: (data: SignupData, otp?: string) => Promise<void>;
+  /**
+   * Step 2 of sign-up: create the account. Pass either the emailed `otp` OR a
+   * verified Google access token (`googleToken`) — the latter skips OTP entirely.
+   */
+  signup: (data: SignupData, otp?: string, googleToken?: string) => Promise<void>;
+  /**
+   * "Continue with Google": send the Google access token to the backend.
+   * - Existing student-portal account -> logs in and returns { needsSignup: false }.
+   * - New email -> returns { needsSignup: true } plus the email/name to pre-fill
+   *   the signup form (which then finishes via signup(..., googleToken)).
+   */
+  googleAuth: (token: string) => Promise<GoogleAuthResult>;
   logout: () => void;
   /** Re-fetch the current user from the server (keeps admission status, profile id, role in sync). */
   refreshUser: () => Promise<void>;
@@ -51,6 +61,16 @@ const STUDENT_PORTAL_ROLES = ['student', 'captain', 'teacher'];
 
 function isStudentPortalUser(userData: any): boolean {
   return !!userData && STUDENT_PORTAL_ROLES.includes(userData.role);
+}
+
+/** Result of a "Continue with Google" attempt. */
+export interface GoogleAuthResult {
+  /** True when no account exists yet — the client should open the signup form. */
+  needsSignup: boolean;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  name?: string;
 }
 
 interface SignupData {
@@ -461,15 +481,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await api.post<any>('/auth/register/send-otp/', buildRegistrationData(data));
   };
 
-  // Step 2: verify the OTP and create the account.
-  const signup = async (data: SignupData, otp?: string) => {
+  // Step 2: create the account, proving the email via OTP or a Google token.
+  const signup = async (data: SignupData, otp?: string, googleToken?: string) => {
     try {
       localStorage.removeItem('hasLoggedOut');
 
       await api.get<any>('/auth/csrf/');
 
       const registrationData = buildRegistrationData(data);
-      if (otp) {
+      if (googleToken) {
+        // Google already verified the email, so no OTP is required.
+        registrationData.google_token = googleToken;
+      } else if (otp) {
         registrationData.otp = otp;
       }
 
@@ -488,6 +511,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error('Signup failed:', error);
       throw error;
     }
+  };
+
+  // "Continue with Google": exchange a Google access token for either a live
+  // session (existing account) or a "needs signup" signal (new email).
+  const googleAuth = async (token: string): Promise<GoogleAuthResult> => {
+    localStorage.removeItem('hasLoggedOut');
+    await api.get<any>('/auth/csrf/');
+    const response = await api.post<any>('/auth/google/', { token, portal: 'student' });
+
+    if (response.needs_signup) {
+      return {
+        needsSignup: true,
+        email: response.email,
+        firstName: response.first_name,
+        lastName: response.last_name,
+        name: response.name,
+      };
+    }
+
+    // Logged in on the server — mirror the normal login path.
+    if (!isStudentPortalUser(response.user)) {
+      try { await api.post('/auth/logout/', {}); } catch (e) {}
+      throw new Error('This account cannot sign in to the student portal.');
+    }
+    const built = await buildUserFromResponse(response.user);
+    applyUser(built);
+    return { needsSignup: false };
   };
 
   const logout = async () => {
@@ -509,6 +559,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login,
       requestSignupOtp,
       signup,
+      googleAuth,
       logout,
       refreshUser,
       loading

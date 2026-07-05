@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import { getErrorMessage } from '@/lib/api';
 import { departmentService, type Department } from '@/services/departmentService';
 import { OTPVerificationForm } from '@/components/auth/OTPVerificationForm';
+import { requestGoogleAccessToken, isGoogleSignInEnabled, GoogleSignInCancelled } from '@/services/googleAuth';
 
 // Sentinel value for the "No department" option in the teacher signup form.
 // (Radix Select cannot use an empty-string value.)
@@ -295,6 +296,7 @@ function MobileAuthForm({
   departments,
   qualificationInput, setQualificationInput,
   navigate,
+  onGoogleSignIn, googleLoading, googleVerified,
 }: {
   mode: AuthMode; setMode: (m: AuthMode) => void; onBack: () => void;
   formData: any; setFormData: (d: any) => void;
@@ -305,6 +307,7 @@ function MobileAuthForm({
   departments: Department[];
   qualificationInput: string; setQualificationInput: (v: string) => void;
   navigate: (path: string) => void;
+  onGoogleSignIn: () => void; googleLoading: boolean; googleVerified: boolean;
 }) {
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#f7f9fd' }}>
@@ -478,12 +481,21 @@ function MobileAuthForm({
                     </>
                   )}
 
-                  {/* Email */}
+                  {/* Email — locked & pre-filled when verified via Google */}
                   <div className="relative">
                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <Input type="email" placeholder="Email Address" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400"
-                      value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required />
+                    <Input type="email" placeholder="Email Address"
+                      className={cn('pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400',
+                        googleVerified && 'pr-11 bg-emerald-50/60 border-emerald-200 text-gray-600')}
+                      value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      required readOnly={googleVerified} />
+                    {googleVerified && (
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded-full">Google</span>
+                    )}
                   </div>
+                  {googleVerified && (
+                    <p className="text-[11px] text-emerald-600 -mt-1.5 px-1">Email verified with Google — no code needed. Just finish the rest below.</p>
+                  )}
 
                   {/* Teacher fields */}
                   {selectedRole === 'teacher' && (
@@ -584,8 +596,9 @@ function MobileAuthForm({
                 </Button>
               </motion.div>
 
-              {/* Social (login only) */}
-              {mode === 'login' && (
+              {/* Social — available on both login & signup; hidden once a Google
+                  signup is already in progress. */}
+              {!googleVerified && (
                 <>
                   <div className="flex items-center gap-3 my-1">
                     <div className="flex-1 h-px bg-gray-200" />
@@ -593,9 +606,11 @@ function MobileAuthForm({
                     <div className="flex-1 h-px bg-gray-200" />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <button type="button"
-                      className="h-12 rounded-2xl border border-gray-200 bg-white flex items-center justify-center shadow-sm hover:bg-gray-50 transition-colors">
-                      <GoogleIcon />
+                    <button type="button" onClick={onGoogleSignIn} disabled={googleLoading}
+                      className="h-12 rounded-2xl border border-gray-200 bg-white flex items-center justify-center gap-2 shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-60">
+                      {googleLoading
+                        ? <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-5 h-5 border-2 border-gray-300 border-t-blue-500 rounded-full" />
+                        : <GoogleIcon />}
                     </button>
                     <button type="button"
                       className="h-12 rounded-2xl border border-gray-200 bg-white flex items-center justify-center shadow-sm hover:bg-gray-50 transition-colors">
@@ -631,13 +646,20 @@ export function AuthPage() {
   const [rememberMe, setRememberMe] = useState(false);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [qualificationInput, setQualificationInput] = useState('');
-  const { login, requestSignupOtp, signup } = useAuth();
+  const { login, requestSignupOtp, signup, googleAuth } = useAuth();
   const navigate = useNavigate();
 
   // Sign-up email-verification (OTP) step
   const [showOtpStep, setShowOtpStep] = useState(false);
   const [pendingSignup, setPendingSignup] = useState<any>(null);
   const [otpError, setOtpError] = useState<string | undefined>();
+
+  // "Continue with Google": once a new Google email is verified we pre-fill the
+  // signup form, lock the email, and keep the token so the final /register/ call
+  // can skip the OTP step entirely.
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleToken, setGoogleToken] = useState<string | null>(null);
+  const googleVerified = !!googleToken;
 
   const [formData, setFormData] = useState({
     studentId: '', email: '', password: '', fullName: '',
@@ -693,8 +715,17 @@ export function AuthPage() {
           setIsLoading(false);
           return;
         }
-        // Step 1 of sign-up: validate + send the email verification code.
         const signupData = buildSignupData();
+
+        // Google-verified signup: the email is already proven by Google, so we
+        // skip the OTP step and create the account directly with the token.
+        if (googleVerified && googleToken) {
+          await signup(signupData, undefined, googleToken);
+          afterSignup(signupData);
+          return;
+        }
+
+        // Step 1 of sign-up: validate + send the email verification code.
         await requestSignupOtp(signupData);
         setPendingSignup(signupData);
         setOtpError(undefined);
@@ -712,31 +743,78 @@ export function AuthPage() {
     }
   };
 
+  // Shared post-account-creation handling (used by both the OTP and Google
+  // signup paths): show the right message and route the new user.
+  const afterSignup = (data: any) => {
+    setGoogleToken(null);
+    if (data?.role === 'teacher') {
+      toast.success('Registration submitted! Please wait for admin approval.');
+      setShowOtpStep(false);
+      setPendingSignup(null);
+      setMode('login');
+      setMobileView('form');
+    } else if (data?.role === 'captain') {
+      toast.success('Account created! Your captain request was sent to your Department Head — you can use the portal as a student until it is approved.');
+      navigate('/dashboard');
+    } else {
+      toast.success('Account created successfully!');
+      navigate('/dashboard');
+    }
+  };
+
   // Step 2 of sign-up: verify the OTP and create the account.
   const handleVerifyOtp = async (otp: string) => {
     setIsLoading(true);
     setOtpError(undefined);
     try {
       await signup(pendingSignup, otp);
-      if (pendingSignup?.role === 'teacher') {
-        toast.success('Registration submitted! Please wait for admin approval.');
-        setShowOtpStep(false);
-        setPendingSignup(null);
-        setMode('login');
-        setMobileView('form');
-      } else if (pendingSignup?.role === 'captain') {
-        toast.success('Account created! Your captain request was sent to your Department Head — you can use the portal as a student until it is approved.');
-        navigate('/dashboard');
-      } else {
-        toast.success('Account created successfully!');
-        navigate('/dashboard');
-      }
+      afterSignup(pendingSignup);
     } catch (err) {
       const msg = firstValidationError(err);
       setOtpError(msg);
       throw new Error(msg);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // "Continue with Google": either logs an existing user straight in, or opens
+  // the signup form pre-filled with the verified Google email + name.
+  const handleGoogleSignIn = async () => {
+    if (googleLoading) return;
+    if (!isGoogleSignInEnabled()) {
+      toast.info('Google sign-in is not set up yet. Please use email sign-up for now.');
+      return;
+    }
+    setGoogleLoading(true);
+    try {
+      const token = await requestGoogleAccessToken();
+      const result = await googleAuth(token);
+
+      if (!result.needsSignup) {
+        toast.success('Welcome back!');
+        navigate('/dashboard');
+        return;
+      }
+
+      // New email — hand off to the signup form. The email is verified by
+      // Google, so it is locked and the OTP step is skipped on submit.
+      setGoogleToken(token);
+      setSelectedRole('student');
+      setFormData((prev: any) => ({
+        ...prev,
+        email: result.email || '',
+        studentId: result.email || '',
+        fullName: result.name || `${result.firstName || ''} ${result.lastName || ''}`.trim(),
+      }));
+      setMode('signup');
+      setMobileView('form');
+      toast.info('Almost there — please complete your details to finish signing up.');
+    } catch (err: any) {
+      if (err instanceof GoogleSignInCancelled) return; // user closed the popup
+      toast.error(firstValidationError(err));
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -756,6 +834,9 @@ export function AuthPage() {
     departments,
     qualificationInput, setQualificationInput,
     navigate,
+    onGoogleSignIn: handleGoogleSignIn,
+    googleLoading,
+    googleVerified,
   };
 
   return (
@@ -1012,10 +1093,19 @@ export function AuthPage() {
                             <p className="text-xs text-gray-400 mt-1">Your captain request will be sent to your Department Head for approval.</p></div>
                         </>
                       )}
-                      <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Email Address</Label>
+                      <div>
+                        <Label className="text-xs font-semibold text-gray-600 mb-1.5 block">
+                          Email Address
+                          {googleVerified && <span className="ml-2 text-emerald-600 font-medium">✓ Verified with Google</span>}
+                        </Label>
                         <div className="relative"><Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <Input type="email" placeholder="your.email@example.com" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
-                            value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required /></div></div>
+                          <Input type="email" placeholder="your.email@example.com"
+                            className={cn('pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400',
+                              googleVerified && 'bg-emerald-50/60 border-emerald-200 text-gray-600')}
+                            value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                            required readOnly={googleVerified} /></div>
+                        {googleVerified && <p className="text-xs text-emerald-600 mt-1">No verification code needed — just complete the remaining fields.</p>}
+                      </div>
                     </>
                   )}
 
@@ -1107,8 +1197,9 @@ export function AuthPage() {
                     </Button>
                   </motion.div>
 
-                  {/* Social — login only */}
-                  {mode === 'login' && (
+                  {/* Social — available on both login & signup; hidden once a
+                      Google signup is already in progress. */}
+                  {!googleVerified && (
                     <>
                       <div className="flex items-center gap-3 my-1">
                         <div className="flex-1 h-px bg-gray-200" />
@@ -1117,8 +1208,11 @@ export function AuthPage() {
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <motion.button type="button" whileTap={{ scale: 0.98 }} whileHover={{ scale: 1.01 }}
-                          className="h-12 rounded-2xl border border-gray-200 bg-white flex items-center justify-center gap-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm">
-                          <GoogleIcon />Google
+                          onClick={handleGoogleSignIn} disabled={googleLoading}
+                          className="h-12 rounded-2xl border border-gray-200 bg-white flex items-center justify-center gap-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm disabled:opacity-60">
+                          {googleLoading
+                            ? <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-5 h-5 border-2 border-gray-300 border-t-blue-500 rounded-full" />
+                            : <><GoogleIcon />Google</>}
                         </motion.button>
                         <motion.button type="button" whileTap={{ scale: 0.98 }} whileHover={{ scale: 1.01 }}
                           className="h-12 rounded-2xl border border-gray-200 bg-white flex items-center justify-center gap-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm">

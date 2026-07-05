@@ -138,11 +138,12 @@ update_application() {
         print_error "Not in a git repository"
         exit 1
     fi
-    
-    # Backup current state
-    print_status "Creating backup before update..."
-    backup_database
-    
+
+    # Backups are a SEPARATE, explicit system now — updates never auto-backup.
+    # If you want a safety snapshot first, run it yourself:
+    #     sudo ./deploy-scripts/backup.sh
+    print_warning "Tip: take a backup before updating -> sudo ./deploy-scripts/backup.sh"
+
     # Pull latest changes
     print_status "Pulling latest changes..."
     git pull origin main
@@ -166,75 +167,17 @@ update_application() {
     print_status "✅ Application updated successfully"
 }
 
-# Database backup
+# Backup / restore are handled by the dedicated, independent Restic-based
+# system. These wrappers just delegate so there is ONE backup system and the
+# old `slms.sh` menu keeps working.
 backup_database() {
-    print_step "Creating database backup..."
-    
-    BACKUP_DIR="$HOME/slms_backups"
-    mkdir -p "$BACKUP_DIR"
-    
-    BACKUP_FILE="$BACKUP_DIR/slms_backup_$(date +%Y%m%d_%H%M%S).sql"
-
-    if sudo -u postgres pg_dump "$DB_NAME" > "$BACKUP_FILE"; then
-        print_status "✅ Database backup created: $BACKUP_FILE"
-        
-        # Keep only last 10 backups
-        ls -t "$BACKUP_DIR"/slms_backup_*.sql | tail -n +11 | xargs -r rm
-        print_status "Old backups cleaned up (keeping last 10)"
-    else
-        print_error "❌ Database backup failed"
-        exit 1
-    fi
+    print_step "Delegating to the full-system backup (deploy-scripts/backup.sh)..."
+    sudo bash "${SCRIPT_DIR}/backup.sh"
 }
 
-# Database restore
 restore_database() {
-    print_step "Restoring database from backup..."
-    
-    BACKUP_DIR="$HOME/slms_backups"
-    
-    if [ ! -d "$BACKUP_DIR" ]; then
-        print_error "Backup directory not found: $BACKUP_DIR"
-        exit 1
-    fi
-    
-    # List available backups
-    echo "Available backups:"
-    ls -la "$BACKUP_DIR"/slms_backup_*.sql 2>/dev/null || {
-        print_error "No backup files found"
-        exit 1
-    }
-    
-    read -p "Enter backup filename: " backup_file
-    
-    if [ ! -f "$BACKUP_DIR/$backup_file" ]; then
-        print_error "Backup file not found: $backup_file"
-        exit 1
-    fi
-    
-    print_warning "This will overwrite the current database. Are you sure?"
-    read -p "Type 'yes' to continue: " confirm
-    
-    if [ "$confirm" != "yes" ]; then
-        print_status "Restore cancelled"
-        exit 0
-    fi
-    
-    # Stop services
-    sudo systemctl stop ${SERVICE_NAME}
-    
-    # Restore database
-    if sudo -u postgres psql "$DB_NAME" < "$BACKUP_DIR/$backup_file"; then
-        print_status "✅ Database restored successfully"
-    else
-        print_error "❌ Database restore failed"
-        exit 1
-    fi
-    
-    # Start services
-    sudo systemctl start ${SERVICE_NAME}
-    
-    print_status "✅ Database restore completed"
+    print_step "Delegating to the full-system restore (deploy-scripts/restore.sh)..."
+    sudo bash "${SCRIPT_DIR}/restore.sh"
 }
 
 # Create superuser

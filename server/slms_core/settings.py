@@ -363,18 +363,33 @@ SESSION_COOKIE_NAME = 'sessionid'
 EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
 EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
 EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
+# STARTTLS (port 587) vs implicit SSL (port 465). Never enable both — the
+# deploy config keeps them mutually exclusive.
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
+EMAIL_USE_SSL = config('EMAIL_USE_SSL', default=False, cast=bool)
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@example.com')
 EMAIL_TIMEOUT = config('EMAIL_TIMEOUT', default=30, cast=int)
 
 # Public URLs used inside outgoing emails (logo, call-to-action links).
-STUDENT_PORTAL_URL = config('STUDENT_PORTAL_URL', default='https://spistudent.errorburner.site').rstrip('/')
-ADMIN_PORTAL_URL = config('ADMIN_PORTAL_URL', default='https://spiadmin.errorburner.site').rstrip('/')
+# In production these come from server/.env (deploy.sh derives them from the
+# domains in config.env); the defaults below are the production domains so
+# emails still link correctly even if the env vars are ever missing.
+STUDENT_PORTAL_URL = config('STUDENT_PORTAL_URL', default='https://spisg.gov.bd').rstrip('/')
+ADMIN_PORTAL_URL = config('ADMIN_PORTAL_URL', default='https://su.spisg.gov.bd').rstrip('/')
 # The institute logo shown at the top of every email. Served by the student
 # SPA (public/spi-logo.png) so it is always reachable from email clients.
 EMAIL_LOGO_URL = config('EMAIL_LOGO_URL', default=f'{STUDENT_PORTAL_URL}/spi-logo.png')
+
+# --------------------------------------------------
+# GOOGLE SIGN-IN (student portal)
+# --------------------------------------------------
+# OAuth 2.0 Web Client ID from the Google Cloud Console. The student SPA uses it
+# to obtain an access token; the backend verifies that token's audience matches
+# this same ID (guards against token substitution). Leave blank to disable the
+# "Continue with Google" flow — the endpoint then returns a clear error.
+GOOGLE_OAUTH_CLIENT_ID = config('GOOGLE_OAUTH_CLIENT_ID', default='')
 
 # --------------------------------------------------
 # LOGGING — ERROR+ records become System Reports (admin dashboard)
