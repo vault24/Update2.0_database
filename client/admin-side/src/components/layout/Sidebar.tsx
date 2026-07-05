@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useInterfaceMode } from '@/contexts/InterfaceModeContext';
 import { getVisibleMenu, getRoleLabel, resolveAdminRole } from '@/config/permissions';
+import { useBadges, FEATURE_TO_MODULE } from '@/contexts/BadgeContext';
+import { NavBadge } from '@/components/ui/nav-badge';
 
 interface SidebarProps {
   onClose: () => void;
@@ -19,6 +21,7 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
   const location = useLocation();
   const { user } = useAuth();
   const { mode, isAdvanced } = useInterfaceMode();
+  const { countFor } = useBadges();
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
   const role = useMemo(() => resolveAdminRole(user), [user]);
@@ -133,6 +136,7 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
                   >
                     {group.items.map((item) => {
                       const isActive = location.pathname === item.path;
+                      const badgeCount = countFor(FEATURE_TO_MODULE[item.feature]);
                       return (
                         <NavLink
                           key={item.path}
@@ -159,6 +163,7 @@ export function Sidebar({ onClose, isMobile }: SidebarProps) {
                             )}
                           />
                           <span className="truncate">{item.label}</span>
+                          <NavBadge count={badgeCount} />
                         </NavLink>
                       );
                     })}

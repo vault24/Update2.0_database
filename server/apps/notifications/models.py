@@ -118,6 +118,28 @@ class NotificationPreferenceType(models.Model):
         return f"{self.notification_type} - {self.preference.user.username}"
 
 
+class ModuleSeen(models.Model):
+    """
+    Per-user, per-module "last seen" marker that powers the sidebar unread
+    badges. A badge counts items in a module created/updated after the user last
+    opened that module; opening the page upserts `last_seen_at = now()`, resetting
+    the badge to 0. A missing row means the user has never opened the module, so
+    everything counts.
+    """
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='module_seen')
+    module = models.CharField(max_length=64)
+    last_seen_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        unique_together = ('user', 'module')
+        indexes = [
+            models.Index(fields=['user', 'module']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} saw {self.module} @ {self.last_seen_at:%Y-%m-%d %H:%M}"
+
+
 class DeliveryLog(models.Model):
     """Model for tracking notification delivery status"""
     notification = models.ForeignKey(Notification, on_delete=models.CASCADE, related_name='delivery_logs')

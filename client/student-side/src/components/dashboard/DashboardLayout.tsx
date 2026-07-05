@@ -9,6 +9,7 @@ import { useState, useEffect } from 'react';
 import { noticeService } from '@/services/noticeService';
 import { connectNotificationsSocket } from '@/lib/notificationsSocket';
 import { useAuth } from '@/contexts/AuthContext';
+import { BadgeProvider } from '@/contexts/BadgeContext';
 import { useTeacherClassNotifications } from '@/hooks/useTeacherClassNotifications';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { MaintenanceNoticeBanner } from '@/components/layout/MaintenanceNoticeBanner';
@@ -82,6 +83,7 @@ export function DashboardLayout() {
   const roleBadge = getRoleBadge();
 
   return (
+    <BadgeProvider>
     <div className="flex min-h-screen bg-background">
       <Sidebar />
 
@@ -197,5 +199,6 @@ export function DashboardLayout() {
         <Footer />
       </div>
     </div>
+    </BadgeProvider>
   );
 }

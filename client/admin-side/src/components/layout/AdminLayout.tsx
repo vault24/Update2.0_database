@@ -4,12 +4,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sidebar } from './Sidebar';
 import { TopNavbar } from './TopNavbar';
 import { Footer } from './Footer';
+import { BadgeProvider } from '@/contexts/BadgeContext';
 
 export function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
+    <BadgeProvider>
     <div className="min-h-screen bg-background flex">
       {/* Desktop Sidebar */}
       <AnimatePresence mode="wait">
@@ -78,5 +80,6 @@ export function AdminLayout() {
         <Footer />
       </div>
     </div>
+    </BadgeProvider>
   );
 }

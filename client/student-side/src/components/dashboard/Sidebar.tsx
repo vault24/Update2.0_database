@@ -31,6 +31,8 @@ import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import { SwitchAccountDialog, canSwitchAccount } from '@/components/account/SwitchAccountDialog';
+import { NavBadge } from '@/components/ui/nav-badge';
+import { useBadges, PATH_TO_MODULE } from '@/contexts/BadgeContext';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 
@@ -99,6 +101,7 @@ export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { logout, user } = useAuth();
+  const { countFor } = useBadges();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isUpcomingOpen, setIsUpcomingOpen] = useState(true);
@@ -142,6 +145,8 @@ export function Sidebar() {
 
   const renderNavItem = (item: MenuItem) => {
     const isActive = location.pathname === item.path;
+    // Unread badge count for this nav item (0 when the route isn't tracked).
+    const badgeCount = countFor(PATH_TO_MODULE[item.path]);
     return (
       <li key={item.path}>
         <NavLink
@@ -172,6 +177,10 @@ export function Sidebar() {
           {!isCollapsed && (
             <span className="relative z-10 truncate">{item.label}</span>
           )}
+          {/* Unread badge: number pill when expanded, dot on the icon when collapsed */}
+          {!isCollapsed
+            ? <NavBadge count={badgeCount} className="relative z-10 ml-auto" />
+            : <NavBadge count={badgeCount} dot />}
         </NavLink>
       </li>
     );

@@ -24,6 +24,7 @@ SHARED_ADMIN_PREFIXES = (
     '/api/auth/',
     '/api/dashboard/',
     '/api/notifications/',
+    '/api/badges/',        # per-user sidebar unread badges (see notifications.badge_views)
 )
 
 # Reference endpoints all admins may READ (GET) but not modify.
