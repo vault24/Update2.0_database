@@ -1,10 +1,16 @@
 #!/bin/bash
 
-# --- Load shared deployment configuration (SERVER_IP, SERVICE_NAME, DB_*) -----
+# --- Load shared deployment configuration (config.env = single source of truth)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [ -f "${SCRIPT_DIR}/config.env" ] && source "${SCRIPT_DIR}/config.env"
-SERVER_IP="${SERVER_IP:-192.168.0.100}"
+SERVER_IP="${PUBLIC_IP:-${SERVER_IP:-127.0.0.1}}"
 SERVICE_NAME="${SERVICE_NAME:-sipi}"
+ADMIN_PORT="${ADMIN_PORT:-8080}"
+# Display URLs: prefer the configured domains, fall back to the raw IP.
+STUDENT_URL="${STUDENT_DOMAIN:+http(s)://${STUDENT_DOMAIN}}"
+STUDENT_URL="${STUDENT_URL:-http://${SERVER_IP}}"
+ADMIN_URL="${ADMIN_DOMAIN:+http(s)://${ADMIN_DOMAIN}}"
+ADMIN_URL="${ADMIN_URL:-http://${SERVER_IP}:${ADMIN_PORT}}"
 
 # SLMS Master Script
 # Single entry point for all SLMS deployment and maintenance tasks
@@ -198,9 +204,9 @@ show_help() {
     echo "   deploy-scripts/troubleshoot.sh - Troubleshooting tools"
     echo ""
     echo "🌐 Application URLs (after deployment):"
-    echo "   Student Frontend: http://${SERVER_IP}"
-    echo "   Admin Frontend:   http://${SERVER_IP}:8080"
-    echo "   API Endpoint:     http://${SERVER_IP}/api/"
+    echo "   Student Frontend: ${STUDENT_URL}"
+    echo "   Admin Frontend:   ${ADMIN_URL}"
+    echo "   API Endpoint:     ${STUDENT_URL}/api/"
     echo ""
     echo "🔧 Manual Commands:"
     echo "   sudo systemctl status ${SERVICE_NAME} nginx postgresql"

@@ -1,10 +1,16 @@
 #!/bin/bash
 
-# --- Load shared deployment configuration (SERVER_IP, SERVICE_NAME, DB_*) -----
+# --- Load shared deployment configuration (config.env is the single source
+#     of truth; PUBLIC_IP/domains/DB names all come from there) ---------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [ -f "${SCRIPT_DIR}/config.env" ] && source "${SCRIPT_DIR}/config.env"
-SERVER_IP="${SERVER_IP:-192.168.0.100}"
+SERVER_IP="${PUBLIC_IP:-${SERVER_IP:-127.0.0.1}}"
 SERVICE_NAME="${SERVICE_NAME:-sipi}"
+STUDENT_PORT="${STUDENT_PORT:-80}"
+ADMIN_PORT="${ADMIN_PORT:-8080}"
+DB_NAME="${DB_NAME:-sipi_db}"
+DB_USER="${DB_USER:-sipi_web}"
+RUN_AS_USER="${RUN_AS_USER:-www-data}"
 
 # SLMS Maintenance Script
 # Common maintenance tasks for the deployed SLMS application
@@ -13,9 +19,6 @@ set -e
 
 # Configuration
 PROJECT_NAME="SLMS"
-SERVER_IP="${SERVER_IP}"
-DB_NAME="sipi_db"
-DB_USER="sipi_web"
 
 # Colors
 RED='\033[0;31m'
@@ -67,7 +70,7 @@ check_status() {
     
     # Check ports
     print_step "Checking port availability..."
-    ports=("80:NGINX-Student" "8080:NGINX-Admin" "8000:Gunicorn")
+    ports=("${STUDENT_PORT}:NGINX-Student" "${ADMIN_PORT}:NGINX-Admin" "8000:Gunicorn")
     for port_info in "${ports[@]}"; do
         port=$(echo "$port_info" | cut -d':' -f1)
         name=$(echo "$port_info" | cut -d':' -f2)
@@ -171,8 +174,8 @@ backup_database() {
     mkdir -p "$BACKUP_DIR"
     
     BACKUP_FILE="$BACKUP_DIR/slms_backup_$(date +%Y%m%d_%H%M%S).sql"
-    
-    if pg_dump -U "$DB_USER" -h localhost "$DB_NAME" > "$BACKUP_FILE"; then
+
+    if sudo -u postgres pg_dump "$DB_NAME" > "$BACKUP_FILE"; then
         print_status "✅ Database backup created: $BACKUP_FILE"
         
         # Keep only last 10 backups
@@ -221,7 +224,7 @@ restore_database() {
     sudo systemctl stop ${SERVICE_NAME}
     
     # Restore database
-    if psql -U "$DB_USER" -h localhost "$DB_NAME" < "$BACKUP_DIR/$backup_file"; then
+    if sudo -u postgres psql "$DB_NAME" < "$BACKUP_DIR/$backup_file"; then
         print_status "✅ Database restored successfully"
     else
         print_error "❌ Database restore failed"
@@ -292,7 +295,7 @@ rebuild_frontend() {
     cd ../..
     
     # Set permissions
-    sudo chown -R ubuntu:www-data client/
+    sudo chown -R "${RUN_AS_USER}:${RUN_AS_USER}" client/
     sudo chmod -R 755 client/admin-side/dist/
     sudo chmod -R 755 client/student-side/dist/
     

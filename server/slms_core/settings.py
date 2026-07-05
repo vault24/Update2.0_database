@@ -120,7 +120,8 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            'hosts': [('127.0.0.1', 6379)],
+            'hosts': [(config('REDIS_HOST', default='127.0.0.1'),
+                       config('REDIS_PORT', default=6379, cast=int))],
         },
     },
 }
@@ -300,6 +301,34 @@ CSRF_USE_SESSIONS = False
 CSRF_COOKIE_NAME = 'csrftoken'
 
 CSRF_FAILURE_VIEW = 'apps.authentication.csrf_handler.csrf_failure'
+
+# --------------------------------------------------
+# HTTPS / REVERSE-PROXY SECURITY  — all env-driven so the same code runs in
+# local development (plain HTTP) and behind the production Nginx TLS proxy.
+# --------------------------------------------------
+# When Django sits behind Nginx which terminates TLS, requests arrive over
+# plain HTTP with an X-Forwarded-Proto header set by the proxy. Enabling this
+# makes request.is_secure() (and secure-cookie/CSRF logic) trust that header.
+# ONLY enable it when the proxy strips/overrides the client's own header
+# (the generated Nginx config does).
+if config('USE_X_FORWARDED_PROTO', default=False, cast=bool):
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# HTTP -> HTTPS redirect is handled by Nginx (cheaper, and it must also serve
+# the ACME challenge over HTTP), so SECURE_SSL_REDIRECT stays off by default.
+SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=False, cast=bool)
+
+# HSTS is emitted by Nginx on HTTPS responses; keep Django's own HSTS off by
+# default to avoid double headers, but allow enabling via env if Nginx is
+# ever removed from the stack.
+SECURE_HSTS_SECONDS = config('SECURE_HSTS_SECONDS', default=0, cast=int)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = config('SECURE_HSTS_INCLUDE_SUBDOMAINS', default=False, cast=bool)
+SECURE_HSTS_PRELOAD = config('SECURE_HSTS_PRELOAD', default=False, cast=bool)
+
+# Misc security headers Django can add itself (Nginx repeats them for static
+# responses that never reach Django).
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 
 # --------------------------------------------------
 # SESSION

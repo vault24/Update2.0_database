@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# --- Load shared deployment configuration (SERVER_IP, SERVICE_NAME, DB_*) -----
+# --- Load shared deployment configuration (config.env = single source of truth)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [ -f "${SCRIPT_DIR}/config.env" ] && source "${SCRIPT_DIR}/config.env"
-SERVER_IP="${SERVER_IP:-192.168.0.100}"
+SERVER_IP="${PUBLIC_IP:-${SERVER_IP:-127.0.0.1}}"
 SERVICE_NAME="${SERVICE_NAME:-sipi}"
 
 # SLMS Troubleshooting Script
@@ -131,9 +131,10 @@ diagnose_system() {
 
 # Check file permissions
 check_permissions() {
-    # Check project directory ownership
-    if [ "$(stat -c %U .)" != "ubuntu" ]; then
-        print_warning "Project directory not owned by ubuntu user"
+    # The whole project is owned by the service user (www-data by default).
+    RUN_AS_USER="${RUN_AS_USER:-www-data}"
+    if [ "$(stat -c %U .)" != "${RUN_AS_USER}" ]; then
+        print_warning "Project directory not owned by ${RUN_AS_USER} (run: troubleshoot.sh fix-perms)"
     else
         print_status "✅ Project directory ownership correct"
     fi
@@ -222,104 +223,55 @@ fix_502_error() {
 }
 
 # Fix CORS issues
+# CORS/CSRF origins are fully env-driven: settings.py derives them from the
+# STUDENT_PORTAL_ORIGINS / ADMIN_PORTAL_ORIGINS values that deploy.sh writes
+# into server/.env from deploy-scripts/config.env. So the correct "fix" is to
+# regenerate that file — NEVER to patch settings.py.
 fix_cors_issues() {
-    print_step "Fixing CORS issues..."
-    
-    # Check Django CORS settings
-    cd server
-    if [ -f "venv/bin/activate" ]; then
-        source venv/bin/activate
-        
-        # Install django-cors-headers if not installed
-        if ! pip list | grep -q django-cors-headers; then
-            print_status "Installing django-cors-headers..."
-            pip install django-cors-headers
-        fi
-        
-        # Check if CORS is configured in settings
-        if ! grep -q "corsheaders" slms_core/settings.py; then
-            print_status "Adding CORS configuration to Django settings..."
-            
-            # Backup settings
-            cp slms_core/settings.py slms_core/settings.py.backup
-            
-            # Add CORS configuration
-            cat >> slms_core/settings.py << 'EOF'
+    print_step "Fixing CORS issues (regenerating server/.env from config.env)..."
 
-# CORS Configuration
-CORS_ALLOWED_ORIGINS = [
-    "http://${SERVER_IP}",
-    "http://${SERVER_IP}:8080",
-    "http://localhost:3000",
-    "http://localhost:5173",
-]
+    print_status "Current origin configuration in server/.env:"
+    grep -E "PORTAL_ORIGINS|ALLOWED_HOSTS" server/.env 2>/dev/null || print_warning "server/.env missing"
 
-CORS_ALLOW_CREDENTIALS = True
+    print_status "Regenerating backend environment + restarting..."
+    sudo bash "${SCRIPT_DIR}/deploy.sh" --backend
 
-CORS_ALLOW_ALL_ORIGINS = False
-
-CORS_ALLOWED_HEADERS = [
-    'accept',
-    'accept-encoding',
-    'authorization',
-    'content-type',
-    'dnt',
-    'origin',
-    'user-agent',
-    'x-csrftoken',
-    'x-requested-with',
-]
-EOF
-            
-            # Add corsheaders to INSTALLED_APPS if not present
-            if ! grep -q "corsheaders" slms_core/settings.py; then
-                sed -i "/INSTALLED_APPS = \[/a\\    'corsheaders'," slms_core/settings.py
-            fi
-            
-            # Add corsheaders middleware if not present
-            if ! grep -q "corsheaders.middleware.CorsMiddleware" slms_core/settings.py; then
-                sed -i "/MIDDLEWARE = \[/a\\    'corsheaders.middleware.CorsMiddleware'," slms_core/settings.py
-            fi
-        fi
-    fi
-    cd ..
-    
-    # Restart services
-    sudo systemctl restart ${SERVICE_NAME}
-    sudo systemctl restart nginx
-    
-    print_status "✅ CORS configuration updated"
+    print_status "If a NEW domain/IP must be allowed, edit deploy-scripts/config.env"
+    print_status "(PUBLIC_IP / STUDENT_DOMAIN / ADMIN_DOMAIN) and run the deploy again."
 }
 
-# Fix file permissions
+# Fix file permissions (same model as deploy.sh: everything owned by the
+# service user; storage/media writable; secrets kept private)
 fix_permissions() {
     print_step "Fixing file permissions..."
-    
-    # Fix project directory ownership
-    sudo chown -R ubuntu:ubuntu .
-    
-    # Fix static files permissions
+    RUN_AS_USER="${RUN_AS_USER:-www-data}"
+
+    sudo chown -R "${RUN_AS_USER}:${RUN_AS_USER}" .
+
+    # Static files + frontend dists must be world-readable for Nginx.
     if [ -d "server/staticfiles" ]; then
         sudo chmod -R 755 server/staticfiles/
         print_status "Fixed static files permissions"
     fi
-    
-    # Fix frontend dist permissions
     for frontend in "client/admin-side/dist" "client/student-side/dist"; do
         if [ -d "$frontend" ]; then
             sudo chmod -R 755 "$frontend"
             print_status "Fixed $frontend permissions"
         fi
     done
-    
-    # Fix server directory permissions for www-data
-    sudo chown -R ubuntu:www-data server/
-    sudo chmod -R 755 server/
-    
-    # Fix client directory permissions for www-data
-    sudo chown -R ubuntu:www-data client/
-    sudo chmod -R 755 client/
-    
+
+    # Uploads: service user read/write, others no access.
+    for writable in "server/storage" "server/media"; do
+        if [ -d "$writable" ]; then
+            sudo chmod -R u+rwX,g+rX,o-rwx "$writable"
+        fi
+    done
+
+    # Keep the generated env private.
+    if [ -f "server/.env" ]; then
+        sudo chmod 600 server/.env
+    fi
+
     print_status "✅ File permissions fixed"
 }
 
@@ -367,7 +319,7 @@ fix_static_files() {
         
         # Fix permissions
         sudo chmod -R 755 staticfiles/
-        sudo chown -R ubuntu:www-data staticfiles/
+        sudo chown -R www-data:www-data staticfiles/
         
         print_status "✅ Static files fixed"
     fi
@@ -378,23 +330,13 @@ fix_static_files() {
 }
 
 # Reset NGINX configuration
+# The Nginx site is fully generated from deploy-scripts/config.env, so a
+# "reset" is simply a regeneration (deploy.sh validates before applying and
+# rolls back automatically if the new config is invalid).
 reset_nginx() {
-    print_step "Resetting NGINX configuration..."
-    
-    # Backup current config
-    if [ -f "/etc/nginx/sites-available/slms" ]; then
-        sudo cp /etc/nginx/sites-available/slms /etc/nginx/sites-available/slms.backup.$(date +%Y%m%d_%H%M%S)
-    fi
-    
-    # Remove current config
-    sudo rm -f /etc/nginx/sites-enabled/slms
-    sudo rm -f /etc/nginx/sites-available/slms
-    
-    # Recreate configuration
-    print_status "Recreating NGINX configuration..."
-    ./deploy-scripts/configure-nginx.sh
-    
-    print_status "✅ NGINX configuration reset"
+    print_step "Regenerating NGINX configuration from config.env..."
+    sudo bash "${SCRIPT_DIR}/deploy.sh" --nginx
+    print_status "✅ NGINX configuration regenerated"
 }
 
 # Nuclear option - reset everything
