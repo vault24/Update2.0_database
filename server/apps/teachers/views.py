@@ -27,6 +27,7 @@ from .serializers import (
     TeacherResearchSerializer,
     TeacherAwardSerializer
 )
+from apps.authentication.permissions import BlockStudentWrite
 
 
 class TeacherViewSet(viewsets.ModelViewSet):
@@ -41,6 +42,7 @@ class TeacherViewSet(viewsets.ModelViewSet):
     - DELETE /api/teachers/{id}/ - Delete teacher
     """
     queryset = Teacher.objects.all()
+    permission_classes = [BlockStudentWrite]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['department', 'employmentStatus', 'designation']
     search_fields = ['fullNameEnglish', 'fullNameBangla', 'email', 'designation']

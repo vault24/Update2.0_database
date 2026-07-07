@@ -12,7 +12,9 @@ export const FEATURE_TO_MODULE: Record<string, string> = {
   admissions: 'admin_admissions',
   teachers: 'admin_teacher_requests',
   discontinued_students: 'admin_discontinued_students',
-  alumni: 'admin_alumni',
+  // The alumni badge counts PENDING self-registrations, so it lives on the
+  // Alumni Requests page (not the directory).
+  alumni_requests: 'admin_alumni',
   applications: 'admin_applications',
   correction_requests: 'admin_correction_requests',
   signup_requests: 'admin_signup_requests',
@@ -26,7 +28,7 @@ export const PATH_TO_MODULE: Record<string, string> = {
   '/admissions': 'admin_admissions',
   '/teachers': 'admin_teacher_requests',
   '/discontinued-students': 'admin_discontinued_students',
-  '/alumni': 'admin_alumni',
+  '/alumni-requests': 'admin_alumni',
   '/applications': 'admin_applications',
   '/correction-requests': 'admin_correction_requests',
   '/signup-requests': 'admin_signup_requests',

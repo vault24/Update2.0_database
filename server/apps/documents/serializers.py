@@ -15,11 +15,24 @@ class DocumentSerializer(serializers.ModelSerializer):
     studentRoll = serializers.SerializerMethodField()
     source_type_display = serializers.CharField(source='get_source_type_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
-    file_url = serializers.ReadOnlyField()
+    file_url = serializers.SerializerMethodField()
     file_size_mb = serializers.ReadOnlyField()
     is_image = serializers.ReadOnlyField()
     is_pdf = serializers.ReadOnlyField()
-    
+
+    def get_file_url(self, obj):
+        """
+        Loadable URL routed through the AUTHENTICATED preview endpoint.
+
+        SECURITY: never expose the raw `/files/` (document store) path. That
+        directory holds NID / birth certificates / marksheets and must only be
+        reachable via the per-object-authorised preview/download endpoints.
+        """
+        request = self.context.get('request')
+        path = f'/api/documents/{obj.id}/preview/'
+        return request.build_absolute_uri(path) if request else path
+
+
     def get_studentName(self, obj):
         """Get student name from student relationship or owner_name field"""
         if obj.student:
@@ -69,8 +82,8 @@ class DocumentSerializer(serializers.ModelSerializer):
             'is_pdf',
         ]
         read_only_fields = [
-            'id', 'uploadDate', 'lastModified', 'filePath', 
-            'fileSize', 'fileHash', 'mimeType', 'file_url',
+            'id', 'uploadDate', 'lastModified', 'filePath',
+            'fileSize', 'fileHash', 'mimeType',
             'file_size_mb', 'is_image', 'is_pdf'
         ]
 

@@ -51,10 +51,25 @@ class RegisterSerializer(serializers.ModelSerializer):
             'department', 'qualifications', 'specializations', 'office_location'
         ]
     
+    # Roles a person may self-register as. Admin roles (registrar,
+    # department_head, institute_head) are created ONLY through the reviewed
+    # SignupRequest approval flow — never via public registration.
+    SELF_REGISTER_ROLES = {'student', 'captain', 'teacher'}
+
     def validate(self, attrs):
         if attrs['password'] != attrs['confirm_password']:
             raise serializers.ValidationError("Passwords don't match")
-        
+
+        # SECURITY: pin the role to the self-registerable set. Without this a
+        # public registrant could pass role='institute_head' (or registrar /
+        # department_head) and be created as a fully-privileged admin.
+        role = (attrs.get('role') or 'student')
+        if role not in self.SELF_REGISTER_ROLES:
+            raise serializers.ValidationError({
+                'role': 'You cannot register with this role.'
+            })
+        attrs['role'] = role
+
         # Alumni accounts skip the SSC-board-roll / admission requirements.
         is_alumni_account = (attrs.get('account_type') or '').lower() == 'alumni'
 
@@ -668,7 +683,7 @@ class UserSerializer(serializers.ModelSerializer):
             'related_profile_id', 'student_id', 'admission_status', 'account_status',
             'mobile_number', 'semester', 'student_status', 'is_alumni', 'is_alumni_account',
             'alumni_review_status', 'shift', 'profile_photo_url', 'signature_url', 'two_factor_enabled',
-            'email_notifications_enabled', 'last_login', 'date_joined'
+            'email_notifications_enabled', 'alumni_visible', 'last_login', 'date_joined'
         ]
         read_only_fields = [
             'id', 'username', 'role', 'is_superuser', 'student_id',

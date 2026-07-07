@@ -59,6 +59,8 @@ interface AdminProfile {
   phone: string;
   role: string;
   department?: string;
+  /** Shift managed by a Department Head ('1st_shift' | '2nd_shift' | ''). */
+  shift?: string;
   avatar?: string;
   lastLogin?: string;
   createdAt?: string;
@@ -69,7 +71,10 @@ export default function Settings() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user, updateUser } = useAuth(); // Get user from AuthContext
-  const { mode, isAdvanced, toggleMode, isSaving: modeSaving } = useInterfaceMode();
+  const {
+    mode, isAdvanced, toggleMode, isSaving: modeSaving,
+    alumniVisible, setAlumniVisible, isSavingAlumni,
+  } = useInterfaceMode();
   
   // Profile state
   const [profile, setProfile] = useState<AdminProfile>({
@@ -174,6 +179,7 @@ export default function Settings() {
         phone: '', // Will be fetched from API
         role: roleDisplay,
         department: (user.department as string) || '',
+        shift: user.shift || '',
         lastLogin: '',
         createdAt: ''
       });
@@ -206,6 +212,7 @@ export default function Settings() {
         phone: userData.mobile_number || '',
         role: roleDisplay,
         department: userData.department || '',
+        shift: userData.shift || '',
         avatar: userData.profile_photo_url || undefined,
         lastLogin: userData.last_login || '',
         createdAt: userData.date_joined || ''
@@ -315,9 +322,10 @@ export default function Settings() {
         email: profile.email,
         mobile_number: profile.phone,
       };
-      // Department Heads can set/update the department they manage
+      // Department Heads can set/update the department + shift they manage
       if (user?.role === 'department_head') {
         payload.department = profile.department || '';
+        payload.shift = profile.shift || '';
       }
       await apiClient.put('auth/profile/', payload);
 
@@ -539,6 +547,24 @@ export default function Settings() {
       toast({
         title: 'Error',
         description: 'Failed to update interface mode. Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleToggleAlumni = async (visible: boolean) => {
+    try {
+      await setAlumniVisible(visible);
+      toast({
+        title: 'Alumni Visibility Updated',
+        description: visible
+          ? 'Alumni pages are now shown in the sidebar.'
+          : 'Alumni pages are now hidden from the sidebar.',
+      });
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: 'Failed to update alumni visibility. Please try again.',
         variant: 'destructive',
       });
     }
@@ -828,6 +854,27 @@ export default function Settings() {
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                  )}
+                  {user?.role === 'department_head' && (
+                    <div className="space-y-2">
+                      <Label htmlFor="head-shift">Shift</Label>
+                      <Select
+                        value={profile.shift || ''}
+                        onValueChange={(value) => setProfile({ ...profile, shift: value })}
+                        disabled={!editingProfile}
+                      >
+                        <SelectTrigger id="head-shift" className={!editingProfile ? 'bg-muted' : ''}>
+                          <SelectValue placeholder="Select your shift" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1st_shift">1st Shift (Morning)</SelectItem>
+                          <SelectItem value="2nd_shift">2nd Shift (Day)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Used to route captain requests and default the departments view to your shift.
+                      </p>
                     </div>
                   )}
                 </div>
@@ -1120,6 +1167,60 @@ export default function Settings() {
                 <p className="mt-3 text-xs text-muted-foreground">
                   Advanced Mode never grants access beyond your role — it only reveals the
                   additional features your role already permits.
+                </p>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Alumni sidebar visibility */}
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+            <Card className="glass-card overflow-hidden">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <GraduationCap className="w-5 h-5 text-primary" />
+                  Alumni
+                </CardTitle>
+                <CardDescription>
+                  Show or hide the Alumni module in the sidebar.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border transition-colors ${
+                  alumniVisible
+                    ? 'bg-primary/5 border-primary/20'
+                    : 'bg-muted/50 border-border'
+                }`}>
+                  <div className="flex items-center gap-4">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
+                      alumniVisible
+                        ? 'bg-gradient-to-br from-primary to-primary/70 text-primary-foreground'
+                        : 'bg-muted text-muted-foreground'
+                    }`}>
+                      <GraduationCap className="w-6 h-6" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="font-semibold">
+                        {alumniVisible ? 'Alumni Pages Visible' : 'Alumni Pages Hidden'}
+                      </p>
+                      <p className="text-sm text-muted-foreground max-w-md">
+                        {alumniVisible
+                          ? 'Alumni Directory and Alumni Requests are shown in the sidebar.'
+                          : 'Alumni Directory and Alumni Requests are hidden from the sidebar.'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <Switch
+                      checked={alumniVisible}
+                      onCheckedChange={handleToggleAlumni}
+                      disabled={isSavingAlumni}
+                      aria-label="Toggle alumni pages visibility"
+                    />
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  This only controls sidebar visibility — alumni features keep working and their
+                  pages stay reachable by direct link.
                 </p>
               </CardContent>
             </Card>

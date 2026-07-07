@@ -11,6 +11,8 @@ interface User {
   role: string;
   is_superuser?: boolean;
   interface_mode?: 'simple' | 'advanced';
+  /** Sidebar visibility of the Alumni pages (Settings -> Appearance). */
+  alumni_visible?: boolean;
   department?: string | null;
   department_name?: string | null;
   /** Shift managed by a Department Head ('1st_shift' | '2nd_shift' | ''). */

@@ -292,12 +292,16 @@ class RateLimitService:
 class SecurityService:
     @staticmethod
     def get_client_ip(request):
-        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-        if x_forwarded_for:
-            ip = x_forwarded_for.split(',')[0]
-        else:
-            ip = request.META.get('REMOTE_ADDR')
-        return ip
+        # SECURITY: never trust the left-most X-Forwarded-For entry — a client
+        # can set it to any value, which would let it forge the IP used for
+        # rate-limiting and audit logs. Behind the trusted proxy, nginx sets
+        # X-Real-IP to the true client address (overwriting any client value),
+        # so we use that. Otherwise fall back to the socket peer (REMOTE_ADDR).
+        if getattr(settings, 'TRUST_PROXY_HEADERS', False):
+            real_ip = request.META.get('HTTP_X_REAL_IP')
+            if real_ip:
+                return real_ip.strip()
+        return request.META.get('REMOTE_ADDR')
     @staticmethod
     def get_user_agent(request):
         return request.META.get('HTTP_USER_AGENT', '')
@@ -391,3 +395,64 @@ class GoogleAuthService:
             'first_name': (profile.get('given_name') or '').strip(),
             'last_name': (profile.get('family_name') or '').strip(),
         }
+
+
+def create_teacher_signup_request(user, teacher_data):
+    """
+    Create a TeacherSignupRequest linked to an existing pending teacher `user`.
+
+    `teacher_data` mirrors the teacher fields collected at registration
+    (full_name_english/bangla, designation, department UUID, qualifications,
+    specializations, office_location). A missing/invalid department raises so
+    the caller's atomic block rolls the user creation back.
+    """
+    from apps.teacher_requests.models import TeacherSignupRequest
+    from apps.departments.models import Department
+
+    department = None
+    dept_id = teacher_data.get('department')
+    if dept_id:
+        # Invalid UUIDs raise ValidationError here — intentional (atomicity).
+        department = Department.objects.get(id=dept_id)
+
+    return TeacherSignupRequest.objects.create(
+        user=user,
+        full_name_english=teacher_data.get('full_name_english', ''),
+        full_name_bangla=teacher_data.get('full_name_bangla', ''),
+        email=user.email,
+        mobile_number=user.mobile_number or '',
+        designation=teacher_data.get('designation', ''),
+        department=department,
+        qualifications=teacher_data.get('qualifications', []),
+        specializations=teacher_data.get('specializations', []),
+        office_location=teacher_data.get('office_location', ''),
+        status='pending',
+    )
+
+
+def register_teacher_with_signup_request(user_data, teacher_data):
+    """
+    Atomically create a pending teacher `User` plus its linked
+    `TeacherSignupRequest`. Returns `(user, teacher_signup_request)`.
+
+    This is the single source of truth for the teacher self-registration
+    invariant: either BOTH records exist (user is pending, cannot log in until
+    approved) or NEITHER does. Mirrors the behaviour of RegisterSerializer for
+    the teacher role.
+    """
+    from django.db import transaction
+
+    User = get_user_model()
+    with transaction.atomic():
+        user = User.objects.create_user(
+            username=user_data['username'],
+            email=user_data['email'],
+            password=user_data['password'],
+            first_name=user_data.get('first_name', ''),
+            last_name=user_data.get('last_name', ''),
+            role='teacher',
+            mobile_number=user_data.get('mobile_number', ''),
+            account_status='pending',
+        )
+        request = create_teacher_signup_request(user, teacher_data)
+    return user, request

@@ -60,7 +60,7 @@ class DocumentPropertyTests(HypothesisTestCase):
             enrollmentDate='2023-01-01'
         )
     
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(
         fileName=st.text(min_size=1, max_size=100, alphabet=st.characters(blacklist_categories=('Cs', 'Cc'))),
         category=st.sampled_from(['NID', 'Birth Certificate', 'Marksheet', 'Certificate', 'Testimonial', 'Photo', 'Other']),

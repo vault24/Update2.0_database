@@ -4,8 +4,8 @@ Stipend Views
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
+from apps.authentication.permissions import BlockStudentWrite
 from django.db.models import Q, Avg, Count, F
 from django.utils import timezone
 from decimal import Decimal
@@ -27,7 +27,7 @@ class StipendCriteriaViewSet(viewsets.ModelViewSet):
     """
     queryset = StipendCriteria.objects.all()
     serializer_class = StipendCriteriaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [BlockStudentWrite]
     
     def perform_create(self, serializer):
         serializer.save(createdBy=self.request.user)
@@ -47,7 +47,7 @@ class StipendCriteriaSettingsView(APIView):
     GET /api/stipends/settings/  -> current settings
     PUT /api/stipends/settings/  -> update and persist settings
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [BlockStudentWrite]
 
     def get(self, request):
         settings_obj = StipendCriteriaSettings.get_settings()
@@ -69,7 +69,7 @@ class StipendEligibilityViewSet(viewsets.ModelViewSet):
     """
     queryset = StipendEligibility.objects.select_related('student', 'criteria', 'approvedBy')
     serializer_class = StipendEligibilitySerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [BlockStudentWrite]
     
     def get_serializer_class(self):
         if self.action == 'retrieve':

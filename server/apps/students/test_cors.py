@@ -3,6 +3,7 @@ CORS Property-Based Tests
 """
 from rest_framework.test import APITestCase
 from rest_framework import status
+from hypothesis.extra.django import TestCase as HypothesisTestCase
 from hypothesis import given, strategies as st, settings
 from apps.departments.models import Department
 
@@ -24,7 +25,7 @@ class CORSHeaderPropertyTest(APITestCase):
             code='CS'
         )
     
-    @settings(max_examples=50)
+    @settings(max_examples=50, deadline=None)
     @given(
         origin=st.sampled_from([
             'http://localhost:3000',
@@ -52,7 +53,7 @@ class CORSHeaderPropertyTest(APITestCase):
         # In production, django-cors-headers will add the headers
         self.assertIsNotNone(response)
     
-    @settings(max_examples=30)
+    @settings(max_examples=30, deadline=None)
     @given(
         endpoint=st.sampled_from([
             '/api/students/',

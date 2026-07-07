@@ -237,7 +237,7 @@ class DocumentAccessControlPropertyTest(HypothesisTestCase):
     
     @given(
         file_content=st.binary(min_size=1, max_size=1024),
-        file_name=st.text(min_size=5, max_size=20).filter(lambda x: '.' in x),
+        file_name=st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=5, max_size=20).filter(lambda x: '.' in x),
         category=st.sampled_from(['Photo', 'Certificate', 'NID', 'Marksheet'])
     )
     def test_document_access_control_property(self, file_content, file_name, category):
@@ -1103,7 +1103,7 @@ class DocumentDownloadIntegrityPropertyTest(HypothesisTestCase):
     
     @given(
         file_content=st.binary(min_size=1, max_size=10240),  # 1 byte to 10KB
-        file_name=st.text(min_size=5, max_size=50).filter(lambda x: '.' in x and len(x.split('.')[-1]) <= 4),
+        file_name=st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=5, max_size=50).filter(lambda x: '.' in x and len(x.split('.')[-1]) <= 4),
         file_extension=st.sampled_from(['pdf', 'jpg', 'png', 'doc']),
         category=st.sampled_from(['Photo', 'Certificate', 'NID', 'Marksheet'])
     )

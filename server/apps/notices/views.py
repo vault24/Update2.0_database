@@ -445,20 +445,23 @@ def notice_engagement_summary(request):
                 'unread_notices': 0
             })
         
-        # Calculate engagement metrics
+        # Calculate engagement metrics. NOTE: the annotation must NOT be called
+        # `read_count` — that name is a read-only @property on Notice, and Django
+        # cannot assign the annotated value onto a property without a setter
+        # (raises AttributeError -> 500).
         notices_with_stats = Notice.objects.filter(is_published=True).annotate(
-            read_count=Count('read_statuses')
+            reads_total=Count('read_statuses')
         )
-        
-        total_reads = sum(notice.read_count for notice in notices_with_stats)
+
+        total_reads = sum(notice.reads_total for notice in notices_with_stats)
         possible_reads = total_notices * total_students
         average_engagement = (total_reads / possible_reads * 100) if possible_reads > 0 else 0
-        
+
         high_engagement_count = 0
         low_engagement_count = 0
-        
+
         for notice in notices_with_stats:
-            engagement = (notice.read_count / total_students * 100) if total_students > 0 else 0
+            engagement = (notice.reads_total / total_students * 100) if total_students > 0 else 0
             if engagement >= 70:
                 high_engagement_count += 1
             elif engagement < 30:

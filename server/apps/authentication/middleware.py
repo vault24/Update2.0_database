@@ -47,6 +47,10 @@ ROLE_API_POLICY = {
             '/api/documents/',
             '/api/correction-requests/',
             '/api/admin/notices/',
+            # Full attendance + marks access (row scoping in the views is a
+            # no-op for this role — registrar/Principal see everything).
+            '/api/attendance/',
+            '/api/marks/',
         ),
         'read_only': (),
     },
@@ -56,6 +60,7 @@ ROLE_API_POLICY = {
             '/api/admissions/',
             '/api/applications/',
             '/api/document-templates/',
+            '/api/documents/',       # view/manage student documents in profiles
             '/api/alumni/',
             '/api/teachers/',
             '/api/teacher-requests/',
@@ -66,7 +71,12 @@ ROLE_API_POLICY = {
             '/api/correction-requests/',
             '/api/admin/notices/',
         ),
-        'read_only': (),
+        # Read-only oversight of their own department's attendance and marks.
+        # The Attendance/Marks viewsets scope rows to the head's department.
+        'read_only': (
+            '/api/attendance/',
+            '/api/marks/',
+        ),
     },
 }
 

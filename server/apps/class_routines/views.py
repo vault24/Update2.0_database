@@ -4,7 +4,7 @@ Class Routine Views
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
+from apps.authentication.permissions import BlockStudentWrite
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import OrderingFilter
 from django.db.models import Q
@@ -104,7 +104,8 @@ class ClassRoutineViewSet(viewsets.ModelViewSet):
     - bulk_update: POST /api/class-routines/bulk-update/
     """
     queryset = ClassRoutine.objects.all()
-    permission_classes = [AllowAny]
+    # Students/captains may VIEW routines but never create/edit/delete them.
+    permission_classes = [BlockStudentWrite]
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_fields = ['department', 'semester', 'shift', 'day_of_week', 'teacher', 'is_active']
     ordering_fields = ['day_of_week', 'start_time', 'created_at']
@@ -278,7 +279,6 @@ class ClassRoutineViewSet(viewsets.ModelViewSet):
             ]
         }
         """
-        print(f"Bulk update request received: {request.data}")
         
         serializer = BulkRoutineRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -287,7 +287,6 @@ class ClassRoutineViewSet(viewsets.ModelViewSet):
         results = []
         errors = []
         
-        print(f"Processing {len(operations)} operations")
         
 
         

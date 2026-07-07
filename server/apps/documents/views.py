@@ -4,7 +4,7 @@ Enhanced Document Views with Filesystem Storage
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import OrderingFilter, SearchFilter
 from django.http import FileResponse, Http404
@@ -48,14 +48,35 @@ class DocumentViewSet(viewsets.ModelViewSet):
     Provides CRUD operations with enhanced security, validation, and file management
     """
     queryset = Document.objects.filter(status='active')
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     serializer_class = DocumentSerializer
     filter_backends = [DjangoFilterBackend, OrderingFilter, SearchFilter]
     filterset_fields = ['student', 'category', 'source_type', 'source_id', 'status', 'is_public']
     ordering_fields = ['uploadDate', 'fileName', 'fileSize', 'lastModified']
     ordering = ['-uploadDate']
     search_fields = ['fileName', 'description', 'tags']
-    
+
+    def get_queryset(self):
+        """
+        Row-level scoping. Students/captains may only see their OWN documents
+        (or ones explicitly marked public) — this closes the IDOR where any
+        logged-in student could list or download another student's NID / birth
+        certificate / photo by guessing an id. Teachers, admins and superusers
+        keep full visibility. `get_object` funnels through this, so retrieve /
+        download / preview are protected too.
+        """
+        qs = Document.objects.filter(status='active')
+        user = self.request.user
+        role = getattr(user, 'role', None)
+        is_privileged = getattr(user, 'is_staff', False) or getattr(user, 'is_superuser', False)
+        if role in ('student', 'captain') and not is_privileged:
+            from django.db.models import Q
+            pid = getattr(user, 'related_profile_id', None)
+            if pid:
+                return qs.filter(Q(student_id=pid) | Q(is_public=True))
+            return qs.filter(is_public=True)
+        return qs
+
     def create(self, request, *args, **kwargs):
         """
         Enhanced document upload with structured storage

@@ -17,6 +17,9 @@ from apps.marks.models import MarksRecord
 from apps.class_routines.models import ClassRoutine
 from uuid import UUID
 from django.conf import settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
@@ -369,7 +372,7 @@ class StudentDashboardView(APIView):
                             if average_percentage is not None:
                                 attendance_percentage = float(average_percentage)
             except Exception as e:
-                print(f"Error fetching attendance: {e}")
+                logger.warning("Error fetching attendance: %s", e)
                 total_classes = 0
                 present_classes = 0
                 attendance_percentage = 0
@@ -379,7 +382,7 @@ class StudentDashboardView(APIView):
                 marks_records = MarksRecord.objects.filter(student=student)
                 marks_count = marks_records.count()
             except Exception as e:
-                print(f"Error fetching marks: {e}")
+                logger.warning("Error fetching marks: %s", e)
                 marks_count = 0
             
             # Applications with error handling
@@ -389,7 +392,7 @@ class StudentDashboardView(APIView):
                     status='pending'
                 ).count()
             except Exception as e:
-                print(f"Error fetching applications: {e}")
+                logger.warning("Error fetching applications: %s", e)
                 pending_applications = 0
             
             # Class routine with error handling
@@ -400,7 +403,7 @@ class StudentDashboardView(APIView):
                     shift=student.shift
                 ).count()
             except Exception as e:
-                print(f"Error fetching routine: {e}")
+                logger.warning("Error fetching routine: %s", e)
                 routine_count = 0
 
             # GPA + class rank within department/semester/shift

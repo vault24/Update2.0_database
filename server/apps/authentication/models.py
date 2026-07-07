@@ -100,6 +100,11 @@ class User(AbstractUser):
         default='simple'
     )
 
+    # Admin-panel UI preference: show/hide the Alumni pages in the sidebar
+    # (Settings -> Appearance -> "Alumni"). Pure visibility toggle — it never
+    # affects route access or API permissions.
+    alumni_visible = models.BooleanField(default=True)
+
     admission_status = models.CharField(
         max_length=20,
         choices=ADMISSION_STATUS_CHOICES,

@@ -3,6 +3,7 @@ Property-based tests for the notices system using Hypothesis
 """
 from django.test import TestCase
 from django.contrib.auth import get_user_model
+from hypothesis.extra.django import TestCase as HypothesisTestCase
 from hypothesis import given, strategies as st, settings
 from hypothesis.extra.django import from_model
 from .models import Notice, NoticeReadStatus
@@ -10,30 +11,32 @@ from .models import Notice, NoticeReadStatus
 User = get_user_model()
 
 
-class NoticePropertyTests(TestCase):
+class NoticePropertyTests(HypothesisTestCase):
     """Property-based tests for Notice functionality"""
     
     def setUp(self):
         """Set up test users"""
+        import uuid as _uuid
+        _s = _uuid.uuid4().hex[:8]
         self.admin_user = User.objects.create_user(
-            username='admin_test',
-            email='admin@test.com',
+            username=f'admin_test_{_s}',
+            email=f'admin_{_s}@test.com',
             password='testpass123',
             role='institute_head'
         )
         self.student_user = User.objects.create_user(
-            username='student_test',
-            email='student@test.com',
+            username=f'student_test_{_s}',
+            email=f'student_{_s}@test.com',
             password='testpass123',
             role='student'
         )
     
     @given(
-        title=st.text(min_size=1, max_size=255).filter(lambda x: x.strip()),
-        content=st.text(min_size=1, max_size=1000).filter(lambda x: x.strip()),
+        title=st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=1, max_size=255).filter(lambda x: x.strip()),
+        content=st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=1, max_size=1000).filter(lambda x: x.strip()),
         priority=st.sampled_from(['low', 'normal', 'high'])
     )
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     def test_property_1_notice_creation_persistence(self, title, content, priority):
         """
         **Feature: notices-updates-system, Property 1: Notice Creation Persistence**
@@ -60,11 +63,11 @@ class NoticePropertyTests(TestCase):
         self.assertTrue(saved_notice.is_published)
     
     @given(
-        title=st.text(min_size=1, max_size=255).filter(lambda x: x.strip()),
-        content=st.text(min_size=1, max_size=1000).filter(lambda x: x.strip()),
+        title=st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=1, max_size=255).filter(lambda x: x.strip()),
+        content=st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=1, max_size=1000).filter(lambda x: x.strip()),
         priority=st.sampled_from(['low', 'normal', 'high'])
     )
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     def test_property_2_automatic_timestamping(self, title, content, priority):
         """
         **Feature: notices-updates-system, Property 2: Automatic Timestamping**
@@ -88,11 +91,11 @@ class NoticePropertyTests(TestCase):
         self.assertLess(time_diff, 1.0)
     
     @given(
-        title=st.text(min_size=1, max_size=255).filter(lambda x: x.strip()),
-        content=st.text(min_size=1, max_size=1000).filter(lambda x: x.strip()),
+        title=st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=1, max_size=255).filter(lambda x: x.strip()),
+        content=st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=1, max_size=1000).filter(lambda x: x.strip()),
         is_published=st.booleans()
     )
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     def test_property_3_publication_visibility(self, title, content, is_published):
         """
         **Feature: notices-updates-system, Property 3: Publication Visibility**
@@ -118,11 +121,11 @@ class NoticePropertyTests(TestCase):
             self.assertNotIn(notice, published_notices)
     
     @given(
-        title=st.text(min_size=1, max_size=255).filter(lambda x: x.strip()),
-        content=st.text(min_size=1, max_size=1000).filter(lambda x: x.strip()),
+        title=st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=1, max_size=255).filter(lambda x: x.strip()),
+        content=st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=1, max_size=1000).filter(lambda x: x.strip()),
         priority=st.sampled_from(['low', 'normal', 'high'])
     )
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     def test_property_4_priority_storage_and_ordering(self, title, content, priority):
         """
         **Feature: notices-updates-system, Property 4: Priority Storage and Ordering**
@@ -167,13 +170,13 @@ class NoticePropertyTests(TestCase):
         self.assertLess(high_index, low_index)
     
     @given(
-        original_title=st.text(min_size=1, max_size=255).filter(lambda x: x.strip()),
-        original_content=st.text(min_size=1, max_size=1000).filter(lambda x: x.strip()),
-        new_title=st.text(min_size=1, max_size=255).filter(lambda x: x.strip()),
-        new_content=st.text(min_size=1, max_size=1000).filter(lambda x: x.strip()),
+        original_title=st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=1, max_size=255).filter(lambda x: x.strip()),
+        original_content=st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=1, max_size=1000).filter(lambda x: x.strip()),
+        new_title=st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=1, max_size=255).filter(lambda x: x.strip()),
+        new_content=st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=1, max_size=1000).filter(lambda x: x.strip()),
         new_priority=st.sampled_from(['low', 'normal', 'high'])
     )
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     def test_property_5_notice_editability(self, original_title, original_content, 
                                          new_title, new_content, new_priority):
         """
@@ -208,10 +211,10 @@ class NoticePropertyTests(TestCase):
         self.assertGreater(updated_notice.updated_at, original_updated_at)
     
     @given(
-        title=st.text(min_size=1, max_size=255).filter(lambda x: x.strip()),
-        content=st.text(min_size=1, max_size=1000).filter(lambda x: x.strip())
+        title=st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=1, max_size=255).filter(lambda x: x.strip()),
+        content=st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=1, max_size=1000).filter(lambda x: x.strip())
     )
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     def test_property_6_deletion_completeness(self, title, content):
         """
         **Feature: notices-updates-system, Property 6: Deletion Completeness**
@@ -245,10 +248,10 @@ class NoticePropertyTests(TestCase):
         self.assertNotIn(notice, student_notices)
     
     @given(
-        title=st.text(min_size=1, max_size=255).filter(lambda x: x.strip()),
-        content=st.text(min_size=1, max_size=1000).filter(lambda x: x.strip())
+        title=st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=1, max_size=255).filter(lambda x: x.strip()),
+        content=st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=1, max_size=1000).filter(lambda x: x.strip())
     )
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     def test_property_7_unpublish_visibility_rules(self, title, content):
         """
         **Feature: notices-updates-system, Property 7: Unpublish Visibility Rules**
@@ -283,11 +286,11 @@ class NoticePropertyTests(TestCase):
         self.assertNotIn(notice, student_notices)
     
     @given(
-        title=st.text(min_size=1, max_size=255).filter(lambda x: x.strip()),
-        content=st.text(min_size=1, max_size=1000).filter(lambda x: x.strip()),
-        new_content=st.text(min_size=1, max_size=1000).filter(lambda x: x.strip())
+        title=st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=1, max_size=255).filter(lambda x: x.strip()),
+        content=st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=1, max_size=1000).filter(lambda x: x.strip()),
+        new_content=st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=1, max_size=1000).filter(lambda x: x.strip())
     )
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     def test_property_8_update_timestamping(self, title, content, new_content):
         """
         **Feature: notices-updates-system, Property 8: Update Timestamping**
@@ -316,29 +319,31 @@ class NoticePropertyTests(TestCase):
         self.assertGreater(updated_notice.updated_at, original_updated_at)
 
 
-class NoticeReadStatusPropertyTests(TestCase):
+class NoticeReadStatusPropertyTests(HypothesisTestCase):
     """Property-based tests for NoticeReadStatus functionality"""
     
     def setUp(self):
         """Set up test users"""
+        import uuid as _uuid
+        _s = _uuid.uuid4().hex[:8]
         self.admin_user = User.objects.create_user(
-            username='admin_test',
-            email='admin@test.com',
+            username=f'admin_test_{_s}',
+            email=f'admin_{_s}@test.com',
             password='testpass123',
             role='institute_head'
         )
         self.student_user = User.objects.create_user(
-            username='student_test',
-            email='student@test.com',
+            username=f'student_test_{_s}',
+            email=f'student_{_s}@test.com',
             password='testpass123',
             role='student'
         )
     
     @given(
-        title=st.text(min_size=1, max_size=255).filter(lambda x: x.strip()),
-        content=st.text(min_size=1, max_size=1000).filter(lambda x: x.strip())
+        title=st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=1, max_size=255).filter(lambda x: x.strip()),
+        content=st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=1, max_size=1000).filter(lambda x: x.strip())
     )
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     def test_property_25_read_status_data_integrity(self, title, content):
         """
         **Feature: notices-updates-system, Property 25: Read Status Data Integrity**

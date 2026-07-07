@@ -1,5 +1,6 @@
 from django.test import TestCase
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
+User = get_user_model()
 from .models import Notification, NotificationPreference, NotificationPreferenceType, DeliveryLog
 
 
@@ -227,7 +228,8 @@ class NotificationServiceTest(TestCase):
         
         # Check that all notification types have preferences
         type_prefs = NotificationPreferenceType.objects.filter(preference=preference)
-        self.assertEqual(type_prefs.count(), 6)  # 6 notification types
+        from .models import NOTIFICATION_TYPES
+        self.assertEqual(type_prefs.count(), len(NOTIFICATION_TYPES))
 
 
 class DeliveryServiceTest(TestCase):

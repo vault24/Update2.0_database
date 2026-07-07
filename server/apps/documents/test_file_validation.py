@@ -12,6 +12,7 @@ from io import BytesIO
 from datetime import date
 from django.test import TestCase
 from django.core.files.uploadedfile import SimpleUploadedFile
+from hypothesis.extra.django import TestCase as HypothesisTestCase
 from hypothesis import given, strategies as st, settings
 from rest_framework.test import APIClient
 from rest_framework import status
@@ -28,7 +29,7 @@ from apps.documents.serializers import (
 User = get_user_model()
 
 
-class FileValidationPropertyTest(TestCase):
+class FileValidationPropertyTest(HypothesisTestCase):
     """Property-based tests for file validation consistency"""
     
     def setUp(self):
@@ -77,7 +78,7 @@ class FileValidationPropertyTest(TestCase):
         )
     
     # @given(
-    #     filename=st.text(min_size=1, max_size=100).filter(lambda x: '.' in x),
+    #     filename=st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=1, max_size=100).filter(lambda x: '.' in x),
     #     file_size=st.integers(min_value=1, max_value=20 * 1024 * 1024)  # Up to 20MB
     # )
     # @settings(max_examples=50, deadline=None)

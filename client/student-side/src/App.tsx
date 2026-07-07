@@ -1,43 +1,44 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ComingSoonBanner } from "@/components/ComingSoonBanner";
 import Index from "./pages/Index";
-import PasswordResetPage from "./pages/PasswordResetPage";
-import { Dashboard } from "./pages/Dashboard";
+const PasswordResetPage = lazy(() => import("./pages/PasswordResetPage"));
+const Dashboard = lazy(() => import("./pages/Dashboard").then(m => ({ default: m.Dashboard })));
 import { DashboardLayout } from "./components/dashboard/DashboardLayout";
-import AdmissionPage from "./pages/AdmissionPage";
-import ProfilePageFixed from "./pages/ProfilePageFixed";
-import SettingsPage from "./pages/SettingsPage";
-import NoticesPage from "./pages/NoticesPage";
-import NotificationsPage from "./pages/NotificationsPage";
-import StudentAllegationsPage from "./pages/StudentAllegationsPage";
-import LearningHubPage from "./pages/LearningHubPage";
-import StudentListPage from "./pages/StudentListPage";
-import StudentDetailsPage from "./pages/StudentDetailsPage";
-import TeacherAssignmentDetailPage from "./pages/TeacherAssignmentDetailPage";
-import TeacherSubjectActivitiesPage from "./pages/TeacherSubjectActivitiesPage";
-import ClassRoutinePage from "./pages/ClassRoutinePage";
-import LiveClassesPage from "./pages/LiveClassesPage";
-import AttendancePage from "./pages/AttendancePage";
-import MarksPage from "./pages/MarksPage";
-import DocumentsPage from "./pages/DocumentsPage";
-import MessagesPage from "./pages/MessagesPage";
-import ComplaintsPage from "./pages/ComplaintsPage";
-import ApplicationsPage from "./pages/ApplicationsPage";
-import AddAttendancePage from "./pages/AddAttendancePage";
-import TeacherContactsPage from "./pages/TeacherContactsPage";
-import TeacherAttendancePage from "./pages/TeacherAttendancePage";
-import ManageMarksPage from "./pages/ManageMarksPage";
-import TeacherAllegationsPage from "./pages/TeacherAllegationsPage";
-import PublicStudentProfilePage from "./pages/PublicStudentProfilePage";
-import PublicTeacherProfilePage from "./pages/PublicTeacherProfilePage";
-import AlumniProfilePage from "./pages/AlumniProfilePage";
-import AlumniRegistrationPage from "./pages/AlumniRegistrationPage";
-import AlumniDirectoryPage from "./pages/AlumniDirectoryPage";
-import AlumniApplicationStatusPage from "./pages/AlumniApplicationStatusPage";
+const AdmissionPage = lazy(() => import("./pages/AdmissionPage"));
+const ProfilePageFixed = lazy(() => import("./pages/ProfilePageFixed"));
+const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const NoticesPage = lazy(() => import("./pages/NoticesPage"));
+const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
+const StudentAllegationsPage = lazy(() => import("./pages/StudentAllegationsPage"));
+const LearningHubPage = lazy(() => import("./pages/LearningHubPage"));
+const StudentListPage = lazy(() => import("./pages/StudentListPage"));
+const StudentDetailsPage = lazy(() => import("./pages/StudentDetailsPage"));
+const TeacherAssignmentDetailPage = lazy(() => import("./pages/TeacherAssignmentDetailPage"));
+const TeacherSubjectActivitiesPage = lazy(() => import("./pages/TeacherSubjectActivitiesPage"));
+const ClassRoutinePage = lazy(() => import("./pages/ClassRoutinePage"));
+const LiveClassesPage = lazy(() => import("./pages/LiveClassesPage"));
+const AttendancePage = lazy(() => import("./pages/AttendancePage"));
+const MarksPage = lazy(() => import("./pages/MarksPage"));
+const DocumentsPage = lazy(() => import("./pages/DocumentsPage"));
+const MessagesPage = lazy(() => import("./pages/MessagesPage"));
+const ComplaintsPage = lazy(() => import("./pages/ComplaintsPage"));
+const ApplicationsPage = lazy(() => import("./pages/ApplicationsPage"));
+const AddAttendancePage = lazy(() => import("./pages/AddAttendancePage"));
+const TeacherContactsPage = lazy(() => import("./pages/TeacherContactsPage"));
+const TeacherAttendancePage = lazy(() => import("./pages/TeacherAttendancePage"));
+const ManageMarksPage = lazy(() => import("./pages/ManageMarksPage"));
+const TeacherAllegationsPage = lazy(() => import("./pages/TeacherAllegationsPage"));
+const PublicStudentProfilePage = lazy(() => import("./pages/PublicStudentProfilePage"));
+const PublicTeacherProfilePage = lazy(() => import("./pages/PublicTeacherProfilePage"));
+const AlumniProfilePage = lazy(() => import("./pages/AlumniProfilePage"));
+const AlumniRegistrationPage = lazy(() => import("./pages/AlumniRegistrationPage"));
+const AlumniDirectoryPage = lazy(() => import("./pages/AlumniDirectoryPage"));
+const AlumniApplicationStatusPage = lazy(() => import("./pages/AlumniApplicationStatusPage"));
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
@@ -135,7 +136,8 @@ const AlumniAccountGate = ({ children }: { children: React.ReactNode }) => {
 
 const App = () => (
   <BrowserRouter>
-    <Routes>
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-muted-foreground">Loading…</div>}>
+<Routes>
       <Route path="/" element={<Index />} />
       <Route path="/auth" element={<Index />} />
       <Route path="/password-reset" element={<PasswordResetPage />} />
@@ -163,9 +165,9 @@ const App = () => (
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="profile" element={<ProfilePageFixed />} />
         <Route path="settings" element={<SettingsPage />} />
-        <Route path="learning-hub" element={<LearningHubPage />} />
-        <Route path="live-classes" element={<LiveClassesPage />} />
-        <Route path="messages" element={<MessagesPage />} />
+        <Route path="learning-hub" element={<><ComingSoonBanner feature="Learning Hub" /><LearningHubPage /></>} />
+        <Route path="live-classes" element={<><ComingSoonBanner feature="Live Classes" /><LiveClassesPage /></>} />
+        <Route path="messages" element={<><ComingSoonBanner feature="Messages" /><MessagesPage /></>} />
         <Route path="complaints" element={<ComplaintsPage />} />
         
         {/* Student/Captain routes */}
@@ -199,6 +201,7 @@ const App = () => (
       
       <Route path="*" element={<div>Page not found</div>} />
     </Routes>
+            </Suspense>
     <Toaster />
   </BrowserRouter>
 );

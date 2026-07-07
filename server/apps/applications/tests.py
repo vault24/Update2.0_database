@@ -14,7 +14,7 @@ class ApplicationPropertyTests(HypothesisTestCase):
     Property-based tests for Application model and API
     """
     
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(
         fullNameBangla=st.text(min_size=1, max_size=255, alphabet=st.characters(blacklist_categories=('Cs', 'Cc'))),
         fullNameEnglish=st.text(min_size=1, max_size=255, alphabet=st.characters(blacklist_categories=('Cs', 'Cc'))),

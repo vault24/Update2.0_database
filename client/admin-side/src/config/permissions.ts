@@ -51,6 +51,7 @@ export type FeatureId =
   | 'attendance_marks'
   | 'discontinued_students'
   | 'alumni'
+  | 'alumni_requests'
   | 'documents'
   | 'applications'
   | 'correction_requests'
@@ -105,7 +106,7 @@ export const MENU_GROUPS: MenuGroup[] = [
     label: 'Profiles & Records',
     items: [
       { feature: 'discontinued_students', label: 'Discontinued Students', path: '/discontinued-students', icon: UserX },
-      { feature: 'alumni', label: 'Alumni', path: '/alumni', icon: Award },
+      { feature: 'alumni', label: 'Alumni Directory', path: '/alumni', icon: Award },
       { feature: 'documents', label: 'Documents', path: '/documents', icon: FileText },
     ],
   },
@@ -113,6 +114,7 @@ export const MENU_GROUPS: MenuGroup[] = [
     label: 'Requests',
     items: [
       { feature: 'applications', label: 'Applications', path: '/applications', icon: Inbox },
+      { feature: 'alumni_requests', label: 'Alumni Requests', path: '/alumni-requests', icon: GraduationCap },
       { feature: 'correction_requests', label: 'Correction Requests', path: '/correction-requests', icon: FileEdit },
       { feature: 'signup_requests', label: 'Signup Requests', path: '/signup-requests', icon: UserCog },
       { feature: 'complaints', label: 'Complaints', path: '/complaints', icon: MessageSquareWarning },
@@ -141,6 +143,7 @@ const FEATURE_ROUTES: Record<FeatureId, string[]> = {
   attendance_marks: ['/attendance-marks'],
   discontinued_students: ['/discontinued-students'],
   alumni: ['/alumni'],
+  alumni_requests: ['/alumni-requests'],
   documents: ['/documents'],
   applications: ['/applications'],
   correction_requests: ['/correction-requests'],
@@ -182,6 +185,7 @@ export const ROLE_PERMISSIONS: Record<AdminRole, RolePermission> = {
       'class_routine',
       'discontinued_students',
       'alumni',
+      'alumni_requests',
       'applications',
       'correction_requests',
       'complaints',
@@ -200,6 +204,7 @@ export const ROLE_PERMISSIONS: Record<AdminRole, RolePermission> = {
       'notices',
       'discontinued_students',
       'alumni',
+      'alumni_requests',
       'documents',
       'applications',
       'correction_requests',
@@ -237,12 +242,32 @@ export function getRoleFeatures(role: AdminRole): Set<FeatureId> {
   return new Set(resolveFeatureSet(ROLE_PERMISSIONS[role].advanced));
 }
 
-/** Menu groups filtered for the given role + mode (empty groups removed). */
-export function getVisibleMenu(role: AdminRole, mode: InterfaceMode): MenuGroup[] {
+/** Features whose sidebar visibility is governed by the user's "Alumni" toggle
+ *  (Settings -> Appearance) INDEPENDENTLY of simple/advanced mode. */
+const ALUMNI_FEATURES: FeatureId[] = ['alumni', 'alumni_requests'];
+
+/** Menu groups filtered for the given role + mode (empty groups removed).
+ *
+ *  `opts.alumniVisible` controls the Alumni pages on its own: when true they
+ *  are shown in BOTH simple and advanced mode (role permitting); when false
+ *  they are hidden in both. Interface mode never affects them.
+ */
+export function getVisibleMenu(
+  role: AdminRole,
+  mode: InterfaceMode,
+  opts?: { alumniVisible?: boolean },
+): MenuGroup[] {
   const visible = getVisibleFeatures(role, mode);
+  const alumniVisible = opts?.alumniVisible ?? true;
+  const roleFeatures = getRoleFeatures(role); // full set, mode-independent
   return MENU_GROUPS.map((group) => ({
     ...group,
-    items: group.items.filter((item) => visible.has(item.feature)),
+    items: group.items.filter((item) => {
+      if (ALUMNI_FEATURES.includes(item.feature)) {
+        return alumniVisible && roleFeatures.has(item.feature);
+      }
+      return visible.has(item.feature);
+    }),
   })).filter((group) => group.items.length > 0);
 }
 

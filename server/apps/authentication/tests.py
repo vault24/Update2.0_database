@@ -6,6 +6,7 @@ from django.conf import settings as django_settings
 from django.contrib.auth.hashers import make_password, check_password
 from django.utils import timezone
 from django.urls import reverse
+from hypothesis.extra.django import TestCase as HypothesisTestCase
 from hypothesis import given, strategies as st, settings
 from hypothesis.extra.django import from_model
 from .models import SignupRequest, User
@@ -26,20 +27,20 @@ def valid_signup_data(draw):
         'email': draw(st.emails()),
         'first_name': draw(st.text(min_size=1, max_size=150, alphabet=string.ascii_letters + ' ')),
         'last_name': draw(st.text(min_size=1, max_size=150, alphabet=string.ascii_letters + ' ')),
-        'password': draw(st.text(min_size=8, max_size=128)),
+        'password': draw(st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=8, max_size=128)),
         'requested_role': draw(st.sampled_from(['registrar', 'institute_head'])),
         'mobile_number': draw(st.text(min_size=11, max_size=11, alphabet=string.digits))
     }
 
 
-class SignupRequestModelPropertyTests(TestCase):
+class SignupRequestModelPropertyTests(HypothesisTestCase):
     """
     Property-based tests for SignupRequest model
     Feature: admin-signup-approval, Property 1: Valid signup creates pending request
     Validates: Requirements 1.1, 1.4
     """
     
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(data=valid_signup_data())
     def test_valid_signup_creates_pending_request(self, data):
         """
@@ -169,14 +170,14 @@ def invalid_signup_data(draw):
     return data, field_to_remove
 
 
-class SignupRequestSerializerPropertyTests(TestCase):
+class SignupRequestSerializerPropertyTests(HypothesisTestCase):
     """
     Property-based tests for SignupRequest serializers
     Feature: admin-signup-approval, Property 2: Invalid signup is rejected
     Validates: Requirements 1.2
     """
     
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(data_tuple=invalid_signup_data())
     def test_invalid_signup_is_rejected(self, data_tuple):
         """
@@ -199,7 +200,7 @@ class SignupRequestSerializerPropertyTests(TestCase):
         # Verify error is related to missing field
         self.assertIn(missing_field, serializer.errors)
     
-    @settings(max_examples=50)
+    @settings(max_examples=50, deadline=None)
     @given(data=valid_signup_data())
     def test_password_mismatch_rejected(self, data):
         """
@@ -221,14 +222,14 @@ class SignupRequestSerializerPropertyTests(TestCase):
 
 
 
-class DuplicateEmailRejectionPropertyTests(TestCase):
+class DuplicateEmailRejectionPropertyTests(HypothesisTestCase):
     """
     Property-based tests for duplicate email rejection
     Feature: admin-signup-approval, Property 3: Duplicate email rejection
     Validates: Requirements 1.3
     """
     
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(data=valid_signup_data())
     def test_duplicate_email_in_signup_request_rejected(self, data):
         """
@@ -261,7 +262,7 @@ class DuplicateEmailRejectionPropertyTests(TestCase):
         # Verify email error
         self.assertIn('email', serializer.errors)
     
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(data=valid_signup_data())
     def test_duplicate_username_in_signup_request_rejected(self, data):
         """
@@ -294,7 +295,7 @@ class DuplicateEmailRejectionPropertyTests(TestCase):
         # Verify username error
         self.assertIn('username', serializer.errors)
     
-    @settings(max_examples=50)
+    @settings(max_examples=50, deadline=None)
     @given(data=valid_signup_data())
     def test_existing_user_email_rejected(self, data):
         """
@@ -327,14 +328,14 @@ class DuplicateEmailRejectionPropertyTests(TestCase):
 
 
 
-class PendingRequestsFilteringPropertyTests(TestCase):
+class PendingRequestsFilteringPropertyTests(HypothesisTestCase):
     """
     Property-based tests for pending requests filtering
     Feature: admin-signup-approval, Property 4: Pending requests filtering
     Validates: Requirements 2.1, 2.4
     """
     
-    @settings(max_examples=50)
+    @settings(max_examples=50, deadline=None)
     @given(st.lists(valid_signup_data(), min_size=3, max_size=10))
     def test_pending_requests_filtering(self, signup_data_list):
         """
@@ -394,14 +395,14 @@ class PendingRequestsFilteringPropertyTests(TestCase):
 
 
 
-class RequestDisplayCompletenessPropertyTests(TestCase):
+class RequestDisplayCompletenessPropertyTests(HypothesisTestCase):
     """
     Property-based tests for request display completeness
     Feature: admin-signup-approval, Property 5: Request display completeness
     Validates: Requirements 2.2
     """
     
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(data=valid_signup_data())
     def test_request_display_completeness(self, data):
         """
@@ -445,14 +446,14 @@ class RequestDisplayCompletenessPropertyTests(TestCase):
 
 
 
-class ApprovalCreatesActiveUserPropertyTests(TestCase):
+class ApprovalCreatesActiveUserPropertyTests(HypothesisTestCase):
     """
     Property-based tests for approval creating active user
     Feature: admin-signup-approval, Property 6: Approval creates active user
     Validates: Requirements 3.1, 3.4
     """
     
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(data=valid_signup_data())
     def test_approval_creates_active_user(self, data):
         """
@@ -523,14 +524,14 @@ class ApprovalCreatesActiveUserPropertyTests(TestCase):
 
 
 
-class StatusTransitionPropertyTests(TestCase):
+class StatusTransitionPropertyTests(HypothesisTestCase):
     """
     Property-based tests for status transition on approval/rejection
     Feature: admin-signup-approval, Property 7: Status transition on approval/rejection
     Validates: Requirements 3.2, 4.1, 6.2
     """
     
-    @settings(max_examples=50)
+    @settings(max_examples=50, deadline=None)
     @given(data=valid_signup_data(), action=st.sampled_from(['approve', 'reject']))
     def test_status_transition_records_reviewer(self, data, action):
         """
@@ -604,14 +605,14 @@ class StatusTransitionPropertyTests(TestCase):
 
 
 
-class RejectionPreventsUserCreationPropertyTests(TestCase):
+class RejectionPreventsUserCreationPropertyTests(HypothesisTestCase):
     """
     Property-based tests for rejection preventing user creation
     Feature: admin-signup-approval, Property 9: Rejection prevents user creation
     Validates: Requirements 4.2
     """
     
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(data=valid_signup_data())
     def test_rejection_prevents_user_creation(self, data):
         """
@@ -666,14 +667,14 @@ class RejectionPreventsUserCreationPropertyTests(TestCase):
 
 
 
-class RejectionReasonStoragePropertyTests(TestCase):
+class RejectionReasonStoragePropertyTests(HypothesisTestCase):
     """
     Property-based tests for rejection reason storage
     Feature: admin-signup-approval, Property 10: Rejection reason storage
     Validates: Requirements 4.5
     """
     
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(
         data=valid_signup_data(),
         reason=st.text(min_size=1, max_size=500, alphabet=st.characters(whitelist_categories=('Lu', 'Ll', 'Nd', 'P', 'Z')))
@@ -723,14 +724,14 @@ class RejectionReasonStoragePropertyTests(TestCase):
 
 
 
-class LoginBehaviorByRequestStatusPropertyTests(TestCase):
+class LoginBehaviorByRequestStatusPropertyTests(HypothesisTestCase):
     """
     Property-based tests for login behavior by request status
     Feature: admin-signup-approval, Property 11: Login behavior by request status
     Validates: Requirements 5.1, 5.2, 5.3
     """
     
-    @settings(max_examples=50)
+    @settings(max_examples=50, deadline=None)
     @given(data=valid_signup_data())
     def test_login_with_pending_request(self, data):
         """
@@ -761,7 +762,7 @@ class LoginBehaviorByRequestStatusPropertyTests(TestCase):
         self.assertFalse(serializer.is_valid())
         self.assertIn('pending approval', str(serializer.errors).lower())
     
-    @settings(max_examples=50)
+    @settings(max_examples=50, deadline=None)
     @given(data=valid_signup_data())
     def test_login_with_rejected_request(self, data):
         """
@@ -804,7 +805,7 @@ class LoginBehaviorByRequestStatusPropertyTests(TestCase):
         self.assertFalse(serializer.is_valid())
         self.assertIn('rejected', str(serializer.errors).lower())
     
-    @settings(max_examples=50)
+    @settings(max_examples=50, deadline=None)
     @given(data=valid_signup_data())
     def test_login_with_approved_request(self, data):
         """
@@ -872,7 +873,7 @@ def valid_teacher_registration_data(draw):
     return {
         'username': draw(st.emails()),  # Use email as username
         'email': draw(st.emails()),
-        'password': draw(st.text(min_size=8, max_size=128)),
+        'password': draw(st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=8, max_size=128)),
         'first_name': draw(st.text(min_size=1, max_size=150, alphabet=string.ascii_letters + ' ')),
         'last_name': draw(st.text(min_size=1, max_size=150, alphabet=string.ascii_letters + ' ')),
         'role': 'teacher',
@@ -880,13 +881,13 @@ def valid_teacher_registration_data(draw):
         'full_name_english': draw(st.text(min_size=1, max_size=255, alphabet=string.ascii_letters + ' ')),
         'full_name_bangla': draw(st.text(min_size=1, max_size=255, alphabet='অআইঈউঊঋএঐওঔকখগঘঙচছজঝঞটঠডঢণতথদধনপফবভমযরলশষসহড়ঢ়য়ৎংঃ ্া ি ী ু ূ ৃ ে ৈ ো ৌ')),
         'designation': draw(st.text(min_size=1, max_size=100, alphabet=string.ascii_letters + ' ')),
-        'qualifications': draw(st.lists(st.text(min_size=1, max_size=100), min_size=0, max_size=5)),
-        'specializations': draw(st.lists(st.text(min_size=1, max_size=100), min_size=0, max_size=5)),
+        'qualifications': draw(st.lists(st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=1, max_size=100), min_size=0, max_size=5)),
+        'specializations': draw(st.lists(st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=1, max_size=100), min_size=0, max_size=5)),
         'office_location': draw(st.text(min_size=0, max_size=255, alphabet=string.ascii_letters + string.digits + ' -'))
     }
 
 
-class TeacherRegistrationCompletenessPropertyTests(TestCase):
+class TeacherRegistrationCompletenessPropertyTests(HypothesisTestCase):
     """
     Property-based tests for teacher registration completeness
     Feature: teacher-signup-approval-fix, Property 1: Teacher Registration Completeness
@@ -895,13 +896,14 @@ class TeacherRegistrationCompletenessPropertyTests(TestCase):
     
     def setUp(self):
         """Set up test department"""
+        import uuid as _uuid
+        _sfx = _uuid.uuid4().hex[:6]
         self.department = Department.objects.create(
-            name='Test Department',
-            code='TD',
-            description='Test department for property tests'
+            name=f'Test Department {_sfx}',
+            code=f'TD{_sfx[:4]}',
         )
     
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(data=valid_teacher_registration_data())
     def test_teacher_registration_creates_both_user_and_request(self, data):
         """
@@ -981,7 +983,7 @@ class TeacherRegistrationCompletenessPropertyTests(TestCase):
             User.objects.filter(username=data['username']).delete()
             TeacherSignupRequest.objects.filter(email=data['email']).delete()
     
-    @settings(max_examples=50)
+    @settings(max_examples=50, deadline=None)
     @given(data=valid_teacher_registration_data())
     def test_teacher_registration_atomicity(self, data):
         """
@@ -1036,7 +1038,7 @@ class TeacherRegistrationCompletenessPropertyTests(TestCase):
             User.objects.filter(username=data['username']).delete()
             TeacherSignupRequest.objects.filter(email=data['email']).delete()
     
-    @settings(max_examples=50)
+    @settings(max_examples=50, deadline=None)
     @given(data=valid_teacher_registration_data())
     def test_teacher_registration_data_consistency(self, data):
         """

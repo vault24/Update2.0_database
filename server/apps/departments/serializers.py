@@ -5,6 +5,39 @@ from rest_framework import serializers
 from .models import Department
 
 
+def _serialize_heads(obj, context=None):
+    """
+    The real Department Head accounts assigned to this department (via the
+    User.department FK, related_name='heads'), newest account first — used by
+    the admin UI to show who actually runs the department (the legacy plain
+    text `head` field is kept only for backward compatibility).
+
+    Only returned to AUTHENTICATED users: this exposes staff account IDs/names,
+    and the department LIST endpoint is public (registration/admission
+    dropdowns), so anonymous callers get an empty list.
+
+    Reads from the prefetched `heads` relation (see the viewset's
+    `prefetch_related('heads')`) and filters/sorts in Python to avoid an
+    extra query per department.
+    """
+    request = context.get('request') if context else None
+    if not (request and getattr(request, 'user', None) and request.user.is_authenticated):
+        return []
+    try:
+        heads = [h for h in obj.heads.all() if h.role == 'department_head']
+        heads.sort(key=lambda h: h.date_joined, reverse=True)
+        return [
+            {
+                'id': str(h.id),
+                'name': (f"{h.first_name} {h.last_name}".strip() or h.username),
+                'shift': h.shift or '',
+            }
+            for h in heads
+        ]
+    except Exception:
+        return []
+
+
 class DepartmentSerializer(serializers.ModelSerializer):
     """
     Serializer for Department model
@@ -15,6 +48,7 @@ class DepartmentSerializer(serializers.ModelSerializer):
     active_students = serializers.SerializerMethodField()
     faculty_count = serializers.SerializerMethodField()
     photo_url = serializers.SerializerMethodField()
+    heads = serializers.SerializerMethodField()
     
     # Provide both camelCase and snake_case for timestamps
     created_at = serializers.DateTimeField(source='createdAt', read_only=True)
@@ -24,42 +58,48 @@ class DepartmentSerializer(serializers.ModelSerializer):
         """Get total student count for department"""
         try:
             return obj.student_count()
-        except:
+        except Exception:
             return 0
     
     def get_active_students(self, obj):
         """Get active student count for department"""
         try:
             return obj.student_set.filter(status='active').count()
-        except:
+        except Exception:
             return 0
     
     def get_faculty_count(self, obj):
         """Get teacher count for department"""
         try:
             return obj.teacher_count()
-        except:
+        except Exception:
             return 0
     
     def get_photo_url(self, obj):
         """Get photo URL if exists"""
-        if obj.photo:
+        if not obj.photo:
+            return None
+        try:
             request = self.context.get('request')
             if request:
                 return request.build_absolute_uri(obj.photo.url)
             return obj.photo.url
-        return None
+        except Exception:
+            return None
+
+    def get_heads(self, obj):
+        return _serialize_heads(obj, self.context)
 
     class Meta:
         model = Department
         fields = [
-            'id', 'name', 'code', 'short_name', 'head',
+            'id', 'name', 'code', 'short_name', 'head', 'heads',
             'established_year', 'photo', 'photo_url', 'autoAttendanceSync',
             'total_students', 'active_students',
             'faculty_count', 'created_at', 'updated_at', 'createdAt', 'updatedAt'
         ]
-        read_only_fields = ['id', 'createdAt', 'updatedAt', 'created_at', 'updated_at', 
-                           'total_students', 'active_students', 'faculty_count', 'photo_url']
+        read_only_fields = ['id', 'createdAt', 'updatedAt', 'created_at', 'updated_at',
+                           'total_students', 'active_students', 'faculty_count', 'photo_url', 'heads']
         extra_kwargs = {
             'code': {'required': False},  # Make code optional since we accept short_name too
             'photo': {'required': False}
@@ -108,41 +148,48 @@ class DepartmentListSerializer(serializers.ModelSerializer):
     active_students = serializers.SerializerMethodField()
     faculty_count = serializers.SerializerMethodField()
     photo_url = serializers.SerializerMethodField()
-    
+    heads = serializers.SerializerMethodField()
+
+    def get_heads(self, obj):
+        return _serialize_heads(obj, self.context)
+
     def get_total_students(self, obj):
         """Get total student count for department"""
         try:
             return obj.student_count()
-        except:
+        except Exception:
             return 0
     
     def get_active_students(self, obj):
         """Get active student count for department"""
         try:
             return obj.student_set.filter(status='active').count()
-        except:
+        except Exception:
             return 0
     
     def get_faculty_count(self, obj):
         """Get teacher count for department"""
         try:
             return obj.teacher_count()
-        except:
+        except Exception:
             return 0
     
     def get_photo_url(self, obj):
         """Get photo URL if exists"""
-        if obj.photo:
+        if not obj.photo:
+            return None
+        try:
             request = self.context.get('request')
             if request:
                 return request.build_absolute_uri(obj.photo.url)
             return obj.photo.url
-        return None
+        except Exception:
+            return None
     
     class Meta:
         model = Department
         fields = [
-            'id', 'name', 'code', 'short_name', 'head',
+            'id', 'name', 'code', 'short_name', 'head', 'heads',
             'established_year', 'photo_url', 'autoAttendanceSync',
             'total_students', 'active_students', 'faculty_count'
         ]

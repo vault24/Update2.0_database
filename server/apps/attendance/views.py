@@ -3,7 +3,7 @@ import logging
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import BasePermission, SAFE_METHODS
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db import IntegrityError
 from django.db.models import Count, Q
@@ -51,6 +51,139 @@ def _teacher_routines(user):
     return ClassRoutine.objects.filter(teacher_id=teacher_id)
 
 
+# Roles with unrestricted attendance access (Principal / Registrar).
+ATTENDANCE_FULL_ROLES = ('institute_head', 'registrar')
+
+
+def _user_student(user):
+    """The Student profile linked to a student/captain user (or None)."""
+    pid = getattr(user, 'related_profile_id', None)
+    if not pid:
+        return None
+    from apps.students.models import Student
+    return Student.objects.filter(id=pid).select_related('department').first()
+
+
+def scope_attendance_queryset(qs, user):
+    """
+    Restrict an AttendanceRecord queryset to what `user` may access:
+
+      student          -> only their own records
+      captain          -> only their class/section (dept + semester + shift)
+      teacher          -> only records for classes they teach or recorded
+      department_head  -> only their department's students
+      registrar / institute_head / superuser -> everything
+
+    Any unauthenticated or unresolved case returns an empty queryset
+    (deny-by-default), so a new role can never accidentally see everything.
+    """
+    if not (user and getattr(user, 'is_authenticated', False)):
+        return qs.none()
+    role = getattr(user, 'role', None)
+    if user.is_superuser or role in ATTENDANCE_FULL_ROLES:
+        return qs
+    if role == 'department_head':
+        dept_id = getattr(user, 'department_id', None)
+        return qs.filter(student__department_id=dept_id) if dept_id else qs.none()
+    if role == 'teacher':
+        teacher_id = _resolve_teacher_id(user)
+        if not teacher_id:
+            return qs.none()
+        return qs.filter(
+            Q(class_routine__teacher_id=teacher_id) | Q(recorded_by=user)
+        )
+    if role == 'captain':
+        student = _user_student(user)
+        if not (student and student.department_id and student.semester):
+            return qs.none()
+        return qs.filter(
+            student__department_id=student.department_id,
+            student__semester=student.semester,
+            student__shift=student.shift,
+        )
+    if role == 'student':
+        pid = getattr(user, 'related_profile_id', None)
+        return qs.filter(student_id=pid) if pid else qs.none()
+    return qs.none()
+
+
+def _can_view_student_attendance(user, student):
+    """Whether `user` may view a specific student's attendance profile."""
+    role = getattr(user, 'role', None)
+    if user.is_superuser or role in ATTENDANCE_FULL_ROLES:
+        return True
+    if role == 'department_head':
+        return student.department_id == getattr(user, 'department_id', None)
+    if role == 'teacher':
+        teacher_id = _resolve_teacher_id(user)
+        if not teacher_id:
+            return False
+        from apps.class_routines.models import ClassRoutine
+        return ClassRoutine.objects.filter(
+            teacher_id=teacher_id,
+            department_id=student.department_id,
+            semester=student.semester,
+            shift=student.shift,
+        ).exists()
+    if role == 'captain':
+        cap = _user_student(user)
+        return bool(
+            cap and cap.department_id == student.department_id
+            and cap.semester == student.semester
+            and cap.shift == student.shift
+        )
+    if role == 'student':
+        return str(getattr(user, 'related_profile_id', '')) == str(student.id)
+    return False
+
+
+def _students_outside_scope(user, student_ids):
+    """
+    Return the subset of `student_ids` the user may NOT record attendance for.
+
+    Captains are limited to their own section; students may not record at all.
+    Teachers/admins are validated by routine linkage elsewhere, so they are not
+    constrained here.
+    """
+    role = getattr(user, 'role', None)
+    if user.is_superuser or role in ATTENDANCE_FULL_ROLES or role == 'teacher':
+        return []
+    from apps.students.models import Student
+    if role == 'captain':
+        cap = _user_student(user)
+        if not cap:
+            return [str(s) for s in student_ids]
+        allowed = set(
+            str(s) for s in Student.objects.filter(
+                department_id=cap.department_id,
+                semester=cap.semester,
+                shift=cap.shift,
+            ).values_list('id', flat=True)
+        )
+        return [str(sid) for sid in student_ids if str(sid) not in allowed]
+    # Students (and any other role) cannot record attendance.
+    return [str(s) for s in student_ids]
+
+
+class AttendanceAccessPermission(BasePermission):
+    """
+    Students get read-only access to attendance; captains, teachers, department
+    heads and admins may also write. Which *rows* each of them can see or change
+    is enforced by `scope_attendance_queryset` (get_queryset) and per-action
+    cohort checks, not here.
+    """
+
+    message = 'You do not have permission to modify attendance records.'
+
+    def has_permission(self, request, view):
+        user = request.user
+        if not (user and user.is_authenticated):
+            return False
+        if getattr(user, 'role', None) == 'student':
+            return request.method in SAFE_METHODS
+        return True
+
+
 def _log_attendance_activity(request, action_type, description, entity_id='', changes=None):
     """Best-effort audit logging — never blocks the main operation."""
     try:
@@ -72,7 +205,7 @@ def _log_attendance_activity(request, action_type, description, entity_id='', ch
 
 class AttendanceViewSet(viewsets.ModelViewSet):
     queryset = AttendanceRecord.objects.all()
-    permission_classes = [AllowAny]
+    permission_classes = [AttendanceAccessPermission]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = [
         'student', 'subject_code', 'semester', 'date',
@@ -89,9 +222,20 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         return AttendanceRecordSerializer
 
     def get_queryset(self):
-        return AttendanceRecord.objects.select_related(
+        qs = AttendanceRecord.objects.select_related(
             'student', 'class_routine', 'recorded_by', 'approved_by'
         ).all()
+        return scope_attendance_queryset(qs, self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        """Create a single record, enforcing captain section scope."""
+        student_id = request.data.get('student')
+        if student_id and _students_outside_scope(request.user, [student_id]):
+            return Response(
+                {'error': 'You can only record attendance for your own class/section.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().create(request, *args, **kwargs)
 
     def update(self, request, *args, **kwargs):
         """Override update to send notifications and keep an audit trail."""
@@ -197,10 +341,12 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             )
 
         # Count all non-rejected attendance so captain submissions (pending)
-        # are reflected immediately in student-side totals.
-        records = AttendanceRecord.objects.filter(
-            student_id=student_id
-        ).exclude(
+        # are reflected immediately in student-side totals. Scoped to what the
+        # caller may access, so a student can never read another student's
+        # summary by passing a different id.
+        records = scope_attendance_queryset(
+            AttendanceRecord.objects.all(), request.user
+        ).filter(student_id=student_id).exclude(
             status__in=['rejected', 'draft']
         )
 
@@ -237,7 +383,16 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         except Exception:
             return Response({'error': 'Student not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        records = AttendanceRecord.objects.filter(
+        # Authorize before revealing any of the student's info/attendance.
+        if not _can_view_student_attendance(request.user, student):
+            return Response(
+                {'error': 'You do not have permission to view this student.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        records = scope_attendance_queryset(
+            AttendanceRecord.objects.all(), request.user
+        ).filter(
             student_id=student_id,
             status__in=COUNTED_STATUSES,
         )
@@ -622,6 +777,16 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             return Response(
                 {'error': 'No records provided'},
                 status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # A captain may only submit attendance for their own class/section.
+        # (Teachers/admins are validated by routine linkage below.)
+        student_ids = [r.get('student') for r in records_data if r.get('student')]
+        outside = _students_outside_scope(request.user, student_ids)
+        if outside:
+            return Response(
+                {'error': 'You can only record attendance for your own class/section.'},
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         request_user_id = getattr(request.user, 'id', None)

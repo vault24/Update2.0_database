@@ -37,5 +37,20 @@ export default defineConfig(async ({ mode }) => {
         "@": path.resolve(__dirname, "./src"),
       },
     },
+    build: {
+      rollupOptions: {
+        output: {
+          // Split large, rarely-changing vendor libraries into their own chunks
+          // so they cache independently and don't bloat the entry bundle.
+          manualChunks: {
+            "vendor-react": ["react", "react-dom", "react-router-dom"],
+            "vendor-charts": ["recharts"],
+            "vendor-pdf": ["jspdf", "jspdf-autotable"],
+            "vendor-xlsx": ["xlsx"],
+            "vendor-motion": ["framer-motion"],
+          },
+        },
+      },
+    },
   };
 });

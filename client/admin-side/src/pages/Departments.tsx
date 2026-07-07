@@ -1,13 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
-  Plus, Edit, Trash2, Users, GraduationCap, BookOpen, Building2,
+  Plus, Edit, Trash2, Users, GraduationCap, Building2,
   Search, MoreVertical, ChevronRight, UserCheck, RefreshCw,
+  Sun, Moon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -19,7 +21,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { API_BASE_URL } from '@/config/api';
-import departmentService, { Department as APIDepartment } from '@/services/departmentService';
+import departmentService, { Department as APIDepartment, DepartmentHead } from '@/services/departmentService';
 import { LoadingState } from '@/components/LoadingState';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -27,7 +29,7 @@ interface Department {
   id: string;
   name: string;
   code: string;
-  head: string | null;
+  heads: DepartmentHead[];
   totalStudents: number;
   activeStudents: number;
   faculty: number;
@@ -35,6 +37,19 @@ interface Department {
   photo_url: string | null;
   autoAttendanceSync: boolean;
 }
+
+const shiftShort: Record<string, string> = {
+  '1st_shift': '1st',
+  '2nd_shift': '2nd',
+};
+
+/** Resolve a possibly-relative photo URL against the backend origin. */
+const resolvePhotoUrl = (url?: string | null): string | null => {
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url)) return url;
+  const base = API_BASE_URL.replace(/\/api\/?$/, '');
+  return `${base}${url.startsWith('/') ? '' : '/'}${url}`;
+};
 
 function StatTile({ label, value, icon: Icon, tint }: { label: string; value: number; icon: typeof Users; tint: string }) {
   return (
@@ -71,6 +86,26 @@ function DeptThumb({ photoUrl, code }: { photoUrl: string | null; code: string }
   );
 }
 
+// Compact chip for a real assigned Department Head account.
+function HeadChip({ head }: { head: DepartmentHead }) {
+  const initials = head.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
+  const ShiftIcon = head.shift === '2nd_shift' ? Moon : Sun;
+  return (
+    <div className="flex items-center gap-2 min-w-0">
+      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] font-bold text-primary">
+        {initials || '—'}
+      </div>
+      <span className="truncate text-sm font-medium text-foreground">{head.name}</span>
+      {head.shift && (
+        <Badge variant="outline" className="shrink-0 gap-0.5 px-1.5 text-[10px] font-semibold">
+          <ShiftIcon className="h-2.5 w-2.5" />
+          {shiftShort[head.shift] || head.shift}
+        </Badge>
+      )}
+    </div>
+  );
+}
+
 export default function Departments() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -88,7 +123,6 @@ export default function Departments() {
   const [formData, setFormData] = useState({
     name: '',
     code: '',
-    head: '',
     established: '',
     photo: null as File | null,
   });
@@ -96,13 +130,13 @@ export default function Departments() {
 
   useEffect(() => {
     fetchDepartments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchDepartments = async () => {
     try {
       setLoading(true);
       const response = await departmentService.getDepartments();
-      const baseURL = API_BASE_URL.replace('/api', '');
 
       // Department Heads only see the department they manage.
       const visibleResults = headDepartmentId
@@ -113,14 +147,12 @@ export default function Departments() {
         id: dept.id,
         name: dept.name,
         code: dept.code || dept.short_name,
-        head: dept.head || null,
+        heads: dept.heads || [],
         totalStudents: dept.total_students,
         activeStudents: dept.active_students,
         faculty: dept.faculty_count,
         established: dept.established_year || null,
-        photo_url: dept.photo_url
-          ? (dept.photo_url.startsWith('http') ? dept.photo_url : `${baseURL}${dept.photo_url}`)
-          : null,
+        photo_url: resolvePhotoUrl(dept.photo_url),
         autoAttendanceSync: !!dept.autoAttendanceSync,
       }));
       setDepartments(mappedDepts);
@@ -135,17 +167,22 @@ export default function Departments() {
     }
   };
 
-  const filteredDepartments = departments.filter(d =>
-    d.name.toLowerCase().includes(search.toLowerCase()) ||
-    d.code.toLowerCase().includes(search.toLowerCase()) ||
-    (d.head && d.head.toLowerCase().includes(search.toLowerCase()))
-  );
+  const filteredDepartments = useMemo(() => {
+    const q = search.toLowerCase();
+    return departments.filter(
+      (d) =>
+        q === '' ||
+        d.name.toLowerCase().includes(q) ||
+        d.code.toLowerCase().includes(q) ||
+        d.heads.some((h) => h.name.toLowerCase().includes(q)),
+    );
+  }, [departments, search]);
 
   const totalStudents = departments.reduce((acc, d) => acc + (d.totalStudents || 0), 0);
   const activeStudents = departments.reduce((acc, d) => acc + (d.activeStudents || 0), 0);
   const totalFaculty = departments.reduce((acc, d) => acc + (d.faculty || 0), 0);
 
-  const resetForm = () => setFormData({ name: '', code: '', head: '', established: '', photo: null });
+  const resetForm = () => setFormData({ name: '', code: '', established: '', photo: null });
 
   const handleAdd = async () => {
     if (!formData.name || !formData.code) {
@@ -157,7 +194,6 @@ export default function Departments() {
       await departmentService.createDepartment({
         name: formData.name,
         code: formData.code,
-        head: formData.head,
         established_year: formData.established,
         photo: formData.photo || undefined,
       });
@@ -183,7 +219,6 @@ export default function Departments() {
       await departmentService.updateDepartment(selectedDept.id, {
         name: formData.name,
         code: formData.code,
-        head: formData.head,
         established_year: formData.established,
         photo: formData.photo || undefined,
       });
@@ -224,7 +259,6 @@ export default function Departments() {
     setFormData({
       name: dept.name,
       code: dept.code,
-      head: dept.head || '',
       established: dept.established || '',
       photo: null,
     });
@@ -254,7 +288,7 @@ export default function Departments() {
   };
 
   const handleDepartmentClick = (dept: Department) => {
-    navigate(`/departments/${dept.id}`, { state: { department: dept } });
+    navigate(`/departments/${dept.id}`);
   };
 
   if (loading) {
@@ -374,13 +408,13 @@ export default function Departments() {
                   </div>
                 </div>
 
-                {dept.head ? (
-                  <div className="flex items-center gap-2 pt-3 border-t border-border">
-                    <BookOpen className="w-4 h-4 text-muted-foreground shrink-0" />
-                    <div className="min-w-0">
-                      <span className="text-xs text-muted-foreground">Head: </span>
-                      <span className="text-sm font-medium text-foreground">{dept.head}</span>
-                    </div>
+                {/* Real assigned Department Heads (newest first, max 2) */}
+                {dept.heads.length > 0 ? (
+                  <div className="pt-3 border-t border-border space-y-1.5">
+                    {dept.heads.slice(0, 2).map((h) => <HeadChip key={h.id} head={h} />)}
+                    {dept.heads.length > 2 && (
+                      <p className="text-[11px] text-muted-foreground">+{dept.heads.length - 2} more</p>
+                    )}
                   </div>
                 ) : (
                   <div className="pt-3 border-t border-border">
@@ -426,7 +460,10 @@ export default function Departments() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add new department</DialogTitle>
-            <DialogDescription>Create a new department by filling in the details below.</DialogDescription>
+            <DialogDescription>
+              Create a new department. Department Heads are assigned automatically when a head
+              account selects this department in their profile.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-4">
@@ -447,23 +484,13 @@ export default function Departments() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label>Department head</Label>
-                <Input
-                  placeholder="Enter name"
-                  value={formData.head}
-                  onChange={(e) => setFormData({ ...formData, head: e.target.value })}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Established year</Label>
-                <Input
-                  placeholder="e.g., 2020"
-                  value={formData.established}
-                  onChange={(e) => setFormData({ ...formData, established: e.target.value })}
-                />
-              </div>
+            <div className="space-y-1.5">
+              <Label>Established year</Label>
+              <Input
+                placeholder="e.g., 2020"
+                value={formData.established}
+                onChange={(e) => setFormData({ ...formData, established: e.target.value })}
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Department photo</Label>
@@ -499,15 +526,9 @@ export default function Departments() {
                 <Input value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label>Department head</Label>
-                <Input value={formData.head} onChange={(e) => setFormData({ ...formData, head: e.target.value })} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Established year</Label>
-                <Input value={formData.established} onChange={(e) => setFormData({ ...formData, established: e.target.value })} />
-              </div>
+            <div className="space-y-1.5">
+              <Label>Established year</Label>
+              <Input value={formData.established} onChange={(e) => setFormData({ ...formData, established: e.target.value })} />
             </div>
             <div className="space-y-1.5">
               <Label>Department photo</Label>

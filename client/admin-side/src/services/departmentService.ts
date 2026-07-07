@@ -7,12 +7,23 @@ import { apiClient } from '@/lib/api';
 import type { PaginatedResponse } from '@/lib/api';
 
 // Types
+
+/** A real Department Head account assigned to a department (newest first). */
+export interface DepartmentHead {
+  id: string;
+  name: string;
+  /** '1st_shift' | '2nd_shift' | '' */
+  shift: string;
+}
+
 export interface Department {
   id: string;
   name: string;
   code: string;
   short_name: string;
   head: string | null;
+  /** Assigned Department Head accounts, ordered newest-first. */
+  heads?: DepartmentHead[];
   established_year: string | null;
   photo: string | null;
   photo_url: string | null;

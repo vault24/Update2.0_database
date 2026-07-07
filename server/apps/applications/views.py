@@ -8,6 +8,7 @@ from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.http import HttpResponse
+from django.utils.html import escape
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 from django_filters.rest_framework import DjangoFilterBackend
@@ -69,6 +70,30 @@ def _link_student(application):
             application.student = student
     except Exception:
         pass
+
+
+def _user_student_profile(user):
+    """The Student profile linked to a logged-in student/captain (or None)."""
+    if getattr(user, 'role', None) not in ('student', 'captain'):
+        return None
+    pid = getattr(user, 'related_profile_id', None)
+    if not pid:
+        return None
+    from apps.students.models import Student
+    return Student.objects.filter(id=pid).first()
+
+
+def _own_applications_q(student):
+    """Q matching applications that belong to `student` (by FK or roll number)."""
+    from django.db.models import Q
+    rolls = {r for r in (
+        getattr(student, 'currentRollNumber', None),
+        getattr(student, 'rollNumber', None),
+    ) if r}
+    q = Q(student_id=student.id)
+    if rolls:
+        q |= Q(rollNumber__in=list(rolls))
+    return q
 
 
 def _actor_name(user):
@@ -315,9 +340,12 @@ def _render_document_html(app, request):
         'REGISTRAR_NAME': names['registrar'], 'PRINCIPAL_NAME': names['institute_head'],
     }
 
-    # Replace {{token}} occurrences we know about.
+    # Replace {{token}} occurrences we know about. Every value is HTML-escaped:
+    # the template body is admin-authored (trusted) but these values come from
+    # the public application submission, so interpolating them raw would be
+    # stored XSS in the admin/applicant browser that views the document.
     for key, val in ctx.items():
-        html = html.replace('{{' + key + '}}', str(val))
+        html = html.replace('{{' + key + '}}', escape(str(val)))
 
     # Known bracket-style tokens.
     bracket_map = {
@@ -327,7 +355,7 @@ def _render_document_html(app, request):
         '[Date]': today_str,
     }
     for token, val in bracket_map.items():
-        html = html.replace(token, str(val))
+        html = html.replace(token, escape(str(val)))
 
     # Composite signatures into their designated markers, then strip any unfilled ones.
     sig_images = _signature_images(app, request)
@@ -357,27 +385,27 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     ordering = ['-submittedAt']
 
     def get_permissions(self):
-        if self.action in ('submit', 'my_applications', 'document'):
-            return [permissions.AllowAny()]
+        # Everything requires login now — there is no anonymous application
+        # submission, tracking or document access. Approval actions are
+        # admin-only; the rest fall back to the IsAuthenticated default.
         if self.action in ('approve', 'forward', 'reject'):
             return [IsAdminRole()]
         return super().get_permissions()
 
     def get_queryset(self):
         """
-        Scope the list/detail by role:
+        Scope list/detail (and the document/my-applications actions, which funnel
+        through this) strictly by role:
         - Principal / Registrar / superuser: every application.
         - Department Head: only applications forwarded to their department or
           ones they have already acted on (their inbox).
-        Public actions (submit / my-applications / document) are authorized
-        inside the action, so they always see the full set here.
+        - Student / Captain: ONLY their own applications (by student FK or roll).
+        - Anyone else / anonymous: nothing.
         """
         qs = Application.objects.all().prefetch_related('approvals')
-        if self.action in ('submit', 'my_applications', 'document'):
-            return qs
         user = self.request.user
         if not (user and user.is_authenticated):
-            return qs
+            return qs.none()
         role = getattr(user, 'role', None)
         if user.is_superuser or role in ('institute_head', 'registrar'):
             return qs
@@ -387,6 +415,11 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 Q(current_department_id=getattr(user, 'department_id', None))
                 | Q(approvals__approver=user)
             ).distinct()
+        if role in ('student', 'captain'):
+            student = _user_student_profile(user)
+            if not student:
+                return qs.none()
+            return qs.filter(_own_applications_q(student))
         return qs.none()
 
     def get_serializer_context(self):
@@ -395,9 +428,9 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         return ctx
 
     # ---- Submission -------------------------------------------------------
-    @action(detail=False, methods=['post'], permission_classes=[permissions.AllowAny])
+    @action(detail=False, methods=['post'])
     def submit(self, request):
-        """Public submission. Accepts `template` + `initial_assignee` (+ department_id)."""
+        """Authenticated submission. Accepts `template` + `initial_assignee` (+ department_id)."""
         serializer = ApplicationSubmitSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -580,47 +613,32 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         return Response(ApplicationSerializer(application, context={'request': request}).data)
 
     # ---- Student listing --------------------------------------------------
-    @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny], url_path='my-applications')
+    @action(detail=False, methods=['get'], url_path='my-applications')
     def my_applications(self, request):
-        roll_number = request.query_params.get('rollNumber')
-        registration_number = request.query_params.get('registrationNumber')
-        if not roll_number:
-            return Response({'error': 'Roll number required',
-                             'details': 'Please provide rollNumber query parameter'},
-                            status=status.HTTP_400_BAD_REQUEST)
+        """The logged-in student's own applications. No roll-number lookup:
+        the caller only ever sees applications tied to their own account."""
+        student = _user_student_profile(request.user)
+        if not student:
+            # Non-students (admins/teachers) use the normal list endpoint.
+            return Response({'count': 0, 'applications': []})
 
-        applications = Application.objects.filter(rollNumber=roll_number)
-        if registration_number:
-            applications = applications.filter(registrationNumber=registration_number)
-        applications = applications.order_by('-submittedAt').prefetch_related('approvals')
-
+        applications = (
+            Application.objects.filter(_own_applications_q(student))
+            .order_by('-submittedAt').prefetch_related('approvals')
+        )
         serializer = ApplicationSerializer(applications, many=True, context={'request': request})
         return Response({'count': applications.count(), 'applications': serializer.data})
 
     # ---- Final document (on-demand render) --------------------------------
-    @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
+    @action(detail=True, methods=['get'])
     def document(self, request, pk=None):
+        # get_object() runs through the role-scoped get_queryset, so a student
+        # can only reach their OWN application and an admin only those in scope.
+        # No anonymous / roll-number access.
         application = self.get_object()
         if application.status != 'approved':
             return Response({'message': 'Document is available only after final approval.'},
                             status=status.HTTP_400_BAD_REQUEST)
-
-        user = request.user
-        allowed = False
-        if user and user.is_authenticated:
-            role = getattr(user, 'role', None)
-            if user.is_superuser or role in ('registrar', 'institute_head'):
-                allowed = True
-            elif application.approvals.filter(approver=user).exists():
-                allowed = True
-        if not allowed:
-            # Student (roll-number) trust model, same as my-applications.
-            roll = request.query_params.get('rollNumber')
-            if roll and roll == application.rollNumber:
-                allowed = True
-        if not allowed:
-            return Response({'detail': 'You are not authorized to view this document.'},
-                            status=status.HTTP_403_FORBIDDEN)
 
         html = _render_document_html(application, request)
         return HttpResponse(html, content_type='text/html')

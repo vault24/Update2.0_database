@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,37 +10,38 @@ import { InterfaceModeProvider } from "@/contexts/InterfaceModeContext";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { RoleRouteGuard } from "@/components/RoleRouteGuard";
-import Dashboard from "./pages/Dashboard";
-import StudentsList from "./pages/StudentsList";
-import AddStudent from "./pages/AddStudent";
-import DiscontinuedStudents from "./pages/DiscontinuedStudents";
-import Admissions from "./pages/Admissions";
-import AdmissionDetails from "./pages/AdmissionDetails";
-import ClassRoutine from "./pages/ClassRoutine";
-import AttendanceMarks from "./pages/AttendanceMarks";
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const StudentsList = lazy(() => import("./pages/StudentsList"));
+const AddStudent = lazy(() => import("./pages/AddStudent"));
+const DiscontinuedStudents = lazy(() => import("./pages/DiscontinuedStudents"));
+const Admissions = lazy(() => import("./pages/Admissions"));
+const AdmissionDetails = lazy(() => import("./pages/AdmissionDetails"));
+const ClassRoutine = lazy(() => import("./pages/ClassRoutine"));
+const AttendanceMarks = lazy(() => import("./pages/AttendanceMarks"));
 
-import StudentDetails from "./pages/StudentDetails";
-import EditStudent from "./pages/EditStudent";
-import Alumni from "./pages/Alumni";
-import AddAlumni from "./pages/AddAlumni";
-import AlumniDetails from "./pages/AlumniDetails";
-import Documents from "./pages/Documents";
-import Applications from "./pages/Applications";
-import CorrectionRequests from "./pages/CorrectionRequests";
-import Settings from "./pages/Settings";
-import SystemActivityReports from "./pages/SystemActivityReports";
-import Departments from "./pages/Departments";
-import DepartmentView from "./pages/DepartmentView";
-import Teachers from "./pages/Teachers";
-import SignupRequests from "./pages/SignupRequests";
-import Notices from "./pages/Notices";
-import StipendEligible from "./pages/StipendEligible";
-import Auth from "./pages/Auth";
-import PasswordReset from "./pages/PasswordReset";
-import NotFound from "./pages/NotFound";
-import Complaints from "./pages/Complaints";
-import MotivationManagement from "./pages/MotivationManagement";
-import TeacherProfile from "./pages/TeacherProfile";
+const StudentDetails = lazy(() => import("./pages/StudentDetails"));
+const EditStudent = lazy(() => import("./pages/EditStudent"));
+const AlumniDirectory = lazy(() => import("./pages/AlumniDirectory"));
+const AlumniRequests = lazy(() => import("./pages/AlumniRequests"));
+const AddAlumni = lazy(() => import("./pages/AddAlumni"));
+const AlumniDetails = lazy(() => import("./pages/AlumniDetails"));
+const Documents = lazy(() => import("./pages/Documents"));
+const Applications = lazy(() => import("./pages/Applications"));
+const CorrectionRequests = lazy(() => import("./pages/CorrectionRequests"));
+const Settings = lazy(() => import("./pages/Settings"));
+const SystemActivityReports = lazy(() => import("./pages/SystemActivityReports"));
+const Departments = lazy(() => import("./pages/Departments"));
+const DepartmentView = lazy(() => import("./pages/DepartmentView"));
+const Teachers = lazy(() => import("./pages/Teachers"));
+const SignupRequests = lazy(() => import("./pages/SignupRequests"));
+const Notices = lazy(() => import("./pages/Notices"));
+const StipendEligible = lazy(() => import("./pages/StipendEligible"));
+const Auth = lazy(() => import("./pages/Auth"));
+const PasswordReset = lazy(() => import("./pages/PasswordReset"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const Complaints = lazy(() => import("./pages/Complaints"));
+const MotivationManagement = lazy(() => import("./pages/MotivationManagement"));
+const TeacherProfile = lazy(() => import("./pages/TeacherProfile"));
 
 const queryClient = new QueryClient();
 
@@ -57,6 +59,7 @@ const App = () => (
         >
           <AuthProvider>
             <InterfaceModeProvider>
+            <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-muted-foreground">Loading…</div>}>
             <Routes>
               <Route path="/auth" element={<Auth />} />
               <Route path="/password-reset" element={<PasswordReset />} />
@@ -81,7 +84,8 @@ const App = () => (
                   <Route path="/class-routine" element={<ClassRoutine />} />
                   <Route path="/attendance-marks" element={<AttendanceMarks />} />
 
-                  <Route path="/alumni" element={<Alumni />} />
+                  <Route path="/alumni" element={<AlumniDirectory />} />
+                  <Route path="/alumni-requests" element={<AlumniRequests />} />
                   <Route path="/alumni/add" element={<AddAlumni />} />
                   <Route path="/alumni/:id" element={<AlumniDetails />} />
                   <Route path="/documents" element={<Documents />} />
@@ -97,6 +101,7 @@ const App = () => (
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </Suspense>
             </InterfaceModeProvider>
           </AuthProvider>
         </BrowserRouter>

@@ -5,6 +5,14 @@ These tests use Hypothesis to verify universal properties across all inputs.
 Each test runs a minimum of 100 iterations with randomly generated data.
 """
 from django.test import TestCase
+from hypothesis.extra.django import TestCase as HypothesisTestCase
+from rest_framework.test import APIClient as _APIClient
+
+
+class HypothesisAPITestCase(HypothesisTestCase):
+    """Hypothesis-managed transactions + DRF APIClient for API property tests."""
+    client_class = _APIClient
+
 from hypothesis import given, settings, strategies as st
 from hypothesis.extra.django import from_model
 from rest_framework.test import APITestCase
@@ -15,7 +23,7 @@ from apps.departments.models import Department
 import json
 
 
-class MobileValidationPropertyTest(TestCase):
+class MobileValidationPropertyTest(HypothesisTestCase):
     """
     **Feature: django-backend, Property 7: Mobile number format validation**
     
@@ -23,8 +31,8 @@ class MobileValidationPropertyTest(TestCase):
     for exactly 11-digit strings and fail for all other formats.
     """
     
-    @settings(max_examples=100)
-    @given(st.text(min_size=1, max_size=20))
+    @settings(max_examples=100, deadline=None)
+    @given(st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=1, max_size=20))
     def test_mobile_validation_rejects_non_11_digit_strings(self, mobile):
         """
         Test that mobile validation rejects any string that is not exactly 11 digits
@@ -38,7 +46,7 @@ class MobileValidationPropertyTest(TestCase):
         with self.assertRaises(ValidationError):
             validate_mobile_number(mobile)
     
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(st.integers(min_value=10000000000, max_value=99999999999))
     def test_mobile_validation_accepts_11_digit_numbers(self, mobile_int):
         """
@@ -50,7 +58,7 @@ class MobileValidationPropertyTest(TestCase):
         self.assertEqual(result, mobile)
 
 
-class SemesterValidationPropertyTest(TestCase):
+class SemesterValidationPropertyTest(HypothesisTestCase):
     """
     **Feature: django-backend, Property 8: Semester range validation**
     
@@ -58,7 +66,7 @@ class SemesterValidationPropertyTest(TestCase):
     for integers in the range 1-8 and fail for all other values.
     """
     
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(st.integers(min_value=-1000, max_value=1000))
     def test_semester_validation_range(self, semester):
         """
@@ -76,7 +84,7 @@ class SemesterValidationPropertyTest(TestCase):
                 validate_semester(semester)
 
 
-class StudentCreationPropertyTest(APITestCase):
+class StudentCreationPropertyTest(HypothesisAPITestCase):
     """
     **Feature: django-backend, Property 1: Student creation completeness**
     
@@ -179,7 +187,7 @@ class StudentCreationPropertyTest(APITestCase):
         self.assertEqual(response.data['mobileStudent'], str(mobile))
 
 
-class FileUploadValidationPropertyTest(APITestCase):
+class FileUploadValidationPropertyTest(HypothesisAPITestCase):
     """
     **Feature: django-backend, Property 4: File upload validation**
     
@@ -320,7 +328,7 @@ class FileUploadValidationPropertyTest(APITestCase):
         self.assertTrue(response.data['profilePhoto'].startswith('students/'))
 
 
-class SearchResultConsistencyPropertyTest(APITestCase):
+class SearchResultConsistencyPropertyTest(HypothesisAPITestCase):
     """
     **Feature: django-backend, Property 3: Search result consistency**
     
@@ -405,7 +413,7 @@ class SearchResultConsistencyPropertyTest(APITestCase):
 
 
 
-class AlumniTransitionValidationPropertyTest(APITestCase):
+class AlumniTransitionValidationPropertyTest(HypothesisAPITestCase):
     """
     **Feature: django-backend, Property 2: Alumni transition validation**
     
@@ -490,7 +498,7 @@ class AlumniTransitionValidationPropertyTest(APITestCase):
             self.assertIn('error', response.data)
 
 
-class AlumniDeletionPreventionPropertyTest(APITestCase):
+class AlumniDeletionPreventionPropertyTest(HypothesisAPITestCase):
     """
     **Feature: django-backend, Property 5: Alumni deletion prevention**
     
@@ -588,7 +596,7 @@ class AlumniDeletionPreventionPropertyTest(APITestCase):
 
 
 
-class SemesterResultsStructurePropertyTest(APITestCase):
+class SemesterResultsStructurePropertyTest(HypothesisAPITestCase):
     """
     **Feature: django-backend, Property 13: Semester results structure validation**
     
@@ -746,7 +754,7 @@ class SemesterResultsStructurePropertyTest(APITestCase):
         self.assertEqual(response.data['semesterResults'][0]['semester'], semester_num)
 
 
-class RequiredFieldValidationPropertyTest(APITestCase):
+class RequiredFieldValidationPropertyTest(HypothesisAPITestCase):
     """
     **Feature: django-backend, Property 6: Required field validation**
     

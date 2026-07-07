@@ -2,8 +2,10 @@
 Authentication Views
 """
 from rest_framework import status, permissions
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.response import Response
+
+from .throttles import LoginRateThrottle, OTPSendRateThrottle
 from django.contrib.auth import login, logout, get_user_model, update_session_auth_hash
 from django.middleware.csrf import get_token
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -92,6 +94,7 @@ def csrf_token_view(request):
 
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
+@throttle_classes([OTPSendRateThrottle])
 def register_request_otp_view(request):
     """
     Step 1 of sign-up: validate the registration data and email a verification
@@ -265,6 +268,7 @@ def register_view(request):
 
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
+@throttle_classes([LoginRateThrottle])
 def login_view(request):
     """
     Login user
@@ -355,6 +359,7 @@ def login_view(request):
 
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
+@throttle_classes([LoginRateThrottle])
 def google_auth_view(request):
     """
     "Continue with Google" for the student portal.
@@ -624,6 +629,24 @@ def update_profile_view(request):
             email_notifications_enabled = email_notifications_enabled.lower() in ('true', '1', 'yes')
         user.email_notifications_enabled = bool(email_notifications_enabled)
 
+    # Sidebar visibility of the Alumni pages (admin panel Appearance setting).
+    alumni_visible = request.data.get('alumni_visible')
+    if alumni_visible is not None:
+        if isinstance(alumni_visible, str):
+            alumni_visible = alumni_visible.lower() in ('true', '1', 'yes')
+        user.alumni_visible = bool(alumni_visible)
+
+    # Department Heads can set/update the shift they manage (1st/2nd).
+    shift = request.data.get('shift')
+    if shift is not None and user.role == 'department_head':
+        valid_shifts = [choice[0] for choice in User.SHIFT_CHOICES] + ['']
+        if shift not in valid_shifts:
+            return Response(
+                {'shift': ['Must be "1st_shift" or "2nd_shift".']},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        user.shift = shift
+
     # Department Heads can set/update the department they manage
     if department_id is not None and user.role == 'department_head':
         if department_id == '' or department_id is None:
@@ -759,6 +782,7 @@ def revoke_other_sessions_view(request):
 
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
+@throttle_classes([LoginRateThrottle])
 def verify_login_2fa_view(request):
     """
     Complete a two-factor login by verifying the emailed OTP code.
@@ -836,6 +860,7 @@ def check_signup_availability_view(request):
 
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
+@throttle_classes([OTPSendRateThrottle])
 def send_signup_request_code_view(request):
     """
     Send an email verification code for a new admin signup request.
@@ -1042,16 +1067,19 @@ def approve_signup_request_view(request, request_id):
     Returns:
     - 200: Signup request approved successfully
     - 400: Invalid status transition
-    - 403: User is not an admin
+    - 403: User is not the Principal
     - 404: Signup request not found
     """
-    # Check if user is admin
-    if not request.user.is_admin():
+    # SECURITY: only the Principal (institute_head / Django superuser) may
+    # create admin accounts. A registrar or department_head must NOT be able to
+    # approve a signup request — otherwise they could self-submit a request for
+    # `requested_role=institute_head` and approve it, escalating to Principal.
+    if not (request.user.is_superuser or getattr(request.user, 'role', None) == 'institute_head'):
         return Response(
-            {'detail': 'You do not have permission to perform this action.'},
+            {'detail': 'Only the Principal can approve admin signup requests.'},
             status=status.HTTP_403_FORBIDDEN
         )
-    
+
     try:
         signup_request = SignupRequest.objects.get(id=request_id)
     except SignupRequest.DoesNotExist:
@@ -1059,7 +1087,7 @@ def approve_signup_request_view(request, request_id):
             {'detail': 'Signup request not found.'},
             status=status.HTTP_404_NOT_FOUND
         )
-    
+
     # Check if request is pending
     if signup_request.status != 'pending':
         return Response(
@@ -1144,16 +1172,16 @@ def reject_signup_request_view(request, request_id):
     Returns:
     - 200: Signup request rejected successfully
     - 400: Invalid status transition
-    - 403: User is not an admin
+    - 403: User is not the Principal
     - 404: Signup request not found
     """
-    # Check if user is admin
-    if not request.user.is_admin():
+    # SECURITY: admin-account lifecycle is Principal-only (see approve view).
+    if not (request.user.is_superuser or getattr(request.user, 'role', None) == 'institute_head'):
         return Response(
-            {'detail': 'You do not have permission to perform this action.'},
+            {'detail': 'Only the Principal can review admin signup requests.'},
             status=status.HTTP_403_FORBIDDEN
         )
-    
+
     try:
         signup_request = SignupRequest.objects.get(id=request_id)
     except SignupRequest.DoesNotExist:
@@ -1161,7 +1189,7 @@ def reject_signup_request_view(request, request_id):
             {'detail': 'Signup request not found.'},
             status=status.HTTP_404_NOT_FOUND
         )
-    
+
     # Check if request is pending
     if signup_request.status != 'pending':
         return Response(

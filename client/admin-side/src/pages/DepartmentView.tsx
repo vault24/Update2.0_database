@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useParams, useLocation, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Users, GraduationCap, Building2, Search, Eye, Edit, X,
   TrendingUp, Loader2, CheckSquare, Square, ArrowRight, UserCheck,
-  Check, Clock, ShieldAlert,
+  Check, Clock, ShieldAlert, Sun, Moon, XCircle, CheckCircle2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -29,23 +29,56 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import departmentService from '@/services/departmentService';
+import departmentService, { DepartmentHead } from '@/services/departmentService';
 import { studentService, Student as StudentType } from '@/services/studentService';
 import { LoadingState } from '@/components/LoadingState';
 import { ErrorState } from '@/components/ErrorState';
 import { useToast } from '@/hooks/use-toast';
+import { API_BASE_URL } from '@/config/api';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface Department {
   id: string;
   name: string;
   short_name: string;
-  head: string | null;
+  heads?: DepartmentHead[];
+  photo_url?: string | null;
   total_students: number;
   active_students: number;
   faculty_count: number;
   established_year: string;
   description: string;
   is_active: boolean;
+}
+
+/** Resolve a possibly-relative photo URL against the backend origin. */
+const resolvePhotoUrl = (url?: string | null): string | null => {
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url)) return url;
+  const base = API_BASE_URL.replace(/\/api\/?$/, '');
+  return `${base}${url.startsWith('/') ? '' : '/'}${url}`;
+};
+
+const headShiftShort: Record<string, string> = { '1st_shift': '1st', '2nd_shift': '2nd' };
+
+/** Department photo with a graceful fallback to the code badge. */
+function DeptPhoto({ photoUrl, code, name }: { photoUrl: string | null; code: string; name: string }) {
+  const [failed, setFailed] = useState(false);
+  if (photoUrl && !failed) {
+    return (
+      <img
+        src={photoUrl}
+        alt={name}
+        onError={() => setFailed(true)}
+        className="w-14 h-14 rounded-xl object-cover border border-border shrink-0"
+      />
+    );
+  }
+  return (
+    <div className="w-14 h-14 rounded-xl bg-primary flex items-center justify-center shrink-0">
+      <span className="text-xl font-semibold text-primary-foreground">{code?.slice(0, 3) || '—'}</span>
+    </div>
+  );
 }
 
 type Student = StudentType;
@@ -61,22 +94,31 @@ const headShiftToStudentShift = (shift?: string): string | null =>
 
 export default function DepartmentView() {
   const { id } = useParams();
-  const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
   const isDeptHead = user?.role === 'department_head';
 
-  const [department, setDepartment] = useState<Department | null>(location.state?.department || null);
+  // Always fetch fresh from the API — router state from the list page has a
+  // different shape (code/established vs short_name/established_year), which
+  // used to break the header badge, photo and head display.
+  const [department, setDepartment] = useState<Department | null>(null);
   const [selectedSemester, setSelectedSemester] = useState<number | null>(null);
   // Department Heads start with their own shift pre-selected.
   const [selectedShift, setSelectedShift] = useState<string | null>(
     isDeptHead ? headShiftToStudentShift(user?.shift) : null
   );
 
-  // Captain account requests for this department
+  // Captain account requests for this department (all statuses) — reviewed
+  // from a popup dialog instead of an inline card.
   const [captainRequests, setCaptainRequests] = useState<CaptainRequest[]>([]);
   const [captainLoading, setCaptainLoading] = useState(true);
+  const [captainOpen, setCaptainOpen] = useState(false);
+  const [captainTab, setCaptainTab] = useState<'pending' | 'approved' | 'rejected'>('pending');
+  // Shift filter inside the dialog — defaults to the head's own shift.
+  const [captainShift, setCaptainShift] = useState<string>(
+    (isDeptHead && headShiftToStudentShift(user?.shift)) || 'all'
+  );
   const [captainActionId, setCaptainActionId] = useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = useState<CaptainRequest | null>(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -166,13 +208,13 @@ export default function DepartmentView() {
     }
   };
 
-  // Load pending captain account requests for this department. The backend
-  // additionally scopes Department Heads to their own department + shift.
+  // Load ALL captain account requests for this department (any status). The
+  // backend additionally scopes Department Heads to their own dept + shift.
   const fetchCaptainRequests = async () => {
     if (!id) return;
     setCaptainLoading(true);
     try {
-      const response = await captainRequestService.getRequests({ status: 'pending', department: id });
+      const response = await captainRequestService.getRequests({ department: id });
       setCaptainRequests(response.results || []);
     } catch {
       toast({
@@ -191,6 +233,13 @@ export default function DepartmentView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  const pendingCaptainCount = captainRequests.filter((r) => r.status === 'pending').length;
+
+  // Requests shown in the dialog for the active tab + shift filter.
+  const visibleCaptainRequests = captainRequests.filter(
+    (r) => r.status === captainTab && (captainShift === 'all' || r.shift === captainShift)
+  );
+
   const handleApproveCaptain = async (request: CaptainRequest) => {
     setCaptainActionId(request.id);
     try {
@@ -199,7 +248,7 @@ export default function DepartmentView() {
         title: 'Captain request approved',
         description: `${request.name} is now a Class Captain.`,
       });
-      setCaptainRequests((prev) => prev.filter((r) => r.id !== request.id));
+      await fetchCaptainRequests();
     } catch (err: any) {
       toast({
         title: 'Approval failed',
@@ -220,9 +269,9 @@ export default function DepartmentView() {
         title: 'Captain request rejected',
         description: `${rejectTarget.name}'s account continues as a regular student.`,
       });
-      setCaptainRequests((prev) => prev.filter((r) => r.id !== rejectTarget.id));
       setRejectTarget(null);
       setRejectReason('');
+      await fetchCaptainRequests();
     } catch (err: any) {
       toast({
         title: 'Rejection failed',
@@ -234,26 +283,25 @@ export default function DepartmentView() {
     }
   };
 
-  // Fetch department details if not passed via state
+  // Fetch department details (always fresh — see the state comment above).
   useEffect(() => {
     const fetchDepartment = async () => {
-      if (!department && id) {
-        try {
-          const data = await departmentService.getDepartment(id);
-          setDepartment(data);
-        } catch {
-          toast({
-            title: 'Error',
-            description: 'Failed to load department details',
-            variant: 'destructive',
-          });
-          navigate('/departments');
-        }
+      if (!id) return;
+      try {
+        const data = await departmentService.getDepartment(id);
+        setDepartment(data as unknown as Department);
+      } catch {
+        toast({
+          title: 'Error',
+          description: 'Failed to load department details',
+          variant: 'destructive',
+        });
+        navigate('/departments');
       }
     };
 
     fetchDepartment();
-  }, [id, department, navigate, toast]);
+  }, [id, navigate, toast]);
 
   // Fetch students based on filters
   useEffect(() => {
@@ -339,28 +387,54 @@ export default function DepartmentView() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <Button variant="ghost" size="icon" onClick={() => navigate('/departments')} className="shrink-0" aria-label="Back to departments">
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div className="flex items-center gap-4 min-w-0">
-            <div className="w-14 h-14 rounded-xl bg-primary flex items-center justify-center shrink-0">
-              <span className="text-xl font-semibold text-primary-foreground">{department.short_name}</span>
-            </div>
+            {/* Department photo (falls back to the code badge) */}
+            <DeptPhoto photoUrl={resolvePhotoUrl(department.photo_url)} code={department.short_name} name={department.name} />
             <div className="min-w-0">
               <h1 className="text-xl md:text-2xl font-semibold text-foreground truncate">{department.name}</h1>
               <p className="text-sm text-muted-foreground">
-                {department.established_year && `Established ${department.established_year}`}
-                {department.head && `${department.established_year ? ' • ' : ''}Head: ${department.head}`}
+                {department.short_name}
+                {department.established_year ? ` · Established ${department.established_year}` : ''}
               </p>
+              {/* Real assigned Department Heads (max 2, newest first) */}
+              {(department.heads?.length ?? 0) > 0 && (
+                <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                  {department.heads!.slice(0, 2).map((h) => (
+                    <Badge key={h.id} variant="secondary" className="gap-1 font-normal">
+                      <UserCheck className="w-3 h-3" />
+                      {h.name}
+                      {h.shift && (
+                        <span className="text-[10px] font-semibold text-muted-foreground">
+                          · {headShiftShort[h.shift] || h.shift}
+                        </span>
+                      )}
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
-        <Button className="shrink-0" onClick={openPromoteDialog}>
-          <TrendingUp className="w-4 h-4 mr-1.5" />
-          Promote students
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button variant="outline" onClick={() => setCaptainOpen(true)} className="relative">
+            <UserCheck className="w-4 h-4 mr-1.5" />
+            Captain Requests
+            {pendingCaptainCount > 0 && (
+              <span className="ml-2 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-destructive px-1.5 text-[11px] font-bold text-destructive-foreground">
+                {pendingCaptainCount}
+              </span>
+            )}
+          </Button>
+          <Button onClick={openPromoteDialog}>
+            <TrendingUp className="w-4 h-4 mr-1.5" />
+            Promote students
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -379,79 +453,17 @@ export default function DepartmentView() {
           </div>
           <p className="mt-3 text-[26px] leading-none font-semibold text-foreground tabular-nums">{department.faculty_count || 0}</p>
         </div>
-        <div className="surface p-4">
+        <button
+          className="surface p-4 text-left transition-colors hover:border-primary/40 cursor-pointer"
+          onClick={() => setCaptainOpen(true)}
+        >
           <div className="flex items-center justify-between">
             <p className="text-[13px] font-medium text-muted-foreground">Captain requests</p>
             <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center"><UserCheck className="w-[18px] h-[18px]" /></div>
           </div>
-          <p className="mt-3 text-[26px] leading-none font-semibold text-foreground tabular-nums">{captainRequests.length || 0}</p>
-        </div>
-      </div>
-
-      {/* Captain account requests — routed here by department + shift */}
-      <div className="surface overflow-hidden">
-        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <UserCheck className="w-4 h-4 text-primary" />
-            <h3 className="text-[15px] font-semibold text-foreground">Captain account requests</h3>
-          </div>
-          <span className="text-sm text-muted-foreground">{captainRequests.length} pending</span>
-        </div>
-        {captainLoading ? (
-          <div className="p-8 flex items-center justify-center text-muted-foreground">
-            <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading requests…
-          </div>
-        ) : captainRequests.length === 0 ? (
-          <div className="p-8 text-center">
-            <div className="w-11 h-11 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
-              <Clock className="w-5 h-5 text-muted-foreground" />
-            </div>
-            <p className="text-sm text-muted-foreground">No pending captain requests for this department.</p>
-          </div>
-        ) : (
-          <div className="divide-y divide-border">
-            {captainRequests.map((request) => (
-              <div key={request.id} className="px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-medium text-foreground truncate">{request.name}</p>
-                    <Badge variant="secondary">{request.shift === 'Morning' ? '1st Shift (Morning)' : '2nd Shift (Day)'}</Badge>
-                    {request.student_id && <Badge variant="outline" className="font-mono">{request.student_id}</Badge>}
-                  </div>
-                  <p className="text-sm text-muted-foreground truncate mt-0.5">
-                    {request.email}
-                    {request.mobile_number ? ` • ${request.mobile_number}` : ''}
-                    {' • '}Requested {new Date(request.created_at).toLocaleDateString()}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Button
-                    size="sm"
-                    onClick={() => handleApproveCaptain(request)}
-                    disabled={captainActionId === request.id}
-                  >
-                    {captainActionId === request.id ? (
-                      <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-                    ) : (
-                      <Check className="w-4 h-4 mr-1.5" />
-                    )}
-                    Approve
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
-                    onClick={() => { setRejectTarget(request); setRejectReason(''); }}
-                    disabled={captainActionId === request.id}
-                  >
-                    <X className="w-4 h-4 mr-1.5" />
-                    Reject
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+          <p className="mt-3 text-[26px] leading-none font-semibold text-foreground tabular-nums">{pendingCaptainCount}</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">pending · click to review</p>
+        </button>
       </div>
 
       {/* Filters — semester + shift + search in one box */}
@@ -715,6 +727,134 @@ export default function DepartmentView() {
                 </>
               )}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Captain account requests dialog — review the queue in a popup */}
+      <Dialog open={captainOpen} onOpenChange={setCaptainOpen}>
+        <DialogContent className="max-w-2xl max-h-[88vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserCheck className="w-5 h-5 text-primary" />
+              Captain account requests
+            </DialogTitle>
+            <DialogDescription>
+              Requests are routed here by department and shift. Approving upgrades the student to a
+              Class Captain account.
+            </DialogDescription>
+          </DialogHeader>
+
+          <Tabs value={captainTab} onValueChange={(v) => setCaptainTab(v as typeof captainTab)} className="flex-1 overflow-hidden flex flex-col">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <TabsList>
+                <TabsTrigger value="pending" className="gap-1.5">
+                  <Clock className="w-4 h-4" /> Pending
+                  {pendingCaptainCount > 0 && (
+                    <span className="ml-1 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-bold text-primary-foreground">
+                      {pendingCaptainCount}
+                    </span>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="approved" className="gap-1.5"><CheckCircle2 className="w-4 h-4" /> Approved</TabsTrigger>
+                <TabsTrigger value="rejected" className="gap-1.5"><XCircle className="w-4 h-4" /> Rejected</TabsTrigger>
+              </TabsList>
+
+              {/* Shift filter — defaults to the head's own shift */}
+              <div className="flex items-center gap-1.5">
+                {([['all', 'All'], ['Morning', '1st (Morning)'], ['Day', '2nd (Day)']] as [string, string][]).map(([value, label]) => {
+                  const Icon = value === 'Morning' ? Sun : value === 'Day' ? Moon : Users;
+                  return (
+                    <button
+                      key={value}
+                      onClick={() => setCaptainShift(value)}
+                      className={cn(
+                        'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-all',
+                        captainShift === value
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground',
+                      )}
+                    >
+                      <Icon className="w-3 h-3" /> {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <TabsContent value={captainTab} forceMount className="mt-3 flex-1 overflow-y-auto">
+              {captainLoading ? (
+                <div className="p-8 flex items-center justify-center text-muted-foreground">
+                  <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading requests…
+                </div>
+              ) : visibleCaptainRequests.length === 0 ? (
+                <div className="border-2 border-dashed border-border rounded-lg p-10 text-center">
+                  <div className="w-11 h-11 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+                    <Clock className="w-5 h-5 text-muted-foreground" />
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    No {captainTab} captain requests{captainShift !== 'all' ? ` for the ${captainShift} shift` : ''}.
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-border rounded-lg border border-border">
+                  {visibleCaptainRequests.map((request) => (
+                    <div key={request.id} className="px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-medium text-foreground truncate">{request.name}</p>
+                          <Badge variant="secondary">{request.shift === 'Morning' ? '1st Shift (Morning)' : '2nd Shift (Day)'}</Badge>
+                          {request.student_id && <Badge variant="outline" className="font-mono">{request.student_id}</Badge>}
+                        </div>
+                        <p className="text-sm text-muted-foreground truncate mt-0.5">
+                          {request.email}
+                          {request.mobile_number ? ` • ${request.mobile_number}` : ''}
+                          {' • '}Requested {new Date(request.created_at).toLocaleDateString()}
+                        </p>
+                        {request.status === 'rejected' && request.rejection_reason && (
+                          <p className="mt-1.5 text-xs text-destructive/90 bg-destructive/5 border border-destructive/20 rounded-md px-2 py-1 inline-block">
+                            Reason: {request.rejection_reason}
+                          </p>
+                        )}
+                      </div>
+                      {request.status === 'pending' && (
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Button
+                            size="sm"
+                            onClick={() => handleApproveCaptain(request)}
+                            disabled={captainActionId === request.id}
+                          >
+                            {captainActionId === request.id ? (
+                              <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                            ) : (
+                              <Check className="w-4 h-4 mr-1.5" />
+                            )}
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() => { setRejectTarget(request); setRejectReason(''); }}
+                            disabled={captainActionId === request.id}
+                          >
+                            <X className="w-4 h-4 mr-1.5" />
+                            Reject
+                          </Button>
+                        </div>
+                      )}
+                      {request.status === 'approved' && (
+                        <Badge className="shrink-0 bg-success/15 text-success border-0">Approved</Badge>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCaptainOpen(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

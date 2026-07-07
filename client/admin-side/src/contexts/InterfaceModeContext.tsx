@@ -13,6 +13,12 @@ interface InterfaceModeContextType {
   toggleMode: () => Promise<void>;
   /** True while the change is being saved to the backend. */
   isSaving: boolean;
+  /** Whether the Alumni pages are shown in the sidebar (visibility only). */
+  alumniVisible: boolean;
+  /** Persist the Alumni sidebar visibility (backend + local). */
+  setAlumniVisible: (visible: boolean) => Promise<void>;
+  /** True while the alumni-visibility change is being saved. */
+  isSavingAlumni: boolean;
 }
 
 const InterfaceModeContext = createContext<InterfaceModeContextType | undefined>(undefined);
@@ -21,6 +27,8 @@ export function InterfaceModeProvider({ children }: { children: ReactNode }) {
   const { user, updateUser } = useAuth();
   const [mode, setModeState] = useState<InterfaceMode>('simple');
   const [isSaving, setIsSaving] = useState(false);
+  const [alumniVisible, setAlumniVisibleState] = useState(true);
+  const [isSavingAlumni, setIsSavingAlumni] = useState(false);
 
   // Keep local mode in sync with the authenticated user's stored preference.
   useEffect(() => {
@@ -28,6 +36,13 @@ export function InterfaceModeProvider({ children }: { children: ReactNode }) {
       setModeState(user.interface_mode);
     }
   }, [user?.interface_mode, user?.id]);
+
+  // Keep the alumni sidebar visibility in sync with the stored preference.
+  useEffect(() => {
+    if (typeof user?.alumni_visible === 'boolean') {
+      setAlumniVisibleState(user.alumni_visible);
+    }
+  }, [user?.alumni_visible, user?.id]);
 
   const setMode = async (next: InterfaceMode) => {
     if (next === mode) return;
@@ -52,9 +67,33 @@ export function InterfaceModeProvider({ children }: { children: ReactNode }) {
 
   const toggleMode = () => setMode(mode === 'advanced' ? 'simple' : 'advanced');
 
+  // Persist the Alumni sidebar visibility exactly like the interface mode:
+  // optimistic local update, saved to the user profile, reverted on failure.
+  const setAlumniVisible = async (next: boolean) => {
+    if (next === alumniVisible) return;
+
+    const previous = alumniVisible;
+    setAlumniVisibleState(next);
+    updateUser({ alumni_visible: next });
+    setIsSavingAlumni(true);
+
+    try {
+      await apiClient.put('auth/profile/', { alumni_visible: next });
+    } catch (err) {
+      setAlumniVisibleState(previous);
+      updateUser({ alumni_visible: previous });
+      throw err;
+    } finally {
+      setIsSavingAlumni(false);
+    }
+  };
+
   return (
     <InterfaceModeContext.Provider
-      value={{ mode, isAdvanced: mode === 'advanced', setMode, toggleMode, isSaving }}
+      value={{
+        mode, isAdvanced: mode === 'advanced', setMode, toggleMode, isSaving,
+        alumniVisible, setAlumniVisible, isSavingAlumni,
+      }}
     >
       {children}
     </InterfaceModeContext.Provider>

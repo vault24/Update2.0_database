@@ -608,11 +608,13 @@ class StructuredFileStorage:
         
         try:
             full_path = (self.storage_root / file_path).resolve()
-            
-            # Ensure path is within storage root
-            if not str(full_path).startswith(str(self.storage_root.resolve())):
+
+            # Ensure path is within storage root. Use is_relative_to (not a
+            # string startswith, which would treat a sibling like
+            # ".../storage_evil" as inside ".../storage").
+            if not full_path.is_relative_to(self.storage_root.resolve()):
                 return None
-            
+
             return full_path
         except (OSError, ValueError):
             return None

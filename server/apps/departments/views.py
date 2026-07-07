@@ -3,6 +3,7 @@ Department Views
 """
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from django.db.models import ProtectedError
 from django.conf import settings
@@ -23,8 +24,19 @@ class DepartmentViewSet(viewsets.ModelViewSet):
     - DELETE /api/departments/{id}/ - Delete department (protected if has students)
     - GET /api/departments/{id}/students/ - Get students in department
     """
-    queryset = Department.objects.all()
+    # prefetch heads so the serializer's per-department head list adds no extra
+    # queries (it filters/sorts the prefetched relation in Python).
+    queryset = Department.objects.prefetch_related('heads').all()
     serializer_class = DepartmentSerializer
+
+    def get_permissions(self):
+        # The department LIST (lightweight serializer: names, codes, counts) is
+        # needed by the public registration / admission dropdowns before login,
+        # so it stays public. Everything else — detail/`students` (which expose
+        # full student PII), create/update/delete and promotion — requires auth.
+        if self.action == 'list':
+            return [AllowAny()]
+        return [IsAuthenticated()]
 
     def get_serializer_class(self):
         """Use lightweight serializer for list view"""

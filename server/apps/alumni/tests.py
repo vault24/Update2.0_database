@@ -4,6 +4,7 @@ Alumni Property-Based Tests
 These tests use Hypothesis to verify universal properties across all inputs.
 """
 from django.test import TestCase
+from hypothesis.extra.django import TestCase as HypothesisTestCase
 from hypothesis import given, settings, strategies as st
 from rest_framework.test import APITestCase
 from rest_framework import status
@@ -13,7 +14,7 @@ from apps.departments.models import Department
 from datetime import date, timedelta
 
 
-class CareerPositionChronologyPropertyTest(TestCase):
+class CareerPositionChronologyPropertyTest(HypothesisTestCase):
     """
     **Feature: django-backend, Property 11: Career position chronology**
     

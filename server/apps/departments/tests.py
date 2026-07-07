@@ -54,7 +54,7 @@ class DepartmentPropertyTest(HypothesisTestCase):
     """
     
     @given(
-        name=st.text(min_size=1, max_size=255).filter(lambda x: x.strip()),
+        name=st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=1, max_size=255).filter(lambda x: x.strip()),
         code=st.text(min_size=1, max_size=10, alphabet=st.characters(whitelist_categories=('Lu', 'Nd'))).filter(lambda x: x.strip())
     )
     def test_department_creation_property(self, name, code):

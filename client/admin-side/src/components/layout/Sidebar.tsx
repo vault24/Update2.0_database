@@ -20,13 +20,19 @@ const NON_COLLAPSIBLE_GROUPS = new Set(['Main']);
 export function Sidebar({ onClose, isMobile }: SidebarProps) {
   const location = useLocation();
   const { user } = useAuth();
-  const { mode, isAdvanced } = useInterfaceMode();
+  const { mode, isAdvanced, alumniVisible } = useInterfaceMode();
   const { countFor } = useBadges();
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
   const role = useMemo(() => resolveAdminRole(user), [user]);
-  // Recomputes instantly whenever role or interface mode changes.
-  const menuItems = useMemo(() => getVisibleMenu(role, mode), [role, mode]);
+  // Recomputes instantly whenever role, interface mode or the Alumni
+  // visibility preference changes. The Alumni pages are governed solely by
+  // the user's toggle (independent of simple/advanced mode); the toggle only
+  // hides the menu items — routes and APIs stay accessible.
+  const menuItems = useMemo(
+    () => getVisibleMenu(role, mode, { alumniVisible }),
+    [role, mode, alumniVisible],
+  );
 
   // Load collapsed state from localStorage on mount
   useEffect(() => {

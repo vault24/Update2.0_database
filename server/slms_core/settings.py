@@ -16,7 +16,9 @@ SECRET_KEY = config(
     default='django-insecure-#bwr-tx#5=jeo0s)nf2x2%8ecj7^_=)$)f)j@=l!ja2_dyc!#'
 )
 
-DEBUG = config('DEBUG', default=True, cast=bool)
+# Secure by default: DEBUG is OFF unless explicitly enabled in the environment.
+# Local development sets DEBUG=True in server/.env; production never should.
+DEBUG = config('DEBUG', default=False, cast=bool)
 
 ALLOWED_HOSTS = config(
     'ALLOWED_HOSTS',
@@ -216,7 +218,43 @@ REST_FRAMEWORK = {
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
     ],
+    # SECURITY: deny-by-default. Every endpoint requires an authenticated user
+    # unless it explicitly opts out with `permission_classes = [AllowAny]`
+    # (login, registration, password reset, public settings/department list,
+    # public application submission/tracking). Historically DRF's implicit
+    # default was AllowAny, which — combined with the RBAC middleware passing
+    # unauthenticated requests straight through — left viewsets that omitted
+    # `permission_classes` (students, teachers, admissions, etc.) open to the
+    # public internet. This makes authentication the baseline for the whole API.
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    # Cookie-session SPA: only session auth is used. BasicAuth is intentionally
+    # excluded so credentials are never accepted from an Authorization header.
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    # Rate limits for sensitive auth endpoints (applied per-view, not globally).
+    # 'login' guards password brute-force; 'otp' guards OTP/verification-email
+    # abuse (email bombing). See apps.authentication.throttles.
+    'DEFAULT_THROTTLE_RATES': {
+        'login': '10/min',
+        'otp': '5/min',
+    },
 }
+
+# Behind the reverse proxy every request's REMOTE_ADDR is nginx (127.0.0.1),
+# which would collapse all anonymous throttling into a single shared bucket.
+# NUM_PROXIES=1 makes DRF read the real client IP that nginx appends to
+# X-Forwarded-For, so login/OTP throttles are per-client again.
+if config('USE_X_FORWARDED_PROTO', default=False, cast=bool):
+    REST_FRAMEWORK['NUM_PROXIES'] = 1
+
+# Disable throttling under the test runner so the suite is not rate-limited.
+# The dedicated throttle regression test re-enables specific rates via
+# override_settings.
+if 'test' in sys.argv:
+    REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {'login': None, 'otp': None}
 
 # --------------------------------------------------
 # CORS / CSRF / PORTAL ORIGINS  — fully env-driven (no hardcoded hosts)
@@ -313,6 +351,13 @@ CSRF_FAILURE_VIEW = 'apps.authentication.csrf_handler.csrf_failure'
 # (the generated Nginx config does).
 if config('USE_X_FORWARDED_PROTO', default=False, cast=bool):
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# When True, the app trusts the reverse proxy's forwarding headers. The nginx
+# config sets X-Real-IP to the real client address (and cannot be spoofed by the
+# client), so client-IP resolution and DRF throttles read that instead of the
+# left-most X-Forwarded-For entry (which IS client-spoofable). Tied to the same
+# "behind our nginx" signal as the SSL header above.
+TRUST_PROXY_HEADERS = config('USE_X_FORWARDED_PROTO', default=False, cast=bool)
 
 # HTTP -> HTTPS redirect is handled by Nginx (cheaper, and it must also serve
 # the ACME challenge over HTTP), so SECURE_SSL_REDIRECT stays off by default.

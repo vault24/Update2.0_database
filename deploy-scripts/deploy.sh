@@ -687,13 +687,18 @@ nginx_app_locations() {
         alias ${SERVER_DIR}/media/;
         include ${NGINX_ROOT}/snippets/sipi-security-headers.conf;
         expires 7d;
-        add_header Cache-Control "public";
-    }
-    location /files/ {
-        alias ${SERVER_DIR}/storage/Documents/;
-        include ${NGINX_ROOT}/snippets/sipi-security-headers.conf;
-        expires 7d;
         add_header Cache-Control "private";
+    }
+    # SECURITY: the document store (NID / birth certificates / marksheets /
+    # photos) is NEVER served directly to the public web. It is reachable ONLY
+    # through the authenticated, per-object-authorised Django endpoints
+    # (/api/documents/{id}/download|preview/), which stream the file after
+    # checking the caller may see it. `internal` means an outside request to
+    # /files/... returns 404; the directive is kept so the app can opt into
+    # X-Accel-Redirect later without another Nginx change.
+    location /files/ {
+        internal;
+        alias ${SERVER_DIR}/storage/Documents/;
     }
 
     # --- SPA assets: content-hashed filenames -> cache forever ---------------
@@ -759,7 +764,7 @@ nginx_ssl_extra() {
     # HSTS: browsers remember to use HTTPS for 1 year. Only sent over HTTPS.
     # (The shared security headers are included once by the app-locations
     # block, so they are NOT repeated here.)
-    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 EOF
 }
 

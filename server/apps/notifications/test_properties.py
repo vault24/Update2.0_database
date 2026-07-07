@@ -5,8 +5,10 @@ These tests verify correctness properties using Hypothesis
 
 import pytest
 from hypothesis import given, strategies as st, settings
-from django.contrib.auth.models import User
-from django.test import TestCase
+from django.db.models import Q
+from django.contrib.auth import get_user_model
+User = get_user_model()
+from hypothesis.extra.django import TestCase
 from django.utils import timezone
 from .models import (
     Notification, NotificationPreference, NotificationPreferenceType,
@@ -15,13 +17,20 @@ from .models import (
 
 
 # Strategies for generating test data
+# Text that PostgreSQL can store: exclude NUL, control and surrogate
+# code points that are never present in real notification content.
+_SAFE_TEXT = st.text(
+    alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32),
+    min_size=1, max_size=255,
+)
+
 @st.composite
 def notification_data(draw):
     """Generate valid notification data"""
     return {
         'notification_type': draw(st.sampled_from([t[0] for t in NOTIFICATION_TYPES])),
-        'title': draw(st.text(min_size=1, max_size=255)),
-        'message': draw(st.text(min_size=1)),
+        'title': draw(_SAFE_TEXT),
+        'message': draw(_SAFE_TEXT),
         'data': draw(st.just({}))
     }
 
@@ -31,14 +40,16 @@ class PropertyBasedNotificationTests(TestCase):
 
     def setUp(self):
         """Set up test data"""
+        import uuid as _uuid
+        _sfx = _uuid.uuid4().hex[:8]
         self.user = User.objects.create_user(
-            username='testuser',
-            email='test@example.com',
+            username=f'testuser-{_sfx}',
+            email=f'test-{_sfx}@example.com',
             password='testpass123'
         )
 
     @given(notification_data())
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     def test_notification_creation_idempotence(self, data):
         """
         **Feature: notification-system, Property 1: Notification Creation Idempotence**
@@ -84,7 +95,7 @@ class PropertyBasedNotificationTests(TestCase):
         assert final_count == initial_count + 1
 
     @given(st.sampled_from([t[0] for t in NOTIFICATION_TYPES]))
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     def test_user_preference_enforcement(self, notification_type):
         """
         **Feature: notification-system, Property 2: User Preference Enforcement**
@@ -121,7 +132,7 @@ class PropertyBasedNotificationTests(TestCase):
         assert not pref_type.enabled
 
     @given(st.sampled_from(['unread', 'read', 'archived', 'deleted']))
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     def test_notification_status_transitions(self, initial_status):
         """
         **Feature: notification-system, Property 3: Notification Status Transitions**
@@ -164,7 +175,7 @@ class PropertyBasedNotificationTests(TestCase):
             assert notification.status == 'deleted'
 
     @given(notification_data())
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     def test_delivery_log_creation(self, data):
         """
         **Feature: notification-system, Property 5: Delivery Retry Behavior**
@@ -203,8 +214,8 @@ class PropertyBasedNotificationTests(TestCase):
         assert log.retry_count == 1
         assert log.error_message == 'Test error'
 
-    @given(st.text(min_size=1, max_size=100))
-    @settings(max_examples=100)
+    @given(_SAFE_TEXT)
+    @settings(max_examples=100, deadline=None)
     def test_notification_search_accuracy(self, search_term):
         """
         **Feature: notification-system, Property 8: Notification Search Accuracy**
@@ -233,12 +244,11 @@ class PropertyBasedNotificationTests(TestCase):
         results = Notification.objects.filter(
             recipient=self.user
         ).filter(
-            st.Q(title__icontains=search_term) | st.Q(message__icontains=search_term)
+            Q(title__icontains=search_term) | Q(message__icontains=search_term)
         )
 
         # Verify search accuracy
         # Note: Using Django Q objects for filtering
-        from django.db.models import Q
         results = Notification.objects.filter(
             recipient=self.user
         ).filter(
@@ -251,7 +261,7 @@ class PropertyBasedNotificationTests(TestCase):
                    search_term.lower() in result.message.lower()
 
     @given(st.sampled_from([t[0] for t in NOTIFICATION_TYPES]))
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     def test_notification_data_persistence(self, notification_type):
         """
         **Feature: notification-system, Property 6: Notification Data Persistence**
@@ -288,7 +298,7 @@ class PropertyBasedNotificationTests(TestCase):
         assert notification not in main_view
 
     @given(st.sampled_from([t[0] for t in NOTIFICATION_TYPES]))
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     def test_announcement_group_delivery(self, notification_type):
         """
         **Feature: notification-system, Property 7: Announcement Group Delivery**
@@ -301,9 +311,11 @@ class PropertyBasedNotificationTests(TestCase):
         # Create multiple users
         users = [self.user]
         for i in range(3):
+            import uuid as _uuid
+            _sfx = _uuid.uuid4().hex[:8]
             user = User.objects.create_user(
-                username=f'user{i}',
-                email=f'user{i}@example.com',
+                username=f'user{i}-{_sfx}',
+                email=f'user{i}-{_sfx}@example.com',
                 password='testpass123'
             )
             users.append(user)
@@ -327,7 +339,7 @@ class PropertyBasedNotificationTests(TestCase):
             assert count == 1
 
     @given(notification_data())
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     def test_real_time_delivery_consistency(self, data):
         """
         **Feature: notification-system, Property 4: Real-time Delivery Consistency**

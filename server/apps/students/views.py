@@ -3,6 +3,7 @@ Student Views
 """
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
+from rest_framework.permissions import BasePermission, SAFE_METHODS
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q
@@ -14,6 +15,85 @@ from .serializers import (
     StudentCreateSerializer,
     StudentUpdateSerializer
 )
+
+# Admin roles that may manage (write) student records.
+_ADMIN_ROLES = ('institute_head', 'registrar', 'department_head')
+
+
+def _resolve_teacher_id(user):
+    if getattr(user, 'role', None) != 'teacher':
+        return None
+    if getattr(user, 'related_profile_id', None):
+        return user.related_profile_id
+    try:
+        from apps.teachers.models import Teacher
+        t = Teacher.objects.filter(email=user.email).only('id').first()
+        return t.id if t else None
+    except Exception:
+        return None
+
+
+class StudentRecordPermission(BasePermission):
+    """
+    Read access to student records is allowed to any authenticated user but the
+    ROWS are scoped per-role in get_queryset. WRITES (create/update/delete and
+    every POST custom action such as bulk_delete / update_semester_results /
+    transition_to_alumni) are restricted to admin roles — previously the RBAC
+    middleware's allow-by-default let a logged-in student reach these and tamper
+    with, or delete, any student record.
+    """
+
+    message = 'You do not have permission to modify student records.'
+
+    def has_permission(self, request, view):
+        user = request.user
+        if not (user and user.is_authenticated):
+            return False
+        if request.method in SAFE_METHODS:
+            return True
+        return bool(user.is_superuser or getattr(user, 'role', None) in _ADMIN_ROLES)
+
+
+def scope_students_queryset(qs, user):
+    """
+    Restrict a Student queryset to what `user` may read:
+      registrar / institute_head / superuser -> all
+      department_head -> their department
+      teacher         -> students in cohorts (dept+semester+shift) they teach
+      captain         -> their own class/section
+      student         -> only their own record
+    Deny-by-default otherwise.
+    """
+    if not (user and getattr(user, 'is_authenticated', False)):
+        return qs.none()
+    role = getattr(user, 'role', None)
+    if user.is_superuser or role in ('institute_head', 'registrar'):
+        return qs
+    if role == 'department_head':
+        return qs.filter(department_id=user.department_id) if user.department_id else qs.none()
+    if role == 'teacher':
+        tid = _resolve_teacher_id(user)
+        if not tid:
+            return qs.none()
+        from apps.class_routines.models import ClassRoutine
+        cohorts = list(ClassRoutine.objects.filter(teacher_id=tid)
+                       .values_list('department_id', 'semester', 'shift').distinct())
+        if not cohorts:
+            return qs.none()
+        q = Q()
+        for dept_id, sem, shift in cohorts:
+            q |= Q(department_id=dept_id, semester=sem, shift=shift)
+        return qs.filter(q)
+    if role == 'captain':
+        pid = getattr(user, 'related_profile_id', None)
+        prof = Student.objects.filter(id=pid).first() if pid else None
+        if not prof:
+            return qs.none()
+        return qs.filter(department_id=prof.department_id, semester=prof.semester, shift=prof.shift)
+    if role == 'student':
+        pid = getattr(user, 'related_profile_id', None)
+        return qs.filter(id=pid) if pid else qs.none()
+    return qs.none()
 
 
 class StudentViewSet(viewsets.ModelViewSet):
@@ -34,17 +114,17 @@ class StudentViewSet(viewsets.ModelViewSet):
     - disconnect_studies: POST /api/students/{id}/disconnect-studies/
     """
     queryset = Student.objects.all()
+    permission_classes = [StudentRecordPermission]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['department', 'semester', 'status', 'shift', 'session']
     search_fields = ['fullNameEnglish', 'fullNameBangla', 'currentRollNumber', 'currentRegistrationNumber', 'email']
     ordering_fields = ['createdAt', 'fullNameEnglish', 'semester', 'currentRollNumber']
     ordering = ['-createdAt']
-    
+
     def get_queryset(self):
-        """
-        Optimize queryset with select_related for department
-        """
-        return Student.objects.select_related('department').all()
+        """Role-scoped rows (see scope_students_queryset); select_related dept."""
+        qs = Student.objects.select_related('department').all()
+        return scope_students_queryset(qs, self.request.user)
     
     def get_serializer_class(self):
         """
@@ -136,8 +216,10 @@ class StudentViewSet(viewsets.ModelViewSet):
         
         Supports filtering by department, semester, and search
         """
-        students = Student.objects.select_related('department').filter(status='discontinued')
-        
+        students = scope_students_queryset(
+            Student.objects.select_related('department'), request.user
+        ).filter(status='discontinued')
+
         # Apply filters
         department = request.query_params.get('department')
         if department:
@@ -178,8 +260,11 @@ class StudentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Search in multiple fields (case-insensitive)
-        students = Student.objects.select_related('department').filter(
+        # Search in multiple fields (case-insensitive), scoped to what the
+        # caller may see so a student cannot search the whole directory.
+        students = scope_students_queryset(
+            Student.objects.select_related('department'), request.user
+        ).filter(
             Q(fullNameEnglish__icontains=query) |
             Q(fullNameBangla__icontains=query) |
             Q(currentRollNumber__icontains=query) |
@@ -206,37 +291,42 @@ class StudentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        # Scope lookups so a caller can only resolve students they may see.
+        scoped = scope_students_queryset(
+            Student.objects.select_related('department'), request.user
+        )
+
         # Try to find student by ID first (UUID format)
         try:
             from uuid import UUID
             # Try to parse as UUID
             UUID(identifier)
-            student = Student.objects.select_related('department').get(id=identifier)
+            student = scoped.get(id=identifier)
             serializer = StudentDetailSerializer(student, context={'request': request})
             return Response(serializer.data)
         except (Student.DoesNotExist, ValueError):
             pass  # Continue to other search methods
-        
+
         # Try by current roll number (college roll number)
         try:
-            student = Student.objects.select_related('department').get(currentRollNumber=identifier)
+            student = scoped.get(currentRollNumber=identifier)
             serializer = StudentDetailSerializer(student, context={'request': request})
             return Response(serializer.data)
         except Student.DoesNotExist:
             pass  # Continue to other search methods
-        
+
         # Try by application ID (user.student_id like SIPI-202030)
         try:
             from apps.authentication.models import User
             from django.db import models
-            
+
             # Find user with this student_id
             user = User.objects.get(student_id=identifier)
-            
+
             # Try to find student by related_profile_id
             if user.related_profile_id:
                 try:
-                    student = Student.objects.select_related('department').get(id=user.related_profile_id)
+                    student = scoped.get(id=user.related_profile_id)
                     serializer = StudentDetailSerializer(student, context={'request': request})
                     return Response(serializer.data)
                 except Student.DoesNotExist:

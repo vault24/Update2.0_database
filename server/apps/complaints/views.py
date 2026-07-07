@@ -15,6 +15,9 @@ from .serializers import (
     ComplaintSerializer, ComplaintDetailSerializer,
     ComplaintCategorySerializer, ComplaintSubcategorySerializer
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ComplaintCategoryViewSet(viewsets.ReadOnlyModelViewSet):
@@ -74,7 +77,7 @@ class ComplaintViewSet(viewsets.ModelViewSet):
             if student_profile:
                 return queryset.filter(student=student_profile)
             # Fail closed: never expose all complaints if profile lookup fails
-            print(f"WARNING: Student profile not found for user {user.id} with role {user.role} and related_profile_id {user.related_profile_id}")
+            logger.warning("Student profile not found for user %s (role=%s, related_profile_id=%s)", user.id, user.role, user.related_profile_id)
             return queryset.none()
 
         # Teachers can only see complaints they created/handle
@@ -322,7 +325,7 @@ class DashboardViewSet(viewsets.ViewSet):
             )
 
         if not user.related_profile_id:
-            print(f"ERROR: User {user.id} has no related_profile_id")
+            logger.error("User %s has no related_profile_id", user.id)
             return Response(
                 {'error': 'Student profile not found'},
                 status=status.HTTP_403_FORBIDDEN
@@ -331,7 +334,7 @@ class DashboardViewSet(viewsets.ViewSet):
         from apps.students.models import Student
         student = Student.objects.filter(id=user.related_profile_id).first()
         if not student:
-            print(f"ERROR: Student profile {user.related_profile_id} not found in database for user {user.id}")
+            logger.error("Student profile %s not found for user %s", user.related_profile_id, user.id)
             return Response(
                 {'error': 'Student profile not found'},
                 status=status.HTTP_403_FORBIDDEN

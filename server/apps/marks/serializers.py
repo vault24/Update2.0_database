@@ -32,12 +32,15 @@ class MarksCreateSerializer(serializers.ModelSerializer):
     exam_type = serializers.CharField(required=False, allow_blank=True)
     marks_obtained = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, default=0)
     total_marks = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, default=0)
-    recorded_by = serializers.CharField(required=False, allow_null=True)
     remarks = serializers.CharField(required=False, allow_blank=True)
-    
+
     class Meta:
         model = MarksRecord
-        fields = ['student', 'subject_code', 'subject_name', 'semester', 'exam_type', 'marks_obtained', 'total_marks', 'recorded_by', 'remarks']
+        # `recorded_by` is intentionally NOT client-settable — it is stamped from
+        # the authenticated user in the view. Accepting it as input previously
+        # both crashed (string assigned to a FK) and let a caller spoof who
+        # recorded a grade.
+        fields = ['student', 'subject_code', 'subject_name', 'semester', 'exam_type', 'marks_obtained', 'total_marks', 'remarks']
     
     def validate(self, data):
         marks_obtained = data.get('marks_obtained', 0)
