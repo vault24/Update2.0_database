@@ -40,7 +40,7 @@ class AdmissionListSerializer(serializers.ModelSerializer):
         """Safely get department name"""
         try:
             return obj.desired_department.name if obj.desired_department else obj.desired_department
-        except:
+        except Exception:
             return None
 
 
@@ -70,14 +70,14 @@ class AdmissionDetailSerializer(serializers.ModelSerializer):
         """Safely get department name"""
         try:
             return obj.desired_department.name if obj.desired_department else None
-        except:
+        except Exception:
             return None
     
     def get_reviewed_by_username(self, obj):
         """Safely get reviewer username"""
         try:
             return obj.reviewed_by.username if obj.reviewed_by else None
-        except:
+        except Exception:
             return None
 
 

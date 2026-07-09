@@ -1,3 +1,4 @@
+import uuid
 """
 Document Tests
 """
@@ -22,9 +23,7 @@ class DocumentPropertyTests(HypothesisTestCase):
     def setUp(self):
         """Set up test data"""
         # Create a department
-        self.department = Department.objects.create(
-            name='Computer Science',
-            code='CS'
+        self.department = Department.objects.create(name=f'Computer Science {uuid.uuid4().hex[:6]}', code=f'CS{uuid.uuid4().hex[:5]}'
         )
         
         # Create a student
@@ -134,12 +133,22 @@ class DocumentAPITests(APITestCase):
     
     def setUp(self):
         """Set up test data"""
-        # Create a department
-        self.department = Department.objects.create(
-            name='Computer Science',
-            code='CS'
+        # The documents API is deny-by-default (IsAuthenticated + row-level
+        # scoping); authenticate as a Registrar so these admin-side upload/list/
+        # delete tests exercise the view logic behind the auth gate.
+        from django.contrib.auth import get_user_model
+        _User = get_user_model()
+        _sfx = uuid.uuid4().hex[:8]
+        self.admin_user = _User.objects.create_user(
+            username=f'doctest_admin_{_sfx}', email=f'doctest_admin_{_sfx}@example.com',
+            password='testpass123', role='registrar', account_status='active',
         )
-        
+        self.client.force_authenticate(user=self.admin_user)
+
+        # Create a department
+        self.department = Department.objects.create(name=f'Computer Science {uuid.uuid4().hex[:6]}', code=f'CS{uuid.uuid4().hex[:5]}'
+        )
+
         # Create a student
         self.student = Student.objects.create(
             fullNameBangla='জন ডো',
@@ -149,7 +158,7 @@ class DocumentAPITests(APITestCase):
             motherName='Mother Name',
             motherNID='0987654321',
             dateOfBirth='2000-01-01',
-            birthCertificateNo='BC123456',
+            birthCertificateNo=f'BC{_sfx}',
             gender='Male',
             mobileStudent='01712345678',
             guardianMobile='01798765432',
@@ -159,12 +168,12 @@ class DocumentAPITests(APITestCase):
             highestExam='SSC',
             board='Dhaka',
             group='Science',
-            rollNumber='12345',
-            registrationNumber='67890',
+            rollNumber=f'R{_sfx}',
+            registrationNumber=f'REG{_sfx}',
             passingYear=2018,
             gpa=5.00,
-            currentRollNumber='CS001',
-            currentRegistrationNumber='REG001',
+            currentRollNumber=f'CS{_sfx}',
+            currentRegistrationNumber=f'CREG{_sfx}',
             semester=1,
             department=self.department,
             session='2023-24',
@@ -172,7 +181,7 @@ class DocumentAPITests(APITestCase):
             currentGroup='A',
             enrollmentDate='2023-01-01'
         )
-    
+
     def test_upload_document_success(self):
         """Test successful document upload"""
         # Create a fake PDF file
@@ -372,6 +381,11 @@ class DocumentAPITests(APITestCase):
         )
         
         response = self.client.delete(f'/api/documents/{document.id}/')
-        
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertFalse(Document.objects.filter(id=document.id).exists())
+
+        # Deletion is a soft delete (status -> 'deleted') for the audit trail, so
+        # the endpoint returns 200 with a message and the row is retained but no
+        # longer active. get_queryset() only surfaces active documents.
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        document.refresh_from_db()
+        self.assertEqual(document.status, 'deleted')
+        self.assertFalse(Document.objects.filter(id=document.id, status='active').exists())

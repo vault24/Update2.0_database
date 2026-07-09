@@ -330,31 +330,34 @@ def notice_stats(request):
     # Get total student count
     total_students = User.objects.filter(role='student').count()
     
-    # Get notices with read counts
+    # Get notices with read counts.
+    # NOTE: annotate as `reads_total`, NOT `read_count` — Notice has a read-only
+    # `read_count` @property, and annotating onto that name raises
+    # "property has no setter" and 500s this endpoint.
     notices = Notice.objects.annotate(
-        read_count=Count('read_statuses'),
-        unread_count=Case(
+        reads_total=Count('read_statuses'),
+        unread_total=Case(
             When(read_statuses__isnull=True, then=total_students),
             default=total_students - Count('read_statuses'),
             output_field=IntegerField()
         )
     ).order_by('-created_at')
-    
+
     stats_data = []
     for notice in notices:
-        read_percentage = (notice.read_count / total_students * 100) if total_students > 0 else 0
-        
+        read_percentage = (notice.reads_total / total_students * 100) if total_students > 0 else 0
+
         stats_data.append({
             'notice_id': notice.id,
             'title': notice.title,
             'priority': notice.priority,
             'created_at': notice.created_at,
             'is_published': notice.is_published,
-            'read_count': notice.read_count,
+            'read_count': notice.reads_total,
             'total_students': total_students,
             'read_percentage': round(read_percentage, 1),
             'is_low_engagement': read_percentage < 30,
-            'unread_count': max(0, total_students - notice.read_count)
+            'unread_count': max(0, total_students - notice.reads_total)
         })
     
     # Paginate the results

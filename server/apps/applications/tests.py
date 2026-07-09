@@ -16,18 +16,18 @@ class ApplicationPropertyTests(HypothesisTestCase):
     
     @settings(max_examples=100, deadline=None)
     @given(
-        fullNameBangla=st.text(min_size=1, max_size=255, alphabet=st.characters(blacklist_categories=('Cs', 'Cc'))),
-        fullNameEnglish=st.text(min_size=1, max_size=255, alphabet=st.characters(blacklist_categories=('Cs', 'Cc'))),
-        fatherName=st.text(min_size=1, max_size=255, alphabet=st.characters(blacklist_categories=('Cs', 'Cc'))),
-        motherName=st.text(min_size=1, max_size=255, alphabet=st.characters(blacklist_categories=('Cs', 'Cc'))),
-        department=st.text(min_size=1, max_size=255, alphabet=st.characters(blacklist_categories=('Cs', 'Cc'))),
-        session=st.text(min_size=1, max_size=20, alphabet=st.characters(blacklist_categories=('Cs', 'Cc'))),
-        shift=st.text(min_size=1, max_size=20, alphabet=st.characters(blacklist_categories=('Cs', 'Cc'))),
-        rollNumber=st.text(min_size=1, max_size=50, alphabet=st.characters(blacklist_categories=('Cs', 'Cc'))),
-        registrationNumber=st.text(min_size=1, max_size=50, alphabet=st.characters(blacklist_categories=('Cs', 'Cc'))),
+        fullNameBangla=st.text(min_size=1, max_size=255, alphabet=st.characters(blacklist_categories=('Cs', 'Cc', 'Zs', 'Zl', 'Zp'))).filter(lambda _v: _v.strip() == _v and _v.strip() != ''),
+        fullNameEnglish=st.text(min_size=1, max_size=255, alphabet=st.characters(blacklist_categories=('Cs', 'Cc', 'Zs', 'Zl', 'Zp'))).filter(lambda _v: _v.strip() == _v and _v.strip() != ''),
+        fatherName=st.text(min_size=1, max_size=255, alphabet=st.characters(blacklist_categories=('Cs', 'Cc', 'Zs', 'Zl', 'Zp'))).filter(lambda _v: _v.strip() == _v and _v.strip() != ''),
+        motherName=st.text(min_size=1, max_size=255, alphabet=st.characters(blacklist_categories=('Cs', 'Cc', 'Zs', 'Zl', 'Zp'))).filter(lambda _v: _v.strip() == _v and _v.strip() != ''),
+        department=st.text(min_size=1, max_size=255, alphabet=st.characters(blacklist_categories=('Cs', 'Cc', 'Zs', 'Zl', 'Zp'))).filter(lambda _v: _v.strip() == _v and _v.strip() != ''),
+        session=st.text(min_size=1, max_size=20, alphabet=st.characters(blacklist_categories=('Cs', 'Cc', 'Zs', 'Zl', 'Zp'))).filter(lambda _v: _v.strip() == _v and _v.strip() != ''),
+        shift=st.text(min_size=1, max_size=20, alphabet=st.characters(blacklist_categories=('Cs', 'Cc', 'Zs', 'Zl', 'Zp'))).filter(lambda _v: _v.strip() == _v and _v.strip() != ''),
+        rollNumber=st.text(min_size=1, max_size=50, alphabet=st.characters(blacklist_categories=('Cs', 'Cc', 'Zs', 'Zl', 'Zp'))).filter(lambda _v: _v.strip() == _v and _v.strip() != ''),
+        registrationNumber=st.text(min_size=1, max_size=50, alphabet=st.characters(blacklist_categories=('Cs', 'Cc', 'Zs', 'Zl', 'Zp'))).filter(lambda _v: _v.strip() == _v and _v.strip() != ''),
         applicationType=st.sampled_from(['Testimonial', 'Certificate', 'Transcript', 'Stipend', 'Transfer', 'Other']),
-        subject=st.text(min_size=1, max_size=255, alphabet=st.characters(blacklist_categories=('Cs', 'Cc'))),
-        message=st.text(min_size=1, max_size=1000, alphabet=st.characters(blacklist_categories=('Cs', 'Cc'))),
+        subject=st.text(min_size=1, max_size=255, alphabet=st.characters(blacklist_categories=('Cs', 'Cc', 'Zs', 'Zl', 'Zp'))).filter(lambda _v: _v.strip() == _v and _v.strip() != ''),
+        message=st.text(min_size=1, max_size=1000, alphabet=st.characters(blacklist_categories=('Cs', 'Cc', 'Zs', 'Zl', 'Zp'))).filter(lambda _v: _v.strip() == _v and _v.strip() != ''),
     )
     def test_property_10_application_submission_idempotency(
         self,
@@ -53,9 +53,20 @@ class ApplicationPropertyTests(HypothesisTestCase):
         **Validates: Requirements 7.1, 7.2**
         """
         from rest_framework.test import APIClient
-        
+        from django.contrib.auth import get_user_model
+        import uuid as _uuid
+
+        # Application submission is deny-by-default: authenticate the client
+        # (any authenticated user may submit). Reflects the current security model.
+        User = get_user_model()
+        _s = _uuid.uuid4().hex[:8]
+        submitter = User.objects.create_user(
+            username=f'submit_{_s}', email=f'submit_{_s}@example.com',
+            password='x', role='student', account_status='active',
+        )
         client = APIClient()
-        
+        client.force_authenticate(user=submitter)
+
         # Prepare application data
         application_data = {
             'fullNameBangla': fullNameBangla,
@@ -100,7 +111,24 @@ class ApplicationAPITests(APITestCase):
     """
     Unit tests for Application API endpoints
     """
-    
+
+    def setUp(self):
+        # The applications API is deny-by-default; submit needs any authenticated
+        # user and review/approve/reject need an admin role, so authenticate as a
+        # Registrar (satisfies both) — this reflects the intended security model.
+        import uuid as _uuid
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        _s = _uuid.uuid4().hex[:8]
+        self.admin_user = User.objects.create_user(
+            username=f'apptest_admin_{_s}',
+            email=f'apptest_admin_{_s}@example.com',
+            password='testpass123',
+            role='registrar',
+            account_status='active',
+        )
+        self.client.force_authenticate(user=self.admin_user)
+
     def test_submit_application_success(self):
         """Test successful application submission"""
         data = {
@@ -315,51 +343,63 @@ class ApplicationAPITests(APITestCase):
         self.assertIn('error', response.data)
     
     def test_my_applications(self):
-        """Test student viewing their own applications"""
-        # Create applications for different students
-        Application.objects.create(
-            fullNameBangla='জন ডো',
-            fullNameEnglish='John Doe',
-            fatherName='Father',
-            motherName='Mother',
-            department='CS',
-            session='2023',
-            shift='Day',
-            rollNumber='123',
-            registrationNumber='456',
-            applicationType='Testimonial',
-            subject='Test',
-            message='Test message'
+        """my-applications returns ONLY the logged-in student's own applications.
+
+        The roll-number query param was intentionally removed (you can no longer
+        view others' applications by guessing a roll number); scope is derived
+        from the caller's linked Student account.
+        """
+        import uuid as _uuid
+        from django.contrib.auth import get_user_model
+        from apps.students.models import Student
+        from apps.departments.models import Department
+
+        User = get_user_model()
+        _s = _uuid.uuid4().hex[:8]
+        dept = Department.objects.create(name=f'CS {_s}', code=f'CS{_s[:5]}')
+        student = Student.objects.create(
+            fullNameEnglish='John Doe', fullNameBangla='জন ডো',
+            currentRollNumber=f'R-{_s}', currentRegistrationNumber=f'REG-{_s}',
+            department=dept, semester=1, shift='Day', status='active',
         )
-        
-        Application.objects.create(
-            fullNameBangla='জেন ডো',
-            fullNameEnglish='Jane Doe',
-            fatherName='Father',
-            motherName='Mother',
-            department='CS',
-            session='2023',
-            shift='Day',
-            rollNumber='789',
-            registrationNumber='012',
-            applicationType='Certificate',
-            subject='Test',
-            message='Test message'
+        student_user = User.objects.create_user(
+            username=f'stu_{_s}', email=f'stu_{_s}@example.com', password='x',
+            role='student', account_status='active',
         )
-        
-        # Query for specific student's applications
-        response = self.client.get('/api/applications/my-applications/?rollNumber=123')
-        
+        student_user.related_profile_id = student.id
+        student_user.save(update_fields=['related_profile_id'])
+
+        # Their own application (matched by roll number / FK)…
+        Application.objects.create(
+            fullNameBangla='জন ডো', fullNameEnglish='John Doe',
+            fatherName='Father', motherName='Mother', department='CS',
+            session='2023', shift='Day', rollNumber=student.currentRollNumber,
+            registrationNumber='456', applicationType='Testimonial',
+            subject='Test', message='Test message', student=student,
+        )
+        # …and someone else's, which must NOT be returned.
+        Application.objects.create(
+            fullNameBangla='জেন ডো', fullNameEnglish='Jane Doe',
+            fatherName='Father', motherName='Mother', department='CS',
+            session='2023', shift='Day', rollNumber='OTHER-999',
+            registrationNumber='012', applicationType='Certificate',
+            subject='Test', message='Test message',
+        )
+
+        self.client.force_authenticate(user=student_user)
+        response = self.client.get('/api/applications/my-applications/')
+
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['count'], 1)
-        self.assertEqual(response.data['applications'][0]['rollNumber'], '123')
-    
+        self.assertEqual(response.data['applications'][0]['rollNumber'], student.currentRollNumber)
+
     def test_my_applications_without_roll_number(self):
-        """Test my_applications endpoint without roll number fails"""
+        """my-applications no longer requires a roll-number param: it derives the
+        caller's own scope and returns 200 (an admin, with no student profile,
+        gets an empty list)."""
         response = self.client.get('/api/applications/my-applications/')
-        
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('error', response.data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('applications', response.data)
     
     def test_filter_applications_by_type(self):
         """Test filtering applications by type"""

@@ -121,7 +121,7 @@ class Command(BaseCommand):
                     f"⚠ {dup_stats['wasted_space_mb']:.2f} MB wasted on duplicates. "
                     "Consider implementing duplicate prevention."
                 ))
-        except:
+        except Exception:
             pass
         
         deleted_count = Document.objects.filter(status='deleted').count()

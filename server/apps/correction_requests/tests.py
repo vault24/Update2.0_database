@@ -1,3 +1,4 @@
+import uuid
 """
 Tests for Correction Requests app
 """
@@ -17,14 +18,15 @@ class CorrectionRequestModelTest(TestCase):
             username='testuser',
             email='test@example.com',
             password='testpass123',
-            role='admin'
+            role='registrar', account_status='active'
         )
-        self.department = Department.objects.create(
-            name='Computer Science',
-            code='CS'
+        self.department = Department.objects.create(name=f'Computer Science {uuid.uuid4().hex[:6]}', code=f'CS{uuid.uuid4().hex[:5]}'
         )
+        _sr = uuid.uuid4().hex[:8]
         self.student = Student.objects.create(
             rollNumber='CS001',
+            currentRollNumber=f'CS-{_sr}',
+            currentRegistrationNumber=f'REG-{_sr}',
             fullNameEnglish='Test Student',
             fullNameBangla='টেস্ট স্টুডেন্ট',
             department=self.department,
@@ -53,16 +55,17 @@ class CorrectionRequestViewSetTest(TestCase):
             username='testuser',
             email='test@example.com',
             password='testpass123',
-            role='admin'
+            role='registrar', account_status='active'
         )
         self.client.force_authenticate(user=self.user)
         
-        self.department = Department.objects.create(
-            name='Computer Science',
-            code='CS'
+        self.department = Department.objects.create(name=f'Computer Science {uuid.uuid4().hex[:6]}', code=f'CS{uuid.uuid4().hex[:5]}'
         )
+        _sr = uuid.uuid4().hex[:8]
         self.student = Student.objects.create(
             rollNumber='CS001',
+            currentRollNumber=f'CS-{_sr}',
+            currentRegistrationNumber=f'REG-{_sr}',
             fullNameEnglish='Test Student',
             fullNameBangla='টেস্ট স্টুডেন্ট',
             department=self.department,
@@ -73,7 +76,7 @@ class CorrectionRequestViewSetTest(TestCase):
         )
     
     def test_create_correction_request(self):
-        url = reverse('correctionrequest-list')
+        url = reverse('correction-request-list')
         data = {
             'student': str(self.student.id),
             'field_name': 'mobileStudent',
@@ -93,7 +96,7 @@ class CorrectionRequestViewSetTest(TestCase):
             requested_value='01812345678',
             reason='Changed mobile number'
         )
-        url = reverse('correctionrequest-list')
+        url = reverse('correction-request-list')
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data['results']), 1)
@@ -115,7 +118,7 @@ class CorrectionRequestViewSetTest(TestCase):
             reason='Changed email',
             status='approved'
         )
-        url = reverse('correctionrequest-list')
+        url = reverse('correction-request-list')
         response = self.client.get(url, {'status': 'pending'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data['results']), 1)
@@ -128,7 +131,7 @@ class CorrectionRequestViewSetTest(TestCase):
             requested_value='01812345678',
             reason='Changed mobile number'
         )
-        url = reverse('correctionrequest-approve', kwargs={'pk': str(request.id)})
+        url = reverse('correction-request-approve', kwargs={'pk': str(request.id)})
         data = {'review_notes': 'Approved after verification'}
         response = self.client.post(url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -149,7 +152,7 @@ class CorrectionRequestViewSetTest(TestCase):
             requested_value='01812345678',
             reason='Changed mobile number'
         )
-        url = reverse('correctionrequest-reject', kwargs={'pk': str(request.id)})
+        url = reverse('correction-request-reject', kwargs={'pk': str(request.id)})
         data = {'review_notes': 'Insufficient documentation'}
         response = self.client.post(url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -167,7 +170,7 @@ class CorrectionRequestViewSetTest(TestCase):
             reason='Changed mobile number',
             status='approved'
         )
-        url = reverse('correctionrequest-approve', kwargs={'pk': str(request.id)})
+        url = reverse('correction-request-approve', kwargs={'pk': str(request.id)})
         response = self.client.post(url, {}, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
     
@@ -179,13 +182,17 @@ class CorrectionRequestViewSetTest(TestCase):
             requested_value='01812345678',
             reason='Changed mobile number'
         )
-        url = reverse('correctionrequest-my-requests')
+        url = reverse('correction-request-my-requests')
         response = self.client.get(url, {'student': str(self.student.id)})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('requests', response.data)
         self.assertEqual(len(response.data['requests']), 1)
     
     def test_my_requests_without_student_id(self):
-        url = reverse('correctionrequest-my-requests')
+        # my_requests derives the caller's own scope: an admin with no `student`
+        # filter gets all requests (200), not a 400 — there is no "must pass a
+        # student id" contract. (Non-admins get only their own.)
+        url = reverse('correction-request-my-requests')
         response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('requests', response.data)

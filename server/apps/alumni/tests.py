@@ -1,3 +1,4 @@
+import uuid
 """
 Alumni Property-Based Tests
 
@@ -25,11 +26,10 @@ class CareerPositionChronologyPropertyTest(HypothesisTestCase):
     
     def setUp(self):
         """Create test department and student"""
-        self.department = Department.objects.create(
-            name='Computer Science',
-            code='CSE'
+        _rs = uuid.uuid4().hex[:8]
+        self.department = Department.objects.create(name=f'Computer Science {uuid.uuid4().hex[:6]}', code=f'CSE{uuid.uuid4().hex[:5]}'
         )
-        
+
         self.student = Student.objects.create(
             fullNameBangla='বাংলা নাম',
             fullNameEnglish='Test Student',
@@ -56,8 +56,8 @@ class CareerPositionChronologyPropertyTest(HypothesisTestCase):
             registrationNumber='REG123456',
             passingYear=2020,
             gpa=3.5,
-            currentRollNumber='CR123456',
-            currentRegistrationNumber='CREG123456',
+            currentRollNumber=f'CR{_rs}',
+            currentRegistrationNumber=f'CREG{_rs}',
             semester=8,
             department=self.department,
             session='2020-2021',
@@ -167,9 +167,20 @@ class AlumniAPITests(APITestCase):
     
     def setUp(self):
         """Set up test data"""
+        # The alumni API is deny-by-default (IsAuthenticated / CanManageAlumni);
+        # authenticate as a Registrar so list/search/stats/manage endpoints are
+        # reachable — reflects the intended security model.
+        from django.contrib.auth import get_user_model
+        _User = get_user_model()
+        _asfx = uuid.uuid4().hex[:8]
+        self.admin_user = _User.objects.create_user(
+            username=f'alumnitest_admin_{_asfx}', email=f'alumnitest_admin_{_asfx}@example.com',
+            password='testpass123', role='registrar', account_status='active',
+        )
+        self.client.force_authenticate(user=self.admin_user)
         # Create departments
-        self.dept_cs = Department.objects.create(name='Computer Science', code='CS')
-        self.dept_ee = Department.objects.create(name='Electrical Engineering', code='EE')
+        self.dept_cs = Department.objects.create(name=f'Computer Science {uuid.uuid4().hex[:6]}', code=f'CS{uuid.uuid4().hex[:5]}')
+        self.dept_ee = Department.objects.create(name=f'Electrical Engineering {uuid.uuid4().hex[:6]}', code=f'EE{uuid.uuid4().hex[:5]}')
         
         # Create students
         self.student1 = Student.objects.create(
@@ -266,7 +277,7 @@ class AlumniAPITests(APITestCase):
         self.assertEqual(len(response.data['results']), 1)
         self.assertEqual(
             response.data['results'][0]['student']['department']['code'],
-            'CS'
+            self.dept_cs.code
         )
     
     def test_filter_alumni_by_graduation_year(self):

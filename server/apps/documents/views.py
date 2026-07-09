@@ -909,6 +909,19 @@ class DocumentViewSet(viewsets.ModelViewSet):
             'stats': cleanup_stats
         })
     
+    @staticmethod
+    def _get_content_type(file_extension):
+        """
+        Resolve a MIME content type from a bare file extension (no dot), e.g.
+        'pdf' -> 'application/pdf'. Falls back to 'application/octet-stream' for
+        unknown types. Downloads normally use the storage layer's detected
+        mime_type; this is the extension-only fallback.
+        """
+        import mimetypes
+        ext = (file_extension or '').lower().lstrip('.')
+        content_type, _ = mimetypes.guess_type(f'file.{ext}')
+        return content_type or 'application/octet-stream'
+
     def _check_download_permission(self, user, document):
         """
         Enhanced permission checking for document access

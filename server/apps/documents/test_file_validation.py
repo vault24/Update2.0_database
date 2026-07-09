@@ -327,21 +327,23 @@ class FileValidationPropertyTest(HypothesisTestCase):
             
             self.assertTrue(is_valid, f"Should accept {ext} files")
         
-        # Test invalid file types
-        for ext in ['.txt', '.doc', '.exe']:
+        # Test invalid file types. Uploads are guarded by a dangerous-extension
+        # blocklist (exe/bat/sh/js/...); .txt and .doc are legitimate document
+        # types and are intentionally accepted, so only executable/script types
+        # are rejected here. The 'file' field error is asserted directly since a
+        # fake student id also produces a (separate) 'student' error.
+        for ext in ['.exe', '.bat', '.sh']:
             filename = f"test{ext}"
             test_file = self.create_test_file(filename, 1024)
-            
+
             data = {
                 'student': str(self.fake_student_id),
                 'category': 'NID',
                 'file': test_file
             }
             serializer = DocumentUploadSerializer(data=data)
-            is_valid = serializer.is_valid()
-            
-            self.assertFalse(is_valid, f"Should reject {ext} files")
-            self.assertIn('file', serializer.errors)
+            self.assertFalse(serializer.is_valid(), f"Should reject {ext} files")
+            self.assertIn('file', serializer.errors, f"Expected a file-type error for {ext}")
     
     def test_basic_file_size_validation(self):
         """Test basic file size validation without hypothesis"""

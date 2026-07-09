@@ -1,3 +1,5 @@
+from datetime import date as _dtdate
+import uuid
 """
 Tests for Dashboard app
 """
@@ -20,13 +22,11 @@ class DashboardStatsViewTest(TestCase):
             username='testuser',
             email='test@example.com',
             password='testpass123',
-            role='admin'
+            role='registrar'
         )
         self.client.force_authenticate(user=self.user)
         
-        self.department = Department.objects.create(
-            name='Computer Science',
-            code='CS'
+        self.department = Department.objects.create(name=f'Computer Science {uuid.uuid4().hex[:6]}', code=f'CS{uuid.uuid4().hex[:5]}'
         )
         Student.objects.create(
             rollNumber='CS001',
@@ -54,13 +54,11 @@ class AdminDashboardViewTest(TestCase):
             username='testuser',
             email='test@example.com',
             password='testpass123',
-            role='admin'
+            role='registrar'
         )
         self.client.force_authenticate(user=self.user)
         
-        self.department = Department.objects.create(
-            name='Computer Science',
-            code='CS'
+        self.department = Department.objects.create(name=f'Computer Science {uuid.uuid4().hex[:6]}', code=f'CS{uuid.uuid4().hex[:5]}'
         )
     
     def test_get_admin_dashboard(self):
@@ -82,9 +80,7 @@ class StudentDashboardViewTest(TestCase):
         )
         self.client.force_authenticate(user=self.user)
         
-        self.department = Department.objects.create(
-            name='Computer Science',
-            code='CS'
+        self.department = Department.objects.create(name=f'Computer Science {uuid.uuid4().hex[:6]}', code=f'CS{uuid.uuid4().hex[:5]}'
         )
         self.student = Student.objects.create(
             rollNumber='CS001',
@@ -121,11 +117,10 @@ class TeacherDashboardViewTest(TestCase):
         )
         self.client.force_authenticate(user=self.user)
         
-        self.department = Department.objects.create(
-            name='Computer Science',
-            code='CS'
+        self.department = Department.objects.create(name=f'Computer Science {uuid.uuid4().hex[:6]}', code=f'CS{uuid.uuid4().hex[:5]}'
         )
         self.teacher = Teacher.objects.create(
+            joiningDate=_dtdate(2020, 1, 1),
             fullNameEnglish='Test Teacher',
             fullNameBangla='টেস্ট টিচার',
             designation='Lecturer',
@@ -162,7 +157,7 @@ class AnalyticsViewTest(TestCase):
             username='testuser',
             email='test@example.com',
             password='testpass123',
-            role='admin'
+            role='registrar'
         )
         self.client.force_authenticate(user=self.user)
     

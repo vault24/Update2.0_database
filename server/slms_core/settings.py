@@ -334,7 +334,10 @@ CSRF_TRUSTED_ORIGINS = _origins(
 
 CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_SAMESITE = 'Lax'
-CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=False, cast=bool)  # True when HTTPS
+# Secure-by-default in production: unless explicitly overridden, the CSRF cookie
+# is only sent over HTTPS whenever DEBUG is off. Local dev (DEBUG=True) keeps it
+# False so the plain-HTTP localhost flow still works.
+CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=not DEBUG, cast=bool)
 CSRF_USE_SESSIONS = False
 CSRF_COOKIE_NAME = 'csrftoken'
 
@@ -380,7 +383,10 @@ SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 # --------------------------------------------------
 SESSION_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=False, cast=bool)  # True when HTTPS
+# Secure-by-default in production (see CSRF_COOKIE_SECURE): only sent over HTTPS
+# whenever DEBUG is off, unless an explicit env value overrides it. Dev stays
+# False so plain-HTTP localhost sessions keep working.
+SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=not DEBUG, cast=bool)
 
 # Default session lifetime for a normal login (no "Remember Me").
 # 20 days: a normal session stays valid for ~3 weeks of inactivity, and with

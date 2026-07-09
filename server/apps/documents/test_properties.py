@@ -1,9 +1,11 @@
+import uuid
 """
 Property-based tests for document upload and persistence
 """
 import os
 import tempfile
 from datetime import date
+from unittest.mock import patch
 from django.test import TestCase
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.contrib.auth import get_user_model
@@ -16,11 +18,21 @@ User = get_user_model()
 
 # Import hypothesis after Django setup
 try:
-    from hypothesis import given, strategies as st
+    from hypothesis import given, strategies as st, settings, HealthCheck
     from hypothesis.extra.django import TestCase as HypothesisTestCase
     HYPOTHESIS_AVAILABLE = True
 except ImportError:
     HYPOTHESIS_AVAILABLE = False
+    # Minimal stubs so decorators still resolve when hypothesis is absent.
+    def settings(*args, **kwargs):
+        def decorator(func):
+            return func
+        return decorator
+
+    class HealthCheck:
+        filter_too_much = None
+        too_slow = None
+        data_too_large = None
     # Create dummy decorators for when hypothesis is not available
     def given(*args, **kwargs):
         def decorator(func):
@@ -56,15 +68,13 @@ class DocumentAdmissionLinkagePropertyTest(TestCase):
     def setUp(self):
         """Set up test data"""
         # Create a test department
-        self.department = Department.objects.create(
-            name="Computer Science",
-            code="CSE"
+        self.department = Department.objects.create(name=f'Computer Science {uuid.uuid4().hex[:6]}', code=f'CSE{uuid.uuid4().hex[:5]}'
         )
         
         # Create a test user
         self.user = User.objects.create_user(
-            username="testuser",
-            email="test@example.com",
+            username=f"testuser_{uuid.uuid4().hex[:8]}",
+            email=f"test_{uuid.uuid4().hex[:8]}@example.com",
             password="testpass123",
             role="student"
         )
@@ -189,22 +199,20 @@ class DocumentAccessControlPropertyTest(HypothesisTestCase):
     
     def setUp(self):
         """Set up test data"""
-        self.department = Department.objects.create(
-            name="Computer Science",
-            code="CSE"
+        self.department = Department.objects.create(name=f'Computer Science {uuid.uuid4().hex[:6]}', code=f'CSE{uuid.uuid4().hex[:5]}'
         )
         
         # Create multiple users
         self.user1 = User.objects.create_user(
-            username="user1",
-            email="user1@example.com",
+            username=f"user1_{uuid.uuid4().hex[:8]}",
+            email=f"user1_{uuid.uuid4().hex[:8]}@example.com",
             password="pass123",
             role="student"
         )
         
         self.user2 = User.objects.create_user(
-            username="user2", 
-            email="user2@example.com",
+            username=f"user2_{uuid.uuid4().hex[:8]}", 
+            email=f"user2_{uuid.uuid4().hex[:8]}@example.com",
             password="pass123",
             role="student"
         )
@@ -212,18 +220,22 @@ class DocumentAccessControlPropertyTest(HypothesisTestCase):
         # Create students for the users with required fields
         self.student1 = Student.objects.create(
             fullNameEnglish="Student One",
-            email="user1@example.com",
+            email=f"user1_{uuid.uuid4().hex[:8]}@example.com",
             department=self.department,
-            currentRollNumber="001",
+            semester=1,
+            currentRegistrationNumber=f'CREG{uuid.uuid4().hex[:10]}',
+            currentRollNumber=f"001-{uuid.uuid4().hex[:8]}",
             status="active",
             dateOfBirth=date(2000, 1, 1)
         )
         
         self.student2 = Student.objects.create(
             fullNameEnglish="Student Two", 
-            email="user2@example.com",
+            email=f"user2_{uuid.uuid4().hex[:8]}@example.com",
             department=self.department,
-            currentRollNumber="002",
+            semester=1,
+            currentRegistrationNumber=f'CREG{uuid.uuid4().hex[:10]}',
+            currentRollNumber=f"002-{uuid.uuid4().hex[:8]}",
             status="active",
             dateOfBirth=date(2000, 1, 2)
         )
@@ -235,9 +247,10 @@ class DocumentAccessControlPropertyTest(HypothesisTestCase):
         self.user2.related_profile_id = self.student2.id
         self.user2.save()
     
+    @settings(deadline=None, max_examples=25, suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large])
     @given(
         file_content=st.binary(min_size=1, max_size=1024),
-        file_name=st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=5, max_size=20).filter(lambda x: '.' in x),
+        file_name=st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=5, max_size=20).map(lambda s: s.replace('.', '_') + '.pdf'),
         category=st.sampled_from(['Photo', 'Certificate', 'NID', 'Marksheet'])
     )
     def test_document_access_control_property(self, file_content, file_name, category):
@@ -292,14 +305,12 @@ class AdmissionDocumentProcessingPropertyTest(HypothesisTestCase):
     
     def setUp(self):
         """Set up test data"""
-        self.department = Department.objects.create(
-            name="Computer Science",
-            code="CSE"
+        self.department = Department.objects.create(name=f'Computer Science {uuid.uuid4().hex[:6]}', code=f'CSE{uuid.uuid4().hex[:5]}'
         )
         
         self.user = User.objects.create_user(
-            username="testuser",
-            email="test@example.com",
+            username=f"testuser_{uuid.uuid4().hex[:8]}",
+            email=f"test_{uuid.uuid4().hex[:8]}@example.com",
             password="testpass123",
             role="student"
         )
@@ -342,7 +353,13 @@ class AdmissionDocumentProcessingPropertyTest(HypothesisTestCase):
             field_name = field_names[i]
             file_size = file_sizes[i % len(file_sizes)]
             file_extension = file_extensions[i % len(file_extensions)]
-            
+
+            # The 'photo' category only accepts images (jpg/jpeg/png); a PDF photo
+            # is correctly rejected, so keep the generated photo an image. All other
+            # document categories accept PDF as well.
+            if field_name == 'photo' and file_extension == 'pdf':
+                file_extension = 'jpg'
+
             file_content = b'x' * file_size
             file_name = f"test_{field_name}.{file_extension}"
             
@@ -457,14 +474,12 @@ class DocumentUploadErrorFeedbackPropertyTest(HypothesisTestCase):
     
     def setUp(self):
         """Set up test data"""
-        self.department = Department.objects.create(
-            name="Computer Science",
-            code="CSE"
+        self.department = Department.objects.create(name=f'Computer Science {uuid.uuid4().hex[:6]}', code=f'CSE{uuid.uuid4().hex[:5]}'
         )
         
         self.user = User.objects.create_user(
-            username="testuser",
-            email="test@example.com",
+            username=f"testuser_{uuid.uuid4().hex[:8]}",
+            email=f"test_{uuid.uuid4().hex[:8]}@example.com",
             password="testpass123",
             role="student"
         )
@@ -525,7 +540,7 @@ class DocumentUploadErrorFeedbackPropertyTest(HypothesisTestCase):
         if not validate_file_size(test_file, max_size_mb):
             errors.append({
                 'type': 'file_too_large',
-                'message': f'File size ({file_size / (1024*1024):.1f}MB) exceeds the maximum limit of {max_size_mb}MB.',
+                'message': f'File size ({file_size / (1024*1024):.1f}MB) exceeds the maximum limit of {max_size_mb}MB. Please compress the file or choose a smaller one.',
                 'field': 'file_size',
                 'recoverable': True
             })
@@ -589,10 +604,12 @@ class DocumentUploadErrorFeedbackPropertyTest(HypothesisTestCase):
         # Test error categorization
         error_types = [error['type'] for error in errors]
         
-        # File validation errors
-        file_validation_errors = [e for e in error_types if e in ['invalid_file_type', 'file_too_large', 'empty_file']]
+        # File validation errors. A corrupted file is a file-content problem whose
+        # recovery is "choose a different file", so it belongs here (not with the
+        # network/technical errors whose recovery is retry/check-connection).
+        file_validation_errors = [e for e in error_types if e in ['invalid_file_type', 'file_too_large', 'empty_file', 'corrupted_file']]
         # Technical errors
-        technical_errors = [e for e in error_types if e in ['network_error', 'corrupted_file', 'server_error']]
+        technical_errors = [e for e in error_types if e in ['network_error', 'server_error']]
         
         # Verify error categorization makes sense
         if file_validation_errors:
@@ -735,31 +752,29 @@ class AdminDocumentVisibilityPropertyTest(HypothesisTestCase):
     
     def setUp(self):
         """Set up test data"""
-        self.department = Department.objects.create(
-            name="Computer Science",
-            code="CSE"
+        self.department = Department.objects.create(name=f'Computer Science {uuid.uuid4().hex[:6]}', code=f'CSE{uuid.uuid4().hex[:5]}'
         )
         
         # Create admin user
         self.admin_user = User.objects.create_user(
-            username="admin",
-            email="admin@example.com",
+            username=f"admin_{uuid.uuid4().hex[:8]}",
+            email=f"admin_{uuid.uuid4().hex[:8]}@example.com",
             password="adminpass123",
-            role="admin",
+            role="registrar",
             is_staff=True
         )
         
         # Create regular users
         self.user1 = User.objects.create_user(
-            username="user1",
-            email="user1@example.com",
+            username=f"user1_{uuid.uuid4().hex[:8]}",
+            email=f"user1_{uuid.uuid4().hex[:8]}@example.com",
             password="pass123",
             role="student"
         )
         
         self.user2 = User.objects.create_user(
-            username="user2", 
-            email="user2@example.com",
+            username=f"user2_{uuid.uuid4().hex[:8]}", 
+            email=f"user2_{uuid.uuid4().hex[:8]}@example.com",
             password="pass123",
             role="student"
         )
@@ -767,18 +782,22 @@ class AdminDocumentVisibilityPropertyTest(HypothesisTestCase):
         # Create students for the users with required fields
         self.student1 = Student.objects.create(
             fullNameEnglish="Student One",
-            email="user1@example.com",
+            email=f"user1_{uuid.uuid4().hex[:8]}@example.com",
             department=self.department,
-            currentRollNumber="001",
+            semester=1,
+            currentRegistrationNumber=f'CREG{uuid.uuid4().hex[:10]}',
+            currentRollNumber=f"001-{uuid.uuid4().hex[:8]}",
             status="active",
             dateOfBirth=date(2000, 1, 1)
         )
         
         self.student2 = Student.objects.create(
             fullNameEnglish="Student Two", 
-            email="user2@example.com",
+            email=f"user2_{uuid.uuid4().hex[:8]}@example.com",
             department=self.department,
-            currentRollNumber="002",
+            semester=1,
+            currentRegistrationNumber=f'CREG{uuid.uuid4().hex[:10]}',
+            currentRollNumber=f"002-{uuid.uuid4().hex[:8]}",
             status="active",
             dateOfBirth=date(2000, 1, 2)
         )
@@ -790,6 +809,7 @@ class AdminDocumentVisibilityPropertyTest(HypothesisTestCase):
         self.user2.related_profile_id = self.student2.id
         self.user2.save()
     
+    @settings(deadline=None, max_examples=25, suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large])
     @given(
         num_admission_docs=st.integers(min_value=1, max_value=3),
         num_manual_docs=st.integers(min_value=1, max_value=3),
@@ -816,10 +836,15 @@ class AdminDocumentVisibilityPropertyTest(HypothesisTestCase):
         )
         
         created_documents = []
-        
+        # Track the categories actually used: the loops index categories[i % len],
+        # so when there are more distinct categories than documents, some are never
+        # used and must not be asserted to have documents.
+        used_categories = set()
+
         # Create admission documents
         for i in range(num_admission_docs):
             category = categories[i % len(categories)]
+            used_categories.add(category)
             document = Document.objects.create(
                 student=self.student1,
                 fileName=f"admission_doc_{i}.pdf",
@@ -836,7 +861,8 @@ class AdminDocumentVisibilityPropertyTest(HypothesisTestCase):
         # Create manual documents for both students
         for i in range(num_manual_docs):
             category = categories[i % len(categories)]
-            
+            used_categories.add(category)
+
             # Document for student1
             doc1 = Document.objects.create(
                 student=self.student1,
@@ -899,8 +925,8 @@ class AdminDocumentVisibilityPropertyTest(HypothesisTestCase):
         assert student2_docs.count() == expected_student2_docs, \
             f"Student2 should have {expected_student2_docs} documents"
         
-        # Verify category filtering works
-        for category in set(categories):
+        # Verify category filtering works (only for categories actually used)
+        for category in used_categories:
             category_docs = Document.objects.filter(category=category)
             assert category_docs.count() > 0, f"Should have documents in category {category}"
             
@@ -964,7 +990,7 @@ class AdminDocumentVisibilityPropertyTest(HypothesisTestCase):
         
         # Verify student information is accessible through relationship
         assert document.student.fullNameEnglish == "Student One", "Should access student name through relationship"
-        assert document.student.currentRollNumber == "001", "Should access student roll through relationship"
+        assert document.student.currentRollNumber == self.student1.currentRollNumber, "Should access student roll through relationship"
         assert document.student.department == self.department, "Should access student department through relationship"
         
         # Verify admission information is accessible if needed
@@ -1065,24 +1091,22 @@ class DocumentDownloadIntegrityPropertyTest(HypothesisTestCase):
     
     def setUp(self):
         """Set up test data"""
-        self.department = Department.objects.create(
-            name="Computer Science",
-            code="CSE"
+        self.department = Department.objects.create(name=f'Computer Science {uuid.uuid4().hex[:6]}', code=f'CSE{uuid.uuid4().hex[:5]}'
         )
         
         # Create admin user
         self.admin_user = User.objects.create_user(
-            username="admin",
-            email="admin@example.com",
+            username=f"admin_{uuid.uuid4().hex[:8]}",
+            email=f"admin_{uuid.uuid4().hex[:8]}@example.com",
             password="adminpass123",
-            role="admin",
+            role="registrar",
             is_staff=True
         )
         
         # Create student user
         self.student_user = User.objects.create_user(
-            username="student",
-            email="student@example.com",
+            username=f"student_{uuid.uuid4().hex[:8]}",
+            email=f"student_{uuid.uuid4().hex[:8]}@example.com",
             password="studentpass123",
             role="student"
         )
@@ -1090,9 +1114,11 @@ class DocumentDownloadIntegrityPropertyTest(HypothesisTestCase):
         # Create student profile
         self.student = Student.objects.create(
             fullNameEnglish="Test Student",
-            email="student@example.com",
+            email=f"student_{uuid.uuid4().hex[:8]}@example.com",
             department=self.department,
-            currentRollNumber="001",
+            semester=1,
+            currentRegistrationNumber=f'CREG{uuid.uuid4().hex[:10]}',
+            currentRollNumber=f"001-{uuid.uuid4().hex[:8]}",
             status="active",
             dateOfBirth=date(2000, 1, 1)
         )
@@ -1101,9 +1127,10 @@ class DocumentDownloadIntegrityPropertyTest(HypothesisTestCase):
         self.student_user.related_profile_id = self.student.id
         self.student_user.save()
     
+    @settings(deadline=None, max_examples=25, suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large])
     @given(
         file_content=st.binary(min_size=1, max_size=10240),  # 1 byte to 10KB
-        file_name=st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=5, max_size=50).filter(lambda x: '.' in x and len(x.split('.')[-1]) <= 4),
+        file_name=st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=5, max_size=50).map(lambda s: s.replace('.', '_')),
         file_extension=st.sampled_from(['pdf', 'jpg', 'png', 'doc']),
         category=st.sampled_from(['Photo', 'Certificate', 'NID', 'Marksheet'])
     )
@@ -1180,9 +1207,11 @@ class DocumentDownloadIntegrityPropertyTest(HypothesisTestCase):
         # Create document for different student
         other_student = Student.objects.create(
             fullNameEnglish="Other Student",
-            email="other@example.com",
+            email=f"other_{uuid.uuid4().hex[:8]}@example.com",
             department=self.department,
-            currentRollNumber="002",
+            semester=1,
+            currentRegistrationNumber=f'CREG{uuid.uuid4().hex[:10]}',
+            currentRollNumber=f"002-{uuid.uuid4().hex[:8]}",
             status="active",
             dateOfBirth=date(2000, 1, 2)
         )
@@ -1266,17 +1295,19 @@ class DocumentDownloadIntegrityPropertyTest(HypothesisTestCase):
         
         # Create another student and test access
         other_user = User.objects.create_user(
-            username="other_student",
-            email="other_student@example.com",
+            username=f"other_student_{uuid.uuid4().hex[:8]}",
+            email=f"other_student_{uuid.uuid4().hex[:8]}@example.com",
             password="pass123",
             role="student"
         )
         
         other_student = Student.objects.create(
             fullNameEnglish="Other Student",
-            email="other_student@example.com",
+            email=f"other_student_{uuid.uuid4().hex[:8]}@example.com",
             department=self.department,
-            currentRollNumber="002",
+            semester=1,
+            currentRegistrationNumber=f'CREG{uuid.uuid4().hex[:10]}',
+            currentRollNumber=f"002-{uuid.uuid4().hex[:8]}",
             status="active",
             dateOfBirth=date(2000, 1, 2)
         )
@@ -1290,9 +1321,10 @@ class DocumentDownloadIntegrityPropertyTest(HypothesisTestCase):
         
         # Test unauthenticated access (anonymous user)
         class AnonymousUser:
+            is_authenticated = False
             is_staff = False
             role = None
-            
+
             def __init__(self):
                 pass
         

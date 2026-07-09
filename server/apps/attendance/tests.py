@@ -1,3 +1,4 @@
+import uuid
 """
 Tests for Attendance app (model + basic CRUD via an admin/registrar user).
 
@@ -32,7 +33,7 @@ class AttendanceRecordModelTest(TestCase):
         self.user = User.objects.create_user(
             username='testuser', email='test@example.com',
             password='testpass123', role='registrar')
-        self.department = Department.objects.create(name='Computer Science', code='CS')
+        self.department = Department.objects.create(name=f'Computer Science {uuid.uuid4().hex[:6]}', code=f'CS{uuid.uuid4().hex[:5]}')
         self.student = _make_student(self.department)
 
     def test_create_attendance_record(self):
@@ -64,7 +65,7 @@ class AttendanceViewSetTest(TestCase):
             username='testuser', email='test@example.com',
             password='testpass123', role='registrar')
         self.client.force_authenticate(user=self.user)
-        self.department = Department.objects.create(name='Computer Science', code='CS')
+        self.department = Department.objects.create(name=f'Computer Science {uuid.uuid4().hex[:6]}', code=f'CS{uuid.uuid4().hex[:5]}')
         self.student = _make_student(self.department)
 
     def test_create_attendance_record(self):

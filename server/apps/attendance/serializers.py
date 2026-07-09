@@ -23,14 +23,14 @@ class AttendanceRecordSerializer(serializers.ModelSerializer):
                     from apps.students.models import Student
                     student = Student.objects.get(id=obj.recorded_by.related_profile_id)
                     return student.fullNameEnglish
-                except:
+                except Exception:
                     pass
             elif obj.recorded_by.role == 'teacher' and obj.recorded_by.related_profile_id:
                 try:
                     from apps.teachers.models import Teacher
                     teacher = Teacher.objects.get(id=obj.recorded_by.related_profile_id)
                     return teacher.fullNameEnglish
-                except:
+                except Exception:
                     pass
             # Fallback to username
             return obj.recorded_by.username
@@ -44,7 +44,7 @@ class AttendanceRecordSerializer(serializers.ModelSerializer):
                     from apps.teachers.models import Teacher
                     teacher = Teacher.objects.get(id=obj.approved_by.related_profile_id)
                     return teacher.fullNameEnglish
-                except:
+                except Exception:
                     pass
             # Fallback to username
             return obj.approved_by.username

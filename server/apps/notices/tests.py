@@ -284,9 +284,12 @@ class NoticeAPITest(APITestCase):
         self.assertEqual(response.data['total_notices'], 1)
         self.assertEqual(response.data['read_count'], 0)
         
-        # Mark notice as read
-        NoticeReadStatus.objects.create(notice=self.notice, student=self.student_user)
-        
+        # Mark the notice read via the endpoint (which also invalidates the
+        # cached unread count). Creating the NoticeReadStatus row directly would
+        # leave the 5-min unread-count cache stale — the endpoint is the real path.
+        mark_url = reverse('notices:mark-notice-read', kwargs={'notice_id': self.notice.id})
+        self.client.post(mark_url)
+
         response = self.client.get(url)
         self.assertEqual(response.data['unread_count'], 0)
         self.assertEqual(response.data['read_count'], 1)

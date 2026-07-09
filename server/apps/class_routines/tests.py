@@ -1,3 +1,5 @@
+from datetime import date as _dtdate
+import uuid
 """
 Class Routine Tests
 """
@@ -15,9 +17,7 @@ class ClassRoutineModelTest(TestCase):
     
     def setUp(self):
         """Set up test data"""
-        self.department = Department.objects.create(
-            name='Computer Science',
-            code='CS'
+        self.department = Department.objects.create(name=f'Computer Science {uuid.uuid4().hex[:6]}', code=f'CS{uuid.uuid4().hex[:5]}'
         )
         
         self.teacher = Teacher.objects.create(
@@ -75,9 +75,7 @@ class ClassRoutineAPITest(APITestCase):
     
     def setUp(self):
         """Set up test data"""
-        self.department = Department.objects.create(
-            name='Computer Science',
-            code='CS'
+        self.department = Department.objects.create(name=f'Computer Science {uuid.uuid4().hex[:6]}', code=f'CS{uuid.uuid4().hex[:5]}'
         )
         
         self.teacher = Teacher.objects.create(

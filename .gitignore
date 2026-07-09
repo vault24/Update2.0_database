@@ -80,6 +80,8 @@ logs/
 
 # Uploaded user documents (runtime files, not source code)
 client/assets/images/documents/
+# Runtime-uploaded student profile photos (personal data) — never commit
+client/assets/
 server/media/
 server/storage/
 

@@ -1,3 +1,4 @@
+import uuid
 """
 Teacher Request Tests
 """
@@ -11,9 +12,7 @@ from datetime import date
 
 class TeacherRequestModelTest(TestCase):
     def setUp(self):
-        self.department = Department.objects.create(
-            name='Computer Technology',
-            code='CT'
+        self.department = Department.objects.create(name=f'Computer Technology {uuid.uuid4().hex[:6]}', code=f'CT{uuid.uuid4().hex[:5]}'
         )
         
         self.teacher = Teacher.objects.create(

@@ -183,15 +183,20 @@ class AdminDashboardView(APIView):
                 'pendingApplications': Application.objects.filter(status='pending').count(),
             }
             
-            # Department summaries
+            # Department summaries.
+            # NOTE: Student.department has no related_name, so its reverse query
+            # lookup is the default 'student' (not 'students'); Teacher uses
+            # related_name='teachers'. Using the wrong keyword here 500s the
+            # whole admin dashboard.
             department_summaries = list(Department.objects.annotate(
-                student_count=Count('students'),
+                student_count=Count('student'),
                 teacher_count=Count('teachers')
             ).values('id', 'name', 'code', 'student_count', 'teacher_count'))
             
             # Recent activities (would come from activity logs)
             recent_admissions = Admission.objects.filter(status='pending').order_by('-submitted_at')[:5]
-            recent_applications = Application.objects.filter(status='pending').order_by('-submitted_at')[:5]
+            # Application's timestamp field is submittedAt (camelCase), unlike Admission.
+            recent_applications = Application.objects.filter(status='pending').order_by('-submittedAt')[:5]
             
             data = {
                 'kpis': kpis,

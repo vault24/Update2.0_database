@@ -25,8 +25,11 @@ def valid_signup_data(draw):
     return {
         'username': draw(st.text(min_size=3, max_size=150, alphabet=username_chars)),
         'email': draw(st.emails()),
-        'first_name': draw(st.text(min_size=1, max_size=150, alphabet=string.ascii_letters + ' ')),
-        'last_name': draw(st.text(min_size=1, max_size=150, alphabet=string.ascii_letters + ' ')),
+        # Letters only (no whitespace-only names): a blank first/last name is a
+        # field-level error that would short-circuit the serializer's object-level
+        # uniqueness checks these property tests actually exercise.
+        'first_name': draw(st.text(min_size=1, max_size=150, alphabet=string.ascii_letters)),
+        'last_name': draw(st.text(min_size=1, max_size=150, alphabet=string.ascii_letters)),
         'password': draw(st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=8, max_size=128)),
         'requested_role': draw(st.sampled_from(['registrar', 'institute_head'])),
         'mobile_number': draw(st.text(min_size=11, max_size=11, alphabet=string.digits))
@@ -115,9 +118,13 @@ class SignupRequestModelTests(TestCase):
         )
         self.assertEqual(signup_request.status, 'pending')
     
-    def test_signup_request_unique_username(self):
-        """Test that username must be unique"""
-        SignupRequest.objects.create(
+    def test_signup_request_username_uniqueness_is_pending_scoped(self):
+        """Username uniqueness is enforced at the request layer for PENDING
+        requests only (no DB unique constraint), so a username from a rejected
+        request can be reused. See SignupRequest model note."""
+        from .serializers import signup_username_available
+
+        pending = SignupRequest.objects.create(
             username='testuser',
             email='test1@example.com',
             first_name='Test',
@@ -125,20 +132,30 @@ class SignupRequestModelTests(TestCase):
             requested_role='registrar',
             password_hash=make_password('testpass123')
         )
-        
-        with self.assertRaises(Exception):
-            SignupRequest.objects.create(
-                username='testuser',
-                email='test2@example.com',
-                first_name='Test',
-                last_name='User',
-                requested_role='registrar',
-                password_hash=make_password('testpass123')
-            )
-    
-    def test_signup_request_unique_email(self):
-        """Test that email must be unique"""
+
+        # A pending request blocks reuse of the username at the serializer layer.
+        self.assertFalse(signup_username_available('testuser'))
+
+        # The model itself imposes no unique constraint: a second row is allowed
+        # (this is how a REJECTED request frees the username for reuse).
+        pending.status = 'rejected'
+        pending.save()
+        self.assertTrue(signup_username_available('testuser'))
         SignupRequest.objects.create(
+            username='testuser',
+            email='test2@example.com',
+            first_name='Test',
+            last_name='User',
+            requested_role='registrar',
+            password_hash=make_password('testpass123')
+        )
+        self.assertEqual(SignupRequest.objects.filter(username='testuser').count(), 2)
+
+    def test_signup_request_email_uniqueness_is_pending_scoped(self):
+        """Email uniqueness follows the same pending-scoped rule as username."""
+        from .serializers import signup_email_available
+
+        pending = SignupRequest.objects.create(
             username='testuser1',
             email='test@example.com',
             first_name='Test',
@@ -146,16 +163,23 @@ class SignupRequestModelTests(TestCase):
             requested_role='registrar',
             password_hash=make_password('testpass123')
         )
-        
-        with self.assertRaises(Exception):
-            SignupRequest.objects.create(
-                username='testuser2',
-                email='test@example.com',
-                first_name='Test',
-                last_name='User',
-                requested_role='registrar',
-                password_hash=make_password('testpass123')
-            )
+
+        # A pending request blocks reuse of the email.
+        self.assertFalse(signup_email_available('test@example.com'))
+
+        # A rejected request frees the email for reuse; the model allows the row.
+        pending.status = 'rejected'
+        pending.save()
+        self.assertTrue(signup_email_available('test@example.com'))
+        SignupRequest.objects.create(
+            username='testuser2',
+            email='test@example.com',
+            first_name='Test',
+            last_name='User',
+            requested_role='registrar',
+            password_hash=make_password('testpass123')
+        )
+        self.assertEqual(SignupRequest.objects.filter(email='test@example.com').count(), 2)
 
 
 
@@ -757,10 +781,13 @@ class LoginBehaviorByRequestStatusPropertyTests(HypothesisTestCase):
             'username': data['username'],
             'password': data['password']
         })
-        
-        # Verify login is rejected with pending message
+
+        # A pending request has no User account yet, so login must be rejected.
+        # For security the serializer returns a GENERIC "invalid credentials"
+        # rather than revealing that a pending request exists (no user
+        # enumeration) — see the deny-by-default auth posture.
         self.assertFalse(serializer.is_valid())
-        self.assertIn('pending approval', str(serializer.errors).lower())
+        self.assertIn('invalid credentials', str(serializer.errors).lower())
     
     @settings(max_examples=50, deadline=None)
     @given(data=valid_signup_data())
@@ -800,10 +827,11 @@ class LoginBehaviorByRequestStatusPropertyTests(HypothesisTestCase):
             'username': data['username'],
             'password': data['password']
         })
-        
-        # Verify login is rejected with rejection message
+
+        # A rejected request likewise has no User account; login is rejected with
+        # the same GENERIC "invalid credentials" (no account-state disclosure).
         self.assertFalse(serializer.is_valid())
-        self.assertIn('rejected', str(serializer.errors).lower())
+        self.assertIn('invalid credentials', str(serializer.errors).lower())
     
     @settings(max_examples=50, deadline=None)
     @given(data=valid_signup_data())

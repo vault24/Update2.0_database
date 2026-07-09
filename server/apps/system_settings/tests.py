@@ -29,7 +29,7 @@ class SystemSettingsViewTest(TestCase):
             username='testuser',
             email='test@example.com',
             password='testpass123',
-            role='admin'
+            role='registrar'
         )
         self.client.force_authenticate(user=self.user)
     

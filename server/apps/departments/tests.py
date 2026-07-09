@@ -1,3 +1,5 @@
+from datetime import date as _dtdate
+import uuid
 """
 Department Tests
 """
@@ -14,9 +16,7 @@ class DepartmentModelTest(TestCase):
     
     def test_department_creation(self):
         """Test creating a department"""
-        dept = Department.objects.create(
-            name="Computer Science and Technology",
-            code="CST"
+        dept = Department.objects.create(name=f'Computer Science and Technology {uuid.uuid4().hex[:6]}', code=f'CST{uuid.uuid4().hex[:5]}'
         )
         self.assertEqual(dept.name, "Computer Science and Technology")
         self.assertEqual(dept.code, "CST")
@@ -26,23 +26,21 @@ class DepartmentModelTest(TestCase):
     
     def test_department_str(self):
         """Test department string representation"""
-        dept = Department.objects.create(
-            name="Civil Technology",
-            code="CT"
+        dept = Department.objects.create(name=f'Civil Technology {uuid.uuid4().hex[:6]}', code=f'CT{uuid.uuid4().hex[:5]}'
         )
         self.assertEqual(str(dept), "Civil Technology (CT)")
     
     def test_unique_name_constraint(self):
         """Test that department names must be unique"""
-        Department.objects.create(name="Test Dept", code="TD1")
+        Department.objects.create(name=f'Test Dept {uuid.uuid4().hex[:6]}', code=f'TD1{uuid.uuid4().hex[:5]}')
         with self.assertRaises(Exception):
-            Department.objects.create(name="Test Dept", code="TD2")
+            Department.objects.create(name=f'Test Dept {uuid.uuid4().hex[:6]}', code=f'TD2{uuid.uuid4().hex[:5]}')
     
     def test_unique_code_constraint(self):
         """Test that department codes must be unique"""
-        Department.objects.create(name="Test Dept 1", code="TD")
+        Department.objects.create(name=f'Test Dept 1 {uuid.uuid4().hex[:6]}', code=f'TD{uuid.uuid4().hex[:5]}')
         with self.assertRaises(Exception):
-            Department.objects.create(name="Test Dept 2", code="TD")
+            Department.objects.create(name=f'Test Dept 2 {uuid.uuid4().hex[:6]}', code=f'TD{uuid.uuid4().hex[:5]}')
 
 
 @tag('property')
@@ -86,13 +84,9 @@ class DepartmentAPITest(APITestCase):
     
     def setUp(self):
         """Set up test data"""
-        self.dept1 = Department.objects.create(
-            name="Computer Science and Technology",
-            code="CST"
+        self.dept1 = Department.objects.create(name=f'Computer Science and Technology {uuid.uuid4().hex[:6]}', code=f'CST{uuid.uuid4().hex[:5]}'
         )
-        self.dept2 = Department.objects.create(
-            name="Civil Technology",
-            code="CT"
+        self.dept2 = Department.objects.create(name=f'Civil Technology {uuid.uuid4().hex[:6]}', code=f'CT{uuid.uuid4().hex[:5]}'
         )
     
     def test_list_departments(self):
@@ -154,9 +148,7 @@ class DepartmentEnhancedFeaturesTest(APITestCase):
         from apps.students.models import Student
         from apps.teachers.models import Teacher
         
-        self.department = Department.objects.create(
-            name='Computer Science',
-            code='CS'
+        self.department = Department.objects.create(name=f'Computer Science {uuid.uuid4().hex[:6]}', code=f'CS{uuid.uuid4().hex[:5]}'
         )
         
         # Create students in different semesters and shifts
@@ -310,9 +302,7 @@ class DepartmentDeletionProtectionPropertyTest(APITestCase):
     
     def setUp(self):
         """Set up test data"""
-        self.department = Department.objects.create(
-            name='Computer Science',
-            code='CS'
+        self.department = Department.objects.create(name=f'Computer Science {uuid.uuid4().hex[:6]}', code=f'CS{uuid.uuid4().hex[:5]}'
         )
     
     @given(

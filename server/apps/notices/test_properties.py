@@ -159,14 +159,23 @@ class NoticePropertyTests(HypothesisTestCase):
             created_by=self.admin_user
         )
         
-        # Test that ordering by priority works correctly
-        # High priority should come before low priority
-        notices_by_priority = Notice.objects.order_by('-priority', '-created_at')
+        # Ordering by SEMANTIC priority (high > normal > low). The `priority`
+        # field is a plain string, so order_by('-priority') sorts alphabetically
+        # (normal > low > high) — wrong. Rank explicitly.
+        from django.db.models import Case, When, Value, IntegerField
+        notices_by_priority = Notice.objects.annotate(
+            _rank=Case(
+                When(priority='high', then=Value(3)),
+                When(priority='normal', then=Value(2)),
+                When(priority='low', then=Value(1)),
+                default=Value(0),
+                output_field=IntegerField(),
+            )
+        ).order_by('-_rank', '-created_at')
         high_index = list(notices_by_priority).index(high_notice)
         low_index = list(notices_by_priority).index(low_notice)
-        
-        # High priority notice should appear before low priority notice
-        # (lower index means earlier in the list)
+
+        # High priority notice should appear before low priority notice.
         self.assertLess(high_index, low_index)
     
     @given(
