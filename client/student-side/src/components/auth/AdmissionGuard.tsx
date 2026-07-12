@@ -15,14 +15,27 @@ import { useAuth } from '@/contexts/AuthContext';
 const BANNER_TEXT = {
   notStarted: {
     title: 'Admission Not Completed',
-    description:
-      'এডমিশন কম্পিলিট করো,  নাহলে সমস্যা হবে। কিভাবে করতে হবে বুঝতে না পারলে আমার উপর গুতা মারো ভিডিও টিউটোরিয়াল পাবে।',
+    description: (
+      <>
+        তুমি এখনও এডমিশন কম্পিলিট করো নি, এডমিশন কম্পিলিট না করলে কোন ফিচার ব্যবহার করতে
+        পারবে নাহ। তাই এডমিশন দ্রুত কম্পিলিট করো। কিভাবে করতে হবে বুঝতে না পারলে{' '}
+        <a
+          href="https://youtu.be/KmFUuvslHds?si=bLcBP8uWKAGi6kr8"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline font-semibold text-amber-900 hover:text-amber-950"
+        >
+          এখানে ক্লিক করো, ভিডিও টিউটোরিয়াল পাবে।
+        </a>
+      </>
+    ),
     button: 'Complete Admission',
   },
   pending: {
     title: 'Admission Under Review',
-    description:
-      'তোমার এডমিশন আবেদন পর্যালোচনা করা হচ্ছে। অনুমোদনের পরে সব ডেটা দেখা যাবে।',
+    description: (
+      <>তোমার এডমিশন আবেদন পর্যালোচনা করা হচ্ছে। অনুমোদনের পরে সব ডেটা দেখা যাবে।</>
+    ),
     button: 'View Status',
   },
 };
