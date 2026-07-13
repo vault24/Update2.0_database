@@ -299,3 +299,111 @@ class ClassRoutineAPITest(APITestCase):
         
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(ClassRoutine.objects.filter(id=routine.id).exists())
+
+
+class ClassEmailAPITest(APITestCase):
+    """Tests for the teacher class-students / send-class-email endpoints."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from apps.authentication.models import User
+        from apps.students.models import Student
+
+        cls.department = Department.objects.create(
+            name=f'Computer Science {uuid.uuid4().hex[:6]}',
+            code=f'CS{uuid.uuid4().hex[:5]}',
+        )
+        cls.teacher = Teacher.objects.create(
+            fullNameBangla='শিক্ষক', fullNameEnglish='Teacher One',
+            designation='Lecturer', department=cls.department,
+            email='t1@example.com', mobileNumber='01700000001',
+            joiningDate='2020-01-01',
+        )
+        cls.other_teacher = Teacher.objects.create(
+            fullNameBangla='শিক্ষক', fullNameEnglish='Teacher Two',
+            designation='Lecturer', department=cls.department,
+            email='t2@example.com', mobileNumber='01700000002',
+            joiningDate='2020-01-01',
+        )
+        cls.routine = ClassRoutine.objects.create(
+            department=cls.department, semester=1, shift='Day',
+            session='2023-24', day_of_week='Sunday',
+            start_time=time(9, 0), end_time=time(10, 0),
+            subject_name='Programming', subject_code='CSE101',
+            teacher=cls.teacher, room_number='101',
+        )
+
+        # Two active students in the cohort (one without email), plus one in
+        # another semester who must never be included.
+        def make_student(roll, sem=1, email='', status_='active'):
+            return Student.objects.create(
+                fullNameEnglish=f'Student {roll}', fullNameBangla='ছাত্র',
+                currentRollNumber=roll, currentRegistrationNumber=f'REG-{roll}',
+                department=cls.department, semester=sem, shift='Day',
+                email=email, status=status_,
+            )
+
+        cls.s1 = make_student('CS001', email='s1@example.com')
+        cls.s2 = make_student('CS002')  # no email
+        make_student('CS003', sem=2, email='other-sem@example.com')
+
+        cls.u_teacher = User.objects.create_user(
+            username='t1', email='t1@example.com', password='pw',
+            role='teacher', related_profile_id=cls.teacher.id, account_status='active')
+        cls.u_other_teacher = User.objects.create_user(
+            username='t2', email='t2@example.com', password='pw',
+            role='teacher', related_profile_id=cls.other_teacher.id, account_status='active')
+        cls.u_student = User.objects.create_user(
+            username='s1', email='s1@example.com', password='pw',
+            role='student', related_profile_id=cls.s1.id, account_status='active')
+
+    def test_class_students_owner_teacher(self):
+        self.client.force_authenticate(self.u_teacher)
+        response = self.client.get(f'/api/class-routines/{self.routine.id}/class-students/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['count'], 2)
+        self.assertEqual(response.data['with_email'], 1)
+        rolls = [s['roll'] for s in response.data['students']]
+        self.assertEqual(rolls, ['CS001', 'CS002'])
+
+    def test_class_students_other_teacher_forbidden(self):
+        self.client.force_authenticate(self.u_other_teacher)
+        response = self.client.get(f'/api/class-routines/{self.routine.id}/class-students/')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_class_students_student_forbidden(self):
+        self.client.force_authenticate(self.u_student)
+        response = self.client.get(f'/api/class-routines/{self.routine.id}/class-students/')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_send_class_email_requires_subject_and_message(self):
+        self.client.force_authenticate(self.u_teacher)
+        response = self.client.post(
+            f'/api/class-routines/{self.routine.id}/send-class-email/',
+            {'subject': ' ', 'message': ''},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_send_class_email_success(self):
+        from django.core import mail
+
+        self.client.force_authenticate(self.u_teacher)
+        response = self.client.post(
+            f'/api/class-routines/{self.routine.id}/send-class-email/',
+            {'subject': 'Class test on Sunday', 'message': 'Bring your notes.\nBe on time.'},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['success'])
+        self.assertEqual(response.data['recipients'], 1)
+        self.assertEqual(response.data['skipped_no_email'], 1)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].subject, 'Class test on Sunday')
+        self.assertIn('s1@example.com', mail.outbox[0].bcc)
+
+    def test_send_class_email_other_teacher_forbidden(self):
+        self.client.force_authenticate(self.u_other_teacher)
+        response = self.client.post(
+            f'/api/class-routines/{self.routine.id}/send-class-email/',
+            {'subject': 'Hi', 'message': 'Hello'},
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

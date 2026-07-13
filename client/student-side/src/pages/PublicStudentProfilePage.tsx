@@ -343,7 +343,7 @@ This is a public profile showcasing academic information and achievements.`,
         >
           {[
             { icon: BarChart3, label: 'CGPA', value: transformedStudent.cgpa.toFixed(2), color: 'text-emerald-500 bg-emerald-500/10' },
-            { icon: Clock, label: 'Attendance', value: `${transformedStudent.attendanceRate}%`, color: 'text-blue-500 bg-blue-500/10' },
+            { icon: Clock, label: 'Attendance', value: `${transformedStudent.attendanceRate}%`, color: 'text-teal-500 bg-teal-500/10' },
             { icon: BookOpen, label: 'Semester', value: transformedStudent.semester, color: 'text-violet-500 bg-violet-500/10' },
           ].map((stat) => (
             <div key={stat.label} className="bg-card rounded-lg sm:rounded-xl border border-border p-2 sm:p-3 md:p-4 shadow-card flex flex-col sm:flex-row items-center gap-1.5 sm:gap-3 text-center sm:text-left">
@@ -428,9 +428,9 @@ This is a public profile showcasing academic information and achievements.`,
                 Student Information
               </h3>
               <div className="space-y-3">
-                <div className="flex gap-3 p-3 rounded-lg bg-gradient-to-br from-blue-500/10 to-indigo-500/5 border border-blue-500/20">
-                  <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
-                    <User className="w-5 h-5 text-blue-600" />
+                <div className="flex gap-3 p-3 rounded-lg bg-gradient-to-br from-emerald-500/10 to-teal-500/5 border border-emerald-500/20">
+                  <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                    <User className="w-5 h-5 text-emerald-600" />
                   </div>
                   <div>
                     <h4 className="font-medium text-sm">Roll Number</h4>

@@ -14,9 +14,9 @@ interface Props {
   error?: string;
 }
 
-/* ── simple math challenge generator ── */
+/* â”€â”€ simple math challenge generator â”€â”€ */
 function generateMath() {
-  const ops = ['+', '-', '×'] as const;
+  const ops = ['+', '-', 'Ã—'] as const;
   const op = ops[Math.floor(Math.random() * ops.length)];
   let a: number, b: number, answer: number;
   if (op === '+') { a = Math.floor(Math.random() * 20) + 1; b = Math.floor(Math.random() * 20) + 1; answer = a + b; }
@@ -25,7 +25,7 @@ function generateMath() {
   return { question: `${a} ${op} ${b} = ?`, answer };
 }
 
-/* ── math confirmation popup ── */
+/* â”€â”€ math confirmation popup â”€â”€ */
 function MathPopup({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
   const [{ question, answer }] = useState(generateMath);
   const [input, setInput] = useState('');
@@ -59,7 +59,7 @@ function MathPopup({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: (
         <div className="flex justify-center mb-4">
           <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
             style={{ background: 'linear-gradient(135deg,#3b6cf7,#2152e3)' }}>
-            <span className="text-2xl">🔐</span>
+            <span className="text-2xl">ðŸ”</span>
           </div>
         </div>
 
@@ -70,8 +70,8 @@ function MathPopup({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: (
         </p>
 
         {/* Math question */}
-        <div className="bg-blue-50 border border-blue-200 rounded-2xl py-4 px-6 text-center mb-5">
-          <span className="text-2xl font-bold text-blue-700">{question}</span>
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl py-4 px-6 text-center mb-5">
+          <span className="text-2xl font-bold text-emerald-700">{question}</span>
         </div>
 
         {/* Answer input */}
@@ -82,7 +82,7 @@ function MathPopup({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: (
             className={cn(
               'h-12 rounded-2xl border-2 text-center text-lg font-bold text-gray-900 placeholder:text-gray-400',
               'bg-gray-50 focus:bg-white transition-colors',
-              shake ? 'border-red-400' : 'border-gray-200 focus:border-blue-400'
+              shake ? 'border-red-400' : 'border-gray-200 focus:border-emerald-400'
             )}
             value={input}
             onChange={e => setInput(e.target.value)}
@@ -108,7 +108,7 @@ function MathPopup({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: (
   );
 }
 
-/* ── password strength helper ── */
+/* â”€â”€ password strength helper â”€â”€ */
 function getStrength(pw: string) {
   let score = 0;
   const missing: string[] = [];
@@ -120,7 +120,7 @@ function getStrength(pw: string) {
   return { score, missing };
 }
 
-/* ── main form ── */
+/* â”€â”€ main form â”€â”€ */
 export function NewPasswordForm({ onSubmit, onBack, loading, error }: Props) {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -136,7 +136,7 @@ export function NewPasswordForm({ onSubmit, onBack, loading, error }: Props) {
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Strong password is no longer required on the student portal — any
+    // Strong password is no longer required on the student portal â€” any
     // non-empty password is allowed as long as both fields match.
     if (!password) { toast.error('Please enter a new password'); return; }
     if (!matches) { toast.error('Passwords do not match'); return; }
@@ -176,7 +176,7 @@ export function NewPasswordForm({ onSubmit, onBack, loading, error }: Props) {
             <div className="relative">
               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input type={showPw ? 'text' : 'password'} placeholder="Enter new password"
-                className="pl-11 pr-11 h-12 rounded-2xl border-2 border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400"
+                className="pl-11 pr-11 h-12 rounded-2xl border-2 border-gray-200 bg-gray-50/60 focus:bg-white focus:border-emerald-400 transition-colors text-gray-900 placeholder:text-gray-400"
                 value={password} onChange={e => setPassword(e.target.value)} required disabled={loading} />
               <button type="button" onClick={() => setShowPw(!showPw)}
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -213,7 +213,7 @@ export function NewPasswordForm({ onSubmit, onBack, loading, error }: Props) {
                   'pl-11 pr-11 h-12 rounded-2xl border-2 bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400',
                   confirm.length > 0
                     ? matches ? 'border-green-400 focus:border-green-400' : 'border-red-400 focus:border-red-400'
-                    : 'border-gray-200 focus:border-blue-400'
+                    : 'border-gray-200 focus:border-emerald-400'
                 )}
                 value={confirm} onChange={e => setConfirm(e.target.value)} required disabled={loading} />
               <button type="button" onClick={() => setShowCf(!showCf)}

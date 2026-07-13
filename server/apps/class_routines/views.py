@@ -3,6 +3,7 @@ Class Routine Views
 """
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from apps.authentication.permissions import BlockStudentWrite
 from django_filters.rest_framework import DjangoFilterBackend
@@ -61,6 +62,47 @@ def _sync_routine_cohorts(routines):
     except Exception as exc:
         import logging
         logging.getLogger(__name__).warning("Routine cohort attendance sync failed: %s", exc)
+
+
+# Total size cap for teacher class-email attachments (matches typical
+# SMTP/relay limits with headroom for the branded HTML + inline logo).
+MAX_CLASS_EMAIL_ATTACHMENT_BYTES = 10 * 1024 * 1024
+
+
+def _resolve_teacher_id(user):
+    """Return the Teacher profile UUID linked to a teacher user (or None)."""
+    if getattr(user, 'role', None) != 'teacher':
+        return None
+    if getattr(user, 'related_profile_id', None):
+        return user.related_profile_id
+    try:
+        from apps.teachers.models import Teacher
+        teacher = Teacher.objects.filter(email=user.email).only('id').first()
+        return teacher.id if teacher else None
+    except Exception:
+        return None
+
+
+def _may_email_routine_class(user, routine):
+    """Only the routine's own teacher (or an admin/superuser) may contact the class."""
+    if not (user and user.is_authenticated):
+        return False
+    from apps.authentication.models import User
+    if user.is_superuser or getattr(user, 'role', None) in User.ADMIN_ROLES:
+        return True
+    teacher_id = _resolve_teacher_id(user)
+    return bool(teacher_id and routine.teacher_id and str(teacher_id) == str(routine.teacher_id))
+
+
+def _routine_class_students(routine):
+    """Active students enrolled in the routine's class cohort (dept+semester+shift)."""
+    from apps.students.models import Student
+    return Student.objects.filter(
+        department=routine.department,
+        semester=routine.semester,
+        shift=routine.shift,
+        status='active',
+    ).order_by('currentRollNumber')
 
 
 def _notify_routine(routine, is_update):
@@ -237,6 +279,138 @@ class ClassRoutineViewSet(viewsets.ModelViewSet):
             'routines': serializer.data
         })
     
+    @action(detail=True, methods=['get'], url_path='class-students')
+    def class_students(self, request, pk=None):
+        """
+        Students enrolled in this routine's class (teacher of the class only).
+
+        GET /api/class-routines/{id}/class-students/
+        """
+        routine = self.get_object()
+        if not _may_email_routine_class(request.user, routine):
+            return Response(
+                {'error': 'You can only view students of your own classes'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        students = _routine_class_students(routine)
+        data = [
+            {
+                'id': str(student.id),
+                'name': student.fullNameEnglish,
+                'roll': student.currentRollNumber,
+                'email': student.email or None,
+            }
+            for student in students
+        ]
+        return Response({
+            'count': len(data),
+            'with_email': sum(1 for row in data if row['email']),
+            'students': data,
+        })
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='send-class-email',
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def send_class_email(self, request, pk=None):
+        """
+        Send a custom email (reminder/announcement) to every student in this
+        routine's class. Teacher of the class (or admin) only.
+
+        POST /api/class-routines/{id}/send-class-email/  (multipart)
+          - subject: str (required)
+          - message: str (required; newlines become paragraphs)
+          - class_date: str (optional, shown in the email details)
+          - attachments: file[] (optional, 10 MB total)
+        """
+        routine = self.get_object()
+        if not _may_email_routine_class(request.user, routine):
+            return Response(
+                {'error': 'You can only email students of your own classes'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        subject = (request.data.get('subject') or '').strip()
+        message = (request.data.get('message') or '').strip()
+        class_date = (request.data.get('class_date') or '').strip()
+        if not subject or not message:
+            return Response(
+                {'error': 'Both subject and message are required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        files = request.FILES.getlist('attachments')
+        total_size = sum(f.size for f in files)
+        if total_size > MAX_CLASS_EMAIL_ATTACHMENT_BYTES:
+            return Response(
+                {'error': 'Attachments are too large (10 MB total limit)'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        attachments = [
+            (f.name, f.read(), f.content_type or 'application/octet-stream')
+            for f in files
+        ]
+
+        students = list(_routine_class_students(routine))
+        emails = sorted({
+            s.email.strip().lower() for s in students if s.email and s.email.strip()
+        })
+        skipped_no_email = len(students) - len(emails)
+        if not emails:
+            return Response(
+                {'error': 'No students in this class have an email address on file'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        teacher_name = getattr(routine.teacher, 'fullNameEnglish', None) or 'Your teacher'
+        dept_name = getattr(routine.department, 'name', '') or ''
+        details = [
+            {'label': 'Subject', 'value': f"{routine.subject_name} ({routine.subject_code})"},
+            {'label': 'Class', 'value': f"{dept_name} · Semester {routine.semester} · {routine.shift} shift"},
+            {'label': 'Teacher', 'value': teacher_name},
+        ]
+        if class_date:
+            details.append({'label': 'Date', 'value': class_date})
+
+        from apps.notifications.email_service import send_branded_email
+        # Send synchronously so we can report real delivery status; recipients
+        # go in BCC so students never see each other's addresses.
+        sent = send_branded_email(
+            subject,
+            [],
+            bcc=emails,
+            heading=subject,
+            greeting='Dear Student,',
+            intro=f"You have a message from {teacher_name} about your {routine.subject_name} class.",
+            body_lines=[line for line in message.splitlines() if line.strip()],
+            details=details,
+            accent_label='Class Announcement',
+            accent_color='#059669',
+            accent_soft='#ecfdf5',
+            closing='Please check your class routine for any schedule details.',
+            async_send=False,
+            attachments=attachments,
+        )
+
+        if not sent:
+            return Response(
+                {
+                    'success': False,
+                    'error': 'The email could not be sent. Please try again or contact the administrator.',
+                },
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return Response({
+            'success': True,
+            'recipients': len(emails),
+            'skipped_no_email': skipped_no_email,
+            'attachments': len(attachments),
+        })
+
     @action(detail=False, methods=['post'], url_path='bulk-update')
     def bulk_update(self, request):
         """

@@ -12,13 +12,13 @@ interface Props {
   error?: string;
 }
 
-/* ── math question generator (simple subtraction / addition) ── */
+/* â”€â”€ math question generator (simple subtraction / addition) â”€â”€ */
 function generateMath() {
   const useSubtract = Math.random() > 0.5;
   if (useSubtract) {
     const a = Math.floor(Math.random() * 30) + 15; // 15-44
     const b = Math.floor(Math.random() * 14) + 2;  // 2-15
-    return { question: `${a} − ${b} = ?`, answer: a - b };
+    return { question: `${a} âˆ’ ${b} = ?`, answer: a - b };
   } else {
     const a = Math.floor(Math.random() * 20) + 5;  // 5-24
     const b = Math.floor(Math.random() * 20) + 5;  // 5-24
@@ -26,7 +26,7 @@ function generateMath() {
   }
 }
 
-/* ── mini math popup ── */
+/* â”€â”€ mini math popup â”€â”€ */
 function MathPopup({
   onConfirm,
   onCancel,
@@ -78,7 +78,7 @@ function MathPopup({
 
           <div className="w-12 h-12 rounded-2xl mx-auto mb-3 flex items-center justify-center text-xl"
             style={{ background: 'linear-gradient(135deg,#3b6cf7,#2152e3)' }}>
-            🤖
+            ðŸ¤–
           </div>
           <h3 className="text-base font-bold text-gray-900">Quick Check</h3>
           <p className="text-xs text-gray-500 mt-0.5">Solve to verify you're human</p>
@@ -86,8 +86,8 @@ function MathPopup({
 
         <div className="px-6 pb-6 pt-4 space-y-4">
           {/* Math question box */}
-          <div className="rounded-2xl border-2 border-blue-100 bg-blue-50 py-3 px-4 text-center">
-            <span className="text-2xl font-bold text-blue-700 tracking-wide">{question}</span>
+          <div className="rounded-2xl border-2 border-emerald-100 bg-emerald-50 py-3 px-4 text-center">
+            <span className="text-2xl font-bold text-emerald-700 tracking-wide">{question}</span>
           </div>
 
           {/* Answer input */}
@@ -97,7 +97,7 @@ function MathPopup({
           >
             <Input
               type="number"
-              placeholder="Your answer…"
+              placeholder="Your answerâ€¦"
               autoFocus
               value={input}
               onChange={e => setInput(e.target.value)}
@@ -105,7 +105,7 @@ function MathPopup({
               className={cn(
                 'h-11 rounded-2xl border-2 text-center text-lg font-bold text-gray-900',
                 'placeholder:text-gray-300 bg-gray-50 focus:bg-white transition-colors',
-                shake ? 'border-red-400' : 'border-gray-200 focus:border-blue-400'
+                shake ? 'border-red-400' : 'border-gray-200 focus:border-emerald-400'
               )}
             />
           </motion.div>
@@ -122,12 +122,12 @@ function MathPopup({
   );
 }
 
-/* ── main form ── */
+/* â”€â”€ main form â”€â”€ */
 export function ForgotPasswordForm({ onSubmit, onBack, loading, error }: Props) {
   const [email, setEmail] = useState('');
   const [showMath, setShowMath] = useState(false);
 
-  /* intercept submit — show math first */
+  /* intercept submit â€” show math first */
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) { toast.error('Please enter your email address'); return; }
@@ -181,7 +181,7 @@ export function ForgotPasswordForm({ onSubmit, onBack, loading, error }: Props) 
               <Input
                 type="email"
                 placeholder="Enter your email address"
-                className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400"
+                className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-emerald-400 transition-colors text-gray-900 placeholder:text-gray-400"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 required

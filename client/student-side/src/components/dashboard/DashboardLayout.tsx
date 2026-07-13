@@ -84,7 +84,7 @@ export function DashboardLayout() {
 
   return (
     <BadgeProvider>
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-screen bg-graph-paper">
       <Sidebar />
 
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">

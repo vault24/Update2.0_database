@@ -252,6 +252,34 @@ export interface MyRoutineResponse {
   routines: ClassRoutine[];
 }
 
+export interface ClassStudent {
+  id: string;
+  name: string;
+  roll: string;
+  email: string | null;
+}
+
+export interface ClassStudentsResponse {
+  count: number;
+  with_email: number;
+  students: ClassStudent[];
+}
+
+export interface SendClassEmailPayload {
+  subject: string;
+  message: string;
+  classDate?: string;
+  attachments?: File[];
+}
+
+export interface SendClassEmailResponse {
+  success: boolean;
+  recipients: number;
+  skipped_no_email: number;
+  attachments: number;
+  error?: string;
+}
+
 // Service
 export const routineService = {
   /**
@@ -308,6 +336,35 @@ export const routineService = {
     const result = await apiClient.get<ClassRoutine>(`class-routines/${id}/`);
     routineCache.set(cacheKey, result);
     return result;
+  },
+
+  /**
+   * Students enrolled in a routine's class (teacher of the class only).
+   * Not cached — always reflects the current cohort.
+   */
+  getClassStudents: async (routineId: string): Promise<ClassStudentsResponse> => {
+    return apiClient.get<ClassStudentsResponse>(`class-routines/${routineId}/class-students/`);
+  },
+
+  /**
+   * Send a custom email (with optional attachments) to every student in the
+   * routine's class. Sent synchronously by the server so the response carries
+   * real delivery status.
+   */
+  sendClassEmail: async (
+    routineId: string,
+    payload: SendClassEmailPayload
+  ): Promise<SendClassEmailResponse> => {
+    const formData = new FormData();
+    formData.append('subject', payload.subject);
+    formData.append('message', payload.message);
+    if (payload.classDate) formData.append('class_date', payload.classDate);
+    (payload.attachments || []).forEach((file) => formData.append('attachments', file));
+    return apiClient.post<SendClassEmailResponse>(
+      `class-routines/${routineId}/send-class-email/`,
+      formData,
+      true
+    );
   },
 
   /**

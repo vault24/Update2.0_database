@@ -111,8 +111,8 @@ export function OTPVerificationForm({ email, onSubmit, onBack, onResend, loading
                 'w-11 h-12 text-center text-lg font-bold rounded-xl border-2 transition-all duration-200 text-gray-900',
                 'focus:outline-none bg-gray-50',
                 digit
-                  ? 'border-blue-500 bg-blue-50 text-blue-700'
-                  : 'border-gray-200 focus:border-blue-400 focus:bg-white'
+                  ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                  : 'border-gray-200 focus:border-emerald-400 focus:bg-white'
               )}
             />
           ))}
@@ -123,7 +123,7 @@ export function OTPVerificationForm({ email, onSubmit, onBack, onResend, loading
           {timeRemaining > 0 ? (
             <p className="text-sm text-gray-500">
               Code expires in{' '}
-              <span className="font-semibold text-blue-600">{formatTime(timeRemaining)}</span>
+              <span className="font-semibold text-emerald-600">{formatTime(timeRemaining)}</span>
             </p>
           ) : (
             <p className="text-sm text-red-500 font-medium">OTP expired. Please request a new one.</p>
@@ -133,7 +133,7 @@ export function OTPVerificationForm({ email, onSubmit, onBack, onResend, loading
             <button type="button" onClick={handleResend}
               disabled={!canResend || resendLoading}
               className={cn('text-xs font-semibold ml-1 flex items-center gap-1',
-                canResend ? 'text-blue-600 hover:underline' : 'text-gray-300 cursor-not-allowed')}>
+                canResend ? 'text-emerald-600 hover:underline' : 'text-gray-300 cursor-not-allowed')}>
               {resendLoading && <RefreshCw className="w-3 h-3 animate-spin" />}
               Resend
             </button>

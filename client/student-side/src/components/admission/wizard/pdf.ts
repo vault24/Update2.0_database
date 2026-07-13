@@ -1,4 +1,4 @@
-import jsPDF from 'jspdf';
+﻿import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { AdmissionFormState } from './types';
 import { toast } from 'sonner';
@@ -14,7 +14,7 @@ interface Department {
 }
 
 const INSTITUTE_NAME = 'SIRAJGANJ POLYTECHNIC INSTITUTE';
-const INSTITUTE_SUB = 'Directorate of Technical Education · Ministry of Education, Bangladesh';
+const INSTITUTE_SUB = 'Directorate of Technical Education Â· Ministry of Education, Bangladesh';
 
 // Brand palette (RGB) used across the PDF.
 const NAVY: [number, number, number] = [15, 42, 76];
@@ -29,7 +29,7 @@ const capitalize = (text: string): string => (text ? text.charAt(0).toUpperCase(
 const formatShift = (shift: string): string => (shift ? shift.replace(/(\d+)(st|nd|rd|th)/, '$1$2 Shift') : shift);
 const val = (v: unknown): string => {
   const s = (v ?? '').toString().trim();
-  return s.length ? s : '—';
+  return s.length ? s : 'â€”';
 };
 
 /**
@@ -131,15 +131,15 @@ const makeDeptResolver = (departments?: Department[]) => (deptId: string): strin
 };
 
 // ---------------------------------------------------------------------------
-// 1) DOWNLOAD — real, crisp vector PDF via jsPDF (downloads immediately).
+// Single source of truth: ONE jsPDF document builder used by BOTH the
+// Download and Print actions, so the two outputs can never drift apart.
 // ---------------------------------------------------------------------------
-export function downloadAdmissionPDF(
+function buildAdmissionDoc(
   formData: AdmissionFormState,
   applicationId: string,
   departments?: Department[]
-) {
-  try {
-    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+): jsPDF {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     const margin = 14;
@@ -173,7 +173,7 @@ export function downloadAdmissionPDF(
     doc.setFontSize(10);
     doc.text('Application ID', margin + 4, y + 5.5);
     doc.setFontSize(12);
-    doc.text(applicationId || '—', margin + 4, y + 11);
+    doc.text(applicationId || 'â€”', margin + 4, y + 11);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
     doc.setTextColor(90, 90, 90);
@@ -289,18 +289,31 @@ export function downloadAdmissionPDF(
       doc.setFontSize(7);
       doc.setTextColor(130, 130, 130);
       doc.text(
-        `${INSTITUTE_NAME} · Official Admission Document`,
+        `${INSTITUTE_NAME} Â· Official Admission Document`,
         margin,
         pageHeight - 8
       );
       doc.text(
-        `Generated ${new Date().toLocaleString('en-GB')}  ·  Page ${p} of ${pageCount}`,
+        `Generated ${new Date().toLocaleString('en-GB')}  Â·  Page ${p} of ${pageCount}`,
         pageWidth - margin,
         pageHeight - 8,
         { align: 'right' }
       );
     }
 
+    return doc;
+}
+
+// ---------------------------------------------------------------------------
+// 1) DOWNLOAD â€” saves the shared jsPDF document to the user's device.
+// ---------------------------------------------------------------------------
+export function downloadAdmissionPDF(
+  formData: AdmissionFormState,
+  applicationId: string,
+  departments?: Department[]
+) {
+  try {
+    const doc = buildAdmissionDoc(formData, applicationId, departments);
     doc.save(`Admission-Form-${applicationId || 'application'}.pdf`);
     toast.success('Admission form downloaded');
   } catch (err) {
@@ -310,140 +323,30 @@ export function downloadAdmissionPDF(
 }
 
 // ---------------------------------------------------------------------------
-// 2) PRINT — redesigned, print-optimized HTML opened directly in a print dialog.
+// 2) PRINT â€” opens the EXACT same jsPDF document and triggers the print
+//    dialog, so the printed form is pixel-identical to the downloaded one.
 // ---------------------------------------------------------------------------
 export function printAdmissionForm(
   formData: AdmissionFormState,
   applicationId: string,
   departments?: Department[]
 ) {
-  const getDepartmentName = makeDeptResolver(departments);
-  const sections = buildSections(formData, getDepartmentName);
-
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) {
-    toast.error('Please allow popups to print the application');
-    return;
+  try {
+    const doc = buildAdmissionDoc(formData, applicationId, departments);
+    doc.autoPrint();
+    const blobUrl = doc.output('bloburl');
+    const printWindow = window.open(blobUrl, '_blank');
+    if (!printWindow) {
+      toast.error('Please allow popups to print the application');
+      return;
+    }
+    toast.success('Opening print dialogâ€¦');
+  } catch (err) {
+    console.error('Failed to generate admission PDF for printing:', err);
+    toast.error('Could not open the print view. Please try again.');
   }
-
-  const renderFields = (fields: Field[]) =>
-    fields
-      .map(
-        (f) => `
-        <div class="field${f.full ? ' full' : ''}">
-          <div class="label">${f.label}</div>
-          <div class="value">${f.value}</div>
-        </div>`
-      )
-      .join('');
-
-  const renderSections = sections
-    .map(
-      (s) => `
-      <section class="section">
-        <div class="section-title">${s.title}</div>
-        <div class="grid">${renderFields(s.fields)}</div>
-      </section>`
-    )
-    .join('');
-
-  const html = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>Admission Form - ${applicationId}</title>
-  <style>
-    :root { --navy:#0f2a4c; --accent:#b4821e; --label:#f0f3f8; --border:#d6dde8; --muted:#5a5a5a; }
-    * { box-sizing: border-box; }
-    body { font-family: 'Segoe UI', Arial, sans-serif; color:#1a1a1a; margin:0; background:#fff; }
-    .page { max-width: 820px; margin: 0 auto; padding: 24px; }
-    .header { background: var(--navy); color:#fff; border-radius:10px; padding:18px 20px; display:flex; align-items:center; gap:16px; border-bottom:3px solid var(--accent); }
-    .header img { width:64px; height:64px; object-fit:contain; background:#fff; border-radius:8px; padding:4px; }
-    .header .titles { flex:1; text-align:center; }
-    .header h1 { margin:0; font-size:20px; letter-spacing:.5px; }
-    .header .sub { margin:3px 0 0; font-size:10px; opacity:.85; }
-    .header .form-name { margin-top:6px; font-size:12px; font-weight:700; color:#ffe096; letter-spacing:1px; }
-    .meta { display:flex; justify-content:space-between; align-items:center; background:var(--label); border:1px solid var(--border); border-radius:8px; padding:12px 16px; margin:14px 0; }
-    .meta .id-label { font-size:11px; color:var(--muted); font-weight:600; text-transform:uppercase; }
-    .meta .id-value { font-size:18px; font-weight:800; color:var(--navy); font-family:'Courier New',monospace; }
-    .meta .right { text-align:right; font-size:12px; color:var(--muted); }
-    .meta .right div { margin:2px 0; }
-    .section { margin:14px 0; page-break-inside: avoid; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
-    .section-title { background:var(--navy); color:#fff; padding:8px 14px; font-weight:700; font-size:13px; }
-    .grid { display:grid; grid-template-columns:1fr 1fr; gap:0; }
-    .field { padding:8px 14px; border-top:1px solid var(--border); border-right:1px solid var(--border); }
-    .field:nth-child(2n) { border-right:none; }
-    .field.full { grid-column:1 / -1; border-right:none; }
-    .field .label { font-size:10px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.3px; margin-bottom:2px; }
-    .field .value { font-size:13px; color:#111; }
-    .declaration { margin-top:18px; border:1px solid var(--border); border-radius:8px; padding:14px 16px; background:#fafbfd; page-break-inside:avoid; }
-    .declaration h3 { margin:0 0 6px; font-size:12px; color:var(--navy); }
-    .declaration p { margin:0; font-size:11px; color:var(--muted); }
-    .signatures { display:flex; justify-content:space-between; margin-top:44px; page-break-inside:avoid; }
-    .sign { text-align:center; width:45%; }
-    .sign .line { border-top:1px solid #888; margin-bottom:5px; }
-    .sign span { font-size:11px; color:var(--muted); }
-    .footer { margin-top:22px; border-top:1px solid var(--border); padding-top:8px; display:flex; justify-content:space-between; font-size:9px; color:#999; }
-    @page { size: A4; margin: 12mm; }
-    @media print { .page { padding:0; max-width:none; } .no-print { display:none !important; } }
-    .toolbar { text-align:center; margin:20px 0; }
-    .toolbar button { padding:10px 22px; background:var(--navy); color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:14px; font-weight:600; }
-  </style>
-</head>
-<body>
-  <div class="page">
-    <div class="header">
-      <img src="/spi-logo.png" alt="SPI Logo" onerror="this.style.display='none'" />
-      <div class="titles">
-        <h1>${INSTITUTE_NAME}</h1>
-        <p class="sub">${INSTITUTE_SUB}</p>
-        <div class="form-name">ADMISSION APPLICATION FORM</div>
-      </div>
-    </div>
-
-    <div class="meta">
-      <div>
-        <div class="id-label">Application ID</div>
-        <div class="id-value">${applicationId || '—'}</div>
-      </div>
-      <div class="right">
-        <div>Session: <strong>${val(formData.session)}</strong></div>
-        <div>Submitted: ${new Date().toLocaleDateString('en-GB')}</div>
-      </div>
-    </div>
-
-    ${renderSections}
-
-    <div class="declaration">
-      <h3>Declaration</h3>
-      <p>I hereby declare that all the information provided above is true and correct to the best of my knowledge and belief.</p>
-    </div>
-
-    <div class="signatures">
-      <div class="sign"><div class="line">&nbsp;</div><span>Applicant's Signature</span></div>
-      <div class="sign"><div class="line">&nbsp;</div><span>Authorized Officer</span></div>
-    </div>
-
-    <div class="footer">
-      <span>${INSTITUTE_NAME} · Official Admission Document</span>
-      <span>Generated ${new Date().toLocaleString('en-GB')}</span>
-    </div>
-
-    <div class="toolbar no-print">
-      <button onclick="window.print()">Print this form</button>
-    </div>
-  </div>
-  <script>
-    window.onload = function () {
-      setTimeout(function () { window.focus(); window.print(); }, 300);
-    };
-  </script>
-</body>
-</html>`;
-
-  printWindow.document.write(html);
-  printWindow.document.close();
 }
+
 
 // Backwards-compatible alias (older callers used a single generator that printed).
 export const generateAdmissionPDF = printAdmissionForm;

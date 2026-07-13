@@ -22,9 +22,9 @@ export function TeacherWelcomeCard({ stats }: TeacherWelcomeCardProps) {
   };
 
   const quickStats = [
-    { icon: BookOpen, label: 'Classes', value: stats?.assignedClasses || 0, color: 'bg-violet-500/20 text-violet-300' },
-    { icon: Users, label: 'Students', value: stats?.totalStudents || 0, color: 'bg-emerald-500/20 text-emerald-300' },
-    { icon: GraduationCap, label: 'Departments', value: stats?.departments || 0, color: 'bg-amber-500/20 text-amber-300' },
+    { icon: BookOpen, label: 'Classes', value: stats?.assignedClasses || 0, color: 'bg-white/20 text-white' },
+    { icon: Users, label: 'Students', value: stats?.totalStudents || 0, color: 'bg-teal-400/25 text-teal-100' },
+    { icon: GraduationCap, label: 'Departments', value: stats?.departments || 0, color: 'bg-amber-400/25 text-amber-200' },
   ];
 
   return (
@@ -32,12 +32,12 @@ export function TeacherWelcomeCard({ stats }: TeacherWelcomeCardProps) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="relative overflow-hidden rounded-2xl lg:rounded-3xl bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 p-4 md:p-6 lg:p-8 text-white"
+      className="relative overflow-hidden rounded-2xl lg:rounded-3xl bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-500 p-4 md:p-6 lg:p-8 text-white"
     >
       {/* Decorative elements */}
       <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
-      <div className="absolute bottom-0 left-0 w-48 h-48 bg-pink-400/20 rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
-      <div className="absolute top-1/2 right-1/4 w-32 h-32 bg-indigo-400/20 rounded-full blur-2xl" />
+      <div className="absolute bottom-0 left-0 w-48 h-48 bg-teal-300/20 rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
+      <div className="absolute top-1/2 right-1/4 w-32 h-32 bg-emerald-300/20 rounded-full blur-2xl" />
 
       <div className="relative z-10">
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 md:gap-6">

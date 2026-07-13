@@ -83,14 +83,14 @@ function PasswordResetPage() {
 
   return (
     <>
-      {/* ══════════ MOBILE (< lg) ══════════ */}
-      <div className="lg:hidden min-h-screen flex flex-col" style={{ background: '#eaf0fb' }}>
+      {/* â•â•â•â•â•â•â•â•â•â• MOBILE (< lg) â•â•â•â•â•â•â•â•â•â• */}
+      <div className="lg:hidden min-h-screen flex flex-col" style={{ background: '#e7f6ef' }}>
 
         {/* decorative blobs */}
         <div className="fixed top-0 right-0 w-72 h-72 rounded-full pointer-events-none -z-0"
-          style={{ background: 'radial-gradient(circle,#c7d9f8 0%,transparent 70%)', opacity: 0.5 }} />
+          style={{ background: 'radial-gradient(circle,#bfe8d4 0%,transparent 70%)', opacity: 0.5 }} />
         <div className="fixed bottom-0 left-0 w-56 h-56 rounded-full pointer-events-none -z-0"
-          style={{ background: 'radial-gradient(circle,#bcd3f7 0%,transparent 70%)', opacity: 0.4 }} />
+          style={{ background: 'radial-gradient(circle,#b2e3cb 0%,transparent 70%)', opacity: 0.4 }} />
 
         <div className="flex-1 flex flex-col items-center justify-start px-5 pt-10 pb-8 relative z-10">
           {/* Logo */}
@@ -112,11 +112,11 @@ function PasswordResetPage() {
             onEmailSubmit={handleEmailSubmit} onOTPSubmit={handleOTPSubmit}
             onPasswordSubmit={handlePasswordSubmit} onResend={handleResendOTP} onBack={handleBack} />
 
-          <p className="mt-6 text-xs text-gray-400">© 2024 Student Portal. All rights reserved.</p>
+          <p className="mt-6 text-xs text-gray-400">Â© 2024 Student Portal. All rights reserved.</p>
         </div>
       </div>
 
-      {/* ══════════ DESKTOP (lg+) ══════════ */}
+      {/* â•â•â•â•â•â•â•â•â•â• DESKTOP (lg+) â•â•â•â•â•â•â•â•â•â• */}
       <div className="hidden lg:flex min-h-screen relative flex-col items-center justify-center overflow-hidden">
 
         {/* Same campus photo background as login page */}
@@ -124,7 +124,7 @@ function PasswordResetPage() {
           <img src="/cover-image.jpg" alt="Campus"
             className="w-full h-full object-cover" />
           <div className="absolute inset-0"
-            style={{ background: 'linear-gradient(160deg,rgba(30,58,138,0.55) 0%,rgba(37,99,235,0.4) 45%,rgba(13,33,84,0.6) 100%)' }} />
+            style={{ background: 'linear-gradient(160deg,rgba(6,78,59,0.55) 0%,rgba(5,150,105,0.4) 45%,rgba(4,47,36,0.6) 100%)' }} />
         </div>
 
         {/* Dot decorations */}
@@ -145,7 +145,7 @@ function PasswordResetPage() {
           </div>
           <div>
             <p className="text-white font-bold text-base leading-tight">Student Portal</p>
-            <p className="text-blue-100/80 text-xs leading-tight">Learn. Grow. Achieve.</p>
+            <p className="text-emerald-100/80 text-xs leading-tight">Learn. Grow. Achieve.</p>
           </div>
         </div>
 
@@ -158,19 +158,19 @@ function PasswordResetPage() {
         {/* Bottom-left quote */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}
           className="absolute bottom-7 left-7 z-20 hidden xl:flex items-start gap-3 bg-white/12 backdrop-blur-md border border-white/20 rounded-2xl px-4 py-3.5 max-w-[270px]">
-          <div className="flex-shrink-0 w-9 h-9 rounded-full bg-blue-500/80 flex items-center justify-center">
+          <div className="flex-shrink-0 w-9 h-9 rounded-full bg-emerald-500/80 flex items-center justify-center">
             <Lightbulb className="w-4 h-4 text-amber-300" />
           </div>
           <div>
             <p className="text-white text-sm font-medium leading-snug">Education is the most powerful weapon.</p>
-            <p className="text-blue-100/70 text-xs mt-1">— Nelson Mandela</p>
+            <p className="text-emerald-100/70 text-xs mt-1">â€” Nelson Mandela</p>
           </div>
         </motion.div>
 
         {/* Bottom-right badge */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }}
           className="absolute bottom-7 right-7 z-20 hidden xl:flex items-center gap-3 bg-white/12 backdrop-blur-md border border-white/20 rounded-2xl px-4 py-3.5">
-          <div className="flex-shrink-0 w-9 h-9 rounded-full bg-blue-500/80 flex items-center justify-center">
+          <div className="flex-shrink-0 w-9 h-9 rounded-full bg-emerald-500/80 flex items-center justify-center">
             <BookOpen className="w-4 h-4 text-white" />
           </div>
           <div>
@@ -180,7 +180,7 @@ function PasswordResetPage() {
           <TrendingUp className="w-5 h-5 text-amber-300 ml-1" />
         </motion.div>
 
-        {/* Frosted glass card — same style as login */}
+        {/* Frosted glass card â€” same style as login */}
         <motion.div initial={{ opacity: 0, y: 24, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.55, ease: 'easeOut' }}
           className="relative z-10 w-full max-w-[440px] mx-6 rounded-[28px] overflow-hidden"
@@ -188,7 +188,7 @@ function PasswordResetPage() {
             background: 'rgba(255,255,255,0.92)',
             backdropFilter: 'blur(20px)',
             WebkitBackdropFilter: 'blur(20px)',
-            boxShadow: '0 24px 70px rgba(10,22,60,0.35)',
+            boxShadow: '0 24px 70px rgba(6,45,34,0.35)',
           }}>
           <div className="max-h-[85vh] overflow-y-auto p-8">
 
@@ -203,7 +203,7 @@ function PasswordResetPage() {
         </motion.div>
 
         <p className="absolute bottom-2 left-1/2 -translate-x-1/2 text-white/40 text-xs z-20">
-          © 2024 Student Portal. All rights reserved.
+          Â© 2024 Student Portal. All rights reserved.
         </p>
       </div>
     </>
@@ -216,13 +216,13 @@ function ProgressBar({ stepIndex, stepLabels }: { stepIndex: number; stepLabels:
       <div className="flex justify-between mb-2">
         {stepLabels.map((label, i) => (
           <span key={label}
-            className={`text-xs font-semibold transition-colors ${i <= stepIndex ? 'text-blue-600' : 'text-gray-400'}`}>
+            className={`text-xs font-semibold transition-colors ${i <= stepIndex ? 'text-emerald-600' : 'text-gray-400'}`}>
             {label}
           </span>
         ))}
       </div>
-      <div className="h-1.5 bg-blue-100 rounded-full overflow-hidden">
-        <motion.div className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"
+      <div className="h-1.5 bg-emerald-100 rounded-full overflow-hidden">
+        <motion.div className="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-full"
           initial={{ width: '0%' }}
           animate={{ width: `${(stepIndex / 2) * 100}%` }}
           transition={{ duration: 0.4 }} />
@@ -279,12 +279,12 @@ function SuccessView() {
       <div>
         <h2 className="text-xl font-bold text-gray-900 mb-1">Password Reset!</h2>
         <p className="text-sm text-gray-500 leading-relaxed">
-          Your password has been updated successfully.<br />Redirecting to login…
+          Your password has been updated successfully.<br />Redirecting to loginâ€¦
         </p>
       </div>
       <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden mt-2">
         <motion.div className="h-full rounded-full"
-          style={{ background: 'linear-gradient(90deg,#3b6cf7,#22c55e)' }}
+          style={{ background: 'linear-gradient(90deg,#10b981,#22c55e)' }}
           initial={{ width: '0%' }} animate={{ width: '100%' }}
           transition={{ duration: 3, ease: 'linear' }} />
       </div>

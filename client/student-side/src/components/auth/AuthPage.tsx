@@ -54,7 +54,7 @@ const isStudentFamily = (role: UserRole) => role === 'student' || role === 'capt
 const splideSlides = [
   {
     title: 'Everything at Your Fingertips',
-    desc: 'Stay updated with class schedules, assignments, announcements, and important notifications—all in one place.',
+    desc: 'Stay updated with class schedules, assignments, announcements, and important notificationsâ€”all in one place.',
     image: '/student-illustration.png',
     bg: '#ffffff',
   },
@@ -68,14 +68,14 @@ const splideSlides = [
     title: 'Your Journey Starts Here',
     desc: 'Build your skills, achieve your goals, and move confidently toward a successful academic future.',
     image: '/student-illustration3.png',
-    bg: '#f9fafe',
+    bg: '#f7fdfa',
   },
 ];
 
 /** Background images for the desktop login page slider */
 const bgImages = ['/cover-image.jpg', '/cover-image1.jpg'];
 
-/* ─── Desktop background slider ────────────────────────────────── */
+/* â”€â”€â”€ Desktop background slider â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function BackgroundSlider() {
   const [current, setCurrent] = useState(0);
 
@@ -101,13 +101,13 @@ function BackgroundSlider() {
         />
       </AnimatePresence>
 
-      {/* Blue tint overlay — reduced opacity so campus photos show through more */}
+      {/* Blue tint overlay â€” reduced opacity so campus photos show through more */}
       <div
         className="absolute inset-0"
-        style={{ background: 'linear-gradient(160deg, rgba(30,58,138,0.45) 0%, rgba(37,99,235,0.3) 45%, rgba(13,33,84,0.4) 100%)' }}
+        style={{ background: 'linear-gradient(160deg, rgba(6,78,59,0.45) 0%, rgba(5,150,105,0.3) 45%, rgba(4,47,36,0.4) 100%)' }}
       />
 
-      {/* Slide indicator dots — bottom-center */}
+      {/* Slide indicator dots â€” bottom-center */}
       <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2">
         {bgImages.map((_, i) => (
           <button
@@ -126,7 +126,7 @@ function BackgroundSlider() {
   );
 }
 
-/* ─── Google SVG ─────────────────────────────────────────────────── */
+/* â”€â”€â”€ Google SVG â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function GoogleIcon() {
   return (
     <svg viewBox="0 0 24 24" className="w-5 h-5" xmlns="http://www.w3.org/2000/svg">
@@ -138,7 +138,7 @@ function GoogleIcon() {
   );
 }
 
-/* ─── Microsoft SVG ──────────────────────────────────────────────── */
+/* â”€â”€â”€ Microsoft SVG â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function MicrosoftIcon() {
   return (
     <svg viewBox="0 0 24 24" className="w-5 h-5" xmlns="http://www.w3.org/2000/svg">
@@ -150,7 +150,7 @@ function MicrosoftIcon() {
   );
 }
 
-/* ─── SPI Logo header (mobile login/signup header) ─────────────── */
+/* â”€â”€â”€ SPI Logo header (mobile login/signup header) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function HexCapLogo() {
   return (
     <div className="flex flex-col items-center mb-4 gap-2">
@@ -165,9 +165,9 @@ function HexCapLogo() {
   );
 }
 
-/* ════════════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    MOBILE SPLASH SCREEN
-   ════════════════════════════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 function MobileSplash({ onStart, onLogin }: { onStart: () => void; onLogin: () => void }) {
   const [slide, setSlide] = useState(0);
 
@@ -183,7 +183,7 @@ function MobileSplash({ onStart, onLogin }: { onStart: () => void; onLogin: () =
       transition={{ duration: 0.35, ease: 'easeOut' }}
     >
 
-      {/* ── Top illustration area — fixed-size stage so it never resizes/jumps between slides ── */}
+      {/* â”€â”€ Top illustration area â€” fixed-size stage so it never resizes/jumps between slides â”€â”€ */}
       <div className="flex-[0.7] relative flex flex-col items-center justify-center px-6 pt-6 pb-3 overflow-hidden">
         <div
           className="relative flex items-center justify-center"
@@ -213,7 +213,7 @@ function MobileSplash({ onStart, onLogin }: { onStart: () => void; onLogin: () =
         </div>
       </div>
 
-      {/* ── Bottom content area ── */}
+      {/* â”€â”€ Bottom content area â”€â”€ */}
       <motion.div
         className="px-8 pt-1 pb-8 flex flex-col items-center"
         animate={{ backgroundColor: splideSlides[slide].bg }}
@@ -247,7 +247,7 @@ function MobileSplash({ onStart, onLogin }: { onStart: () => void; onLogin: () =
               onClick={() => setSlide(i)}
               className={cn(
                 'transition-all duration-300 rounded-full',
-                i === slide ? 'w-6 h-2.5 bg-blue-600' : 'w-2.5 h-2.5 bg-blue-100'
+                i === slide ? 'w-6 h-2.5 bg-emerald-600' : 'w-2.5 h-2.5 bg-emerald-100'
               )}
             />
           ))}
@@ -260,9 +260,9 @@ function MobileSplash({ onStart, onLogin }: { onStart: () => void; onLogin: () =
           onClick={onStart}
           className="w-full rounded-2xl text-white font-semibold text-base mb-4"
           style={{
-            background: 'linear-gradient(135deg,#3b6cf7,#2152e3)',
+            background: 'linear-gradient(135deg,#10b981,#059669)',
             height: '52px',
-            boxShadow: '0 6px 24px rgba(59,108,247,0.35)',
+            boxShadow: '0 6px 24px rgba(16,185,129,0.35)',
           }}
         >
           Get Started
@@ -273,7 +273,7 @@ function MobileSplash({ onStart, onLogin }: { onStart: () => void; onLogin: () =
           Already have an account?{' '}
           <button
             onClick={onLogin}
-            className="text-blue-600 font-semibold hover:underline"
+            className="text-emerald-600 font-semibold hover:underline"
           >
             Login
           </button>
@@ -283,9 +283,9 @@ function MobileSplash({ onStart, onLogin }: { onStart: () => void; onLogin: () =
   );
 }
 
-/* ════════════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    MOBILE AUTH FORM  (login + signup)
-   ════════════════════════════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 function MobileAuthForm({
   mode, setMode, onBack,
   formData, setFormData,
@@ -310,22 +310,22 @@ function MobileAuthForm({
   onGoogleSignIn: () => void; googleLoading: boolean; googleVerified: boolean;
 }) {
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#f7f9fd' }}>
+    <div className="min-h-screen flex flex-col" style={{ background: '#f6faf8' }}>
 
-      {/* ── Header card: dot-grid texture + logo, gives the screen a "student ID card" identity ── */}
+      {/* â”€â”€ Header card: dot-grid texture + logo, gives the screen a "student ID card" identity â”€â”€ */}
       <div className="relative overflow-hidden pt-10 pb-7 px-6"
-        style={{ background: 'linear-gradient(160deg,#eef3fc 0%,#f7f9fd 100%)' }}>
+        style={{ background: 'linear-gradient(160deg,#eafaf2 0%,#f6faf8 100%)' }}>
 
         {/* Dot-grid texture */}
         <div className="absolute inset-0 pointer-events-none opacity-[0.5]"
           style={{
-            backgroundImage: 'radial-gradient(circle, #c7d7f5 1px, transparent 1px)',
+            backgroundImage: 'radial-gradient(circle, #bfe8d4 1px, transparent 1px)',
             backgroundSize: '16px 16px',
             maskImage: 'linear-gradient(to bottom, black 0%, transparent 90%)',
             WebkitMaskImage: 'linear-gradient(to bottom, black 0%, transparent 90%)',
           }} />
 
-        {/* Amber accent blob — small, top-right, echoes the splash screen's "Keep Learning" star */}
+        {/* Amber accent blob â€” small, top-right, echoes the splash screen's "Keep Learning" star */}
         <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full pointer-events-none"
           style={{ background: 'radial-gradient(circle, rgba(245,158,11,0.16) 0%, transparent 70%)' }} />
 
@@ -342,13 +342,13 @@ function MobileAuthForm({
 
       <div className="flex-1 overflow-y-auto px-6 pt-6 pb-8 relative z-10 rounded-t-[28px] -mt-3 bg-white shadow-[0_-4px_24px_rgba(15,23,42,0.04)]">
 
-        {/* Tab bar — connected pill track */}
+        {/* Tab bar â€” connected pill track */}
         <div className="flex mb-6 bg-gray-100 rounded-2xl p-1 relative">
           {(['login', 'signup'] as const).map((tab) => (
             <button key={tab} onClick={() => setMode(tab)}
               className={cn(
                 'flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 relative z-10',
-                mode === tab ? 'text-blue-600' : 'text-gray-400'
+                mode === tab ? 'text-emerald-600' : 'text-gray-400'
               )}>
               {tab === 'login' ? 'Login' : 'Sign Up'}
             </button>
@@ -386,7 +386,7 @@ function MobileAuthForm({
 
             <form onSubmit={handleSubmit} className="space-y-3.5">
 
-              {/* ── SIGNUP FIELDS ── */}
+              {/* â”€â”€ SIGNUP FIELDS â”€â”€ */}
               {mode === 'signup' && (
                 <>
                   <Label className="text-xs font-semibold text-gray-500 -mb-1 block">I am a...</Label>
@@ -429,14 +429,14 @@ function MobileAuthForm({
                   {/* Full Name */}
                   <div className="relative">
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <Input placeholder="Full Name" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400"
+                    <Input placeholder="Full Name" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-emerald-400 transition-colors text-gray-900 placeholder:text-gray-400"
                       value={formData.fullName} onChange={(e) => setFormData({ ...formData, fullName: e.target.value })} required />
                   </div>
 
                   {/* Mobile */}
                   <div className="relative">
                     <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <Input type="tel" placeholder="Mobile Number" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400"
+                    <Input type="tel" placeholder="Mobile Number" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-emerald-400 transition-colors text-gray-900 placeholder:text-gray-400"
                       value={formData.mobile} onChange={(e) => setFormData({ ...formData, mobile: e.target.value })} required />
                   </div>
 
@@ -444,7 +444,7 @@ function MobileAuthForm({
                   {(selectedRole === 'student' || selectedRole === 'captain') && (
                     <div className="relative">
                       <GraduationCap className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <Input placeholder="SSC Board Roll" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400"
+                      <Input placeholder="SSC Board Roll" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-emerald-400 transition-colors text-gray-900 placeholder:text-gray-400"
                         value={formData.sscBoardRoll} onChange={(e) => setFormData({ ...formData, sscBoardRoll: e.target.value })} required />
                     </div>
                   )}
@@ -455,7 +455,7 @@ function MobileAuthForm({
                       <div className="relative">
                         <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
                         <Select value={formData.department} onValueChange={(v) => setFormData({ ...formData, department: v })}>
-                          <SelectTrigger className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400">
+                          <SelectTrigger className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-emerald-400 transition-colors text-gray-900 placeholder:text-gray-400">
                             <SelectValue placeholder="Select your department" />
                           </SelectTrigger>
                           <SelectContent>
@@ -466,7 +466,7 @@ function MobileAuthForm({
                       <div className="relative">
                         <BarChart3 className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
                         <Select value={formData.shift} onValueChange={(v) => setFormData({ ...formData, shift: v })}>
-                          <SelectTrigger className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400">
+                          <SelectTrigger className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-emerald-400 transition-colors text-gray-900 placeholder:text-gray-400">
                             <SelectValue placeholder="Select your shift" />
                           </SelectTrigger>
                           <SelectContent>
@@ -481,11 +481,11 @@ function MobileAuthForm({
                     </>
                   )}
 
-                  {/* Email — locked & pre-filled when verified via Google */}
+                  {/* Email â€” locked & pre-filled when verified via Google */}
                   <div className="relative">
                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <Input type="email" placeholder="Email Address"
-                      className={cn('pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400',
+                      className={cn('pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-emerald-400 transition-colors text-gray-900 placeholder:text-gray-400',
                         googleVerified && 'pr-11 bg-emerald-50/60 border-emerald-200 text-gray-600')}
                       value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       required readOnly={googleVerified} />
@@ -494,7 +494,7 @@ function MobileAuthForm({
                     )}
                   </div>
                   {googleVerified && (
-                    <p className="text-[11px] text-emerald-600 -mt-1.5 px-1">Email verified with Google — no code needed. Just finish the rest below.</p>
+                    <p className="text-[11px] text-emerald-600 -mt-1.5 px-1">Email verified with Google â€” no code needed. Just finish the rest below.</p>
                   )}
 
                   {/* Teacher fields */}
@@ -502,18 +502,18 @@ function MobileAuthForm({
                     <>
                       <div className="relative">
                         <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <Input placeholder="Full Name (Bangla)" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400"
+                        <Input placeholder="Full Name (Bangla)" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-emerald-400 transition-colors text-gray-900 placeholder:text-gray-400"
                           value={formData.fullNameBangla} onChange={(e) => setFormData({ ...formData, fullNameBangla: e.target.value })} required />
                       </div>
                       <div className="relative">
                         <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <Input placeholder="Designation" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400"
+                        <Input placeholder="Designation" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-emerald-400 transition-colors text-gray-900 placeholder:text-gray-400"
                           value={formData.designation} onChange={(e) => setFormData({ ...formData, designation: e.target.value })} required />
                       </div>
                       <div className="relative">
                         <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
                         <Select value={formData.department} onValueChange={(v) => setFormData({ ...formData, department: v })}>
-                          <SelectTrigger className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400">
+                          <SelectTrigger className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-emerald-400 transition-colors text-gray-900 placeholder:text-gray-400">
                             <SelectValue placeholder="Select department (optional)" />
                           </SelectTrigger>
                           <SelectContent>
@@ -525,7 +525,7 @@ function MobileAuthForm({
                       <div className="flex gap-2">
                         <div className="relative flex-1">
                           <Award className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <Input placeholder="Qualification (press Enter)" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400"
+                          <Input placeholder="Qualification (press Enter)" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-emerald-400 transition-colors text-gray-900 placeholder:text-gray-400"
                             value={qualificationInput} onChange={(e) => setQualificationInput(e.target.value)}
                             onKeyDown={(e) => { if (e.key === 'Enter' && qualificationInput.trim()) { e.preventDefault(); setFormData({ ...formData, qualifications: [...formData.qualifications, qualificationInput.trim()] }); setQualificationInput(''); }}} />
                         </div>
@@ -535,15 +535,15 @@ function MobileAuthForm({
                       {formData.qualifications.length > 0 && (
                         <div className="flex flex-wrap gap-1.5">
                           {formData.qualifications.map((q: string, i: number) => (
-                            <span key={i} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-600 rounded-md text-xs">
-                              {q}<button type="button" onClick={() => setFormData({ ...formData, qualifications: formData.qualifications.filter((_: string, idx: number) => idx !== i) })} className="hover:text-red-500">×</button>
+                            <span key={i} className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-600 rounded-md text-xs">
+                              {q}<button type="button" onClick={() => setFormData({ ...formData, qualifications: formData.qualifications.filter((_: string, idx: number) => idx !== i) })} className="hover:text-red-500">Ã—</button>
                             </span>
                           ))}
                         </div>
                       )}
                       <div className="relative">
                         <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <Input placeholder="Office Location" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400"
+                        <Input placeholder="Office Location" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-emerald-400 transition-colors text-gray-900 placeholder:text-gray-400"
                           value={formData.officeLocation} onChange={(e) => setFormData({ ...formData, officeLocation: e.target.value })} />
                       </div>
                     </>
@@ -551,11 +551,11 @@ function MobileAuthForm({
                 </>
               )}
 
-              {/* ── LOGIN FIELDS ── */}
+              {/* â”€â”€ LOGIN FIELDS â”€â”€ */}
               {mode === 'login' && (
                 <div className="relative">
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <Input placeholder="Email Address" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400"
+                  <Input placeholder="Email Address" className="pl-11 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-emerald-400 transition-colors text-gray-900 placeholder:text-gray-400"
                     value={formData.studentId} onChange={(e) => setFormData({ ...formData, studentId: e.target.value })} required />
                 </div>
               )}
@@ -564,7 +564,7 @@ function MobileAuthForm({
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <Input type={showPassword ? 'text' : 'password'} placeholder="Password"
-                  className="pl-11 pr-12 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-blue-400 transition-colors text-gray-900 placeholder:text-gray-400"
+                  className="pl-11 pr-12 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white focus:border-emerald-400 transition-colors text-gray-900 placeholder:text-gray-400"
                   value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required />
                 <button type="button" onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -577,26 +577,26 @@ function MobileAuthForm({
                 <div className="flex items-center justify-between">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <Checkbox id="mob-remember" checked={rememberMe} onCheckedChange={(v) => setRememberMe(v as boolean)}
-                      className="rounded data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600" />
+                      className="rounded data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600" />
                     <span className="text-xs text-gray-500">Remember me</span>
                   </label>
                   <button type="button" onClick={() => navigate('/password-reset')}
-                    className="text-xs font-semibold text-blue-600">Forgot Password?</button>
+                    className="text-xs font-semibold text-emerald-600">Forgot Password?</button>
                 </div>
               )}
 
               {/* Submit */}
               <motion.div whileTap={{ scale: 0.97 }}>
                 <Button type="submit" disabled={isLoading}
-                  className="w-full rounded-2xl font-semibold text-base shadow-lg shadow-blue-500/25 gap-2"
-                  style={{ background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', height: '52px' }}>
+                  className="w-full rounded-2xl font-semibold text-base shadow-lg shadow-emerald-500/25 gap-2"
+                  style={{ background: 'linear-gradient(135deg,#059669,#047857)', height: '52px' }}>
                   {isLoading
                     ? <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-5 h-5 border-2 border-white border-t-transparent rounded-full" />
                     : <><Lock className="w-4 h-4" />{mode === 'login' ? 'Login' : 'Create Account'}</>}
                 </Button>
               </motion.div>
 
-              {/* Social — available on both login & signup; hidden once a Google
+              {/* Social â€” available on both login & signup; hidden once a Google
                   signup is already in progress. */}
               {!googleVerified && (
                 <>
@@ -609,7 +609,7 @@ function MobileAuthForm({
                     <button type="button" onClick={onGoogleSignIn} disabled={googleLoading}
                       className="h-12 rounded-2xl border border-gray-200 bg-white flex items-center justify-center gap-2 shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-60">
                       {googleLoading
-                        ? <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-5 h-5 border-2 border-gray-300 border-t-blue-500 rounded-full" />
+                        ? <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-5 h-5 border-2 border-gray-300 border-t-emerald-500 rounded-full" />
                         : <GoogleIcon />}
                     </button>
                     <button type="button"
@@ -623,8 +623,8 @@ function MobileAuthForm({
               {/* Switch mode */}
               <p className="text-center text-sm text-gray-500 pt-1">
                 {mode === 'login'
-                  ? <> Don't have an account?{' '}<button type="button" onClick={() => setMode('signup')} className="text-blue-600 font-semibold">Sign Up</button></>
-                  : <> Already have an account?{' '}<button type="button" onClick={() => setMode('login')} className="text-blue-600 font-semibold">Login</button></>}
+                  ? <> Don't have an account?{' '}<button type="button" onClick={() => setMode('signup')} className="text-emerald-600 font-semibold">Sign Up</button></>
+                  : <> Already have an account?{' '}<button type="button" onClick={() => setMode('login')} className="text-emerald-600 font-semibold">Login</button></>}
               </p>
             </form>
           </motion.div>
@@ -634,9 +634,9 @@ function MobileAuthForm({
   );
 }
 
-/* ════════════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    MAIN EXPORT
-   ════════════════════════════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 export function AuthPage() {
   const [mode, setMode] = useState<AuthMode>('login');
   const [mobileView, setMobileView] = useState<MobileView>('splash');
@@ -754,7 +754,7 @@ export function AuthPage() {
       setMode('login');
       setMobileView('form');
     } else if (data?.role === 'captain') {
-      toast.success('Account created! Your captain request was sent to your Department Head — you can use the portal as a student until it is approved.');
+      toast.success('Account created! Your captain request was sent to your Department Head â€” you can use the portal as a student until it is approved.');
       navigate('/dashboard');
     } else {
       toast.success('Account created successfully!');
@@ -797,7 +797,7 @@ export function AuthPage() {
         return;
       }
 
-      // New email — hand off to the signup form. The email is verified by
+      // New email â€” hand off to the signup form. The email is verified by
       // Google, so it is locked and the OTP step is skipped on submit.
       setGoogleToken(token);
       setSelectedRole('student');
@@ -809,7 +809,7 @@ export function AuthPage() {
       }));
       setMode('signup');
       setMobileView('form');
-      toast.info('Almost there — please complete your details to finish signing up.');
+      toast.info('Almost there â€” please complete your details to finish signing up.');
     } catch (err: any) {
       if (err instanceof GoogleSignInCancelled) return; // user closed the popup
       toast.error(firstValidationError(err));
@@ -841,7 +841,7 @@ export function AuthPage() {
 
   return (
     <>
-      {/* ══════════ SIGN-UP EMAIL VERIFICATION (OTP) — overlay ══════════ */}
+      {/* â•â•â•â•â•â•â•â•â•â• SIGN-UP EMAIL VERIFICATION (OTP) â€” overlay â•â•â•â•â•â•â•â•â•â• */}
       <AnimatePresence>
         {showOtpStep && (
           <motion.div
@@ -870,7 +870,7 @@ export function AuthPage() {
         )}
       </AnimatePresence>
 
-      {/* ══════════ MOBILE  (< lg) ══════════ */}
+      {/* â•â•â•â•â•â•â•â•â•â• MOBILE  (< lg) â•â•â•â•â•â•â•â•â•â• */}
       <div className="lg:hidden">
         <AnimatePresence mode="wait">
           {mobileView === 'splash' ? (
@@ -892,13 +892,13 @@ export function AuthPage() {
         </AnimatePresence>
       </div>
 
-      {/* ══════════ DESKTOP (lg+) ══════════ */}
+      {/* â•â•â•â•â•â•â•â•â•â• DESKTOP (lg+) â•â•â•â•â•â•â•â•â•â• */}
       <div className="hidden lg:flex min-h-screen relative flex-col items-center justify-center overflow-hidden">
 
-        {/* Background slider — cycles through campus photos */}
+        {/* Background slider â€” cycles through campus photos */}
         <BackgroundSlider />
 
-        {/* Floating dot/shape decorations — faint, don't compete with the photo */}
+        {/* Floating dot/shape decorations â€” faint, don't compete with the photo */}
         <div className="absolute inset-0 z-[1] pointer-events-none overflow-hidden">
           <div className="absolute top-[8%] left-[12%] w-2 h-2 rounded-full bg-white/40" />
           <div className="absolute top-[20%] right-[18%] w-2.5 h-2.5 rounded-full bg-white/30" />
@@ -909,18 +909,18 @@ export function AuthPage() {
           <div className="absolute top-[18%] right-1/3 w-5 h-5 rounded-full border border-amber-300/40" />
         </div>
 
-        {/* ── Top-left: brand wordmark ── */}
+        {/* â”€â”€ Top-left: brand wordmark â”€â”€ */}
         <div className="absolute top-6 left-6 z-20 flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl overflow-hidden bg-white shadow-lg border border-white/40 flex items-center justify-center p-1.5">
             <img src="/spi-logo.png" alt="SPI Logo" className="w-full h-full object-contain" />
           </div>
           <div>
             <p className="text-white font-bold text-base leading-tight">Student Portal</p>
-            <p className="text-blue-100/80 text-xs leading-tight">Learn. Grow. Achieve.</p>
+            <p className="text-emerald-100/80 text-xs leading-tight">Learn. Grow. Achieve.</p>
           </div>
         </div>
 
-        {/* ── Top-right: language pill (static placeholder until i18n is wired up) ── */}
+        {/* â”€â”€ Top-right: language pill (static placeholder until i18n is wired up) â”€â”€ */}
         <button type="button"
           className="absolute top-6 right-6 z-20 flex items-center gap-1.5 bg-white/15 backdrop-blur-md border border-white/25 text-white text-sm font-medium px-4 py-2 rounded-full hover:bg-white/25 transition-colors">
           <Globe className="w-4 h-4" />
@@ -928,22 +928,22 @@ export function AuthPage() {
           <ChevronDown className="w-3.5 h-3.5 opacity-70" />
         </button>
 
-        {/* ── Bottom-left: quote badge ── */}
+        {/* â”€â”€ Bottom-left: quote badge â”€â”€ */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}
           className="absolute bottom-7 left-7 z-20 hidden xl:flex items-start gap-3 bg-white/12 backdrop-blur-md border border-white/20 rounded-2xl px-4 py-3.5 max-w-[270px]">
-          <div className="flex-shrink-0 w-9 h-9 rounded-full bg-blue-500/80 flex items-center justify-center">
+          <div className="flex-shrink-0 w-9 h-9 rounded-full bg-emerald-500/80 flex items-center justify-center">
             <Lightbulb className="w-4 h-4 text-amber-300" />
           </div>
           <div>
             <p className="text-white text-sm font-medium leading-snug">Education is the most powerful weapon.</p>
-            <p className="text-blue-100/70 text-xs mt-1">— Nelson Mandela</p>
+            <p className="text-emerald-100/70 text-xs mt-1">â€” Nelson Mandela</p>
           </div>
         </motion.div>
 
-        {/* ── Bottom-right: "Keep Learning" badge — echoes splash slide 3 copy ── */}
+        {/* â”€â”€ Bottom-right: "Keep Learning" badge â€” echoes splash slide 3 copy â”€â”€ */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }}
           className="absolute bottom-7 right-7 z-20 hidden xl:flex items-center gap-3 bg-white/12 backdrop-blur-md border border-white/20 rounded-2xl px-4 py-3.5">
-          <div className="flex-shrink-0 w-9 h-9 rounded-full bg-blue-500/80 flex items-center justify-center">
+          <div className="flex-shrink-0 w-9 h-9 rounded-full bg-emerald-500/80 flex items-center justify-center">
             <BookOpen className="w-4 h-4 text-white" />
           </div>
           <div>
@@ -953,7 +953,7 @@ export function AuthPage() {
           <TrendingUp className="w-5 h-5 text-amber-300 ml-1" />
         </motion.div>
 
-        {/* ── Center: frosted glass auth card ── */}
+        {/* â”€â”€ Center: frosted glass auth card â”€â”€ */}
         <motion.div
           initial={{ opacity: 0, y: 24, scale: 0.97 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -963,12 +963,12 @@ export function AuthPage() {
             background: 'rgba(255,255,255,0.92)',
             backdropFilter: 'blur(20px)',
             WebkitBackdropFilter: 'blur(20px)',
-            boxShadow: '0 24px 70px rgba(10,22,60,0.35)',
+            boxShadow: '0 24px 70px rgba(6,45,34,0.35)',
           }}
         >
           <div className="max-h-[88vh] overflow-y-auto px-9 pt-9 pb-8">
 
-            {/* Logo + heading — login only */}
+            {/* Logo + heading â€” login only */}
             {mode === 'login' && (
               <>
                 <div className="flex justify-center mb-4">
@@ -983,7 +983,7 @@ export function AuthPage() {
               </>
             )}
 
-            {/* Heading — signup only */}
+            {/* Heading â€” signup only */}
             {mode === 'signup' && (
               <div className="text-center mb-6 pt-2">
                 <h2 className="text-2xl font-bold text-gray-900">Create your account</h2>
@@ -996,11 +996,11 @@ export function AuthPage() {
               {(['login', 'signup'] as const).map((tab) => (
                 <button key={tab} onClick={() => setMode(tab)}
                   className={cn('flex-1 pb-3 text-base font-semibold transition-all duration-300 relative',
-                    mode === tab ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600')}>
+                    mode === tab ? 'text-emerald-600' : 'text-gray-400 hover:text-gray-600')}>
                   {tab === 'login' ? 'Login' : 'Sign Up'}
                   {mode === tab && (
                     <motion.div layoutId="desktopTabLine"
-                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full"
+                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-600 rounded-full"
                       transition={{ type: 'spring', stiffness: 400, damping: 30 }} />
                   )}
                 </button>
@@ -1014,7 +1014,7 @@ export function AuthPage() {
 
                 <form onSubmit={handleSubmit} className="space-y-4">
 
-                  {/* ── SIGNUP FIELDS ── */}
+                  {/* â”€â”€ SIGNUP FIELDS â”€â”€ */}
                   {mode === 'signup' && (
                     <>
                       <div>
@@ -1057,16 +1057,16 @@ export function AuthPage() {
                       </div>
                       <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Full Name</Label>
                         <div className="relative"><User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <Input placeholder="Enter your full name" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
+                          <Input placeholder="Enter your full name" className="pl-10 h-12 border-gray-200 focus:border-emerald-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
                             value={formData.fullName} onChange={(e) => setFormData({ ...formData, fullName: e.target.value })} required /></div></div>
                       <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Mobile Number</Label>
                         <div className="relative"><Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <Input type="tel" placeholder="01XXXXXXXXX" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
+                          <Input type="tel" placeholder="01XXXXXXXXX" className="pl-10 h-12 border-gray-200 focus:border-emerald-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
                             value={formData.mobile} onChange={(e) => setFormData({ ...formData, mobile: e.target.value })} required /></div></div>
                       {(selectedRole === 'student' || selectedRole === 'captain') && (
                         <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">SSC Board Roll <span className="text-red-500">*</span></Label>
                           <div className="relative"><GraduationCap className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                            <Input placeholder="e.g., 679377" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
+                            <Input placeholder="e.g., 679377" className="pl-10 h-12 border-gray-200 focus:border-emerald-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
                               value={formData.sscBoardRoll} onChange={(e) => setFormData({ ...formData, sscBoardRoll: e.target.value })} required /></div>
                           <p className="text-xs text-gray-400 mt-1">Student ID will be: SIPI-{formData.sscBoardRoll || 'XXXXXX'}</p></div>
                       )}
@@ -1076,7 +1076,7 @@ export function AuthPage() {
                           <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Department <span className="text-red-500">*</span></Label>
                             <div className="relative"><Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
                               <Select value={formData.department} onValueChange={(v) => setFormData({ ...formData, department: v })}>
-                                <SelectTrigger className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"><SelectValue placeholder="Select your department" /></SelectTrigger>
+                                <SelectTrigger className="pl-10 h-12 border-gray-200 focus:border-emerald-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"><SelectValue placeholder="Select your department" /></SelectTrigger>
                                 <SelectContent>
                                   {departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
                                 </SelectContent>
@@ -1084,7 +1084,7 @@ export function AuthPage() {
                           <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Shift <span className="text-red-500">*</span></Label>
                             <div className="relative"><BarChart3 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
                               <Select value={formData.shift} onValueChange={(v) => setFormData({ ...formData, shift: v })}>
-                                <SelectTrigger className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"><SelectValue placeholder="Select your shift" /></SelectTrigger>
+                                <SelectTrigger className="pl-10 h-12 border-gray-200 focus:border-emerald-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"><SelectValue placeholder="Select your shift" /></SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="Morning">1st Shift (Morning)</SelectItem>
                                   <SelectItem value="Day">2nd Shift (Day)</SelectItem>
@@ -1096,34 +1096,34 @@ export function AuthPage() {
                       <div>
                         <Label className="text-xs font-semibold text-gray-600 mb-1.5 block">
                           Email Address
-                          {googleVerified && <span className="ml-2 text-emerald-600 font-medium">✓ Verified with Google</span>}
+                          {googleVerified && <span className="ml-2 text-emerald-600 font-medium">âœ“ Verified with Google</span>}
                         </Label>
                         <div className="relative"><Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                           <Input type="email" placeholder="your.email@example.com"
-                            className={cn('pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400',
+                            className={cn('pl-10 h-12 border-gray-200 focus:border-emerald-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400',
                               googleVerified && 'bg-emerald-50/60 border-emerald-200 text-gray-600')}
                             value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                             required readOnly={googleVerified} /></div>
-                        {googleVerified && <p className="text-xs text-emerald-600 mt-1">No verification code needed — just complete the remaining fields.</p>}
+                        {googleVerified && <p className="text-xs text-emerald-600 mt-1">No verification code needed â€” just complete the remaining fields.</p>}
                       </div>
                     </>
                   )}
 
-                  {/* ── TEACHER FIELDS (desktop) ── */}
+                  {/* â”€â”€ TEACHER FIELDS (desktop) â”€â”€ */}
                   {mode === 'signup' && selectedRole === 'teacher' && (
                     <>
                       <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Full Name (Bangla) <span className="text-red-500">*</span></Label>
                         <div className="relative"><User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <Input placeholder="আপনার পূর্ণ নাম" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
+                          <Input placeholder="à¦†à¦ªà¦¨à¦¾à¦° à¦ªà§‚à¦°à§à¦£ à¦¨à¦¾à¦®" className="pl-10 h-12 border-gray-200 focus:border-emerald-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
                             value={formData.fullNameBangla} onChange={(e) => setFormData({ ...formData, fullNameBangla: e.target.value })} required /></div></div>
                       <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Designation <span className="text-red-500">*</span></Label>
                         <div className="relative"><Briefcase className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <Input placeholder="e.g., Assistant Professor" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
+                          <Input placeholder="e.g., Assistant Professor" className="pl-10 h-12 border-gray-200 focus:border-emerald-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
                             value={formData.designation} onChange={(e) => setFormData({ ...formData, designation: e.target.value })} required /></div></div>
                       <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Department <span className="text-gray-400 font-normal">(optional)</span></Label>
                         <div className="relative"><Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
                           <Select value={formData.department} onValueChange={(v) => setFormData({ ...formData, department: v })}>
-                            <SelectTrigger className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"><SelectValue placeholder="Select department (optional)" /></SelectTrigger>
+                            <SelectTrigger className="pl-10 h-12 border-gray-200 focus:border-emerald-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"><SelectValue placeholder="Select department (optional)" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value={NO_DEPARTMENT}>No department / General</SelectItem>
                               {departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
@@ -1132,7 +1132,7 @@ export function AuthPage() {
                       <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Qualifications</Label>
                         <div className="flex gap-2">
                           <div className="relative flex-1"><Award className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                            <Input placeholder="e.g., M.Sc. in CS" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
+                            <Input placeholder="e.g., M.Sc. in CS" className="pl-10 h-12 border-gray-200 focus:border-emerald-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
                               value={qualificationInput} onChange={(e) => setQualificationInput(e.target.value)}
                               onKeyDown={(e) => { if (e.key === 'Enter' && qualificationInput.trim()) { e.preventDefault(); setFormData({ ...formData, qualifications: [...formData.qualifications, qualificationInput.trim()] }); setQualificationInput(''); }}} /></div>
                           <Button type="button" variant="outline" className="h-12 px-4 rounded-xl border-gray-200"
@@ -1141,22 +1141,22 @@ export function AuthPage() {
                         {formData.qualifications.length > 0 && (
                           <div className="flex flex-wrap gap-1.5 mt-2">
                             {formData.qualifications.map((q: string, i: number) => (
-                              <span key={i} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-600 rounded-md text-xs">
-                                {q}<button type="button" onClick={() => setFormData({ ...formData, qualifications: formData.qualifications.filter((_: string, idx: number) => idx !== i) })} className="hover:text-red-500">×</button>
+                              <span key={i} className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-600 rounded-md text-xs">
+                                {q}<button type="button" onClick={() => setFormData({ ...formData, qualifications: formData.qualifications.filter((_: string, idx: number) => idx !== i) })} className="hover:text-red-500">Ã—</button>
                               </span>))}
                           </div>)}</div>
                       <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Office Location</Label>
                         <div className="relative"><MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <Input placeholder="e.g., Room 201, Building A" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
+                          <Input placeholder="e.g., Room 201, Building A" className="pl-10 h-12 border-gray-200 focus:border-emerald-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
                             value={formData.officeLocation} onChange={(e) => setFormData({ ...formData, officeLocation: e.target.value })} /></div></div>
                     </>
                   )}
 
-                  {/* ── LOGIN ID FIELD ── */}
+                  {/* â”€â”€ LOGIN ID FIELD â”€â”€ */}
                   {mode === 'login' && (
                     <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Email or Student ID</Label>
                       <div className="relative"><Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <Input placeholder="Enter your email or student ID" className="pl-10 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
+                        <Input placeholder="Enter your email or student ID" className="pl-10 h-12 border-gray-200 focus:border-emerald-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
                           value={formData.studentId} onChange={(e) => setFormData({ ...formData, studentId: e.target.value })} required /></div></div>
                   )}
 
@@ -1165,7 +1165,7 @@ export function AuthPage() {
                     <div className="relative">
                       <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <Input type={showPassword ? 'text' : 'password'} placeholder="Enter your password"
-                        className="pl-10 pr-11 h-12 border-gray-200 focus:border-blue-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
+                        className="pl-10 pr-11 h-12 border-gray-200 focus:border-emerald-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
                         value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required />
                       <button type="button" onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5">
@@ -1178,26 +1178,26 @@ export function AuthPage() {
                     <div className="flex items-center justify-between">
                       <label className="flex items-center gap-2 cursor-pointer select-none">
                         <Checkbox id="desktop-remember" checked={rememberMe} onCheckedChange={(v) => setRememberMe(v as boolean)}
-                          className="rounded data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600" />
+                          className="rounded data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600" />
                         <span className="text-xs text-gray-500">Remember me</span>
                       </label>
                       <button type="button" onClick={() => navigate('/password-reset')}
-                        className="text-xs font-semibold text-blue-600 hover:underline">Forgot Password?</button>
+                        className="text-xs font-semibold text-emerald-600 hover:underline">Forgot Password?</button>
                     </div>
                   )}
 
                   {/* Submit */}
                   <motion.div whileTap={{ scale: 0.98 }} whileHover={{ scale: 1.01 }}>
                     <Button type="submit" disabled={isLoading}
-                      className="w-full rounded-2xl text-base font-semibold shadow-lg shadow-blue-500/30 gap-2"
-                      style={{ background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', height: '52px' }}>
+                      className="w-full rounded-2xl text-base font-semibold shadow-lg shadow-emerald-500/30 gap-2"
+                      style={{ background: 'linear-gradient(135deg,#059669,#047857)', height: '52px' }}>
                       {isLoading
                         ? <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-5 h-5 border-2 border-white border-t-transparent rounded-full" />
                         : <><Lock className="w-4 h-4" />{mode === 'login' ? 'Login' : 'Create Account'}</>}
                     </Button>
                   </motion.div>
 
-                  {/* Social — available on both login & signup; hidden once a
+                  {/* Social â€” available on both login & signup; hidden once a
                       Google signup is already in progress. */}
                   {!googleVerified && (
                     <>
@@ -1211,7 +1211,7 @@ export function AuthPage() {
                           onClick={handleGoogleSignIn} disabled={googleLoading}
                           className="h-12 rounded-2xl border border-gray-200 bg-white flex items-center justify-center gap-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm disabled:opacity-60">
                           {googleLoading
-                            ? <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-5 h-5 border-2 border-gray-300 border-t-blue-500 rounded-full" />
+                            ? <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-5 h-5 border-2 border-gray-300 border-t-emerald-500 rounded-full" />
                             : <><GoogleIcon />Google</>}
                         </motion.button>
                         <motion.button type="button" whileTap={{ scale: 0.98 }} whileHover={{ scale: 1.01 }}
@@ -1225,17 +1225,17 @@ export function AuthPage() {
                   {/* Switch mode */}
                   <p className="text-center text-sm text-gray-500 pt-1">
                     {mode === 'login'
-                      ? <> Don't have an account?{' '}<button type="button" onClick={() => setMode('signup')} className="text-blue-600 font-semibold hover:underline">Sign Up</button></>
-                      : <> Already have an account?{' '}<button type="button" onClick={() => setMode('login')} className="text-blue-600 font-semibold hover:underline">Login</button></>}
+                      ? <> Don't have an account?{' '}<button type="button" onClick={() => setMode('signup')} className="text-emerald-600 font-semibold hover:underline">Sign Up</button></>
+                      : <> Already have an account?{' '}<button type="button" onClick={() => setMode('login')} className="text-emerald-600 font-semibold hover:underline">Login</button></>}
                   </p>
                 </form>
               </motion.div>
             </AnimatePresence>
           </div>
         </motion.div>
-        {/* ── END center card ── */}
+        {/* â”€â”€ END center card â”€â”€ */}
 
-        <p className="relative z-10 mt-6 text-xs text-white/70">© 2026 Student Portal. All rights reserved.</p>
+        <p className="relative z-10 mt-6 text-xs text-white/70">Â© 2026 Student Portal. All rights reserved.</p>
       </div>
     </>
   );

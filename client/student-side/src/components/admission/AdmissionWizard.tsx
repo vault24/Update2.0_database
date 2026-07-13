@@ -275,18 +275,28 @@ export function AdmissionWizard() {
           }
           
           // For approved or fully submitted pending, show success/status page
-          setApplicationId(existing.application_id || existing.admissionId || '');
+          const existingId = existing.application_id || existing.admissionId || '';
+          setApplicationId(existingId);
           setIsSubmitted(true);
           setIsRejected(false);
           setCurrentStep(7); // Move to success page
-          
-          // Try to load saved form data for PDF generation
-          const savedFormData = loadSubmittedFormData();
-          if (savedFormData) {
-            setFormData(savedFormData);
-          } else {
-            // If no saved form data, persist empty state to avoid errors
-            persistSubmissionState(existing.application_id || existing.admissionId || '', defaultFormData);
+
+          // The submitted admission on the server is the source of truth for
+          // the Download/Print form data — localStorage is only a fallback so
+          // the PDF still fills in when the API is briefly unreachable.
+          try {
+            const submittedAdmission = await admissionService.getMyAdmission();
+            if (submittedAdmission) {
+              const formDataFromAdmission = convertAdmissionToFormData(submittedAdmission);
+              setFormData(formDataFromAdmission);
+              persistSubmissionState(existingId, formDataFromAdmission);
+            }
+          } catch (error) {
+            console.error('Error loading submitted admission for PDF data:', error);
+            const savedFormData = loadSubmittedFormData();
+            if (savedFormData) {
+              setFormData(savedFormData);
+            }
           }
           
           await admissionService.clearDraft();

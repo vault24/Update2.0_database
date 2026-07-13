@@ -94,12 +94,12 @@ export function PremiumWelcomeCard({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="relative overflow-hidden rounded-2xl lg:rounded-3xl bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 p-4 md:p-6 lg:p-8 text-white shadow-xl"
+      className="relative overflow-hidden rounded-2xl lg:rounded-3xl bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-500 p-4 md:p-6 lg:p-8 text-white shadow-xl"
     >
       {/* Decorative elements */}
       <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
-      <div className="absolute bottom-0 left-0 w-48 h-48 bg-pink-400/20 rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
-      <div className="absolute top-1/2 right-1/4 w-32 h-32 bg-indigo-400/20 rounded-full blur-2xl" />
+      <div className="absolute bottom-0 left-0 w-48 h-48 bg-teal-300/20 rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
+      <div className="absolute top-1/2 right-1/4 w-32 h-32 bg-emerald-300/20 rounded-full blur-2xl" />
 
       <div className="relative z-10">
         {/* Top Row - Date and Time */}
@@ -185,7 +185,7 @@ export function PremiumWelcomeCard({
               <motion.div
                 animate={{ scale: [1, 1.2, 1] }}
                 transition={{ duration: 2, repeat: Infinity }}
-                className="absolute -bottom-1 -right-1 w-4 h-4 md:w-5 md:h-5 bg-emerald-500 rounded-full flex items-center justify-center ring-2 ring-white/50"
+                className="absolute -bottom-1 -right-1 w-4 h-4 md:w-5 md:h-5 bg-amber-400 rounded-full flex items-center justify-center ring-2 ring-white/50"
               >
                 <span className="text-[8px] md:text-[10px]">✓</span>
               </motion.div>
@@ -203,7 +203,7 @@ export function PremiumWelcomeCard({
                 variant="secondary"
                 size="sm"
                 onClick={() => navigate('/dashboard/admission')}
-                className="group bg-white text-indigo-600 hover:bg-white/90 font-semibold shadow-lg text-xs md:text-sm"
+                className="group bg-white text-emerald-700 hover:bg-white/90 font-semibold shadow-lg text-xs md:text-sm"
               >
                 Complete Admission
                 <ArrowRight className="w-3 h-3 md:w-4 md:h-4 ml-1.5 transition-transform group-hover:translate-x-1" />

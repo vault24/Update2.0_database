@@ -31,7 +31,7 @@ export function SimpleAuthPage() {
 
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 to-teal-100 p-4">
       <div className="w-full max-w-md">
         <div className="bg-white rounded-lg shadow-lg p-8">
           <div className="text-center mb-8">
@@ -72,7 +72,7 @@ export function SimpleAuthPage() {
           <div className="mt-6 text-center">
             <a
               href="/password-reset"
-              className="text-sm text-blue-600 hover:text-blue-500"
+              className="text-sm text-emerald-600 hover:text-emerald-500"
             >
               Forgot your password?
             </a>
