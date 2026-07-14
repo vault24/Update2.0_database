@@ -29,7 +29,7 @@ const capitalize = (text: string): string => (text ? text.charAt(0).toUpperCase(
 const formatShift = (shift: string): string => (shift ? shift.replace(/(\d+)(st|nd|rd|th)/, '$1$2 Shift') : shift);
 const val = (v: unknown): string => {
   const s = (v ?? '').toString().trim();
-  return s.length ? s : 'â€”';
+  return s.length ? s : '-';
 };
 
 /**
@@ -173,7 +173,7 @@ function buildAdmissionDoc(
     doc.setFontSize(10);
     doc.text('Application ID', margin + 4, y + 5.5);
     doc.setFontSize(12);
-    doc.text(applicationId || 'â€”', margin + 4, y + 11);
+    doc.text(applicationId || '-', margin + 4, y + 11);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
     doc.setTextColor(90, 90, 90);
@@ -305,7 +305,7 @@ function buildAdmissionDoc(
 }
 
 // ---------------------------------------------------------------------------
-// 1) DOWNLOAD â€” saves the shared jsPDF document to the user's device.
+// 1) DOWNLOAD — saves the shared jsPDF document to the user's device.
 // ---------------------------------------------------------------------------
 export function downloadAdmissionPDF(
   formData: AdmissionFormState,
@@ -323,7 +323,7 @@ export function downloadAdmissionPDF(
 }
 
 // ---------------------------------------------------------------------------
-// 2) PRINT â€” opens the EXACT same jsPDF document and triggers the print
+// 2) PRINT — opens the EXACT same jsPDF document and triggers the print
 //    dialog, so the printed form is pixel-identical to the downloaded one.
 // ---------------------------------------------------------------------------
 export function printAdmissionForm(
@@ -340,7 +340,7 @@ export function printAdmissionForm(
       toast.error('Please allow popups to print the application');
       return;
     }
-    toast.success('Opening print dialogâ€¦');
+    toast.success('Opening print dialog…');
   } catch (err) {
     console.error('Failed to generate admission PDF for printing:', err);
     toast.error('Could not open the print view. Please try again.');
