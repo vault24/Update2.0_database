@@ -438,6 +438,11 @@ EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@example.com')
 EMAIL_TIMEOUT = config('EMAIL_TIMEOUT', default=30, cast=int)
+# Public contact / reply-to address (the "info" mailbox). CONTACT_EMAIL is
+# available to email templates / as a Reply-To; SERVER_EMAIL is what Django
+# uses as the From on admin error reports.
+CONTACT_EMAIL = config('CONTACT_EMAIL', default='')
+SERVER_EMAIL = config('SERVER_EMAIL', default=(CONTACT_EMAIL or DEFAULT_FROM_EMAIL))
 
 # Public URLs used inside outgoing emails (logo, call-to-action links).
 # In production these come from server/.env (deploy.sh derives them from the

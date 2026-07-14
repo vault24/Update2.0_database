@@ -39,8 +39,9 @@ set -Eeuo pipefail
 # ---------------------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="${SCRIPT_DIR}/config.env"
+CONFIG_EXAMPLE="${SCRIPT_DIR}/config.env.example"
+# Legacy file — only read once to migrate old secrets into config.env.
 SECRETS_FILE="${SCRIPT_DIR}/secrets.env"
-SECRETS_EXAMPLE="${SCRIPT_DIR}/secrets.env.example"
 GENERATED_DIR="${SCRIPT_DIR}/generated"
 
 # System locations. Overridable via environment so the config-generation
@@ -75,44 +76,55 @@ retry() {
 }
 
 # ---------------------------------------------------------------------------
-# Load configuration (config.env = infrastructure, secrets.env = credentials)
+# Load configuration — config.env is the single source of truth (infra + secrets).
 # ---------------------------------------------------------------------------
-[[ -f "${CONFIG_FILE}" ]] || { err "Missing ${CONFIG_FILE}"; exit 1; }
+# config.env is the single source of truth (infrastructure AND secrets) and is
+# gitignored. On a fresh machine it is created from the committed template so a
+# clone still deploys with ONE command; you only ever edit config.env.
+if [[ ! -f "${CONFIG_FILE}" ]]; then
+  [[ -f "${CONFIG_EXAMPLE}" ]] || { err "Missing ${CONFIG_FILE} and ${CONFIG_EXAMPLE}"; exit 1; }
+  cp "${CONFIG_EXAMPLE}" "${CONFIG_FILE}"
+fi
+chmod 600 "${CONFIG_FILE}" 2>/dev/null || true
 # shellcheck disable=SC1090
 source "${CONFIG_FILE}"
 
-# --- secrets bootstrap ------------------------------------------------------
-# secrets.env is gitignored. On first run it is created from the example and
-# any missing values are auto-generated, so a fresh clone still deploys with
-# ONE command. Values already present are never overwritten.
 random_hex()  { python3 -c 'import secrets;print(secrets.token_hex(16))'; }
 random_key()  { python3 -c 'import secrets;print(secrets.token_urlsafe(64))'; }
 
-# Persist KEY="VALUE" into secrets.env (replace existing line or append).
-set_secret() {
+# Persist KEY="VALUE" into config.env (replace existing line or append).
+set_config() {
   local key="$1" val="$2"
-  if grep -q "^${key}=" "${SECRETS_FILE}"; then
-    # Use a delimiter unlikely to appear in generated values.
-    sed -i "s|^${key}=.*|${key}=\"${val}\"|" "${SECRETS_FILE}"
+  if grep -q "^${key}=" "${CONFIG_FILE}"; then
+    sed -i "s|^${key}=.*|${key}=\"${val}\"|" "${CONFIG_FILE}"
   else
-    echo "${key}=\"${val}\"" >> "${SECRETS_FILE}"
+    echo "${key}=\"${val}\"" >> "${CONFIG_FILE}"
   fi
 }
 
 ensure_secrets() {
-  if [[ ! -f "${SECRETS_FILE}" ]]; then
-    warn "No secrets.env found — creating one with generated credentials."
-    cp "${SECRETS_EXAMPLE}" "${SECRETS_FILE}"
+  # One-time migration: fold a legacy secrets.env into config.env WITHOUT
+  # overwriting values already set here (preserves an existing DB password /
+  # secret key so nothing is regenerated). Afterwards secrets.env can be deleted.
+  if [[ -f "${SECRETS_FILE}" ]]; then
+    # shellcheck disable=SC1090
+    source "${SECRETS_FILE}"
+    local k cur
+    for k in DB_PASSWORD DJANGO_SECRET_KEY EMAIL_HOST_USER EMAIL_HOST_PASSWORD \
+             DJANGO_SUPERUSER_USERNAME DJANGO_SUPERUSER_EMAIL DJANGO_SUPERUSER_PASSWORD; do
+      cur="$(grep "^${k}=" "${CONFIG_FILE}" | head -1 | cut -d= -f2- | tr -d '"' || true)"
+      if [[ -z "${cur}" && -n "${!k:-}" ]]; then set_config "${k}" "${!k}"; fi
+    done
+    warn "Migrated legacy secrets.env into config.env — you may now delete secrets.env."
+    # shellcheck disable=SC1090
+    source "${CONFIG_FILE}"
   fi
-  chmod 600 "${SECRETS_FILE}"
-  # shellcheck disable=SC1090
-  source "${SECRETS_FILE}"
 
-  # DB password: generate once.
+  # DB password: generate once into config.env.
   if [[ -z "${DB_PASSWORD:-}" ]]; then
     DB_PASSWORD="$(random_hex)"
-    set_secret DB_PASSWORD "${DB_PASSWORD}"
-    ok "Generated PostgreSQL password (stored in secrets.env)"
+    set_config DB_PASSWORD "${DB_PASSWORD}"
+    ok "Generated PostgreSQL password (stored in config.env)"
   fi
 
   # Django secret key: reuse an existing one from server/.env if present
@@ -123,12 +135,12 @@ ensure_secrets() {
       existing="$(grep '^SECRET_KEY=' "${PROJECT_PATH}/server/.env" 2>/dev/null | cut -d= -f2- || true)"
     fi
     DJANGO_SECRET_KEY="${existing:-$(random_key)}"
-    set_secret DJANGO_SECRET_KEY "${DJANGO_SECRET_KEY}"
-    ok "Django SECRET_KEY persisted to secrets.env"
+    set_config DJANGO_SECRET_KEY "${DJANGO_SECRET_KEY}"
+    ok "Django SECRET_KEY persisted to config.env"
   fi
 
   if [[ -z "${EMAIL_HOST_USER:-}" || -z "${EMAIL_HOST_PASSWORD:-}" ]]; then
-    warn "EMAIL_HOST_USER / EMAIL_HOST_PASSWORD are empty in secrets.env —"
+    warn "EMAIL_HOST_USER / EMAIL_HOST_PASSWORD are empty in config.env —"
     warn "outgoing email (OTP, password reset, notifications) is DISABLED"
     warn "until you fill them in and re-run:  sudo ./deploy.sh --backend"
   fi
@@ -254,7 +266,7 @@ setup_services() {
     sleep 2
   done
 
-  # Role + database (idempotent; password kept in sync with secrets.env).
+  # Role + database (idempotent; password kept in sync with config.env).
   if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='${DB_USER}'" | grep -q 1; then
     sudo -u postgres psql -c "CREATE USER ${DB_USER} WITH PASSWORD '${DB_PASSWORD}';"
     ok "Created DB user ${DB_USER}"
@@ -280,10 +292,8 @@ setup_services() {
 write_backend_env() {
   local env_file="${SERVER_DIR}/.env"
 
-  # SMTP server settings come from config.env (EMAIL_HOST/PORT/TLS/SSL), the
-  # login credentials from secrets.env — nothing about the mail provider is
-  # hardcoded here. Switching from Gmail to the institute's own server
-  # (noreply@spisg.gov.bd) is a config.env + secrets.env edit, then a re-run.
+  # Every mail setting — SMTP server AND login credentials — comes from
+  # config.env. Nothing about the mail provider is hardcoded here.
   local email_host="${EMAIL_HOST:-smtp.gmail.com}"
   local email_port="${EMAIL_PORT:-587}"
   local email_use_tls="${EMAIL_USE_TLS:-True}"
@@ -309,7 +319,7 @@ write_backend_env() {
   cat > "${env_file}" <<EOF
 # =============================================================================
 # GENERATED by deploy-scripts/deploy.sh — DO NOT EDIT BY HAND.
-# Change deploy-scripts/config.env (or secrets.env) and re-run the deploy.
+# Change deploy-scripts/config.env and re-run the deploy.
 # =============================================================================
 
 # --- Database ---------------------------------------------------------------
@@ -344,7 +354,7 @@ ADMIN_PORTAL_ORIGINS=${ADMIN_PORTAL_ORIGINS}
 STUDENT_PORTAL_URL=${STUDENT_ORIGIN}
 ADMIN_PORTAL_URL=${ADMIN_ORIGIN}
 
-# --- Email (SMTP server from config.env; credentials from secrets.env) --------
+# --- Email (all mail settings, incl. credentials, come from config.env) -------
 EMAIL_BACKEND=${email_backend}
 EMAIL_HOST=${email_host}
 EMAIL_PORT=${email_port}
@@ -353,6 +363,9 @@ EMAIL_USE_SSL=${email_use_ssl}
 EMAIL_HOST_USER=${EMAIL_HOST_USER:-}
 EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD:-}
 DEFAULT_FROM_EMAIL=${from_email}
+# Public contact / reply-to (info mailbox); also Django's admin-error sender.
+CONTACT_EMAIL=${CONTACT_EMAIL:-}
+SERVER_EMAIL=${CONTACT_EMAIL:-${from_email}}
 EMAIL_TIMEOUT=30
 
 # --- OTP / rate limits ---------------------------------------------------------
