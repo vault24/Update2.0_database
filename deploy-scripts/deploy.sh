@@ -578,7 +578,9 @@ add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()" always;
 # CSP tuned for the two Vite SPAs: self-hosted bundles, Google Fonts,
 # same-origin API + WebSockets, images from self/data/blob/https.
-add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://fonts.googleapis.com https://fonts.gstatic.com; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'" always;
+# Cloudflare Web Analytics beacon (auto-injected by the proxy) is allowed:
+# script from static.cloudflareinsights.com, RUM POST to cloudflareinsights.com.
+add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://fonts.googleapis.com https://fonts.gstatic.com https://cloudflareinsights.com; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'" always;
 EOF
 
   # Compression (safe types only; never compress already-compressed media).
@@ -693,7 +695,7 @@ nginx_app_locations() {
     # photos) is NEVER served directly to the public web. It is reachable ONLY
     # through the authenticated, per-object-authorised Django endpoints
     # (/api/documents/{id}/download|preview/), which stream the file after
-    # checking the caller may see it. `internal` means an outside request to
+    # checking the caller may see it. The 'internal' directive means an outside request to
     # /files/... returns 404; the directive is kept so the app can opt into
     # X-Accel-Redirect later without another Nginx change.
     location /files/ {
