@@ -9,7 +9,7 @@ import { getErrorMessage } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { AdmissionSuccess } from './AdmissionSuccess';
 import { AdmissionRejected } from './AdmissionRejected';
-import { steps } from './wizard/stepConfig';
+import { steps, semesterToNumber, DEFAULT_DOCUMENT_REQUIREMENTS } from './wizard/stepConfig';
 import { AdmissionFormState } from './wizard/types';
 import { defaultFormData } from './wizard/formDefaults';
 import { getStepErrors, type FieldErrors } from './wizard/validation';
@@ -19,12 +19,15 @@ import { StepEducation } from './wizard/steps/StepEducation';
 import { StepAcademic } from './wizard/steps/StepAcademic';
 import { StepDocuments } from './wizard/steps/StepDocuments';
 import { StepReview } from './wizard/steps/StepReview';
-import { downloadAdmissionPDF, printAdmissionForm } from './wizard/pdf';
+// NOTE: './wizard/pdf' (jsPDF, ~450KB) is imported dynamically at click time so
+// the admission page itself loads fast on slow connections/low-end devices.
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { CheckCircle } from 'lucide-react';
 
 const STORAGE_KEY = DRAFT_STORAGE_KEY;
+// Semester integer (1-8) → form value used by the Semester <Select>.
+const SEMESTER_VALUES = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
 const SUBMISSION_STORAGE_KEY = 'admission_submission_state';
 const SUBMITTED_FORM_DATA_KEY = 'admission_submitted_form_data';
 const REAPPLY_EDITING_KEY = 'admission_reapply_editing';
@@ -41,6 +44,8 @@ export function AdmissionWizard() {
   const [uploadProgress, setUploadProgress] = useState<string>('');
   const [applicationId, setApplicationId] = useState('');
   const [departments, setDepartments] = useState<Department[]>([]);
+  // Which admission documents are mandatory (from admin Admission Settings).
+  const [docRequirements, setDocRequirements] = useState<Record<string, boolean>>(DEFAULT_DOCUMENT_REQUIREMENTS);
   const [isDraftLoading, setIsDraftLoading] = useState(true);
   const [isDraftSaving, setIsDraftSaving] = useState(false);
   const [draftError, setDraftError] = useState<string | null>(null);
@@ -68,6 +73,16 @@ export function AdmissionWizard() {
       setDepartments(depts);
     };
     fetchDepartments();
+  }, []);
+
+  // Fetch document requirement settings so the * markers and validation match
+  // what the admin configured. Falls back to sensible defaults on failure.
+  useEffect(() => {
+    admissionService.getSettings()
+      .then((s) => {
+        if (s?.document_requirements) setDocRequirements(s.document_requirements);
+      })
+      .catch(() => { /* keep defaults */ });
   }, []);
 
   const loadSubmissionState = () => {
@@ -482,9 +497,15 @@ export function AdmissionWizard() {
       department: admission.desired_department?.id || admission.desired_department || '',
       shift: normalizeShift(admission.desired_shift),
       session: admission.session || '',
-      semester: '1st',
+      semester: admission.semester ? SEMESTER_VALUES[admission.semester - 1] || '1st' : '1st',
       admissionType: 'regular',
       group: admission.group || '',
+
+      currentRollNumber: admission.current_roll_number || '',
+      currentRegistrationNumber: admission.current_registration_number || '',
+      previousGpas: Array.isArray(admission.previous_gpas)
+        ? admission.previous_gpas.map((e: any) => String(e?.gpa ?? ''))
+        : [],
       
       photo: null,
       signature: null,
@@ -643,7 +664,7 @@ export function AdmissionWizard() {
   };
 
   const handleNext = () => {
-    const stepErrors = getStepErrors(currentStep, getCompleteFormData(), satisfiedDocFields);
+    const stepErrors = getStepErrors(currentStep, getCompleteFormData(), satisfiedDocFields, docRequirements);
     if (Object.keys(stepErrors).length > 0) {
       setErrors(stepErrors);
       const count = Object.keys(stepErrors).length;
@@ -672,7 +693,7 @@ export function AdmissionWizard() {
     // Final safety net: re-validate every step (a restored draft can land past
     // a step that is no longer valid — e.g. the now-required permanent address).
     for (let step = 1; step <= 5; step++) {
-      const stepErrors = getStepErrors(step, getCompleteFormData(), satisfiedDocFields);
+      const stepErrors = getStepErrors(step, getCompleteFormData(), satisfiedDocFields, docRequirements);
       if (Object.keys(stepErrors).length > 0) {
         setErrors(stepErrors);
         setCurrentStep(step);
@@ -770,6 +791,15 @@ export function AdmissionWizard() {
         desired_department: completeFormData.department,
         desired_shift: capitalizeShift(completeFormData.shift),
         session: completeFormData.session,
+
+        // Current Academic Information (semester the applicant is admitted into,
+        // plus optional prior enrolment details for 2nd-semester+ admissions).
+        semester: semesterToNumber(completeFormData.semester),
+        current_roll_number: (completeFormData.currentRollNumber || '').trim(),
+        current_registration_number: (completeFormData.currentRegistrationNumber || '').trim(),
+        previous_gpas: (completeFormData.previousGpas || [])
+          .map((g, i) => ({ semester: i + 1, gpa: parseFloat(String(g)) }))
+          .filter((e) => !Number.isNaN(e.gpa)),
       };
 
       // Collect documents from form data
@@ -910,8 +940,14 @@ export function AdmissionWizard() {
     }
   };
 
-  const downloadPDF = () => downloadAdmissionPDF(formData, applicationId, departments);
-  const printForm = () => printAdmissionForm(formData, applicationId, departments);
+  const downloadPDF = async () => {
+    const { downloadAdmissionPDF } = await import('./wizard/pdf');
+    downloadAdmissionPDF(formData, applicationId, departments);
+  };
+  const printForm = async () => {
+    const { printAdmissionForm } = await import('./wizard/pdf');
+    printAdmissionForm(formData, applicationId, departments);
+  };
 
   const handleReapply = async () => {
     try {
@@ -1072,7 +1108,7 @@ export function AdmissionWizard() {
             {currentStep === 2 && <StepContactAddress formData={formData} onChange={handleInputChange} errors={errors} />}
             {currentStep === 3 && <StepEducation formData={formData} onChange={handleInputChange} errors={errors} />}
             {currentStep === 4 && <StepAcademic formData={formData} onChange={handleInputChange} departments={departments} errors={errors} />}
-            {currentStep === 5 && <StepDocuments formData={formData} onChange={handleInputChange} errors={errors} onDocsAvailable={handleDocsAvailable} />}
+            {currentStep === 5 && <StepDocuments formData={formData} onChange={handleInputChange} errors={errors} onDocsAvailable={handleDocsAvailable} docRequirements={docRequirements} />}
             {currentStep === 6 && <StepReview formData={formData} departments={departments} isDeclarationChecked={isDeclarationChecked} onDeclarationChange={setIsDeclarationChecked} />}
           </motion.div>
         </AnimatePresence>

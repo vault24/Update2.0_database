@@ -54,6 +54,7 @@ export const API_ENDPOINTS = {
     approve: (id: string) => `/admissions/${id}/approve/`,
     reject: (id: string) => `/admissions/${id}/reject/`,
     myAdmission: '/admissions/my-admission/',
+    settings: '/admissions/settings/',
   },
   
   // Teachers

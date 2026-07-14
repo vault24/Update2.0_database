@@ -1,4 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&family=Space+Grotesk:wght@300..700&display=swap');
+/* Fonts are loaded from index.html with <link rel="preconnect"> — a CSS
+   @import here creates a render-blocking request chain (CSS → font CSS →
+   font files) that delays first paint, especially on slow mobile networks. */
 
 @tailwind base;
 @tailwind components;
@@ -196,10 +198,11 @@
 }
 
 @layer components {
+  /* No backdrop-filter: at 85% opacity over a flat page background the blur is
+     imperceptible, but it forces a composited layer per card — a major scroll
+     cost on low-end Android GPUs. */
   .glass-card {
     background: var(--glass-bg);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
     border: 1px solid var(--glass-border);
   }
 
@@ -244,16 +247,24 @@
 
   /* Graph-paper texture: subtle green grid (fine squares + bolder major
      lines) over the page background, like engineering graph paper. Light
-     mode only — dark mode keeps a clean flat background. */
+     mode only — dark mode keeps a clean flat background.
+
+     Mobile gets a plain background: the multi-layer pattern with
+     `background-attachment: fixed` forces a full-page repaint on every scroll
+     frame (fixed attachment disables compositor scrolling) and produced
+     ghost/blur artifacts when the sidebar drawer closed on Android GPUs. */
   .bg-graph-paper {
     background-color: hsl(var(--background));
-    background-image:
-      linear-gradient(hsl(var(--primary) / 0.08) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(var(--primary) / 0.08) 1px, transparent 1px),
-      linear-gradient(hsl(var(--primary) / 0.04) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(var(--primary) / 0.04) 1px, transparent 1px);
-    background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px;
-    background-attachment: fixed;
+  }
+  @media (min-width: 1024px) {
+    .bg-graph-paper {
+      background-image:
+        linear-gradient(hsl(var(--primary) / 0.08) 1px, transparent 1px),
+        linear-gradient(90deg, hsl(var(--primary) / 0.08) 1px, transparent 1px),
+        linear-gradient(hsl(var(--primary) / 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, hsl(var(--primary) / 0.04) 1px, transparent 1px);
+      background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px;
+    }
   }
   .dark .bg-graph-paper {
     background-image: none;

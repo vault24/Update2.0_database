@@ -159,11 +159,11 @@ export function PremiumWelcomeCard({
               transition={{ delay: 0.5 }}
               className="flex flex-wrap gap-2 md:gap-3 mt-3 md:mt-4"
             >
-              <div className="flex items-center gap-2 bg-white/15 backdrop-blur-sm rounded-full px-3 md:px-4 py-1.5 md:py-2">
+              <div className="flex items-center gap-2 bg-white/20 rounded-full px-3 md:px-4 py-1.5 md:py-2">
                 <GraduationCap className="w-3.5 h-3.5 md:w-4 md:h-4" />
                 <span className="text-xs md:text-sm font-medium">Semester {semester}</span>
               </div>
-              <div className="flex items-center gap-2 bg-white/15 backdrop-blur-sm rounded-full px-3 md:px-4 py-1.5 md:py-2">
+              <div className="flex items-center gap-2 bg-white/20 rounded-full px-3 md:px-4 py-1.5 md:py-2">
                 <TrendingUp className="w-3.5 h-3.5 md:w-4 md:h-4" />
                 <span className="text-xs md:text-sm font-medium">{attendancePercentage}% Attendance</span>
               </div>
@@ -179,7 +179,7 @@ export function PremiumWelcomeCard({
           >
             {/* Profile Avatar */}
             <div className="relative">
-              <div className="w-14 h-14 md:w-16 md:h-16 lg:w-20 lg:h-20 rounded-xl md:rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-xl md:text-2xl lg:text-3xl font-bold shadow-xl ring-2 md:ring-4 ring-white/30">
+              <div className="w-14 h-14 md:w-16 md:h-16 lg:w-20 lg:h-20 rounded-xl md:rounded-2xl bg-white/25 flex items-center justify-center text-xl md:text-2xl lg:text-3xl font-bold shadow-xl ring-2 md:ring-4 ring-white/30">
                 {user?.name?.charAt(0)}
               </div>
               <motion.div
@@ -192,7 +192,7 @@ export function PremiumWelcomeCard({
             </div>
 
             {/* Student ID Badge */}
-            <div className="bg-white/10 backdrop-blur-xl rounded-xl md:rounded-2xl px-3 md:px-4 py-2 md:py-2.5 text-center">
+            <div className="bg-white/15 rounded-xl md:rounded-2xl px-3 md:px-4 py-2 md:py-2.5 text-center">
               <p className="text-[10px] md:text-xs opacity-70">Student ID</p>
               <p className="text-sm md:text-base font-bold tracking-wide">{user?.studentId || 'N/A'}</p>
               <p className="text-[9px] md:text-xs opacity-70">{department}</p>

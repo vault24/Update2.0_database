@@ -14,9 +14,9 @@ interface Props {
   error?: string;
 }
 
-/* â”€â”€ simple math challenge generator â”€â”€ */
+/* ── simple math challenge generator ── */
 function generateMath() {
-  const ops = ['+', '-', 'Ã—'] as const;
+  const ops = ['+', '-', '×'] as const;
   const op = ops[Math.floor(Math.random() * ops.length)];
   let a: number, b: number, answer: number;
   if (op === '+') { a = Math.floor(Math.random() * 20) + 1; b = Math.floor(Math.random() * 20) + 1; answer = a + b; }
@@ -25,7 +25,7 @@ function generateMath() {
   return { question: `${a} ${op} ${b} = ?`, answer };
 }
 
-/* â”€â”€ math confirmation popup â”€â”€ */
+/* ── math confirmation popup ── */
 function MathPopup({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
   const [{ question, answer }] = useState(generateMath);
   const [input, setInput] = useState('');
@@ -108,7 +108,7 @@ function MathPopup({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: (
   );
 }
 
-/* â”€â”€ password strength helper â”€â”€ */
+/* ── password strength helper ── */
 function getStrength(pw: string) {
   let score = 0;
   const missing: string[] = [];
@@ -120,7 +120,7 @@ function getStrength(pw: string) {
   return { score, missing };
 }
 
-/* â”€â”€ main form â”€â”€ */
+/* ── main form ── */
 export function NewPasswordForm({ onSubmit, onBack, loading, error }: Props) {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -136,7 +136,7 @@ export function NewPasswordForm({ onSubmit, onBack, loading, error }: Props) {
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Strong password is no longer required on the student portal â€” any
+    // Strong password is no longer required on the student portal — any
     // non-empty password is allowed as long as both fields match.
     if (!password) { toast.error('Please enter a new password'); return; }
     if (!matches) { toast.error('Passwords do not match'); return; }

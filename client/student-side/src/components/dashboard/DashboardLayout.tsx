@@ -89,7 +89,12 @@ export function DashboardLayout() {
 
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">
         {/* Top Header */}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-border bg-card/80 px-4 backdrop-blur-xl md:px-6">
+        {/* Solid bg on mobile (no backdrop-filter): backdrop-blur on a sticky
+            header composites badly with the animated sidebar drawer on many
+            Android GPUs — the page appeared to stay blurred after closing the
+            drawer — and it costs a full-layer repaint per scroll frame on
+            low-end devices. Desktop (lg+) keeps the frosted-glass look. */}
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-border bg-card px-4 md:px-6 lg:bg-card/80 lg:backdrop-blur-xl">
           {/* Search */}
           <div className="flex flex-1 items-center pl-12 lg:pl-0">
             <div className="relative hidden w-full max-w-md md:block">

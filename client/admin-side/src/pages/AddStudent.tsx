@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { studentService } from '@/services/studentService';
 import departmentService, { Department } from '@/services/departmentService';
 import { documentService } from '@/services/documentService';
+import { admissionService } from '@/services/admissionService';
 import {
   steps, divisions, getDistricts, genderOptions, bloodGroups, religionOptions,
   maritalStatuses, sscBoards, sscGroups, shiftOptions, academicGroups,
@@ -42,6 +43,8 @@ const initialForm = {
   // Academic
   department: '', shift: '', session: '', semester: '', admissionType: '',
   academicGroup: '', status: 'active', enrollmentDate: new Date().toISOString().slice(0, 10),
+  // Dynamic academic (semester 2+): optional existing enrolment + prior GPAs.
+  currentRollNumber: '', currentRegistrationNumber: '', previousGpas: [] as string[],
   // Documents
   passportPhoto: null as File | null, sscMarksheet: null as File | null,
   sscCertificate: null as File | null, birthCertificateDoc: null as File | null,
@@ -59,24 +62,30 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MOBILE_RE = /^01\d{9}$/;
 const isEmpty = (v: any) => v === undefined || v === null || (typeof v === 'string' && v.trim() === '');
 
-// Document field → backend document category + UI label.
-const DOC_FIELDS: { key: keyof FormState; label: string; category: string; required?: boolean }[] = [
-  { key: 'passportPhoto', label: 'Passport-size Photo', category: 'Photo', required: true },
-  { key: 'sscMarksheet', label: 'SSC Marksheet', category: 'Marksheet', required: true },
-  { key: 'sscCertificate', label: 'SSC Certificate', category: 'Certificate' },
-  { key: 'birthCertificateDoc', label: 'Birth Certificate', category: 'Birth Certificate', required: true },
-  { key: 'studentNIDCopy', label: 'Student NID Copy', category: 'NID' },
-  { key: 'fatherNIDFront', label: "Father's NID (Front)", category: 'NID', required: true },
-  { key: 'fatherNIDBack', label: "Father's NID (Back)", category: 'NID', required: true },
-  { key: 'motherNIDFront', label: "Mother's NID (Front)", category: 'NID', required: true },
-  { key: 'motherNIDBack', label: "Mother's NID (Back)", category: 'NID', required: true },
-  { key: 'testimonial', label: 'Testimonial', category: 'Testimonial' },
-  { key: 'medicalCertificate', label: 'Medical Certificate', category: 'Medical Certificate' },
-  { key: 'quotaDocument', label: 'Quota Document', category: 'Quota Document' },
-  { key: 'extraCertificates', label: 'Extra Certificates', category: 'Other' },
+// Document field → backend document category + UI label. `settingsKey` maps to
+// the admin Admission Settings document-requirement keys (mostly identical; the
+// passport photo differs). `required` is only the fallback default before the
+// settings load.
+const DOC_FIELDS: { key: keyof FormState; label: string; category: string; settingsKey: string; required?: boolean }[] = [
+  { key: 'passportPhoto', label: 'Passport-size Photo', category: 'Photo', settingsKey: 'photo', required: true },
+  { key: 'sscMarksheet', label: 'SSC Marksheet', category: 'Marksheet', settingsKey: 'sscMarksheet', required: true },
+  { key: 'sscCertificate', label: 'SSC Certificate', category: 'Certificate', settingsKey: 'sscCertificate' },
+  { key: 'birthCertificateDoc', label: 'Birth Certificate', category: 'Birth Certificate', settingsKey: 'birthCertificateDoc', required: true },
+  { key: 'studentNIDCopy', label: 'Student NID Copy', category: 'NID', settingsKey: 'studentNIDCopy' },
+  { key: 'fatherNIDFront', label: "Father's NID (Front)", category: 'NID', settingsKey: 'fatherNIDFront', required: true },
+  { key: 'fatherNIDBack', label: "Father's NID (Back)", category: 'NID', settingsKey: 'fatherNIDBack', required: true },
+  { key: 'motherNIDFront', label: "Mother's NID (Front)", category: 'NID', settingsKey: 'motherNIDFront', required: true },
+  { key: 'motherNIDBack', label: "Mother's NID (Back)", category: 'NID', settingsKey: 'motherNIDBack', required: true },
+  { key: 'testimonial', label: 'Testimonial', category: 'Testimonial', settingsKey: 'testimonial' },
+  { key: 'medicalCertificate', label: 'Medical Certificate', category: 'Medical Certificate', settingsKey: 'medicalCertificate' },
+  { key: 'quotaDocument', label: 'Quota Document', category: 'Quota Document', settingsKey: 'quotaDocument' },
+  { key: 'extraCertificates', label: 'Extra Certificates', category: 'Other', settingsKey: 'extraCertificates' },
 ];
 
-function getStepErrors(step: number, f: FormState): Errors {
+const ORDINALS = ['First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth', 'Seventh', 'Eighth'];
+const ordinalLabel = (n: number) => ORDINALS[n - 1] || `${n}th`;
+
+function getStepErrors(step: number, f: FormState, docRequired: (key: string) => boolean): Errors {
   const e: Errors = {};
   const req = (k: keyof FormState, msg: string) => { if (isEmpty(f[k])) e[k] = msg; };
   if (step === 1) {
@@ -125,7 +134,7 @@ function getStepErrors(step: number, f: FormState): Errors {
     req('status', 'Status is required');
     req('enrollmentDate', 'Enrollment date is required');
   } else if (step === 5) {
-    DOC_FIELDS.filter((d) => d.required).forEach((d) => {
+    DOC_FIELDS.filter((d) => docRequired(d.settingsKey)).forEach((d) => {
       if (!f[d.key]) e[d.key] = `${d.label} is required`;
     });
   }
@@ -191,13 +200,38 @@ export default function AddStudent() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [created, setCreated] = useState<{ name: string; roll: string; registration: string } | null>(null);
+  // Per-document mandatory map from admin Admission Settings (null → use static defaults).
+  const [docRequirements, setDocRequirements] = useState<Record<string, boolean> | null>(null);
   const topRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     departmentService.getDepartments({ page_size: 100 })
       .then((res) => setDepartments(res.results || []))
       .catch(() => setDepartments([]));
+    admissionService.getSettings()
+      .then((s) => setDocRequirements(s?.document_requirements || null))
+      .catch(() => setDocRequirements(null));
   }, []);
+
+  // A document is mandatory if the settings say so; otherwise fall back to the
+  // DOC_FIELDS static default. Keeps behaviour sane before/without settings.
+  const docRequired = (settingsKey: string): boolean => {
+    if (docRequirements && settingsKey in docRequirements) return !!docRequirements[settingsKey];
+    return !!DOC_FIELDS.find((d) => d.settingsKey === settingsKey)?.required;
+  };
+
+  // Semester 2+ unlocks optional existing Roll/Registration + prior-semester GPAs.
+  const semesterNo = form.semester ? semesterToNumber(form.semester) : 0;
+  const priorSemesters = semesterNo > 1 ? semesterNo - 1 : 0;
+
+  const setGpa = (index: number, value: string) => {
+    setForm((prev) => {
+      const next = [...(prev.previousGpas || [])];
+      while (next.length < priorSemesters) next.push('');
+      next[index] = value;
+      return { ...prev, previousGpas: next.slice(0, priorSemesters) };
+    });
+  };
 
   const set = (field: keyof FormState, value: any) => {
     setForm((prev) => {
@@ -215,7 +249,7 @@ export default function AddStudent() {
   const scrollTop = () => topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   const handleNext = () => {
-    const stepErrors = getStepErrors(currentStep, form);
+    const stepErrors = getStepErrors(currentStep, form, docRequired);
     if (Object.keys(stepErrors).length) {
       setErrors(stepErrors);
       const count = Object.keys(stepErrors).length;
@@ -242,7 +276,7 @@ export default function AddStudent() {
   const handleSubmit = async () => {
     // Final validation across the required steps.
     for (const s of [1, 2, 3, 4, 5]) {
-      const errs = getStepErrors(s, form);
+      const errs = getStepErrors(s, form, docRequired);
       if (Object.keys(errs).length) {
         setErrors(errs);
         setCurrentStep(s);
@@ -294,6 +328,18 @@ export default function AddStudent() {
         status: form.status,
         enrollmentDate: form.enrollmentDate,
       };
+
+      // Optional existing Roll/Registration — when supplied they are used as the
+      // official identifiers (backend skips auto-generation). Prior-semester GPAs
+      // seed the student's semester results.
+      const roll = (form.currentRollNumber || '').trim();
+      const reg = (form.currentRegistrationNumber || '').trim();
+      if (roll) payload.currentRollNumber = roll;
+      if (reg) payload.currentRegistrationNumber = reg;
+      const seededResults = (form.previousGpas || [])
+        .map((g, i) => ({ semester: i + 1, gpa: parseFloat(String(g)) }))
+        .filter((e) => !Number.isNaN(e.gpa));
+      if (seededResults.length) payload.semesterResults = seededResults;
 
       const student: any = await studentService.createStudent(payload);
       const studentId = student.id;
@@ -548,10 +594,39 @@ export default function AddStudent() {
                     </div>
                   </div>
                 </SectionCard>
-                <div className="flex items-start gap-2 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm text-muted-foreground">
-                  <IdCard className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
-                  <span>A unique Roll Number and Registration Number will be generated automatically when you submit.</span>
-                </div>
+
+                {/* Dynamic — semester 2+ only. Optional existing enrolment + prior GPAs. */}
+                {priorSemesters > 0 && (
+                  <>
+                    <SectionCard icon={IdCard} title="Existing Enrolment (optional)"
+                      description="If the student already has a college Roll & Registration, enter them to keep them. Leave blank to auto-generate.">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <TextField label="Current Roll Number" placeholder="Existing college roll" helper="Optional"
+                          value={form.currentRollNumber} onChange={(v) => set('currentRollNumber', v)} />
+                        <TextField label="Current Registration Number" placeholder="Existing college registration" helper="Optional"
+                          value={form.currentRegistrationNumber} onChange={(v) => set('currentRegistrationNumber', v)} />
+                      </div>
+                    </SectionCard>
+                    <SectionCard icon={ScrollText} title="Previous Semester Results (optional)"
+                      description="Enter the GPA for each completed prior semester.">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        {Array.from({ length: priorSemesters }, (_, i) => (
+                          <TextField key={i} label={`${ordinalLabel(i + 1)} Semester GPA`} placeholder="e.g. 3.75"
+                            inputMode="decimal" helper="Out of 4.00 · Optional"
+                            value={(form.previousGpas || [])[i] || ''} onChange={(v) => setGpa(i, v)} />
+                        ))}
+                      </div>
+                    </SectionCard>
+                  </>
+                )}
+
+                {/* The auto-generate note is irrelevant once the Roll/Registration fields are shown. */}
+                {priorSemesters === 0 && (
+                  <div className="flex items-start gap-2 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm text-muted-foreground">
+                    <IdCard className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
+                    <span>A unique Roll Number and Registration Number will be generated automatically when you submit.</span>
+                  </div>
+                )}
               </div>
             )}
 
@@ -563,10 +638,11 @@ export default function AddStudent() {
                   {DOC_FIELDS.map((d) => {
                     const file = form[d.key] as File | null;
                     const hasError = !!errors[d.key];
+                    const required = docRequired(d.settingsKey);
                     return (
                       <div key={String(d.key)} className="space-y-2">
                         <label className="flex items-center gap-2 text-sm font-medium">
-                          {d.label} {d.required ? <span className="text-destructive">*</span> : <span className="text-xs text-muted-foreground">(optional)</span>}
+                          {d.label} {required ? <span className="text-destructive">*</span> : <span className="text-xs text-muted-foreground">(optional)</span>}
                         </label>
                         <div className={cn('rounded-2xl border-2 border-dashed p-5 text-center transition-colors',
                           file ? 'border-success/50 bg-success/5' : hasError ? 'border-destructive/50 bg-destructive/5' : 'border-border hover:border-primary/50 hover:bg-muted/40')}>

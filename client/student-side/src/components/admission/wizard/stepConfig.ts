@@ -84,6 +84,58 @@ export const admissionTypeOptions = [
   { value: 'transfer', label: 'Transfer' },
 ];
 
+/** Maps a semester value ('1st'…'8th' or '1'…'8') to the integer 1-8. */
+export const semesterToNumber = (v: string): number =>
+  Math.max(1, Math.min(8, parseInt(v, 10) || 1));
+
+const ORDINALS = ['First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth', 'Seventh', 'Eighth'];
+
+/** "First", "Second", … for the given 1-based index. */
+export const ordinalLabel = (n: number): string => ORDINALS[n - 1] || `${n}th`;
+
+// Canonical admission document fields, in display order, with their UI labels
+// and the semantic defaults. Mandatory-ness is overridden at runtime by the
+// admin's Admission Settings; this list drives both the form and validation.
+export interface AdmissionDocField {
+  key: string;
+  label: string;
+  accept: string;
+  helper?: string;
+}
+export const ADMISSION_DOCUMENT_FIELDS: AdmissionDocField[] = [
+  { key: 'photo', label: 'Passport-size Photo', accept: 'image/*', helper: '300×300px, max 500KB' },
+  { key: 'sscMarksheet', label: 'SSC Marksheet', accept: '.pdf,image/*', helper: 'PDF or Image' },
+  { key: 'sscCertificate', label: 'SSC Certificate', accept: '.pdf,image/*' },
+  { key: 'birthCertificateDoc', label: 'Birth Certificate', accept: '.pdf,image/*', helper: 'PDF or Image' },
+  { key: 'studentNIDCopy', label: 'Student NID Copy', accept: '.pdf,image/*' },
+  { key: 'fatherNIDFront', label: "Father's NID (Front)", accept: '.pdf,image/*', helper: 'PDF or Image' },
+  { key: 'fatherNIDBack', label: "Father's NID (Back)", accept: '.pdf,image/*', helper: 'PDF or Image' },
+  { key: 'motherNIDFront', label: "Mother's NID (Front)", accept: '.pdf,image/*', helper: 'PDF or Image' },
+  { key: 'motherNIDBack', label: "Mother's NID (Back)", accept: '.pdf,image/*', helper: 'PDF or Image' },
+  { key: 'testimonial', label: 'Testimonial', accept: '.pdf,image/*' },
+  { key: 'medicalCertificate', label: 'Medical Certificate', accept: '.pdf,image/*' },
+  { key: 'quotaDocument', label: 'Quota Document', accept: '.pdf,image/*' },
+  { key: 'extraCertificates', label: 'Extra Certificates', accept: '.pdf,image/*' },
+];
+
+// Fallback mandatory map used before the server settings load (matches the
+// backend DEFAULT_DOCUMENT_REQUIREMENTS).
+export const DEFAULT_DOCUMENT_REQUIREMENTS: Record<string, boolean> = {
+  photo: true,
+  sscMarksheet: true,
+  sscCertificate: false,
+  birthCertificateDoc: true,
+  studentNIDCopy: false,
+  fatherNIDFront: true,
+  fatherNIDBack: true,
+  motherNIDFront: true,
+  motherNIDBack: true,
+  testimonial: false,
+  medicalCertificate: false,
+  quotaDocument: false,
+  extraCertificates: false,
+};
+
 /**
  * Passing years — generated from the current year going back `count` years.
  * Never hardcoded, so the list rolls forward automatically every year.

@@ -8,7 +8,6 @@ import {
   Send,
   BookOpen,
   Video,
-  MessageSquare,
   Bell
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -74,15 +73,9 @@ const actions = [
 ];
 
 const secondaryActions = [
-  { 
-    icon: MessageSquare, 
-    label: 'Messages', 
-    path: '/dashboard/messages',
-    badge: 3
-  },
-  { 
-    icon: Bell, 
-    label: 'Notices', 
+  {
+    icon: Bell,
+    label: 'Notices',
     path: '/dashboard/notices',
     badge: 5
   },

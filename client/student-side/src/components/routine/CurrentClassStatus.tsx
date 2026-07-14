@@ -119,7 +119,7 @@ export function CurrentClassStatus({
         {/* Header */}
         <div className="flex items-center gap-2 mb-3">
           <div className={cn(
-            "w-8 h-8 rounded-full bg-white/20 backdrop-blur flex items-center justify-center",
+            "w-8 h-8 rounded-full bg-white/25 flex items-center justify-center",
             config.iconAnimate && "animate-pulse"
           )}>
             <Icon className="w-4 h-4" />
@@ -136,7 +136,7 @@ export function CurrentClassStatus({
         {displayClass ? (
           <div className="space-y-2">
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center flex-shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-white/25 flex items-center justify-center flex-shrink-0">
                 <BookOpen className="w-5 h-5" />
               </div>
               <div className="flex-1 min-w-0">

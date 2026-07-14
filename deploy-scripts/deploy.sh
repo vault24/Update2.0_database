@@ -724,6 +724,19 @@ nginx_app_locations() {
         try_files \$uri =404;
     }
 
+    # --- Static images/fonts at the web root (logo, cover photos, …) ---------
+    # Not content-hashed, so a shorter lifetime than /assets/; still long
+    # enough that repeat visits never re-download the images. The negative
+    # lookahead keeps proxied/aliased prefixes (api, media, static, files,
+    # ws, admin) with their own handlers — a bare regex location would
+    # otherwise outrank those plain-prefix locations.
+    location ~* ^/(?!api/|media/|static/|files/|ws/|admin/).+\.(png|jpe?g|webp|gif|ico|svg|woff2?)\$ {
+        include ${NGINX_ROOT}/snippets/sipi-security-headers.conf;
+        expires 7d;
+        add_header Cache-Control "public";
+        try_files \$uri =404;
+    }
+
     # --- SPA entry point: never cache (instant rollout of new builds) --------
     location = /index.html {
         include ${NGINX_ROOT}/snippets/sipi-security-headers.conf;

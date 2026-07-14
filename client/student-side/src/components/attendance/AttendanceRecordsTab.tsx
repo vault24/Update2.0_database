@@ -25,7 +25,8 @@ import {
   attendanceService, type AttendanceRecord, type AttendanceRegister, type TeacherRecordsFilters,
 } from '@/services/attendanceService';
 import { getErrorMessage } from '@/lib/api';
-import { exportRegisterPdf, exportRegisterExcel } from '@/lib/attendanceExport';
+// '@/lib/attendanceExport' pulls in jsPDF + xlsx (~700KB) — imported
+// dynamically at export time so the attendance page loads fast.
 import { StudentAttendanceProfileDialog } from './StudentAttendanceProfileDialog';
 
 const PAGE_SIZE = 25;
@@ -155,7 +156,9 @@ export function AttendanceRecordsTab() {
       try {
         setLoadingSummary(true);
         const response = await attendanceService.getTeacherSubjectSummary();
-        setSummary((response.subjects || []) as SubjectSummary[]);
+        // The API returns a superset shape; `session` is present at runtime but
+        // not declared in the service type, hence the two-step cast.
+        setSummary((response.subjects || []) as unknown as SubjectSummary[]);
       } catch (err) {
         toast.error('Failed to load attendance summary', { description: getErrorMessage(err) });
         setSummary([]);
@@ -338,6 +341,7 @@ export function AttendanceRecordsTab() {
     }
     try {
       setExporting(true);
+      const { exportRegisterPdf, exportRegisterExcel } = await import('@/lib/attendanceExport');
       if (format === 'pdf') exportRegisterPdf(register, user?.name);
       else exportRegisterExcel(register, user?.name);
       toast.success(`Register exported as ${format.toUpperCase()}`);

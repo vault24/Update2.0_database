@@ -7,7 +7,7 @@ import { API_BASE_URL } from '@/config/api';
  * dashboard hero, directory). Served from `student-side/public`. Alumni cannot
  * change this — the cover is a shared branding element.
  */
-export const ALUMNI_COVER_IMAGE = '/alumni_cover_photo.png';
+export const ALUMNI_COVER_IMAGE = '/alumni_cover_photo.webp';
 
 /**
  * Resolve a stored file reference into a browser-loadable URL. Server media is

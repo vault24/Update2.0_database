@@ -6,6 +6,31 @@ from django.conf import settings
 import uuid
 
 
+# Canonical admission document fields and whether they default to mandatory.
+# Used both as the AdmissionSettings default and as the source of truth for the
+# document toggles shown in the admin "Admission Settings" modal.
+DEFAULT_DOCUMENT_REQUIREMENTS = {
+    'photo': True,
+    'sscMarksheet': True,
+    'sscCertificate': False,
+    'birthCertificateDoc': True,
+    'studentNIDCopy': False,
+    'fatherNIDFront': True,
+    'fatherNIDBack': True,
+    'motherNIDFront': True,
+    'motherNIDBack': True,
+    'testimonial': False,
+    'medicalCertificate': False,
+    'quotaDocument': False,
+    'extraCertificates': False,
+}
+
+
+def default_document_requirements():
+    """Callable default for the AdmissionSettings JSON field (migration-safe)."""
+    return dict(DEFAULT_DOCUMENT_REQUIREMENTS)
+
+
 class Admission(models.Model):
     """
     Student admission application model
@@ -109,6 +134,34 @@ class Admission(models.Model):
     )
     desired_shift = models.CharField(max_length=20, choices=SHIFT_CHOICES, blank=True)
     session = models.CharField(max_length=20, blank=True)
+
+    # Current Academic Information (dynamic, for admissions into 2nd semester+)
+    # `semester` is the semester the applicant is admitted into (1-8). It is the
+    # source of truth for the student's current semester on approval; nullable so
+    # legacy admissions (which never captured it) stay valid and fall back to 1.
+    semester = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text='Semester selected during admission (1-8). Blank on legacy rows.'
+    )
+    # Prior-semester GPAs supplied when admitting into semester 2+.
+    # Format: [{"semester": 1, "gpa": 3.75}, {"semester": 2, "gpa": 3.90}, ...]
+    previous_gpas = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='Optional prior-semester GPAs for mid-programme admissions'
+    )
+    # Existing college Roll / Registration for students transferring in at 2nd
+    # semester+. When provided these become the student's official identifiers
+    # on approval (no auto-generation). Blank keeps the auto-generate behaviour.
+    current_roll_number = models.CharField(
+        max_length=50, blank=True,
+        help_text="Existing college roll (optional); used as official roll if set"
+    )
+    current_registration_number = models.CharField(
+        max_length=50, blank=True,
+        help_text="Existing college registration (optional); used as official reg if set"
+    )
     
     # Documents (stores file paths)
     documents = models.JSONField(default=dict, blank=True)
@@ -345,3 +398,59 @@ class Admission(models.Model):
             self.documents_processed = False
             self.save()
             return False
+
+
+class AdmissionSettings(models.Model):
+    """
+    Singleton settings controlling the admission module.
+
+    - `is_admission_enabled` gates the whole flow: when off, the Admission menu
+      is hidden from the student sidebar and new submissions are refused.
+    - `document_requirements` maps each admission document field to a boolean:
+      True = mandatory (shows a required * and must be uploaded), False = optional.
+      Unknown/new fields fall back to DEFAULT_DOCUMENT_REQUIREMENTS.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    is_admission_enabled = models.BooleanField(
+        default=True,
+        help_text='When off, hide Admission from students and refuse new submissions'
+    )
+    document_requirements = models.JSONField(
+        default=default_document_requirements,
+        blank=True,
+        help_text='Map of document field -> mandatory(bool)'
+    )
+
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='updated_admission_settings'
+    )
+
+    class Meta:
+        db_table = 'admission_settings'
+        verbose_name = 'Admission Settings'
+        verbose_name_plural = 'Admission Settings'
+
+    def __str__(self):
+        return f"Admission Settings (enabled={self.is_admission_enabled})"
+
+    @classmethod
+    def get_settings(cls):
+        """Return the singleton settings row, creating it on first access."""
+        obj = cls.objects.first()
+        if obj is None:
+            obj = cls.objects.create()
+        return obj
+
+    def merged_document_requirements(self):
+        """Defaults overlaid with any stored overrides (keeps new fields sane)."""
+        merged = dict(DEFAULT_DOCUMENT_REQUIREMENTS)
+        if isinstance(self.document_requirements, dict):
+            for key, value in self.document_requirements.items():
+                merged[key] = bool(value)
+        return merged

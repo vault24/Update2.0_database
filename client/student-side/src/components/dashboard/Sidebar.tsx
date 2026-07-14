@@ -17,7 +17,6 @@ import {
   Phone,
   BookOpen,
   Bell,
-  MessageCircle,
   Video,
   Shield,
   Sparkles,
@@ -29,6 +28,7 @@ import {
   Mail,
 } from 'lucide-react';
 import { useAuth, UserRole } from '@/contexts/AuthContext';
+import { admissionService } from '@/services/admissionService';
 import { Button } from '@/components/ui/button';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import { SwitchAccountDialog, canSwitchAccount } from '@/components/account/SwitchAccountDialog';
@@ -70,8 +70,6 @@ const mainMenuItems: MenuItem[] = [
 const upcomingMenuItems: MenuItem[] = [
   { icon: BookOpen, label: 'Learning Hub', path: '/dashboard/learning-hub', roles: ['student', 'captain', 'teacher'] },
   { icon: Video, label: 'Live Classes', path: '/dashboard/live-classes', roles: ['student', 'captain', 'teacher'] },
-  { icon: MessageCircle, label: 'Messages', path: '/dashboard/messages', roles: ['student', 'captain', 'teacher'] },
-  { icon: Shield, label: 'My Allegations', path: '/dashboard/my-allegations', roles: ['student', 'captain'] },
 ];
 
 // Dedicated menu for alumni accounts — no Admission / Class Routine / Attendance,
@@ -85,7 +83,6 @@ const alumniMenuItems: MenuItem[] = [
   { icon: FolderOpen, label: 'Documents', path: '/dashboard/documents', roles: ['alumni'] },
   { icon: Send, label: 'Applications', path: '/dashboard/applications', roles: ['alumni'] },
   { icon: Shield, label: 'Complaints', path: '/dashboard/complaints', roles: ['alumni'] },
-  { icon: MessageCircle, label: 'Messages', path: '/dashboard/messages', roles: ['alumni'] },
   { icon: Settings, label: 'Settings', path: '/dashboard/settings', roles: ['alumni'] },
 ];
 
@@ -108,6 +105,16 @@ export function Sidebar() {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isUpcomingOpen, setIsUpcomingOpen] = useState(true);
   const [isSwitchOpen, setIsSwitchOpen] = useState(false);
+  // Admission can be disabled by admins — hide the menu entry entirely when off.
+  const [admissionEnabled, setAdmissionEnabled] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    admissionService.getSettings()
+      .then((s) => { if (active) setAdmissionEnabled(s?.is_admission_enabled !== false); })
+      .catch(() => { /* default to visible on error */ });
+    return () => { active = false; };
+  }, []);
 
   // Always close the mobile drawer when the route changes. Covers the per-item
   // onClick, the logo/back/forward navigations, and guarantees the dimming
@@ -115,6 +122,23 @@ export function Sidebar() {
   useEffect(() => {
     setIsMobileOpen(false);
   }, [location.pathname]);
+
+  // Track the lg breakpoint reactively. Reading window.innerWidth inline in the
+  // animate prop only sampled it at render time, so a viewport change (device
+  // rotation, resize, dev-tools emulation) left the drawer in the wrong
+  // position until the next unrelated re-render.
+  const [isDesktop, setIsDesktop] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const onChange = (e: MediaQueryListEvent) => {
+      setIsDesktop(e.matches);
+      if (e.matches) setIsMobileOpen(false); // never keep a drawer state on desktop
+    };
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
 
   const handleLogout = async () => {
     await logout();
@@ -142,7 +166,9 @@ export function Sidebar() {
     : mainMenuItems.filter(
         (item) =>
           item.roles.includes(userRole) &&
-          !(item.path === '/dashboard/admission' && isAdmitted)
+          !(item.path === '/dashboard/admission' && isAdmitted) &&
+          // Hide Admission completely when the admin has disabled admissions.
+          !(item.path === '/dashboard/admission' && !admissionEnabled)
       );
   const filteredUpcomingItems = isAlumni
     ? []
@@ -206,32 +232,35 @@ export function Sidebar() {
         <Menu className="h-5 w-5" />
       </button>
 
-      {/* Mobile overlay */}
-      <AnimatePresence>
-        {isMobileOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setIsMobileOpen(false)}
-            /* Plain dim, NO backdrop-blur: backdrop-filter on a transient fixed
-               overlay leaves a blurred compositing "ghost" on many mobile GPUs
-               after it unmounts — that was the page-stays-blurred bug. */
-            className="fixed inset-0 z-40 bg-foreground/50 lg:hidden"
-          />
-        )}
-      </AnimatePresence>
+      {/* Mobile overlay.
+          Deliberately NOT AnimatePresence/motion: AnimatePresence keeps the
+          element mounted until its exit animation finishes, and that animation
+          runs on requestAnimationFrame. On low-end phones a route change
+          starves rAF while the new page mounts, so the exit never completed
+          and the dim layer stayed stuck over the page ("blurred page" bug).
+          A plain conditional div unmounts synchronously with state; the CSS
+          animate-in gives the fade-in, and no exit animation is needed.
+          (Also no backdrop-blur here — backdrop-filter on transient fixed
+          overlays leaves compositing ghosts on many Android GPUs.) */}
+      {isMobileOpen && (
+        <div
+          onClick={() => setIsMobileOpen(false)}
+          aria-hidden="true"
+          className="fixed inset-0 z-40 bg-foreground/50 lg:hidden animate-in fade-in-0 duration-200"
+        />
+      )}
 
-      {/* Sidebar */}
-      <motion.aside
-        initial={false}
-        animate={{
-          width: isCollapsed ? 84 : 280,
-          x: isMobileOpen ? 0 : typeof window !== 'undefined' && window.innerWidth < 1024 ? -300 : 0,
-        }}
-        transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+      {/* Sidebar.
+          CSS transitions instead of a framer spring: transform/width changes
+          apply immediately even when rAF is starved, so the drawer can never
+          hang half-open, and the compositor animates the transform off the
+          main thread (smoother on low-end devices). */}
+      <aside
         className={cn(
           'fixed left-0 top-0 z-50 flex h-screen flex-col border-r border-sidebar-border bg-sidebar',
+          'transition-[width,transform] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
+          isCollapsed ? 'w-[84px]' : 'w-[280px]',
+          isMobileOpen ? 'translate-x-0' : '-translate-x-full',
           'lg:sticky lg:top-0 lg:translate-x-0',
         )}
       >

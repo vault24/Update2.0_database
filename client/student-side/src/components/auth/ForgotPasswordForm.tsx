@@ -12,13 +12,13 @@ interface Props {
   error?: string;
 }
 
-/* â”€â”€ math question generator (simple subtraction / addition) â”€â”€ */
+/* ── math question generator (simple subtraction / addition) ── */
 function generateMath() {
   const useSubtract = Math.random() > 0.5;
   if (useSubtract) {
     const a = Math.floor(Math.random() * 30) + 15; // 15-44
     const b = Math.floor(Math.random() * 14) + 2;  // 2-15
-    return { question: `${a} âˆ’ ${b} = ?`, answer: a - b };
+    return { question: `${a} − ${b} = ?`, answer: a - b };
   } else {
     const a = Math.floor(Math.random() * 20) + 5;  // 5-24
     const b = Math.floor(Math.random() * 20) + 5;  // 5-24
@@ -26,7 +26,7 @@ function generateMath() {
   }
 }
 
-/* â”€â”€ mini math popup â”€â”€ */
+/* ── mini math popup ── */
 function MathPopup({
   onConfirm,
   onCancel,
@@ -78,7 +78,7 @@ function MathPopup({
 
           <div className="w-12 h-12 rounded-2xl mx-auto mb-3 flex items-center justify-center text-xl"
             style={{ background: 'linear-gradient(135deg,#3b6cf7,#2152e3)' }}>
-            ðŸ¤–
+            🤖
           </div>
           <h3 className="text-base font-bold text-gray-900">Quick Check</h3>
           <p className="text-xs text-gray-500 mt-0.5">Solve to verify you're human</p>
@@ -97,7 +97,7 @@ function MathPopup({
           >
             <Input
               type="number"
-              placeholder="Your answerâ€¦"
+              placeholder="Your answer…"
               autoFocus
               value={input}
               onChange={e => setInput(e.target.value)}
@@ -122,12 +122,12 @@ function MathPopup({
   );
 }
 
-/* â”€â”€ main form â”€â”€ */
+/* ── main form ── */
 export function ForgotPasswordForm({ onSubmit, onBack, loading, error }: Props) {
   const [email, setEmail] = useState('');
   const [showMath, setShowMath] = useState(false);
 
-  /* intercept submit â€” show math first */
+  /* intercept submit — show math first */
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) { toast.error('Please enter your email address'); return; }

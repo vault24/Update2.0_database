@@ -10,7 +10,6 @@ import { QuickNotes } from '@/components/widgets/QuickNotes';
 import { StudyStreak } from '@/components/widgets/StudyStreak';
 import { PremiumStatsGrid } from '@/components/dashboard/PremiumStatsGrid';
 import { UpcomingEventsWidget } from '@/components/dashboard/UpcomingEventsWidget';
-import { AcademicProgressWidget } from '@/components/dashboard/AcademicProgressWidget';
 // Teacher-specific components
 import { TeacherWelcomeCard } from '@/components/dashboard/TeacherWelcomeCard';
 import { TeacherQuickActions } from '@/components/dashboard/TeacherQuickActions';
@@ -570,13 +569,8 @@ export function Dashboard() {
       {/* Quick Actions */}
       <PremiumQuickActions />
 
-      {/* Two Column Layout - Study Streak & Academic Progress */}
-      <div className="grid md:grid-cols-2 gap-4 md:gap-6">
-        <StudyStreak />
-        <AcademicProgressWidget 
-          currentSemester={semester}
-        />
-      </div>
+      {/* Study Streak */}
+      <StudyStreak />
 
       {/* Main Content Grid */}
       <div className="grid lg:grid-cols-3 gap-4 md:gap-6">

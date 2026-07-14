@@ -14,7 +14,7 @@ interface Department {
 }
 
 const INSTITUTE_NAME = 'SIRAJGANJ POLYTECHNIC INSTITUTE';
-const INSTITUTE_SUB = 'Directorate of Technical Education Â· Ministry of Education, Bangladesh';
+const INSTITUTE_SUB = 'Directorate of Technical Education · Ministry of Education, Bangladesh';
 
 // Brand palette (RGB) used across the PDF.
 const NAVY: [number, number, number] = [15, 42, 76];
@@ -289,12 +289,12 @@ function buildAdmissionDoc(
       doc.setFontSize(7);
       doc.setTextColor(130, 130, 130);
       doc.text(
-        `${INSTITUTE_NAME} Â· Official Admission Document`,
+        `${INSTITUTE_NAME} · Official Admission Document`,
         margin,
         pageHeight - 8
       );
       doc.text(
-        `Generated ${new Date().toLocaleString('en-GB')}  Â·  Page ${p} of ${pageCount}`,
+        `Generated ${new Date().toLocaleString('en-GB')}  ·  Page ${p} of ${pageCount}`,
         pageWidth - margin,
         pageHeight - 8,
         { align: 'right' }

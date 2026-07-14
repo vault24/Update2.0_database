@@ -13,6 +13,7 @@ import {
   Clock,
   GraduationCap,
   FileText,
+  Settings2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +29,7 @@ import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { admissionService, Admission } from '@/services/admissionService';
 import { LoadingState } from '@/components/LoadingState';
+import { AdmissionSettingsDialog } from '@/components/admissions/AdmissionSettingsDialog';
 
 const statuses = ['All', 'Pending', 'Approved', 'Rejected'];
 const departments = ['All', 'Computer', 'Electrical', 'Civil', 'Mechanical', 'Electronics', 'Power'];
@@ -73,6 +75,7 @@ export default function Admissions() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Debounce search query
   useEffect(() => {
@@ -134,11 +137,9 @@ export default function Admissions() {
   const handleApprove = async (id: string) => {
     try {
       setProcessing(true);
+      // Roll/Registration and the semester come from the admission record itself
+      // (applicant-selected). We only send the review note here.
       await admissionService.approveAdmission(id, {
-        current_roll_number: `ROLL-${Date.now()}`,
-        current_registration_number: `REG-${Date.now()}`,
-        semester: 1,
-        current_group: 'A',
         enrollment_date: new Date().toISOString().split('T')[0],
         review_notes: 'Approved by admin',
       });
@@ -200,11 +201,19 @@ export default function Admissions() {
           </h1>
           <p className="text-muted-foreground mt-1">Review and manage student admission requests</p>
         </div>
-        <Button variant="outline">
-          <Download className="w-4 h-4 mr-2" />
-          Export
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setSettingsOpen(true)}>
+            <Settings2 className="w-4 h-4 mr-2" />
+            Admission Settings
+          </Button>
+          <Button variant="outline">
+            <Download className="w-4 h-4 mr-2" />
+            Export
+          </Button>
+        </div>
       </div>
+
+      <AdmissionSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

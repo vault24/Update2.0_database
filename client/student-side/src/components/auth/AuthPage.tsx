@@ -54,20 +54,20 @@ const isStudentFamily = (role: UserRole) => role === 'student' || role === 'capt
 const splideSlides = [
   {
     title: 'Everything at Your Fingertips',
-    desc: 'Stay updated with class schedules, assignments, announcements, and important notificationsâ€”all in one place.',
-    image: '/student-illustration.png',
+    desc: 'Stay updated with class schedules, assignments, announcements, and important notifications—all in one place.',
+    image: '/student-illustration.webp',
     bg: '#ffffff',
   },
   {
     title: 'Learn. Practice. Succeed.',
     desc: 'Access study materials, track your academic progress, and improve your performance every day.',
-    image: '/student-illustration2.png',
+    image: '/student-illustration2.webp',
     bg: '#ffffff',
   },
   {
     title: 'Your Journey Starts Here',
     desc: 'Build your skills, achieve your goals, and move confidently toward a successful academic future.',
-    image: '/student-illustration3.png',
+    image: '/student-illustration3.webp',
     bg: '#f7fdfa',
   },
 ];
@@ -75,7 +75,7 @@ const splideSlides = [
 /** Background images for the desktop login page slider */
 const bgImages = ['/cover-image.jpg', '/cover-image1.jpg'];
 
-/* â”€â”€â”€ Desktop background slider â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Desktop background slider ────────────────────────────────── */
 function BackgroundSlider() {
   const [current, setCurrent] = useState(0);
 
@@ -101,13 +101,13 @@ function BackgroundSlider() {
         />
       </AnimatePresence>
 
-      {/* Blue tint overlay â€” reduced opacity so campus photos show through more */}
+      {/* Blue tint overlay — reduced opacity so campus photos show through more */}
       <div
         className="absolute inset-0"
         style={{ background: 'linear-gradient(160deg, rgba(6,78,59,0.45) 0%, rgba(5,150,105,0.3) 45%, rgba(4,47,36,0.4) 100%)' }}
       />
 
-      {/* Slide indicator dots â€” bottom-center */}
+      {/* Slide indicator dots — bottom-center */}
       <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2">
         {bgImages.map((_, i) => (
           <button
@@ -126,7 +126,7 @@ function BackgroundSlider() {
   );
 }
 
-/* â”€â”€â”€ Google SVG â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Google SVG ─────────────────────────────────────────────────── */
 function GoogleIcon() {
   return (
     <svg viewBox="0 0 24 24" className="w-5 h-5" xmlns="http://www.w3.org/2000/svg">
@@ -138,7 +138,7 @@ function GoogleIcon() {
   );
 }
 
-/* â”€â”€â”€ Microsoft SVG â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── Microsoft SVG ──────────────────────────────────────────────── */
 function MicrosoftIcon() {
   return (
     <svg viewBox="0 0 24 24" className="w-5 h-5" xmlns="http://www.w3.org/2000/svg">
@@ -150,7 +150,7 @@ function MicrosoftIcon() {
   );
 }
 
-/* â”€â”€â”€ SPI Logo header (mobile login/signup header) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ─── SPI Logo header (mobile login/signup header) ─────────────── */
 function HexCapLogo() {
   return (
     <div className="flex flex-col items-center mb-4 gap-2">
@@ -165,9 +165,9 @@ function HexCapLogo() {
   );
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ════════════════════════════════════════════════════════════════════
    MOBILE SPLASH SCREEN
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+   ════════════════════════════════════════════════════════════════════ */
 function MobileSplash({ onStart, onLogin }: { onStart: () => void; onLogin: () => void }) {
   const [slide, setSlide] = useState(0);
 
@@ -183,7 +183,7 @@ function MobileSplash({ onStart, onLogin }: { onStart: () => void; onLogin: () =
       transition={{ duration: 0.35, ease: 'easeOut' }}
     >
 
-      {/* â”€â”€ Top illustration area â€” fixed-size stage so it never resizes/jumps between slides â”€â”€ */}
+      {/* ── Top illustration area — fixed-size stage so it never resizes/jumps between slides ── */}
       <div className="flex-[0.7] relative flex flex-col items-center justify-center px-6 pt-6 pb-3 overflow-hidden">
         <div
           className="relative flex items-center justify-center"
@@ -213,7 +213,7 @@ function MobileSplash({ onStart, onLogin }: { onStart: () => void; onLogin: () =
         </div>
       </div>
 
-      {/* â”€â”€ Bottom content area â”€â”€ */}
+      {/* ── Bottom content area ── */}
       <motion.div
         className="px-8 pt-1 pb-8 flex flex-col items-center"
         animate={{ backgroundColor: splideSlides[slide].bg }}
@@ -283,9 +283,9 @@ function MobileSplash({ onStart, onLogin }: { onStart: () => void; onLogin: () =
   );
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ════════════════════════════════════════════════════════════════════
    MOBILE AUTH FORM  (login + signup)
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+   ════════════════════════════════════════════════════════════════════ */
 function MobileAuthForm({
   mode, setMode, onBack,
   formData, setFormData,
@@ -312,7 +312,7 @@ function MobileAuthForm({
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#f6faf8' }}>
 
-      {/* â”€â”€ Header card: dot-grid texture + logo, gives the screen a "student ID card" identity â”€â”€ */}
+      {/* ── Header card: dot-grid texture + logo, gives the screen a "student ID card" identity ── */}
       <div className="relative overflow-hidden pt-10 pb-7 px-6"
         style={{ background: 'linear-gradient(160deg,#eafaf2 0%,#f6faf8 100%)' }}>
 
@@ -325,7 +325,7 @@ function MobileAuthForm({
             WebkitMaskImage: 'linear-gradient(to bottom, black 0%, transparent 90%)',
           }} />
 
-        {/* Amber accent blob â€” small, top-right, echoes the splash screen's "Keep Learning" star */}
+        {/* Amber accent blob — small, top-right, echoes the splash screen's "Keep Learning" star */}
         <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full pointer-events-none"
           style={{ background: 'radial-gradient(circle, rgba(245,158,11,0.16) 0%, transparent 70%)' }} />
 
@@ -342,7 +342,7 @@ function MobileAuthForm({
 
       <div className="flex-1 overflow-y-auto px-6 pt-6 pb-8 relative z-10 rounded-t-[28px] -mt-3 bg-white shadow-[0_-4px_24px_rgba(15,23,42,0.04)]">
 
-        {/* Tab bar â€” connected pill track */}
+        {/* Tab bar — connected pill track */}
         <div className="flex mb-6 bg-gray-100 rounded-2xl p-1 relative">
           {(['login', 'signup'] as const).map((tab) => (
             <button key={tab} onClick={() => setMode(tab)}
@@ -386,7 +386,7 @@ function MobileAuthForm({
 
             <form onSubmit={handleSubmit} className="space-y-3.5">
 
-              {/* â”€â”€ SIGNUP FIELDS â”€â”€ */}
+              {/* ── SIGNUP FIELDS ── */}
               {mode === 'signup' && (
                 <>
                   <Label className="text-xs font-semibold text-gray-500 -mb-1 block">I am a...</Label>
@@ -481,7 +481,7 @@ function MobileAuthForm({
                     </>
                   )}
 
-                  {/* Email â€” locked & pre-filled when verified via Google */}
+                  {/* Email — locked & pre-filled when verified via Google */}
                   <div className="relative">
                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <Input type="email" placeholder="Email Address"
@@ -494,7 +494,7 @@ function MobileAuthForm({
                     )}
                   </div>
                   {googleVerified && (
-                    <p className="text-[11px] text-emerald-600 -mt-1.5 px-1">Email verified with Google â€” no code needed. Just finish the rest below.</p>
+                    <p className="text-[11px] text-emerald-600 -mt-1.5 px-1">Email verified with Google — no code needed. Just finish the rest below.</p>
                   )}
 
                   {/* Teacher fields */}
@@ -536,7 +536,7 @@ function MobileAuthForm({
                         <div className="flex flex-wrap gap-1.5">
                           {formData.qualifications.map((q: string, i: number) => (
                             <span key={i} className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-600 rounded-md text-xs">
-                              {q}<button type="button" onClick={() => setFormData({ ...formData, qualifications: formData.qualifications.filter((_: string, idx: number) => idx !== i) })} className="hover:text-red-500">Ã—</button>
+                              {q}<button type="button" onClick={() => setFormData({ ...formData, qualifications: formData.qualifications.filter((_: string, idx: number) => idx !== i) })} className="hover:text-red-500">×</button>
                             </span>
                           ))}
                         </div>
@@ -551,7 +551,7 @@ function MobileAuthForm({
                 </>
               )}
 
-              {/* â”€â”€ LOGIN FIELDS â”€â”€ */}
+              {/* ── LOGIN FIELDS ── */}
               {mode === 'login' && (
                 <div className="relative">
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -596,7 +596,7 @@ function MobileAuthForm({
                 </Button>
               </motion.div>
 
-              {/* Social â€” available on both login & signup; hidden once a Google
+              {/* Social — available on both login & signup; hidden once a Google
                   signup is already in progress. */}
               {!googleVerified && (
                 <>
@@ -634,9 +634,9 @@ function MobileAuthForm({
   );
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ════════════════════════════════════════════════════════════════════
    MAIN EXPORT
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+   ════════════════════════════════════════════════════════════════════ */
 export function AuthPage() {
   const [mode, setMode] = useState<AuthMode>('login');
   const [mobileView, setMobileView] = useState<MobileView>('splash');
@@ -754,7 +754,7 @@ export function AuthPage() {
       setMode('login');
       setMobileView('form');
     } else if (data?.role === 'captain') {
-      toast.success('Account created! Your captain request was sent to your Department Head â€” you can use the portal as a student until it is approved.');
+      toast.success('Account created! Your captain request was sent to your Department Head — you can use the portal as a student until it is approved.');
       navigate('/dashboard');
     } else {
       toast.success('Account created successfully!');
@@ -797,7 +797,7 @@ export function AuthPage() {
         return;
       }
 
-      // New email â€” hand off to the signup form. The email is verified by
+      // New email — hand off to the signup form. The email is verified by
       // Google, so it is locked and the OTP step is skipped on submit.
       setGoogleToken(token);
       setSelectedRole('student');
@@ -809,7 +809,7 @@ export function AuthPage() {
       }));
       setMode('signup');
       setMobileView('form');
-      toast.info('Almost there â€” please complete your details to finish signing up.');
+      toast.info('Almost there — please complete your details to finish signing up.');
     } catch (err: any) {
       if (err instanceof GoogleSignInCancelled) return; // user closed the popup
       toast.error(firstValidationError(err));
@@ -841,14 +841,14 @@ export function AuthPage() {
 
   return (
     <>
-      {/* â•â•â•â•â•â•â•â•â•â• SIGN-UP EMAIL VERIFICATION (OTP) â€” overlay â•â•â•â•â•â•â•â•â•â• */}
+      {/* ══════════ SIGN-UP EMAIL VERIFICATION (OTP) — overlay ══════════ */}
       <AnimatePresence>
         {showOtpStep && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/70 p-4"
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -870,7 +870,7 @@ export function AuthPage() {
         )}
       </AnimatePresence>
 
-      {/* â•â•â•â•â•â•â•â•â•â• MOBILE  (< lg) â•â•â•â•â•â•â•â•â•â• */}
+      {/* ══════════ MOBILE  (< lg) ══════════ */}
       <div className="lg:hidden">
         <AnimatePresence mode="wait">
           {mobileView === 'splash' ? (
@@ -892,13 +892,13 @@ export function AuthPage() {
         </AnimatePresence>
       </div>
 
-      {/* â•â•â•â•â•â•â•â•â•â• DESKTOP (lg+) â•â•â•â•â•â•â•â•â•â• */}
+      {/* ══════════ DESKTOP (lg+) ══════════ */}
       <div className="hidden lg:flex min-h-screen relative flex-col items-center justify-center overflow-hidden">
 
-        {/* Background slider â€” cycles through campus photos */}
+        {/* Background slider — cycles through campus photos */}
         <BackgroundSlider />
 
-        {/* Floating dot/shape decorations â€” faint, don't compete with the photo */}
+        {/* Floating dot/shape decorations — faint, don't compete with the photo */}
         <div className="absolute inset-0 z-[1] pointer-events-none overflow-hidden">
           <div className="absolute top-[8%] left-[12%] w-2 h-2 rounded-full bg-white/40" />
           <div className="absolute top-[20%] right-[18%] w-2.5 h-2.5 rounded-full bg-white/30" />
@@ -909,7 +909,7 @@ export function AuthPage() {
           <div className="absolute top-[18%] right-1/3 w-5 h-5 rounded-full border border-amber-300/40" />
         </div>
 
-        {/* â”€â”€ Top-left: brand wordmark â”€â”€ */}
+        {/* ── Top-left: brand wordmark ── */}
         <div className="absolute top-6 left-6 z-20 flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl overflow-hidden bg-white shadow-lg border border-white/40 flex items-center justify-center p-1.5">
             <img src="/spi-logo.png" alt="SPI Logo" className="w-full h-full object-contain" />
@@ -920,7 +920,7 @@ export function AuthPage() {
           </div>
         </div>
 
-        {/* â”€â”€ Top-right: language pill (static placeholder until i18n is wired up) â”€â”€ */}
+        {/* ── Top-right: language pill (static placeholder until i18n is wired up) ── */}
         <button type="button"
           className="absolute top-6 right-6 z-20 flex items-center gap-1.5 bg-white/15 backdrop-blur-md border border-white/25 text-white text-sm font-medium px-4 py-2 rounded-full hover:bg-white/25 transition-colors">
           <Globe className="w-4 h-4" />
@@ -928,7 +928,7 @@ export function AuthPage() {
           <ChevronDown className="w-3.5 h-3.5 opacity-70" />
         </button>
 
-        {/* â”€â”€ Bottom-left: quote badge â”€â”€ */}
+        {/* ── Bottom-left: quote badge ── */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}
           className="absolute bottom-7 left-7 z-20 hidden xl:flex items-start gap-3 bg-white/12 backdrop-blur-md border border-white/20 rounded-2xl px-4 py-3.5 max-w-[270px]">
           <div className="flex-shrink-0 w-9 h-9 rounded-full bg-emerald-500/80 flex items-center justify-center">
@@ -936,11 +936,11 @@ export function AuthPage() {
           </div>
           <div>
             <p className="text-white text-sm font-medium leading-snug">Education is the most powerful weapon.</p>
-            <p className="text-emerald-100/70 text-xs mt-1">â€” Nelson Mandela</p>
+            <p className="text-emerald-100/70 text-xs mt-1">— Nelson Mandela</p>
           </div>
         </motion.div>
 
-        {/* â”€â”€ Bottom-right: "Keep Learning" badge â€” echoes splash slide 3 copy â”€â”€ */}
+        {/* ── Bottom-right: "Keep Learning" badge — echoes splash slide 3 copy ── */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }}
           className="absolute bottom-7 right-7 z-20 hidden xl:flex items-center gap-3 bg-white/12 backdrop-blur-md border border-white/20 rounded-2xl px-4 py-3.5">
           <div className="flex-shrink-0 w-9 h-9 rounded-full bg-emerald-500/80 flex items-center justify-center">
@@ -953,7 +953,7 @@ export function AuthPage() {
           <TrendingUp className="w-5 h-5 text-amber-300 ml-1" />
         </motion.div>
 
-        {/* â”€â”€ Center: frosted glass auth card â”€â”€ */}
+        {/* ── Center: frosted glass auth card ── */}
         <motion.div
           initial={{ opacity: 0, y: 24, scale: 0.97 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -968,7 +968,7 @@ export function AuthPage() {
         >
           <div className="max-h-[88vh] overflow-y-auto px-9 pt-9 pb-8">
 
-            {/* Logo + heading â€” login only */}
+            {/* Logo + heading — login only */}
             {mode === 'login' && (
               <>
                 <div className="flex justify-center mb-4">
@@ -983,7 +983,7 @@ export function AuthPage() {
               </>
             )}
 
-            {/* Heading â€” signup only */}
+            {/* Heading — signup only */}
             {mode === 'signup' && (
               <div className="text-center mb-6 pt-2">
                 <h2 className="text-2xl font-bold text-gray-900">Create your account</h2>
@@ -1014,7 +1014,7 @@ export function AuthPage() {
 
                 <form onSubmit={handleSubmit} className="space-y-4">
 
-                  {/* â”€â”€ SIGNUP FIELDS â”€â”€ */}
+                  {/* ── SIGNUP FIELDS ── */}
                   {mode === 'signup' && (
                     <>
                       <div>
@@ -1096,7 +1096,7 @@ export function AuthPage() {
                       <div>
                         <Label className="text-xs font-semibold text-gray-600 mb-1.5 block">
                           Email Address
-                          {googleVerified && <span className="ml-2 text-emerald-600 font-medium">âœ“ Verified with Google</span>}
+                          {googleVerified && <span className="ml-2 text-emerald-600 font-medium">✓ Verified with Google</span>}
                         </Label>
                         <div className="relative"><Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                           <Input type="email" placeholder="your.email@example.com"
@@ -1104,17 +1104,17 @@ export function AuthPage() {
                               googleVerified && 'bg-emerald-50/60 border-emerald-200 text-gray-600')}
                             value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                             required readOnly={googleVerified} /></div>
-                        {googleVerified && <p className="text-xs text-emerald-600 mt-1">No verification code needed â€” just complete the remaining fields.</p>}
+                        {googleVerified && <p className="text-xs text-emerald-600 mt-1">No verification code needed — just complete the remaining fields.</p>}
                       </div>
                     </>
                   )}
 
-                  {/* â”€â”€ TEACHER FIELDS (desktop) â”€â”€ */}
+                  {/* ── TEACHER FIELDS (desktop) ── */}
                   {mode === 'signup' && selectedRole === 'teacher' && (
                     <>
                       <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Full Name (Bangla) <span className="text-red-500">*</span></Label>
                         <div className="relative"><User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <Input placeholder="à¦†à¦ªà¦¨à¦¾à¦° à¦ªà§‚à¦°à§à¦£ à¦¨à¦¾à¦®" className="pl-10 h-12 border-gray-200 focus:border-emerald-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
+                          <Input placeholder="আপনার à¦ªà§‚à¦°à§ণ নাম" className="pl-10 h-12 border-gray-200 focus:border-emerald-400 rounded-2xl bg-gray-50/60 focus:bg-white transition-colors text-gray-900 placeholder:text-gray-400"
                             value={formData.fullNameBangla} onChange={(e) => setFormData({ ...formData, fullNameBangla: e.target.value })} required /></div></div>
                       <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Designation <span className="text-red-500">*</span></Label>
                         <div className="relative"><Briefcase className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -1142,7 +1142,7 @@ export function AuthPage() {
                           <div className="flex flex-wrap gap-1.5 mt-2">
                             {formData.qualifications.map((q: string, i: number) => (
                               <span key={i} className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-600 rounded-md text-xs">
-                                {q}<button type="button" onClick={() => setFormData({ ...formData, qualifications: formData.qualifications.filter((_: string, idx: number) => idx !== i) })} className="hover:text-red-500">Ã—</button>
+                                {q}<button type="button" onClick={() => setFormData({ ...formData, qualifications: formData.qualifications.filter((_: string, idx: number) => idx !== i) })} className="hover:text-red-500">×</button>
                               </span>))}
                           </div>)}</div>
                       <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Office Location</Label>
@@ -1152,7 +1152,7 @@ export function AuthPage() {
                     </>
                   )}
 
-                  {/* â”€â”€ LOGIN ID FIELD â”€â”€ */}
+                  {/* ── LOGIN ID FIELD ── */}
                   {mode === 'login' && (
                     <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Email or Student ID</Label>
                       <div className="relative"><Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -1197,7 +1197,7 @@ export function AuthPage() {
                     </Button>
                   </motion.div>
 
-                  {/* Social â€” available on both login & signup; hidden once a
+                  {/* Social — available on both login & signup; hidden once a
                       Google signup is already in progress. */}
                   {!googleVerified && (
                     <>
@@ -1233,9 +1233,9 @@ export function AuthPage() {
             </AnimatePresence>
           </div>
         </motion.div>
-        {/* â”€â”€ END center card â”€â”€ */}
+        {/* ── END center card ── */}
 
-        <p className="relative z-10 mt-6 text-xs text-white/70">Â© 2026 Student Portal. All rights reserved.</p>
+        <p className="relative z-10 mt-6 text-xs text-white/70">© 2026 Student Portal. All rights reserved.</p>
       </div>
     </>
   );

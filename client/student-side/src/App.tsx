@@ -14,7 +14,6 @@ const ProfilePageFixed = lazy(() => import("./pages/ProfilePageFixed"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const NoticesPage = lazy(() => import("./pages/NoticesPage"));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
-const StudentAllegationsPage = lazy(() => import("./pages/StudentAllegationsPage"));
 const LearningHubPage = lazy(() => import("./pages/LearningHubPage"));
 const StudentListPage = lazy(() => import("./pages/StudentListPage"));
 const StudentDetailsPage = lazy(() => import("./pages/StudentDetailsPage"));
@@ -25,7 +24,6 @@ const LiveClassesPage = lazy(() => import("./pages/LiveClassesPage"));
 const AttendancePage = lazy(() => import("./pages/AttendancePage"));
 const MarksPage = lazy(() => import("./pages/MarksPage"));
 const DocumentsPage = lazy(() => import("./pages/DocumentsPage"));
-const MessagesPage = lazy(() => import("./pages/MessagesPage"));
 const ComplaintsPage = lazy(() => import("./pages/ComplaintsPage"));
 const ApplicationsPage = lazy(() => import("./pages/ApplicationsPage"));
 const AddAttendancePage = lazy(() => import("./pages/AddAttendancePage"));
@@ -168,7 +166,6 @@ const App = () => (
         <Route path="settings" element={<SettingsPage />} />
         <Route path="learning-hub" element={<><ComingSoonBanner feature="Learning Hub" /><LearningHubPage /></>} />
         <Route path="live-classes" element={<><ComingSoonBanner feature="Live Classes" /><LiveClassesPage /></>} />
-        <Route path="messages" element={<><ComingSoonBanner feature="Messages" /><MessagesPage /></>} />
         <Route path="complaints" element={<ComplaintsPage />} />
         
         {/* Student/Captain routes */}
@@ -177,7 +174,6 @@ const App = () => (
         <Route path="attendance" element={<AttendancePage />} />
         <Route path="marks" element={<MarksPage />} />
         <Route path="documents" element={<DocumentsPage />} />
-        <Route path="my-allegations" element={<StudentAllegationsPage />} />
         <Route path="applications" element={<ApplicationsPage />} />
         
         {/* Captain-specific routes */}

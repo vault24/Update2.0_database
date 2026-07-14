@@ -2,7 +2,7 @@
 Admission Serializers
 """
 from rest_framework import serializers
-from .models import Admission
+from .models import Admission, AdmissionSettings, DEFAULT_DOCUMENT_REQUIREMENTS
 from apps.departments.serializers import DepartmentSerializer
 from apps.authentication.serializers import UserSerializer
 
@@ -126,10 +126,45 @@ class AdmissionCreateSerializer(serializers.ModelSerializer):
             'desired_department',
             'desired_shift',
             'session',
+            # Current Academic Information (dynamic, optional for 2nd sem+)
+            'semester',
+            'previous_gpas',
+            'current_roll_number',
+            'current_registration_number',
             # Documents
             'documents',
         ]
-    
+
+    # These are all optional — 1st-semester admissions omit them entirely, and
+    # legacy clients that don't send them still work.
+    semester = serializers.IntegerField(required=False, allow_null=True, min_value=1, max_value=8)
+    previous_gpas = serializers.JSONField(required=False)
+    current_roll_number = serializers.CharField(required=False, allow_blank=True)
+    current_registration_number = serializers.CharField(required=False, allow_blank=True)
+
+    def validate_previous_gpas(self, value):
+        """Normalise the optional prior-GPA list; tolerate empty/absent input."""
+        if not value:
+            return []
+        if not isinstance(value, list):
+            raise serializers.ValidationError('previous_gpas must be a list')
+        cleaned = []
+        for entry in value:
+            if not isinstance(entry, dict):
+                continue
+            sem = entry.get('semester')
+            gpa = entry.get('gpa')
+            if gpa in (None, ''):
+                continue
+            try:
+                gpa_val = float(gpa)
+            except (TypeError, ValueError):
+                raise serializers.ValidationError('Each GPA must be a number')
+            if gpa_val < 0 or gpa_val > 5:
+                raise serializers.ValidationError('Each GPA must be between 0 and 5')
+            cleaned.append({'semester': int(sem) if sem else len(cleaned) + 1, 'gpa': gpa_val})
+        return cleaned
+
     def validate_mobile_student(self, value):
         """Validate student mobile number"""
         if not value.isdigit() or len(value) != 11:
@@ -188,23 +223,71 @@ class AdmissionCreateSerializer(serializers.ModelSerializer):
 
 class AdmissionApproveSerializer(serializers.Serializer):
     """
-    Serializer for approving admissions
-    Note: current_roll_number is auto-generated from SSC Board Roll
+    Serializer for approving admissions.
+
+    Roll/Registration and semester now flow primarily from the admission record
+    itself (see AdmissionViewSet.approve): if the applicant supplied a current
+    roll/registration they are used verbatim, otherwise both are auto-generated.
+    All of the fields here are therefore optional overrides — this keeps older
+    admin clients (which posted placeholder values) working while letting the
+    applicant-selected semester take effect.
     """
     review_notes = serializers.CharField(required=False, allow_blank=True)
-    
-    # Student profile fields
-    current_registration_number = serializers.CharField(required=True)
-    semester = serializers.IntegerField(required=True, min_value=1, max_value=8)
-    current_group = serializers.CharField(required=True)
-    enrollment_date = serializers.DateField(required=True)
-    
+
+    # Optional overrides — resolved against the admission in the view.
+    current_roll_number = serializers.CharField(required=False, allow_blank=True)
+    current_registration_number = serializers.CharField(required=False, allow_blank=True)
+    semester = serializers.IntegerField(required=False, allow_null=True, min_value=1, max_value=8)
+    current_group = serializers.CharField(required=False, allow_blank=True)
+    enrollment_date = serializers.DateField(required=False)
+
     def validate_current_registration_number(self, value):
-        """Ensure registration number is unique"""
+        """Ensure a supplied registration number is unique."""
+        if not value:
+            return value
         from apps.students.models import Student
         if Student.objects.filter(currentRegistrationNumber=value).exists():
             raise serializers.ValidationError('This registration number is already in use')
         return value
+
+    def validate_current_roll_number(self, value):
+        """Ensure a supplied roll number is unique."""
+        if not value:
+            return value
+        from apps.students.models import Student
+        if Student.objects.filter(currentRollNumber=value).exists():
+            raise serializers.ValidationError('This roll number is already in use')
+        return value
+
+
+class AdmissionSettingsSerializer(serializers.ModelSerializer):
+    """Read/update serializer for the singleton admission settings."""
+    document_requirements = serializers.JSONField(required=False)
+
+    class Meta:
+        model = AdmissionSettings
+        fields = [
+            'id',
+            'is_admission_enabled',
+            'document_requirements',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'updated_at']
+
+    def to_representation(self, instance):
+        """Always expose defaults overlaid with stored overrides."""
+        data = super().to_representation(instance)
+        data['document_requirements'] = instance.merged_document_requirements()
+        return data
+
+    def validate_document_requirements(self, value):
+        """Keep only known document fields, coerced to booleans."""
+        if not isinstance(value, dict):
+            raise serializers.ValidationError('document_requirements must be an object')
+        cleaned = {}
+        for key in DEFAULT_DOCUMENT_REQUIREMENTS:
+            cleaned[key] = bool(value.get(key, DEFAULT_DOCUMENT_REQUIREMENTS[key]))
+        return cleaned
 
 
 class AdmissionRejectSerializer(serializers.Serializer):

@@ -2,7 +2,7 @@
 Admissions Admin
 """
 from django.contrib import admin
-from .models import Admission
+from .models import Admission, AdmissionSettings
 
 
 @admin.register(Admission)
@@ -84,6 +84,10 @@ class AdmissionAdmin(admin.ModelAdmin):
                 'desired_department',
                 'desired_shift',
                 'session',
+                'semester',
+                'previous_gpas',
+                'current_roll_number',
+                'current_registration_number',
                 'documents'
             )
         }),
@@ -100,3 +104,10 @@ class AdmissionAdmin(admin.ModelAdmin):
             'fields': ('created_at', 'updated_at')
         }),
     )
+
+
+@admin.register(AdmissionSettings)
+class AdmissionSettingsAdmin(admin.ModelAdmin):
+    """Admin interface for the singleton admission settings."""
+    list_display = ['__str__', 'is_admission_enabled', 'updated_at', 'updated_by']
+    readonly_fields = ['updated_at']

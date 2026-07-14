@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { AdmissionFormState } from '../types';
 import { FieldErrors } from '../validation';
 import { StepIntro } from '../fields';
+import { ADMISSION_DOCUMENT_FIELDS, DEFAULT_DOCUMENT_REQUIREMENTS } from '../stepConfig';
 import { documentService, Document } from '@/services/documentService';
 import { admissionService } from '@/services/admissionService';
 
@@ -18,6 +19,8 @@ interface Props {
   /** Reports which document fields are already satisfied by a server-side upload
    *  (used so step validation passes on re-application without re-uploading). */
   onDocsAvailable?: (fieldKeys: string[]) => void;
+  /** Per-document mandatory map from the admin Admission Settings. */
+  docRequirements?: Record<string, boolean>;
 }
 
 interface FileUploadState {
@@ -37,7 +40,9 @@ interface PreviousDocument {
   original_field_name?: string;
 }
 
-export function StepDocuments({ formData, onChange, errors = {}, onDocsAvailable }: Props) {
+export function StepDocuments({ formData, onChange, errors = {}, onDocsAvailable, docRequirements }: Props) {
+  const reqMap = docRequirements || DEFAULT_DOCUMENT_REQUIREMENTS;
+  const isRequired = (key: string) => !!reqMap[key];
   const [uploadStates, setUploadStates] = useState<Record<string, FileUploadState>>({});
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [previousDocuments, setPreviousDocuments] = useState<Record<string, PreviousDocument>>({});
@@ -227,7 +232,7 @@ export function StepDocuments({ formData, onChange, errors = {}, onDocsAvailable
     };
 
     return (
-      <div className="space-y-2">
+      <div className="space-y-2" key={fieldKey}>
         <Label className="flex items-center gap-2">
           {label} {required && <span className="text-destructive">*</span>}
           {!isOnline && (
@@ -339,10 +344,11 @@ export function StepDocuments({ formData, onChange, errors = {}, onDocsAvailable
     );
   };
 
-  const requiredFields = ['photo', 'sscMarksheet', 'birthCertificateDoc', 'fatherNIDFront', 'fatherNIDBack', 'motherNIDFront', 'motherNIDBack'];
-  const optionalFields = ['sscCertificate', 'studentNIDCopy', 'testimonial', 'medicalCertificate', 'quotaDocument', 'extraCertificates'];
+  const requiredFields = ADMISSION_DOCUMENT_FIELDS.filter((d) => isRequired(d.key)).map((d) => d.key);
   const uploadedRequired = requiredFields.filter((f) => formData[f as keyof AdmissionFormState] || previousDocuments[f]);
-  const requiredProgress = Math.round((uploadedRequired.length / requiredFields.length) * 100);
+  const requiredProgress = requiredFields.length
+    ? Math.round((uploadedRequired.length / requiredFields.length) * 100)
+    : 100;
 
   return (
     <div className="space-y-6">
@@ -378,22 +384,18 @@ export function StepDocuments({ formData, onChange, errors = {}, onDocsAvailable
       )}
 
       <div className="grid gap-5 md:grid-cols-2">
-        {fileInput('photo', 'Passport-size Photo', 'image/*', '300×300px, max 500KB', true)}
-        {fileInput('sscMarksheet', 'SSC Marksheet', '.pdf,image/*', 'PDF or Image', true)}
-        {fileInput('sscCertificate', 'SSC Certificate', '.pdf,image/*', 'Optional')}
-        {fileInput('birthCertificateDoc', 'Birth Certificate', '.pdf,image/*', 'PDF or Image', true)}
-        {fileInput('studentNIDCopy', 'Student NID Copy', '.pdf,image/*', 'Optional')}
-        {fileInput('fatherNIDFront', "Father's NID (Front)", '.pdf,image/*', 'PDF or Image', true)}
-        {fileInput('fatherNIDBack', "Father's NID (Back)", '.pdf,image/*', 'PDF or Image', true)}
-        {fileInput('motherNIDFront', "Mother's NID (Front)", '.pdf,image/*', 'PDF or Image', true)}
-        {fileInput('motherNIDBack', "Mother's NID (Back)", '.pdf,image/*', 'PDF or Image', true)}
-        {fileInput('testimonial', 'Testimonial', '.pdf,image/*', 'Optional')}
-        {fileInput('medicalCertificate', 'Medical Certificate', '.pdf,image/*', 'Optional')}
-        {fileInput('quotaDocument', 'Quota Document', '.pdf,image/*', 'Optional')}
-        {fileInput('extraCertificates', 'Extra Certificates', '.pdf,image/*', 'Optional')}
+        {ADMISSION_DOCUMENT_FIELDS.map((doc) =>
+          fileInput(
+            doc.key as keyof AdmissionFormState,
+            doc.label,
+            doc.accept,
+            isRequired(doc.key) ? doc.helper : (doc.helper ? `${doc.helper} · Optional` : 'Optional'),
+            isRequired(doc.key),
+          ),
+        )}
       </div>
 
-      {uploadedRequired.length < requiredFields.length && (
+      {requiredFields.length > 0 && uploadedRequired.length < requiredFields.length && (
         <div className="flex items-center gap-2 text-sm text-warning-foreground">
           <AlertCircle className="h-4 w-4" />
           <span>Please add all required documents before submitting.</span>

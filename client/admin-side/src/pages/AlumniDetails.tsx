@@ -1298,7 +1298,7 @@ export default function AlumniDetails() {
         <Card className="glass-card overflow-hidden border-2 border-border/50">
           {/* Cover banner — fixed institute banner (mirrors the alumni portal) */}
           <div className="relative h-24 sm:h-32 bg-gradient-to-br from-blue-700 via-blue-600 to-blue-500">
-            <img src="/alumni_cover_photo.png" alt="Institute cover" className="h-full w-full object-cover" />
+            <img src="/alumni_cover_photo.webp" alt="Institute cover" className="h-full w-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
           </div>
           <CardContent className="p-6 pt-4">

@@ -78,7 +78,7 @@ export function SwipeableDays({
   useEffect(() => {
     const ref = scrollRef.current;
     if (ref) {
-      ref.addEventListener('scroll', updateScrollButtons);
+      ref.addEventListener('scroll', updateScrollButtons, { passive: true });
       updateScrollButtons();
       return () => ref.removeEventListener('scroll', updateScrollButtons);
     }

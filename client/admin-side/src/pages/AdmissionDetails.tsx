@@ -206,12 +206,11 @@ export default function AdmissionDetails() {
 
     try {
       setProcessing(true);
-      // Approve admission with required fields
-      // Roll number is auto-generated from SSC Board Roll
+      // Roll/Registration and the semester are resolved by the backend from the
+      // admission (applicant-supplied values win, otherwise auto-generated), so
+      // we no longer post placeholder values that forced every student to 1st sem.
       await admissionService.approveAdmission(admission.id, {
-        current_registration_number: `REG-${Date.now()}`,
-        semester: 1,
-        current_group: admission.group || 'A',
+        current_group: admission.group || undefined,
         enrollment_date: new Date().toISOString().split('T')[0],
         review_notes: `Approved by ${user?.username || 'Admin'}`,
       });

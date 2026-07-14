@@ -83,7 +83,7 @@ function PasswordResetPage() {
 
   return (
     <>
-      {/* â•â•â•â•â•â•â•â•â•â• MOBILE (< lg) â•â•â•â•â•â•â•â•â•â• */}
+      {/* ══════════ MOBILE (< lg) ══════════ */}
       <div className="lg:hidden min-h-screen flex flex-col" style={{ background: '#e7f6ef' }}>
 
         {/* decorative blobs */}
@@ -112,11 +112,11 @@ function PasswordResetPage() {
             onEmailSubmit={handleEmailSubmit} onOTPSubmit={handleOTPSubmit}
             onPasswordSubmit={handlePasswordSubmit} onResend={handleResendOTP} onBack={handleBack} />
 
-          <p className="mt-6 text-xs text-gray-400">Â© 2024 Student Portal. All rights reserved.</p>
+          <p className="mt-6 text-xs text-gray-400">© 2024 Student Portal. All rights reserved.</p>
         </div>
       </div>
 
-      {/* â•â•â•â•â•â•â•â•â•â• DESKTOP (lg+) â•â•â•â•â•â•â•â•â•â• */}
+      {/* ══════════ DESKTOP (lg+) ══════════ */}
       <div className="hidden lg:flex min-h-screen relative flex-col items-center justify-center overflow-hidden">
 
         {/* Same campus photo background as login page */}
@@ -163,7 +163,7 @@ function PasswordResetPage() {
           </div>
           <div>
             <p className="text-white text-sm font-medium leading-snug">Education is the most powerful weapon.</p>
-            <p className="text-emerald-100/70 text-xs mt-1">â€” Nelson Mandela</p>
+            <p className="text-emerald-100/70 text-xs mt-1">— Nelson Mandela</p>
           </div>
         </motion.div>
 
@@ -180,7 +180,7 @@ function PasswordResetPage() {
           <TrendingUp className="w-5 h-5 text-amber-300 ml-1" />
         </motion.div>
 
-        {/* Frosted glass card â€” same style as login */}
+        {/* Frosted glass card — same style as login */}
         <motion.div initial={{ opacity: 0, y: 24, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.55, ease: 'easeOut' }}
           className="relative z-10 w-full max-w-[440px] mx-6 rounded-[28px] overflow-hidden"
@@ -203,7 +203,7 @@ function PasswordResetPage() {
         </motion.div>
 
         <p className="absolute bottom-2 left-1/2 -translate-x-1/2 text-white/40 text-xs z-20">
-          Â© 2024 Student Portal. All rights reserved.
+          © 2024 Student Portal. All rights reserved.
         </p>
       </div>
     </>
@@ -279,7 +279,7 @@ function SuccessView() {
       <div>
         <h2 className="text-xl font-bold text-gray-900 mb-1">Password Reset!</h2>
         <p className="text-sm text-gray-500 leading-relaxed">
-          Your password has been updated successfully.<br />Redirecting to loginâ€¦
+          Your password has been updated successfully.<br />Redirecting to login…
         </p>
       </div>
       <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden mt-2">

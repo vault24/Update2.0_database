@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  GraduationCap, Bell, MessageCircle, Briefcase, MapPin, Calendar,
+  GraduationCap, Bell, Briefcase, MapPin, Calendar,
   ArrowRight, BadgeCheck, Clock, UserCog, Building2, Sparkles,
   Award, TrendingUp, Code2, FolderOpen, Link2, ExternalLink,
   CheckCircle2, Circle, ChevronRight, Users, Rocket,
@@ -113,7 +113,6 @@ export function AlumniDashboard() {
     { icon: UserCog, label: 'My Alumni Profile', desc: 'View & update your details', to: '/dashboard/alumni-profile', tone: 'blue' as const },
     { icon: Bell, label: 'Notices & Updates', desc: 'News from the institute', to: '/dashboard/notices', tone: 'amber' as const },
     { icon: FolderOpen, label: 'My Documents', desc: 'Certificates & records', to: '/dashboard/documents', tone: 'blue' as const },
-    { icon: MessageCircle, label: 'Messages', desc: 'Stay in touch', to: '/dashboard/messages', tone: 'amber' as const },
   ];
 
   const topSkills = (profile?.skills || []).slice().sort((a, b) => (b.proficiency || 0) - (a.proficiency || 0)).slice(0, 5);

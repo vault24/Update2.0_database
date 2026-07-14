@@ -25,7 +25,10 @@ const buttonVariants = cva(
         gradient:
           "gradient-primary text-primary-foreground shadow-md hover:shadow-lg hover:brightness-[1.05]",
         glass:
-          "bg-card/80 backdrop-blur-xl text-foreground border border-border/60 hover:bg-card",
+          // No backdrop-filter: each blurred button forces its own composited
+          // GPU layer, which wrecks scroll FPS on low-end Android. A nearly
+          // opaque card bg reads the same.
+          "bg-card/95 text-foreground border border-border/60 hover:bg-card",
         hero:
           "gradient-hero text-primary-foreground font-semibold shadow-lg hover:shadow-xl hover:brightness-[1.05]",
         success:

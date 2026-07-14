@@ -8,15 +8,44 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from django.utils import timezone
 from django.conf import settings
+from rest_framework.views import APIView
 from apps.authentication.permissions import IsAdminRole
-from .models import Admission
+from .models import Admission, AdmissionSettings
 from .serializers import (
     AdmissionListSerializer,
     AdmissionDetailSerializer,
     AdmissionCreateSerializer,
     AdmissionApproveSerializer,
-    AdmissionRejectSerializer
+    AdmissionRejectSerializer,
+    AdmissionSettingsSerializer,
 )
+
+
+class AdmissionSettingsView(APIView):
+    """
+    Admission module settings (singleton).
+
+    GET  /api/admissions/settings/ - read settings (any authenticated user; the
+         student sidebar and admission form both need to know if admission is
+         enabled and which documents are mandatory).
+    PUT  /api/admissions/settings/ - update settings (admin roles only).
+    """
+
+    def get_permissions(self):
+        if self.request.method == 'GET':
+            return [permissions.IsAuthenticated()]
+        return [IsAdminRole()]
+
+    def get(self, request):
+        settings_obj = AdmissionSettings.get_settings()
+        return Response(AdmissionSettingsSerializer(settings_obj).data)
+
+    def put(self, request):
+        settings_obj = AdmissionSettings.get_settings()
+        serializer = AdmissionSettingsSerializer(settings_obj, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(updated_by=request.user)
+        return Response(serializer.data)
 
 
 class AdmissionViewSet(viewsets.ModelViewSet):
@@ -150,7 +179,15 @@ class AdmissionViewSet(viewsets.ModelViewSet):
                 'error': 'Invalid role',
                 'details': 'Only students and captains can submit admission applications'
             }, status=status.HTTP_403_FORBIDDEN)
-        
+
+        # Refuse new submissions while admission is disabled by the admin.
+        from .models import AdmissionSettings
+        if not AdmissionSettings.get_settings().is_admission_enabled:
+            return Response({
+                'error': 'Admission closed',
+                'details': 'Admission submissions are currently disabled by the administration'
+            }, status=status.HTTP_403_FORBIDDEN)
+
         # Clear any existing draft
         Admission.objects.filter(user=request.user, is_draft=True).delete()
         
@@ -287,38 +324,74 @@ class AdmissionViewSet(viewsets.ModelViewSet):
         
         serializer = AdmissionApproveSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
-        # Generate college roll number
-        # Format: Department code + Year + Sequential number
-        # Example: CST-2024-001, CST-2024-002, etc.
+
         from apps.students.models import Student
-        
-        # Get department code
-        dept_code = admission.desired_department.code if admission.desired_department else 'GEN'
-        
-        # Get year from session (e.g., "2024-25" -> "2024")
-        year = admission.session.split('-')[0] if admission.session else '2024'
-        
-        # Find the next sequential number for this department and year
-        existing_students = Student.objects.filter(
-            department=admission.desired_department,
-            session=admission.session
-        ).count()
-        
-        # Generate roll number with zero-padding
-        sequential_num = str(existing_students + 1).zfill(3)
-        current_roll_number = f"{dept_code}-{year}-{sequential_num}"
-        
-        # Ensure uniqueness (in case of race conditions)
-        counter = 1
-        original_roll = current_roll_number
-        while Student.objects.filter(currentRollNumber=current_roll_number).exists():
-            counter += 1
-            sequential_num = str(existing_students + counter).zfill(3)
-            current_roll_number = f"{dept_code}-{year}-{sequential_num}"
-        
+        from apps.students.serializers import generate_student_identifiers
+
+        # ── Resolve the official Roll / Registration ───────────────────────────
+        # Priority: value the applicant supplied on the form (mid-programme
+        # transfers into 2nd semester+) → admin override → auto-generated.
+        # When either is supplied we do NOT auto-generate; only the missing one
+        # is filled in so the pair is always complete and unique.
+        provided_roll = (
+            (admission.current_roll_number or '').strip()
+            or (serializer.validated_data.get('current_roll_number') or '').strip()
+        )
+        provided_reg = (
+            (admission.current_registration_number or '').strip()
+            or (serializer.validated_data.get('current_registration_number') or '').strip()
+        )
+
+        auto_roll, auto_reg = generate_student_identifiers(
+            admission.desired_department, admission.session
+        )
+        current_roll_number = provided_roll or auto_roll
+        current_registration_number = provided_reg or auto_reg
+
+        # Guard against clashes with existing students for supplied identifiers.
+        if provided_roll and Student.objects.filter(currentRollNumber=current_roll_number).exists():
+            return Response({
+                'error': 'Roll number already in use',
+                'details': f'currentRollNumber "{current_roll_number}" is already assigned'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        if provided_reg and Student.objects.filter(currentRegistrationNumber=current_registration_number).exists():
+            return Response({
+                'error': 'Registration number already in use',
+                'details': f'currentRegistrationNumber "{current_registration_number}" is already assigned'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # ── Resolve the current semester ───────────────────────────────────────
+        # The semester the applicant selected on the form is authoritative; an
+        # explicit admin override wins if given; legacy admissions fall back to 1.
+        resolved_semester = (
+            serializer.validated_data.get('semester')
+            or admission.semester
+            or 1
+        )
+
+        # ── Seed prior-semester results from the supplied previous GPAs ─────────
+        seeded_results = []
+        for entry in (admission.previous_gpas or []):
+            try:
+                seeded_results.append({
+                    'semester': int(entry.get('semester')),
+                    'gpa': float(entry.get('gpa')),
+                })
+            except (TypeError, ValueError):
+                continue
+
+        resolved_group = (
+            serializer.validated_data.get('current_group')
+            or admission.group
+            or 'N/A'
+        )
+        resolved_enrollment = (
+            serializer.validated_data.get('enrollment_date')
+            or timezone.now().date()
+        )
+
         # Create or update student profile
-        
+
         student_data = {
             # Personal Information
             'fullNameBangla': admission.full_name_bangla,
@@ -351,14 +424,16 @@ class AdmissionViewSet(viewsets.ModelViewSet):
             'institutionName': admission.institution_name,
             # Current Academic Information
             'currentRollNumber': current_roll_number,
-            'currentRegistrationNumber': serializer.validated_data['current_registration_number'],
-            'semester': serializer.validated_data['semester'],
+            'currentRegistrationNumber': current_registration_number,
+            'semester': resolved_semester,
             'department': admission.desired_department,
             'session': admission.session,
             'shift': admission.desired_shift,
-            'currentGroup': serializer.validated_data['current_group'],
+            'currentGroup': resolved_group,
             'status': 'active',
-            'enrollmentDate': serializer.validated_data['enrollment_date'],
+            'enrollmentDate': resolved_enrollment,
+            # Prior-semester GPAs captured during admission (2nd sem+)
+            'semesterResults': seeded_results,
         }
         
         try:

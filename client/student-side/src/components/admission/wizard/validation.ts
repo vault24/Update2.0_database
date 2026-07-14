@@ -1,4 +1,5 @@
 import { AdmissionFormState } from './types';
+import { ADMISSION_DOCUMENT_FIELDS, DEFAULT_DOCUMENT_REQUIREMENTS } from './stepConfig';
 
 export type FieldErrors = Partial<Record<keyof AdmissionFormState, string>>;
 
@@ -43,15 +44,8 @@ const REQUIRED_BY_STEP: Record<number, { field: keyof AdmissionFormState; label:
     { field: 'semester', label: 'Semester' },
     { field: 'admissionType', label: 'Admission type' },
   ],
-  5: [
-    { field: 'photo', label: 'Passport-size photo' },
-    { field: 'sscMarksheet', label: 'SSC marksheet' },
-    { field: 'birthCertificateDoc', label: 'Birth certificate' },
-    { field: 'fatherNIDFront', label: "Father's NID (front)" },
-    { field: 'fatherNIDBack', label: "Father's NID (back)" },
-    { field: 'motherNIDFront', label: "Mother's NID (front)" },
-    { field: 'motherNIDBack', label: "Mother's NID (back)" },
-  ],
+  // Step 5 (documents) is validated dynamically from the admin's document
+  // requirement settings — see the docRequirements handling in getStepErrors.
 };
 
 const isEmpty = (v: any) => v === undefined || v === null || (typeof v === 'string' && v.trim() === '');
@@ -84,15 +78,27 @@ export function getStepErrors(
   step: number,
   data: AdmissionFormState,
   satisfiedDocs?: Set<string>,
+  docRequirements?: Record<string, boolean>,
 ): FieldErrors {
   const errors: FieldErrors = {};
   const required = REQUIRED_BY_STEP[step] || [];
 
   for (const { field, label } of required) {
     if (isEmpty(data[field])) {
-      // A required document already uploaded on the server counts as satisfied.
-      if (step === 5 && satisfiedDocs?.has(field as string)) continue;
       errors[field] = `${label} is required`;
+    }
+  }
+
+  // Step 5 — documents are required per the admin's Admission Settings.
+  if (step === 5) {
+    const reqMap = docRequirements || DEFAULT_DOCUMENT_REQUIREMENTS;
+    for (const doc of ADMISSION_DOCUMENT_FIELDS) {
+      if (!reqMap[doc.key]) continue; // optional document
+      const field = doc.key as keyof AdmissionFormState;
+      if (!isEmpty(data[field])) continue;
+      // A required document already uploaded on the server counts as satisfied.
+      if (satisfiedDocs?.has(doc.key)) continue;
+      errors[field] = `${doc.label} is required`;
     }
   }
 

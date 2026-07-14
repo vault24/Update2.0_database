@@ -1,9 +1,12 @@
-import { BookOpen, Building2 } from 'lucide-react';
+import { BookOpen, Building2, IdCard, ScrollText } from 'lucide-react';
 import { AdmissionFormState } from '../types';
 import { Department } from '@/services/departmentService';
-import { groups, shiftOptions, semesterOptions, admissionTypeOptions, getSessions } from '../stepConfig';
+import {
+  groups, shiftOptions, semesterOptions, admissionTypeOptions, getSessions,
+  semesterToNumber, ordinalLabel,
+} from '../stepConfig';
 import { FieldErrors } from '../validation';
-import { SelectField, SectionCard, StepIntro } from '../fields';
+import { SelectField, TextField, SectionCard, StepIntro } from '../fields';
 
 interface Props {
   formData: AdmissionFormState;
@@ -16,6 +19,18 @@ const sessionOptions = getSessions(8);
 
 export function StepAcademic({ formData, departments, onChange, errors = {} }: Props) {
   const departmentOptions = departments.map((d) => ({ value: String(d.id), label: d.name }));
+
+  // Semester 2+ unlocks the optional "already enrolled" fields: existing
+  // Roll/Registration and one GPA field per completed prior semester.
+  const semesterNo = formData.semester ? semesterToNumber(formData.semester) : 0;
+  const priorSemesters = semesterNo > 1 ? semesterNo - 1 : 0;
+
+  const setGpa = (index: number, value: string) => {
+    const next = [...(formData.previousGpas || [])];
+    while (next.length < priorSemesters) next.push('');
+    next[index] = value;
+    onChange('previousGpas', next.slice(0, priorSemesters));
+  };
 
   return (
     <div className="space-y-6">
@@ -78,6 +93,55 @@ export function StepAcademic({ formData, departments, onChange, errors = {} }: P
           </div>
         </div>
       </SectionCard>
+
+      {/* Shown only when admitting into 2nd semester or above. Everything here
+          is optional — a fresh 1st-semester applicant never sees it. */}
+      {priorSemesters > 0 && (
+        <>
+          <SectionCard
+            icon={IdCard}
+            title="Existing Enrolment (optional)"
+            description="If you already have a college Roll & Registration, enter them and we'll keep them. Leave blank to have them generated for you."
+          >
+            <div className="grid gap-4 md:grid-cols-2">
+              <TextField
+                label="Current Roll Number"
+                placeholder="Existing college roll"
+                helper="Optional"
+                value={formData.currentRollNumber}
+                onChange={(v) => onChange('currentRollNumber', v)}
+              />
+              <TextField
+                label="Current Registration Number"
+                placeholder="Existing college registration"
+                helper="Optional"
+                value={formData.currentRegistrationNumber}
+                onChange={(v) => onChange('currentRegistrationNumber', v)}
+              />
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            icon={ScrollText}
+            title="Previous Semester Results (optional)"
+            description="Enter the GPA for each semester you have already completed."
+          >
+            <div className="grid gap-4 md:grid-cols-2">
+              {Array.from({ length: priorSemesters }, (_, i) => (
+                <TextField
+                  key={i}
+                  label={`${ordinalLabel(i + 1)} Semester GPA`}
+                  placeholder="e.g. 3.75"
+                  inputMode="decimal"
+                  helper="Out of 4.00 · Optional"
+                  value={(formData.previousGpas || [])[i] || ''}
+                  onChange={(v) => setGpa(i, v)}
+                />
+              ))}
+            </div>
+          </SectionCard>
+        </>
+      )}
     </div>
   );
 }

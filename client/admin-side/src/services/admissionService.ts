@@ -116,10 +116,14 @@ export interface AdmissionCreateData {
 }
 
 export interface AdmissionApproveData {
-  current_registration_number: string;
-  semester: number;
-  current_group: string;
-  enrollment_date: string;
+  // All optional — the backend derives Roll/Registration and the semester from
+  // the admission itself (applicant-supplied values win, else auto-generated).
+  // These remain as optional admin overrides.
+  current_roll_number?: string;
+  current_registration_number?: string;
+  semester?: number;
+  current_group?: string;
+  enrollment_date?: string;
   review_notes?: string;
 }
 
@@ -132,6 +136,17 @@ export interface AdmissionStats {
   approved: number;
   rejected: number;
   total: number;
+}
+
+export interface AdmissionSettings {
+  is_admission_enabled: boolean;
+  document_requirements: Record<string, boolean>;
+  updated_at?: string;
+}
+
+export interface AdmissionSettingsUpdate {
+  is_admission_enabled?: boolean;
+  document_requirements?: Record<string, boolean>;
 }
 
 // Admission Service
@@ -186,6 +201,20 @@ export const admissionService = {
     admission: Admission;
   }> {
     return apiClient.post(API_ENDPOINTS.admissions.reject(id), data);
+  },
+
+  /**
+   * Get admission module settings (enable flag + document requirements)
+   */
+  async getSettings(): Promise<AdmissionSettings> {
+    return apiClient.get<AdmissionSettings>(API_ENDPOINTS.admissions.settings);
+  },
+
+  /**
+   * Update admission module settings
+   */
+  async updateSettings(data: AdmissionSettingsUpdate): Promise<AdmissionSettings> {
+    return apiClient.put<AdmissionSettings>(API_ENDPOINTS.admissions.settings, data);
   },
 
   /**

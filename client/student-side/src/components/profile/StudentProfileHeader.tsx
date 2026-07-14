@@ -103,7 +103,7 @@ export function StudentProfileHeader({
             className="flex-shrink-0"
           >
             <div className="relative">
-              <div className="w-24 h-24 md:w-32 md:h-32 lg:w-36 lg:h-36 rounded-2xl lg:rounded-3xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-3xl md:text-4xl lg:text-5xl font-bold text-white shadow-2xl ring-4 ring-white/30 overflow-hidden">
+              <div className="w-24 h-24 md:w-32 md:h-32 lg:w-36 lg:h-36 rounded-2xl lg:rounded-3xl bg-white/25 flex items-center justify-center text-3xl md:text-4xl lg:text-5xl font-bold text-white shadow-2xl ring-4 ring-white/30 overflow-hidden">
                 {displayAvatarUrl ? (
                   <img 
                     src={displayAvatarUrl} 
@@ -160,21 +160,21 @@ export function StudentProfileHeader({
               transition={{ delay: 0.4 }}
               className="flex flex-wrap gap-1.5 md:gap-2 mb-3 md:mb-4"
             >
-              <Badge className="bg-white/15 text-white border-0 backdrop-blur-sm text-[10px] md:text-sm px-2 py-0.5 md:px-2.5 md:py-1">
+              <Badge className="bg-white/20 text-white border-0 text-[10px] md:text-sm px-2 py-0.5 md:px-2.5 md:py-1">
                 <GraduationCap className="w-3 h-3 md:w-4 md:h-4 mr-1 flex-shrink-0" />
                 <span className="truncate max-w-[120px] md:max-w-none">{department}</span>
               </Badge>
-              <Badge className="bg-white/15 text-white border-0 backdrop-blur-sm text-[10px] md:text-sm px-2 py-0.5 md:px-2.5 md:py-1">
+              <Badge className="bg-white/20 text-white border-0 text-[10px] md:text-sm px-2 py-0.5 md:px-2.5 md:py-1">
                 <Calendar className="w-3 h-3 md:w-4 md:h-4 mr-1 flex-shrink-0" />
                 Sem {semester}
               </Badge>
               {session && (
-                <Badge className="bg-white/15 text-white border-0 backdrop-blur-sm text-[10px] md:text-sm px-2 py-0.5 md:px-2.5 md:py-1">
+                <Badge className="bg-white/20 text-white border-0 text-[10px] md:text-sm px-2 py-0.5 md:px-2.5 md:py-1">
                   {session}
                 </Badge>
               )}
               {shift && (
-                <Badge className="bg-white/15 text-white border-0 backdrop-blur-sm text-[10px] md:text-sm px-2 py-0.5 md:px-2.5 md:py-1">
+                <Badge className="bg-white/20 text-white border-0 text-[10px] md:text-sm px-2 py-0.5 md:px-2.5 md:py-1">
                   {shift}
                 </Badge>
               )}

@@ -31,7 +31,8 @@ export interface AdmissionFormData {
   religion: string;
   blood_group: string;
   nationality?: string;
-  
+  marital_status?: string;
+
   // Contact Information
   mobile_student: string;
   guardian_mobile: string;
@@ -54,7 +55,13 @@ export interface AdmissionFormData {
   desired_department: string; // UUID
   desired_shift: string;
   session: string;
-  
+
+  // Current Academic Information (optional, for 2nd semester+)
+  semester?: number;
+  previous_gpas?: { semester: number; gpa: number }[];
+  current_roll_number?: string;
+  current_registration_number?: string;
+
   // Documents (optional)
   documents?: any;
 }
@@ -116,6 +123,11 @@ export interface DraftData {
   saved_at?: string;
 }
 
+export interface AdmissionSettings {
+  is_admission_enabled: boolean;
+  document_requirements: Record<string, boolean>;
+}
+
 export const DRAFT_STORAGE_KEY = 'admission_form_draft';
 
 class AdmissionService {
@@ -172,9 +184,9 @@ class AdmissionService {
    * POST /api/admissions/upload-documents/
    */
   async uploadDocuments(
-    admissionId: string, 
+    admissionId: string,
     documents: Record<string, File>
-  ): Promise<void> {
+  ): Promise<unknown> {
     const formData = new FormData();
     formData.append('admission_id', admissionId);
     
@@ -339,6 +351,14 @@ class AdmissionService {
    */
   async reapply(): Promise<Admission> {
     return await api.post<Admission>('/admissions/reapply/');
+  }
+
+  /**
+   * Fetch the admission module settings (enabled flag + document requirements).
+   * GET /api/admissions/settings/
+   */
+  async getSettings(): Promise<AdmissionSettings> {
+    return await api.get<AdmissionSettings>('/admissions/settings/');
   }
 }
 

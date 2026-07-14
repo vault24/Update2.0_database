@@ -51,6 +51,12 @@ export interface AdmissionFormState {
   admissionType: string;
   group: string;
 
+  // Dynamic academic info for mid-programme admissions (semester 2+). All
+  // optional. `previousGpas[i]` holds the GPA for semester (i + 1).
+  currentRollNumber: string;
+  currentRegistrationNumber: string;
+  previousGpas: string[];
+
   photo: File | null;
   signature: File | null;
   sscMarksheet: File | null;

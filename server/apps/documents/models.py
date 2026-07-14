@@ -287,6 +287,14 @@ class Document(models.Model):
         path = self.profile_photo_path()
         if not path:
             return False
+        # Profile photos are rendered via plain <img src> tags, which cannot
+        # carry the JWT Authorization header. SecureFileView would otherwise
+        # 403 the anonymous image request in production (the "profile pictures
+        # don't show" bug). Marking the passport photo public lets it be served
+        # to the browser directly. Only this one avatar document is exposed.
+        if not self.is_public:
+            self.is_public = True
+            self.save(update_fields=['is_public'])
         student.profilePhoto = path
         student.save(update_fields=['profilePhoto'])
         return True

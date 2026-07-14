@@ -53,6 +53,10 @@ export const defaultFormData: AdmissionFormState = {
   admissionType: '',
   group: '',
 
+  currentRollNumber: '',
+  currentRegistrationNumber: '',
+  previousGpas: [],
+
   photo: null,
   signature: null,
   sscMarksheet: null,

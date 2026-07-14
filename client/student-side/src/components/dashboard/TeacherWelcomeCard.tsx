@@ -75,7 +75,7 @@ export function TeacherWelcomeCard({ stats }: TeacherWelcomeCardProps) {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.5 }}
-              className="mt-3 md:mt-4 inline-flex items-center gap-2 md:gap-3 bg-white/15 backdrop-blur-xl rounded-full px-3 md:px-4 py-1.5 md:py-2"
+              className="mt-3 md:mt-4 inline-flex items-center gap-2 md:gap-3 bg-white/20 rounded-full px-3 md:px-4 py-1.5 md:py-2"
             >
               <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-white/20 flex items-center justify-center">
                 <GraduationCap className="w-3.5 h-3.5 md:w-4 md:h-4" />
@@ -101,7 +101,7 @@ export function TeacherWelcomeCard({ stats }: TeacherWelcomeCardProps) {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.6 + index * 0.1 }}
                 className={cn(
-                  "flex items-center gap-2 md:gap-3 rounded-xl md:rounded-2xl px-3 md:px-4 py-2 md:py-2.5 backdrop-blur-sm",
+                  "flex items-center gap-2 md:gap-3 rounded-xl md:rounded-2xl px-3 md:px-4 py-2 md:py-2.5",
                   "bg-white/10 hover:bg-white/15 transition-colors"
                 )}
               >

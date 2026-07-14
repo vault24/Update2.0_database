@@ -82,7 +82,7 @@ export function WelcomeCard() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6 }}
-          className="mt-6 inline-flex items-center gap-3 bg-primary-foreground/10 backdrop-blur-xl rounded-full px-4 py-2"
+          className="mt-6 inline-flex items-center gap-3 bg-primary-foreground/15 rounded-full px-4 py-2"
         >
           <div className="w-8 h-8 rounded-full bg-primary-foreground/20 flex items-center justify-center text-sm font-bold">
             {user?.name?.charAt(0)}
