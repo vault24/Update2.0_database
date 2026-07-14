@@ -241,6 +241,13 @@ REST_FRAMEWORK = {
         'login': '10/min',
         'otp': '5/min',
     },
+    # Production serves JSON only. DRF's interactive Browsable API (the HTML
+    # interface at ?format=api, plus its write forms) exposes the whole API
+    # surface to anyone and is a development convenience — it is re-enabled
+    # ONLY under DEBUG below.
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+    ],
 }
 
 # Behind the reverse proxy every request's REMOTE_ADDR is nginx (127.0.0.1),
@@ -255,6 +262,15 @@ if config('USE_X_FORWARDED_PROTO', default=False, cast=bool):
 # override_settings.
 if 'test' in sys.argv:
     REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {'login': None, 'otp': None}
+
+# Re-enable the interactive Browsable API ONLY in local development. In
+# production (DEBUG=False) the API answers JSON only, so hitting any endpoint
+# with ?format=api no longer renders the public HTML explorer / write forms.
+if DEBUG:
+    REST_FRAMEWORK['DEFAULT_RENDERER_CLASSES'] = [
+        'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer',
+    ]
 
 # --------------------------------------------------
 # CORS / CSRF / PORTAL ORIGINS  — fully env-driven (no hardcoded hosts)
