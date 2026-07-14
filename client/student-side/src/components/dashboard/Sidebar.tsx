@@ -35,7 +35,7 @@ import { SwitchAccountDialog, canSwitchAccount } from '@/components/account/Swit
 import { NavBadge } from '@/components/ui/nav-badge';
 import { useBadges, PATH_TO_MODULE } from '@/contexts/BadgeContext';
 import { cn } from '@/lib/utils';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface MenuItem {
   icon: React.ElementType;
@@ -108,6 +108,13 @@ export function Sidebar() {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isUpcomingOpen, setIsUpcomingOpen] = useState(true);
   const [isSwitchOpen, setIsSwitchOpen] = useState(false);
+
+  // Always close the mobile drawer when the route changes. Covers the per-item
+  // onClick, the logo/back/forward navigations, and guarantees the dimming
+  // overlay never lingers over the new page.
+  useEffect(() => {
+    setIsMobileOpen(false);
+  }, [location.pathname]);
 
   const handleLogout = async () => {
     await logout();
@@ -207,7 +214,10 @@ export function Sidebar() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setIsMobileOpen(false)}
-            className="fixed inset-0 z-40 bg-foreground/40 backdrop-blur-sm lg:hidden"
+            /* Plain dim, NO backdrop-blur: backdrop-filter on a transient fixed
+               overlay leaves a blurred compositing "ghost" on many mobile GPUs
+               after it unmounts — that was the page-stays-blurred bug. */
+            className="fixed inset-0 z-40 bg-foreground/50 lg:hidden"
           />
         )}
       </AnimatePresence>

@@ -11,10 +11,18 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
+    // Default is always light (white). We do NOT follow the device's
+    // prefers-color-scheme — only an explicit user toggle (saved below) changes it.
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('theme') as Theme;
-      if (saved) return saved;
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      // One-time migration: older builds auto-followed the device theme AND
+      // persisted it, which could leave users stuck on dark. Clear that once so
+      // everyone starts from the light default; explicit toggles still persist.
+      if (!localStorage.getItem('theme_pref_v2')) {
+        localStorage.removeItem('theme');
+        localStorage.setItem('theme_pref_v2', '1');
+      }
+      const saved = localStorage.getItem('theme');
+      if (saved === 'light' || saved === 'dark') return saved;
     }
     return 'light';
   });
