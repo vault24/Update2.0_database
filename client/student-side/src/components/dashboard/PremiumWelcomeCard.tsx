@@ -138,7 +138,7 @@ export function PremiumWelcomeCard({
               transition={{ delay: 0.3 }}
               className="text-xl md:text-2xl lg:text-3xl font-display font-bold mb-1 md:mb-2"
             >
-              Welcome back, {user?.name?.split(' ')[0]}! 👋
+              Welcome back, {user?.name?.split(' ')[0]}
             </motion.h1>
             
             {motivationEnabled && (
