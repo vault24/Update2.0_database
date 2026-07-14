@@ -303,7 +303,7 @@ write_backend_env() {
   # user (falling back to a domain-based noreply address when no user is set).
   local from_email="${DEFAULT_FROM_EMAIL:-}"
   if [[ -z "${from_email}" ]]; then
-    from_email="SIPI Management System <${EMAIL_HOST_USER:-noreply@${STUDENT_DOMAIN:-localhost}}>"
+    from_email="Sirajganj Gov. Polytechnic Institute <${EMAIL_HOST_USER:-noreply@${STUDENT_DOMAIN:-localhost}}>"
   fi
 
   # Email: real SMTP only when credentials exist; console backend otherwise

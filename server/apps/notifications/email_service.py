@@ -200,15 +200,15 @@ def send_branded_email(
 
     support_email, support_phone = _institute_contact()
 
-    # Prefer the bundled logo embedded inline (renders offline); fall back to
-    # the hosted URL when the file is unavailable.
-    inline_logo = _logo_bytes() is not None
-    logo_url = 'cid:sipi-logo' if inline_logo else getattr(settings, 'EMAIL_LOGO_URL', '')
+    # Emails are logo-free by design: no inline image is attached and no logo
+    # URL is passed, so the template's logo block never renders.
+    inline_logo = False
+    logo_url = ''
 
     context = {
         "subject": subject,
-        "brand_name": "SIPI",
-        "brand_tagline": "Sirajganj Polytechnic Institute",
+        "brand_name": "Sirajganj Gov. Polytechnic Institute",
+        "brand_tagline": "Sirajganj Gov. Polytechnic Institute",
         "logo_url": logo_url,
         "support_email": support_email,
         "support_phone": support_phone,
