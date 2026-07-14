@@ -734,6 +734,72 @@ nginx_acme_location() {
 EOF
 }
 
+# Reverse-proxy vhost for a Mailcow web UI running on this host. Terminates the
+# public Let's Encrypt TLS for ${MAIL_DOMAIN} and forwards to Mailcow's loopback
+# HTTPS (127.0.0.1:8443). No-op when MAIL_DOMAIN is empty. The app's security-
+# headers/gzip snippets are deliberately NOT included — Mailcow serves its own.
+nginx_mail_proxy() {
+  [[ -n "${MAIL_DOMAIN}" ]] || return 0
+  local mail_ssl=0
+  if (( SSL_ON )) && have_cert "${MAIL_DOMAIN}"; then mail_ssl=1; fi
+
+  echo "# ---- ${MAIL_DOMAIN}: Mailcow reverse proxy ----"
+  if (( mail_ssl )); then
+    cat <<EOF
+server {
+    listen 80;
+    server_name ${MAIL_DOMAIN};
+$(nginx_acme_location)
+    location / { return 301 https://${MAIL_DOMAIN}\$request_uri; }
+}
+
+server {
+    listen 443 ssl http2;
+    server_name ${MAIL_DOMAIN};
+
+    ssl_certificate     ${LETSENCRYPT_LIVE}/${MAIL_DOMAIN}/fullchain.pem;
+    ssl_certificate_key ${LETSENCRYPT_LIVE}/${MAIL_DOMAIN}/privkey.pem;
+    include ${NGINX_ROOT}/snippets/sipi-tls.conf;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    access_log /var/log/nginx/${NGINX_SITE_NAME}-mail-access.log;
+    error_log  /var/log/nginx/${NGINX_SITE_NAME}-mail-error.log;
+
+    # Mail attachments can be large — let Mailcow enforce its own limit.
+    client_max_body_size 0;
+
+    location / {
+        proxy_pass https://127.0.0.1:8443;
+        proxy_ssl_verify off;                 # Mailcow presents its own internal cert
+        proxy_http_version 1.1;
+        proxy_set_header Host              \$http_host;
+        proxy_set_header X-Real-IP         \$remote_addr;
+        proxy_set_header X-Forwarded-For   \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        # WebSocket / long-poll (SOGo webmail, admin UI, ActiveSync).
+        proxy_set_header Upgrade           \$http_upgrade;
+        proxy_set_header Connection        "upgrade";
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+}
+EOF
+  else
+    cat <<EOF
+# TLS not issued yet for ${MAIL_DOMAIN}: serve only the ACME challenge on port 80
+# so certbot can obtain the certificate, then re-run:
+#     sudo ./deploy-scripts/deploy.sh --ssl
+# to add the HTTPS reverse-proxy block above.
+server {
+    listen 80;
+    server_name ${MAIL_DOMAIN};
+$(nginx_acme_location)
+    location / { return 503; }
+}
+EOF
+  fi
+}
+
 # One full application server block. $1=listen  $2=server_name  $3=root
 # $4=extra directives (e.g. SSL certs / HSTS), may be empty.
 nginx_app_server() {
@@ -850,6 +916,10 @@ EOF
       fi
       echo
 
+      # ----- Mailcow reverse proxy (optional; no-op when MAIL_DOMAIN empty) --
+      nginx_mail_proxy
+      echo
+
       # ----- Catch-all: drop requests with unknown Host headers -------------
       cat <<'EOF'
 # ---- Unknown Host header (scanners / host-header attacks): close connection ----
@@ -940,6 +1010,8 @@ setup_ssl() {
   local got_any=0
   obtain_cert "${STUDENT_DOMAIN}" && got_any=1 || true
   obtain_cert "${ADMIN_DOMAIN}"   && got_any=1 || true
+  # Optional Mailcow reverse-proxy vhost gets its own certificate.
+  [[ -n "${MAIL_DOMAIN}" ]] && { obtain_cert "${MAIL_DOMAIN}" && got_any=1 || true; }
 
   # Auto-renewal: certbot's systemd timer ships with the package; add a hook
   # so Nginx picks up renewed certificates automatically.
