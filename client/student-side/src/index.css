@@ -411,7 +411,18 @@
 .marquee-content {
   animation: marquee-scroll 18s linear infinite;
   min-width: 100%;
-  will-change: transform;
+}
+
+/* Mobile GPU hardening: low-end Android GPUs corrupt raster tiles (stale
+   duplicated content, noise blocks, layers painted at the wrong position)
+   when the compositor holds many promoted layers. No element on a phone
+   needs a standing will-change hint — the compositor promotes on demand
+   during an animation and demotes afterwards. The !important also strips
+   any inline will-change set by animation libraries. */
+@media (max-width: 1023px) {
+  * {
+    will-change: auto !important;
+  }
 }
 .marquee-track:hover .marquee-content {
   animation-play-state: paused;
