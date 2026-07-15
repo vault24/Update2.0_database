@@ -123,18 +123,13 @@ export function Sidebar() {
     setIsMobileOpen(false);
   }, [location.pathname]);
 
-  // Track the lg breakpoint reactively. Reading window.innerWidth inline in the
-  // animate prop only sampled it at render time, so a viewport change (device
-  // rotation, resize, dev-tools emulation) left the drawer in the wrong
-  // position until the next unrelated re-render.
-  const [isDesktop, setIsDesktop] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches,
-  );
+  // Drawer position/width are pure CSS (lg: classes), so no JS needs to track
+  // the viewport. Only reset a stray open-drawer state when crossing to desktop
+  // (rotation / resize), where the overlay would otherwise linger unseen.
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 1024px)');
     const onChange = (e: MediaQueryListEvent) => {
-      setIsDesktop(e.matches);
-      if (e.matches) setIsMobileOpen(false); // never keep a drawer state on desktop
+      if (e.matches) setIsMobileOpen(false);
     };
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
@@ -409,7 +404,7 @@ export function Sidebar() {
         >
           <ChevronLeft className={cn('h-4 w-4 transition-transform duration-300', isCollapsed && 'rotate-180')} />
         </Button>
-      </motion.aside>
+      </aside>
 
       <SwitchAccountDialog open={isSwitchOpen} onOpenChange={setIsSwitchOpen} />
     </>
