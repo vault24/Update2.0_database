@@ -19,6 +19,10 @@
 #   sudo ./deploy.sh                 # full deploy (first run or update)
 #   sudo ./deploy.sh --frontend      # rebuild the two SPAs only
 #   sudo ./deploy.sh --backend       # backend only (venv/migrate/restart)
+#   sudo ./deploy.sh --restart       # after a manual `git pull`: reload the
+#                                    # backend so it stops serving the OLD code
+#                                    # from memory (new endpoints 404 until it
+#                                    # restarts — Python reads source once)
 #   sudo ./deploy.sh --nginx         # regenerate & reload Nginx config only
 #   sudo ./deploy.sh --ssl           # (re)attempt certificate issuance only
 #   sudo ./deploy.sh --skip-apt      # skip system package installation
@@ -1162,6 +1166,35 @@ start_and_verify() {
   fi
 
   systemctl is-active --quiet nginx && ok "Nginx running" || { err "Nginx not running"; return 1; }
+
+  check_backend_freshness
+}
+
+# Is the running backend actually executing the code that is on disk?
+#
+# Python loads source once at process start, so a `git pull` WITHOUT a restart
+# leaves gunicorn serving the previous revision from memory: new endpoints 404
+# (or 405, when a ViewSet's detail route swallows the request), while the file
+# sits right there on disk looking correct. That exact trap cost us a debug
+# session, so the deploy now checks it explicitly instead of assuming.
+check_backend_freshness() {
+  local started_at newest_py
+  started_at="$(date -d "$(systemctl show "${SERVICE_NAME}" -p ActiveEnterTimestamp --value)" +%s 2>/dev/null || echo 0)"
+  newest_py="$(find "${SERVER_DIR}" -name '*.py' -not -path '*/venv/*' -not -path '*/__pycache__/*' \
+                 -printf '%T@\n' 2>/dev/null | sort -rn | head -1 | cut -d. -f1)"
+
+  if [[ -z "${started_at}" || -z "${newest_py}" || "${started_at}" == "0" ]]; then
+    return 0  # can't tell — never fail the deploy over a probe
+  fi
+
+  if (( newest_py > started_at )); then
+    warn "Backend is running code OLDER than the files on disk."
+    warn "  newest .py : $(date -d "@${newest_py}" '+%F %T')"
+    warn "  service up : $(date -d "@${started_at}" '+%F %T')"
+    warn "  Fix with:  sudo systemctl restart ${SERVICE_NAME}"
+  else
+    ok "Backend is running the code currently on disk"
+  fi
 }
 
 print_summary() {
@@ -1188,6 +1221,7 @@ parse_args() {
       --skip-apt) DO_APT=0 ;;
       --frontend) ONLY="frontend" ;;
       --backend)  ONLY="backend" ;;
+      --restart)  ONLY="restart" ;;
       --nginx)    ONLY="nginx" ;;
       --ssl)      ONLY="ssl" ;;
       -h|--help)  grep -E '^#( |$)' "${BASH_SOURCE[0]}" | head -40; exit 0 ;;
@@ -1205,6 +1239,12 @@ main() {
   case "${ONLY}" in
     frontend) setup_frontends; fix_permissions; systemctl reload nginx; ok "Front-ends rebuilt"; return 0 ;;
     backend)  setup_backend; setup_systemd; fix_permissions; start_and_verify; return 0 ;;
+    # Reload the code a manual `git pull` left on disk — no venv/migrate work.
+    restart)  systemctl restart "${SERVICE_NAME}"; sleep 3
+              systemctl is-active --quiet "${SERVICE_NAME}" \
+                && ok "Backend restarted — now serving the code on disk" \
+                || { err "Backend failed to start:"; journalctl -u "${SERVICE_NAME}" -n 20 --no-pager; return 1; }
+              check_backend_freshness; return 0 ;;
     nginx)    setup_nginx; ok "Nginx regenerated"; return 0 ;;
     ssl)      setup_nginx; setup_ssl; return 0 ;;
   esac

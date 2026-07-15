@@ -49,8 +49,17 @@ from .import_config import (
 logger = logging.getLogger(__name__)
 
 # Guard rails for a single upload.
+#
+# There is deliberately no file-size cap: admins import whatever their office
+# spreadsheet happens to weigh, and a byte limit is a poor proxy for cost
+# anyway (a 30 MB .xlsx can hold fewer rows than a 2 MB CSV). MAX_ROWS is the
+# real protection — it bounds the work regardless of how the file is encoded.
+# Nginx's client_max_body_size still bounds the HTTP upload itself.
 MAX_ROWS = 5000
-MAX_FILE_BYTES = 10 * 1024 * 1024  # 10 MB
+
+# Only the remote Google-Sheets fetch keeps a ceiling: that download is not
+# covered by Nginx's request limit, so it needs its own bound.
+MAX_SHEET_FETCH_BYTES = 100 * 1024 * 1024  # 100 MB
 
 # Google Sheets is the only host we will fetch server-side (SSRF guard).
 _GOOGLE_SHEET_HOSTS = ('docs.google.com',)
@@ -107,7 +116,7 @@ def fetch_google_sheet(url: str) -> bytes:
             # Google redirects unshared sheets to a login page on another host.
             if final_host and not final_host.endswith('google.com'):
                 raise ImportError_('The sheet redirected off Google — is the link public?')
-            data = response.read(MAX_FILE_BYTES + 1)
+            data = response.read(MAX_SHEET_FETCH_BYTES + 1)
     except urllib.error.HTTPError as exc:
         if exc.code in (401, 403):
             raise ImportError_(
@@ -118,8 +127,8 @@ def fetch_google_sheet(url: str) -> bytes:
     except urllib.error.URLError as exc:
         raise ImportError_(f'Could not reach Google Sheets: {exc.reason}') from exc
 
-    if len(data) > MAX_FILE_BYTES:
-        raise ImportError_('That sheet is too large (limit 10 MB).')
+    if len(data) > MAX_SHEET_FETCH_BYTES:
+        raise ImportError_('That sheet is too large to download.')
     if b'<html' in data[:200].lower():
         raise ImportError_(
             'Google returned a web page instead of CSV — the sheet is probably '
@@ -193,8 +202,6 @@ def read_table(*, file=None, sheet_url=None):
         header, rows = _read_csv(fetch_google_sheet(sheet_url))
     elif file is not None:
         data = file.read()
-        if len(data) > MAX_FILE_BYTES:
-            raise ImportError_('File is too large (limit 10 MB).')
         if not data:
             raise ImportError_('The uploaded file is empty.')
         name = (getattr(file, 'name', '') or '').lower()

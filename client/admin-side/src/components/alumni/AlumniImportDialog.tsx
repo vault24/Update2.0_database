@@ -370,7 +370,7 @@ export function AlumniImportDialog({ open, onOpenChange, onImported }: Props) {
                     <Button variant="outline" size="sm" className="mt-2" onClick={() => fileInputRef.current?.click()}>
                       Browse files
                     </Button>
-                    <p className="mt-2 text-xs text-muted-foreground">Excel (.xlsx) or CSV • Max 10 MB</p>
+                    <p className="mt-2 text-xs text-muted-foreground">Excel (.xlsx) or CSV • up to 5,000 rows</p>
                   </>
                 )}
               </div>
