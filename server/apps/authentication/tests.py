@@ -30,7 +30,19 @@ def valid_signup_data(draw):
         # uniqueness checks these property tests actually exercise.
         'first_name': draw(st.text(min_size=1, max_size=150, alphabet=string.ascii_letters)),
         'last_name': draw(st.text(min_size=1, max_size=150, alphabet=string.ascii_letters)),
-        'password': draw(st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=8, max_size=128)),
+        # DRF CharFields trim leading/trailing whitespace by default, and the
+        # API applies that consistently at signup AND login (deliberate:
+        # mobile keyboards love appending stray spaces). Generate passwords
+        # the way the API would store them — no edge whitespace — otherwise
+        # the test hashes an untrimmed password that the (trimmed) login can
+        # never match (Hypothesis found '0000000\xa0').
+        'password': draw(
+            st.text(
+                alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32),
+                min_size=8,
+                max_size=128,
+            ).map(lambda p: p.strip()).filter(lambda p: len(p) >= 8)
+        ),
         'requested_role': draw(st.sampled_from(['registrar', 'institute_head'])),
         'mobile_number': draw(st.text(min_size=11, max_size=11, alphabet=string.digits))
     }
@@ -901,7 +913,19 @@ def valid_teacher_registration_data(draw):
     return {
         'username': draw(st.emails()),  # Use email as username
         'email': draw(st.emails()),
-        'password': draw(st.text(alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32), min_size=8, max_size=128)),
+        # DRF CharFields trim leading/trailing whitespace by default, and the
+        # API applies that consistently at signup AND login (deliberate:
+        # mobile keyboards love appending stray spaces). Generate passwords
+        # the way the API would store them — no edge whitespace — otherwise
+        # the test hashes an untrimmed password that the (trimmed) login can
+        # never match (Hypothesis found '0000000\xa0').
+        'password': draw(
+            st.text(
+                alphabet=st.characters(blacklist_categories=("Cc", "Cs"), min_codepoint=32),
+                min_size=8,
+                max_size=128,
+            ).map(lambda p: p.strip()).filter(lambda p: len(p) >= 8)
+        ),
         'first_name': draw(st.text(min_size=1, max_size=150, alphabet=string.ascii_letters + ' ')),
         'last_name': draw(st.text(min_size=1, max_size=150, alphabet=string.ascii_letters + ' ')),
         'role': 'teacher',
