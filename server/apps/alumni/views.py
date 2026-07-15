@@ -34,6 +34,8 @@ from .services import (
     get_alumni_account_email,
 )
 from .permissions import CanManageAlumni, user_can_manage_alumni
+from . import import_service
+from .import_config import documentation as import_documentation
 
 logger = logging.getLogger(__name__)
 
@@ -1419,6 +1421,84 @@ class AlumniViewSet(viewsets.ModelViewSet):
             for key, cfg in ALUMNI_DOCUMENT_CATEGORIES.items()
         ]
         return Response({'categories': categories, 'maxDocuments': MAX_ALUMNI_DOCUMENTS})
+
+    # ------------------------------------------------------------------
+    # Spreadsheet import (Excel / CSV / Google Sheets)
+    # ------------------------------------------------------------------
+    def _read_import_source(self, request):
+        """Pull (headers, rows) from an uploaded file or a Google Sheets link."""
+        return import_service.read_table(
+            file=request.FILES.get('file'),
+            sheet_url=(request.data.get('sheetUrl') or '').strip() or None,
+        )
+
+    @action(detail=False, methods=['get'], url_path='import-schema')
+    def import_schema(self, request):
+        """
+        The field catalogue driving the admin "Column Reference" docs and the
+        "Copy Column Template" button.
+        GET /api/alumni/import-schema/
+
+        Generated from apps/alumni/import_config.py, so the documentation can
+        never drift from what the importer actually accepts.
+        """
+        if not user_can_manage_alumni(request.user):
+            return Response({'error': 'Admin access required.'}, status=status.HTTP_403_FORBIDDEN)
+        return Response(import_documentation())
+
+    @action(detail=False, methods=['post'], url_path='import-preview',
+            parser_classes=[MultiPartParser, FormParser, JSONParser])
+    def import_preview(self, request):
+        """
+        Dry run: report detected columns, row counts and per-row problems
+        WITHOUT writing anything.
+        POST /api/alumni/import-preview/   (multipart: file | sheetUrl)
+        """
+        if not user_can_manage_alumni(request.user):
+            return Response({'error': 'Admin access required.'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            headers, rows = self._read_import_source(request)
+            return Response(import_service.preview_import(headers, rows))
+        except import_service.ImportError_ as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception('Alumni import preview failed')
+            return Response(
+                {'error': 'Could not read that file.',
+                 'details': str(exc) if settings.DEBUG else None},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @action(detail=False, methods=['post'], url_path='import',
+            parser_classes=[MultiPartParser, FormParser, JSONParser])
+    def import_alumni(self, request):
+        """
+        Import alumni from a spreadsheet. Valid rows are created inside one
+        transaction; invalid rows are reported and skipped.
+        POST /api/alumni/import/   (multipart: file | sheetUrl)
+        """
+        if not user_can_manage_alumni(request.user):
+            return Response({'error': 'Admin access required.'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            headers, rows = self._read_import_source(request)
+            summary = import_service.import_alumni(headers, rows, dry_run=False)
+        except import_service.ImportError_ as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception('Alumni import failed')
+            return Response(
+                {'error': 'Import failed — no records were saved.',
+                 'details': str(exc) if settings.DEBUG else None},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        logger.info(
+            'Alumni import by %s: imported=%s skipped=%s failed=%s',
+            request.user.username, summary['imported'], summary['skipped'], summary['failed'],
+        )
+        return Response(summary, status=status.HTTP_201_CREATED if summary['imported'] else status.HTTP_200_OK)
 
     @action(detail=False, methods=['post'], parser_classes=[MultiPartParser, FormParser, JSONParser])
     def manual_create(self, request):

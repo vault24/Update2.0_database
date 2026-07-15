@@ -4,9 +4,10 @@ import { useNavigate } from 'react-router-dom';
 import {
   Eye, Clock, Loader2, AlertCircle, RefreshCw, X, Check, ShieldAlert,
   Inbox, Building2, CheckCircle2, XCircle, GraduationCap, Briefcase,
-  CalendarDays, ArrowLeft, RotateCcw, Mail, UserPlus,
+  CalendarDays, ArrowLeft, RotateCcw, Mail, UserPlus, FileSpreadsheet,
 } from 'lucide-react';
 import { AlumniReminderDialog } from '@/components/alumni/AlumniReminderDialog';
+import { AlumniImportDialog } from '@/components/alumni/AlumniImportDialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -73,6 +74,7 @@ export default function AlumniRequests() {
   const [tab, setTab] = useState<'pending' | 'rejected'>('pending');
   const [department, setDepartment] = useState(ALL);
   const [reminderOpen, setReminderOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   // Review actions
   const [actionId, setActionId] = useState<string | null>(null);
@@ -216,6 +218,9 @@ export default function AlumniRequests() {
             <Button variant="secondary" size="sm" onClick={() => navigate('/alumni')} className="bg-white/15 hover:bg-white/25 text-white border-0">
               <ArrowLeft className="w-4 h-4 mr-2" /> Alumni Directory
             </Button>
+            <Button variant="secondary" size="sm" onClick={() => setImportOpen(true)} className="bg-white/15 hover:bg-white/25 text-white border-0">
+              <FileSpreadsheet className="w-4 h-4 mr-2" /> Import
+            </Button>
             <Button size="sm" onClick={() => navigate('/alumni/add')} className="bg-white text-orange-600 hover:bg-white/90">
               <UserPlus className="w-4 h-4 mr-2" /> Create New Alumni
             </Button>
@@ -330,6 +335,7 @@ export default function AlumniRequests() {
       </Tabs>
 
       <AlumniReminderDialog open={reminderOpen} onOpenChange={setReminderOpen} />
+      <AlumniImportDialog open={importOpen} onOpenChange={setImportOpen} onImported={fetchRequests} />
 
       {/* Reject dialog (with notes shared with the applicant) */}
       <Dialog open={!!rejectTarget} onOpenChange={(open) => { if (!open) { setRejectTarget(null); setRejectNotes(''); } }}>

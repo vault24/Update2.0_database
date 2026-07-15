@@ -487,7 +487,103 @@ export const alumniService = {
   sendCompletionReminders: async (body: SendRemindersBody): Promise<SendRemindersResult> => {
     return await apiClient.post(API_ENDPOINTS.alumni.sendCompletionReminders, body);
   },
+
+  // --- Spreadsheet import (Excel / CSV / Google Sheets) --------------------
+
+  /**
+   * The field catalogue powering the Column Reference docs + column template.
+   * Generated server-side from apps/alumni/import_config.py, so the UI never
+   * hardcodes aliases.
+   */
+  getImportSchema: async (): Promise<ImportSchema> => {
+    return await apiClient.get(API_ENDPOINTS.alumni.importSchema);
+  },
+
+  /** Dry run: detected columns, row counts and row-wise problems. Writes nothing. */
+  previewImport: async (source: ImportSource): Promise<ImportPreview> => {
+    return await apiClient.post(API_ENDPOINTS.alumni.importPreview, buildImportFormData(source));
+  },
+
+  /** Commit the import. Valid rows are created in a single transaction. */
+  runImport: async (source: ImportSource): Promise<ImportResult> => {
+    return await apiClient.post(API_ENDPOINTS.alumni.import, buildImportFormData(source));
+  },
 };
+
+/** An import reads either an uploaded file or a public Google Sheets link. */
+export interface ImportSource {
+  file?: File | null;
+  sheetUrl?: string;
+}
+
+const buildImportFormData = (source: ImportSource): FormData => {
+  const fd = new FormData();
+  if (source.file) fd.append('file', source.file);
+  if (source.sheetUrl) fd.append('sheetUrl', source.sheetUrl);
+  return fd;
+};
+
+export interface ImportFieldDoc {
+  key: string;
+  label: string;
+  target: 'student' | 'alumni';
+  group: string;
+  recommended: string;
+  aliases: string[];
+  required: boolean;
+  type: string;
+  choices: string[];
+  example: string;
+  helpText: string;
+}
+
+export interface ImportSchema {
+  requiredKeys: string[];
+  columnTemplate: string[];
+  fields: ImportFieldDoc[];
+}
+
+export interface ImportColumn {
+  index: number;
+  header: string;
+  mappedTo: string | null;
+  label: string | null;
+  target: 'student' | 'alumni' | null;
+  required: boolean;
+  duplicate?: boolean;
+}
+
+export interface ImportRowError {
+  rowNumber: number;
+  errors: string[];
+}
+
+export interface ImportAnalysis {
+  columns: ImportColumn[];
+  mappedRequired: { key: string; label: string }[];
+  missingRequired: { key: string; label: string; recommended: string }[];
+  unknownColumns: string[];
+  warnings: string[];
+  canImport: boolean;
+}
+
+export interface ImportPreview extends ImportAnalysis {
+  totalRows: number;
+  validRows: number;
+  invalidRows: number;
+  sampleRows: { rowNumber: number; values: Record<string, string> }[];
+  errors: ImportRowError[];
+}
+
+export interface ImportResult {
+  processed: number;
+  imported: number;
+  skipped: number;
+  failed: number;
+  errors: ImportRowError[];
+  analysis: ImportAnalysis;
+  dryRun: boolean;
+}
 
 export interface CompletionReportParams {
   threshold: number;

@@ -21,6 +21,10 @@ python-decouple==3.8
 Pillow==12.1.1
 python-dateutil==2.8.2
 
+# --- Spreadsheet import (admin "Import Alumni" from .xlsx) ---
+# CSV/Google-Sheets imports use the stdlib; only .xlsx needs openpyxl.
+openpyxl==3.1.5
+
 # --- Realtime (WebSocket notifications) via Channels over Redis ---
 # The app defines ASGI_APPLICATION + CHANNEL_LAYERS (Redis), so it MUST be
 # served by an ASGI server and Redis MUST be running in production.

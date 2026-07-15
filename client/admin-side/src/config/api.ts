@@ -158,6 +158,10 @@ export const API_ENDPOINTS = {
     review: (id: string) => `/alumni/${id}/review/`,
     completionReport: '/alumni/completion-report/',
     sendCompletionReminders: '/alumni/send-completion-reminders/',
+    // Spreadsheet import (Excel / CSV / Google Sheets)
+    importSchema: '/alumni/import-schema/',
+    importPreview: '/alumni/import-preview/',
+    import: '/alumni/import/',
   },
   
   // Activity Logs
