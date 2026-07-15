@@ -30,7 +30,7 @@ export function TeacherProfileHeader({ teacher }: TeacherProfileHeaderProps) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       className="bg-card rounded-xl md:rounded-2xl lg:rounded-3xl border border-border overflow-hidden shadow-card"
     >
@@ -48,7 +48,7 @@ export function TeacherProfileHeader({ teacher }: TeacherProfileHeaderProps) {
         <div className="flex flex-col md:flex-row md:items-end gap-4 -mt-12 md:-mt-16">
           {/* Profile Avatar */}
           <motion.div 
-            initial={{ scale: 0.8, opacity: 0 }}
+            initial={false}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.2 }}
             className="w-20 h-20 md:w-28 md:h-28 lg:w-32 lg:h-32 rounded-xl md:rounded-2xl lg:rounded-3xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-2xl md:text-3xl lg:text-4xl font-bold text-white border-4 border-card shadow-xl"
@@ -87,7 +87,7 @@ export function TeacherProfileHeader({ teacher }: TeacherProfileHeaderProps) {
           {quickInfo.map((info, index) => (
             <motion.div
               key={info.label}
-              initial={{ opacity: 0, y: 10 }}
+              initial={false}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 + index * 0.1 }}
               className="flex items-center gap-2 text-[11px] md:text-xs lg:text-sm"
@@ -105,7 +105,7 @@ export function TeacherProfileHeader({ teacher }: TeacherProfileHeaderProps) {
 
         {/* Stats Bar */}
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
           className="flex flex-wrap gap-4 md:gap-6 mt-4 md:mt-6 pt-4 md:pt-6 border-t border-border"

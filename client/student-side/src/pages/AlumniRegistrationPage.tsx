@@ -195,7 +195,7 @@ export default function AlumniRegistrationPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-6 space-y-6 pb-16">
       {/* Header */}
-      <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }}
+      <motion.div initial={false} animate={{ opacity: 1, y: 0 }}
         className="rounded-3xl bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 shadow-lg shadow-blue-500/20">
         <div className="flex items-center gap-3 mb-2">
           <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center">
@@ -212,7 +212,7 @@ export default function AlumniRegistrationPage() {
       {/* Wrong account type? Switch before filling anything in. */}
       {canSwitchAccount(user) && (
         <motion.div
-          initial={{ opacity: 0, y: 8 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           className="rounded-2xl border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
         >
@@ -258,7 +258,7 @@ export default function AlumniRegistrationPage() {
 
       <AnimatePresence mode="wait">
       {step === 1 && (
-      <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
+      <motion.div key="step1" initial={false} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
       <Section icon={User} title="Personal Information">
         <Grid>
           <Field label="Full Name (English)" required>
@@ -357,7 +357,7 @@ export default function AlumniRegistrationPage() {
       )}
 
       {step === 2 && (
-      <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
+      <motion.div key="step2" initial={false} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
       <Section icon={Briefcase} title="Alumni Information">
         <Grid>
           <Field label="Graduation Year">
@@ -417,7 +417,7 @@ export default function AlumniRegistrationPage() {
 /* helpers */
 function Section({ icon: Icon, title, children }: { icon: React.ElementType; title: string; children: React.ReactNode }) {
   return (
-    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+    <motion.div initial={false} animate={{ opacity: 1, y: 0 }}
       className="rounded-3xl bg-card border border-border shadow-sm p-5 sm:p-6">
       <div className="flex items-center gap-2 mb-4">
         <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center">

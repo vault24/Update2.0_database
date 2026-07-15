@@ -97,7 +97,7 @@ export function SkillsCard({ skills, onAdd, onEdit, onDelete, isEditable = true 
               return (
                 <motion.div
                   key={category}
-                  initial={{ opacity: 0, y: 20 }}
+                  initial={false}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: categoryIndex * 0.1 }}
                 >
@@ -110,7 +110,7 @@ export function SkillsCard({ skills, onAdd, onEdit, onDelete, isEditable = true 
                     {groupedSkills[category].map((skill, index) => (
                       <motion.div
                         key={skill.id}
-                        initial={{ opacity: 0, x: -10 }}
+                        initial={false}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: (categoryIndex * 0.1) + (index * 0.05) }}
                         className="group"
@@ -143,7 +143,7 @@ export function SkillsCard({ skills, onAdd, onEdit, onDelete, isEditable = true 
                         </div>
                         <div className="h-2 bg-muted rounded-full overflow-hidden">
                           <motion.div
-                            initial={{ width: 0 }}
+                            initial={false}
                             animate={{ width: `${skill.proficiency}%` }}
                             transition={{ delay: 0.3 + (index * 0.1), duration: 0.5 }}
                             className={`h-full rounded-full ${getProgressColor(skill.proficiency)}`}

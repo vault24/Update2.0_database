@@ -81,7 +81,7 @@ export function StudentProfileHeader({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       className="relative overflow-hidden rounded-2xl lg:rounded-3xl bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 shadow-xl max-w-full"
     >
@@ -97,7 +97,7 @@ export function StudentProfileHeader({
         <div className="flex flex-col md:flex-row gap-4 md:gap-6">
           {/* Avatar Section */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
+            initial={false}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.2 }}
             className="flex-shrink-0"
@@ -137,7 +137,7 @@ export function StudentProfileHeader({
           {/* Info Section */}
           <div className="flex-1 min-w-0 text-white">
             <motion.div
-              initial={{ opacity: 0, x: -20 }}
+              initial={false}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.3 }}
             >
@@ -155,7 +155,7 @@ export function StudentProfileHeader({
             </motion.div>
 
             <motion.div
-              initial={{ opacity: 0, x: -20 }}
+              initial={false}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.4 }}
               className="flex flex-wrap gap-1.5 md:gap-2 mb-3 md:mb-4"
@@ -181,7 +181,7 @@ export function StudentProfileHeader({
             </motion.div>
 
             <motion.div
-              initial={{ opacity: 0, y: 10 }}
+              initial={false}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.5 }}
               className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3"
@@ -219,7 +219,7 @@ export function StudentProfileHeader({
 
           {/* Action Buttons */}
           <motion.div
-            initial={{ opacity: 0, x: 20 }}
+            initial={false}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.4 }}
             className="flex flex-row md:flex-col gap-2 self-start"

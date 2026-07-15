@@ -51,7 +51,7 @@ export function DayCard({ day, classes, timeSlots, isToday, runningClassId, upco
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
+      initial={false}
       animate={{ opacity: 1, scale: 1 }}
       className={cn(
         "w-full bg-card rounded-2xl border shadow-card overflow-hidden",
@@ -111,7 +111,7 @@ export function DayCard({ day, classes, timeSlots, isToday, runningClassId, upco
             return (
               <motion.div
                 key={period.id}
-                initial={{ opacity: 0, x: -10 }}
+                initial={false}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: index * 0.05 }}
                 className={cn(

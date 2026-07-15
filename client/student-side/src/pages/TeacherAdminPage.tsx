@@ -480,7 +480,7 @@ export default function TeacherAdminPage({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       className="min-h-screen bg-background max-w-full overflow-x-hidden"
     >
@@ -585,7 +585,7 @@ export default function TeacherAdminPage({
           <AnimatePresence mode="wait">
             {/* Activities Tab */}
             <TabsContent value="activities" className="mt-0">
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+              <motion.div initial={false} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                   <div>
@@ -693,7 +693,7 @@ export default function TeacherAdminPage({
 
             {/* Assignments Tab */}
             <TabsContent value="assignments" className="mt-0">
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+              <motion.div initial={false} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
                 <Card>
                   <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4">
                     <div>
@@ -781,7 +781,7 @@ export default function TeacherAdminPage({
 
             {/* Materials Tab */}
             <TabsContent value="materials" className="mt-0">
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+              <motion.div initial={false} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
                 <Card>
                   <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4">
                     <div>
@@ -868,7 +868,7 @@ export default function TeacherAdminPage({
 
             {/* Live Classes Tab */}
             <TabsContent value="live-classes" className="mt-0">
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+              <motion.div initial={false} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
                 <Card>
                   <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4">
                     <div>

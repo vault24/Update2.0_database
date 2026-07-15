@@ -46,7 +46,7 @@ export function PremiumStatsGrid({ stats }: PremiumStatsGridProps) {
   return (
     <motion.div
       variants={containerVariants}
-      initial="hidden"
+      initial={false}
       animate="visible"
       className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4"
     >
@@ -100,7 +100,7 @@ export function PremiumStatsGrid({ stats }: PremiumStatsGridProps) {
 
           {/* Value */}
           <motion.p
-            initial={{ opacity: 0 }}
+            initial={false}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 + index * 0.1 }}
             className="text-2xl md:text-3xl font-bold text-foreground mb-1"

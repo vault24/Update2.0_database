@@ -333,7 +333,7 @@ export function DocumentsPage() {
       <div className="space-y-4 md:space-y-6 max-w-full overflow-x-hidden">
         {/* Header */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           className="bg-card rounded-lg md:rounded-xl lg:rounded-2xl border border-border p-4 md:p-6 shadow-card"
         >
@@ -352,7 +352,7 @@ export function DocumentsPage() {
 
         {/* Error/Demo State */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
         >
@@ -393,7 +393,7 @@ export function DocumentsPage() {
     <div className="space-y-4 md:space-y-6 max-w-full overflow-x-hidden">
       {/* Header */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         className="bg-card rounded-lg md:rounded-xl lg:rounded-2xl border border-border p-4 md:p-6 shadow-card"
       >
@@ -413,7 +413,7 @@ export function DocumentsPage() {
       {/* Institute Issued Documents — generated from approved applications */}
       {instituteDocs.length > 0 && (
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 }}
           className="space-y-3"
@@ -427,7 +427,7 @@ export function DocumentsPage() {
             {instituteDocs.map((doc) => (
               <motion.div
                 key={doc.id}
-                initial={{ opacity: 0, scale: 0.95 }}
+                initial={false}
                 animate={{ opacity: 1, scale: 1 }}
                 className="surface-card card-interactive p-4 md:p-6"
               >
@@ -473,7 +473,7 @@ export function DocumentsPage() {
 
       {/* Documents Grid */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
       >
@@ -497,7 +497,7 @@ export function DocumentsPage() {
             {documents.map((doc) => (
               <motion.div
                 key={doc.id}
-                initial={{ opacity: 0, scale: 0.95 }}
+                initial={false}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.1 }}
                 className="bg-card rounded-lg md:rounded-xl lg:rounded-2xl border border-border p-4 md:p-6 shadow-card hover:shadow-lg transition-all duration-200"

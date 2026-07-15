@@ -605,7 +605,7 @@ export function LinkedInTeacherProfile({ isPublicView = false, teacherId }: Link
     <div className="max-w-4xl mx-auto space-y-4">
       {/* Cover & Profile Header */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         className="bg-card rounded-xl border border-border overflow-hidden shadow-card group"
       >
@@ -651,7 +651,7 @@ export function LinkedInTeacherProfile({ isPublicView = false, teacherId }: Link
           {/* Avatar - positioned to overlap banner */}
           <div className="-mt-12 sm:-mt-14 md:-mt-18 mb-3 sm:mb-4">
             <motion.div 
-              initial={{ scale: 0.8, opacity: 0 }}
+              initial={false}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ delay: 0.2 }}
               className="relative inline-block"
@@ -752,7 +752,7 @@ export function LinkedInTeacherProfile({ isPublicView = false, teacherId }: Link
 
       {/* Stats Bar */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
         className="grid grid-cols-2 md:grid-cols-4 gap-3"
@@ -780,7 +780,7 @@ export function LinkedInTeacherProfile({ isPublicView = false, teacherId }: Link
 
       {/* About Section */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
         className="bg-card rounded-xl border border-border p-4 md:p-6 shadow-card group"
@@ -799,7 +799,7 @@ export function LinkedInTeacherProfile({ isPublicView = false, teacherId }: Link
 
       {/* Main Content Tabs */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
       >
@@ -1027,7 +1027,7 @@ export function LinkedInTeacherProfile({ isPublicView = false, teacherId }: Link
       {/* Skills & Specializations */}
       <div className="grid md:grid-cols-2 gap-4">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
           className="bg-card rounded-xl border border-border p-4 md:p-6 shadow-card group"
@@ -1049,7 +1049,7 @@ export function LinkedInTeacherProfile({ isPublicView = false, teacherId }: Link
         </motion.div>
 
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
           className="bg-card rounded-xl border border-border p-4 md:p-6 shadow-card group"
@@ -1073,7 +1073,7 @@ export function LinkedInTeacherProfile({ isPublicView = false, teacherId }: Link
 
       {/* Awards */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.6 }}
         className="bg-card rounded-xl border border-border p-4 md:p-6 shadow-card"
@@ -1113,7 +1113,7 @@ export function LinkedInTeacherProfile({ isPublicView = false, teacherId }: Link
       {/* Contact Info Card */}
       <motion.div
         ref={contactSectionRef}
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.7 }}
         className="bg-card rounded-xl border border-border p-4 md:p-6 shadow-card scroll-mt-4"

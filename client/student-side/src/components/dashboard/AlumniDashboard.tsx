@@ -219,7 +219,7 @@ export function AlumniDashboard() {
                   cx="60" cy="60" r="52" fill="none" strokeWidth="12" strokeLinecap="round"
                   className={completion.percentage >= 100 ? 'stroke-emerald-500' : 'stroke-blue-500'}
                   strokeDasharray={2 * Math.PI * 52}
-                  initial={{ strokeDashoffset: 2 * Math.PI * 52 }}
+                  initial={false}
                   animate={{ strokeDashoffset: 2 * Math.PI * 52 * (1 - completion.percentage / 100) }}
                   transition={{ duration: 1, ease: 'easeOut' }}
                 />

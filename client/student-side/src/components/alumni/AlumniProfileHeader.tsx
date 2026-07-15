@@ -110,7 +110,7 @@ export function AlumniProfileHeader({ alumni, onEdit, isEditable = true, onPhoto
         {/* Avatar overlapping the cover */}
         <div className="-mt-14 flex flex-col gap-3 sm:-mt-16 sm:flex-row sm:items-end sm:gap-5">
           <motion.div
-            initial={{ scale: 0.85, opacity: 0 }}
+            initial={false}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.1 }}
             className="group/avatar relative"
@@ -182,7 +182,7 @@ export function AlumniProfileHeader({ alumni, onEdit, isEditable = true, onPhoto
           {infoTiles.map((tile, i) => (
             <motion.div
               key={tile.label}
-              initial={{ y: 16, opacity: 0 }}
+              initial={false}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.2 + i * 0.05 }}
               className="flex items-center gap-3 rounded-xl bg-muted/50 p-3"

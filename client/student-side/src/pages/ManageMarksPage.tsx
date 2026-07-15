@@ -1099,7 +1099,7 @@ export default function ManageMarksPage() {
     <div className="space-y-6 pb-8">
       {/* Header */}
       <motion.div
-        initial={{ opacity: 0, y: -20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         className="flex flex-col lg:flex-row lg:items-center justify-between gap-4"
       >
@@ -1147,7 +1147,7 @@ export default function ManageMarksPage() {
 
       {/* Summary Cards */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3"
       >
@@ -1238,7 +1238,7 @@ export default function ManageMarksPage() {
 
       {/* Filters & Controls */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
         className="bg-card border rounded-xl p-4 shadow-sm"
@@ -1394,7 +1394,7 @@ export default function ManageMarksPage() {
 
       {/* Marks Table */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
         className="bg-card border rounded-xl shadow-sm overflow-hidden"
@@ -1518,7 +1518,7 @@ export default function ManageMarksPage() {
                 filteredStudents.map((student, index) => (
                   <motion.tr
                     key={student.studentId}
-                    initial={{ opacity: 0, x: -10 }}
+                    initial={false}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: Math.min(index * 0.02, 0.3) }}
                     className={`border-b hover:bg-muted/30 transition-colors ${selectedStudents.has(student.studentId) ? 'bg-primary/5' : ''}`}

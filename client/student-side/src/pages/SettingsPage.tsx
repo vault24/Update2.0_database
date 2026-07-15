@@ -463,7 +463,7 @@ export default function SettingsPage() {
     <div className="space-y-6 max-w-full overflow-x-hidden pb-6">
       {/* Header */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
       >
         <h1 className="text-2xl md:text-3xl font-display font-bold flex items-center gap-3">
@@ -481,7 +481,7 @@ export default function SettingsPage() {
       <div className="space-y-6">
         {/* Account Section */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 }}
           className="bg-card rounded-xl border border-border p-4 sm:p-6 shadow-card"
@@ -545,7 +545,7 @@ export default function SettingsPage() {
         {/* Role Switch Request Section */}
         {user?.role !== 'teacher' && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
             className="bg-card rounded-xl border border-border p-4 sm:p-6 shadow-card"
@@ -646,7 +646,7 @@ export default function SettingsPage() {
 
         {/* Social Links Section */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
           className="bg-card rounded-xl border border-border p-4 sm:p-6 shadow-card"
@@ -746,7 +746,7 @@ export default function SettingsPage() {
 
         {/* Appearance Section */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
           className="bg-card rounded-xl border border-border p-4 sm:p-6 shadow-card"
@@ -798,7 +798,7 @@ export default function SettingsPage() {
 
         {/* Notifications Section */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.25 }}
           className="bg-card rounded-xl border border-border p-4 sm:p-6 shadow-card"
@@ -914,7 +914,7 @@ export default function SettingsPage() {
 
         {/* Privacy Section */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
           className="bg-card rounded-xl border border-border p-4 sm:p-6 shadow-card"
@@ -973,7 +973,7 @@ export default function SettingsPage() {
 
         {/* Security Section */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.35 }}
           className="bg-card rounded-xl border border-border p-4 sm:p-6 shadow-card"
@@ -1011,7 +1011,7 @@ export default function SettingsPage() {
 
             {showPasswordSection && (
               <motion.div
-                initial={{ opacity: 0, height: 0 }}
+                initial={false}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
                 className="space-y-4 pt-4 border-t border-border"
@@ -1151,7 +1151,7 @@ export default function SettingsPage() {
 
         {/* Language Section */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
           className="bg-card rounded-xl border border-border p-4 sm:p-6 shadow-card"
@@ -1197,7 +1197,7 @@ export default function SettingsPage() {
         {/* Danger Zone — account deletion (only while the account is still "unfinished") */}
         {canDeleteAccount && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.45 }}
             className="bg-card rounded-xl border border-destructive/40 p-4 sm:p-6 shadow-card"

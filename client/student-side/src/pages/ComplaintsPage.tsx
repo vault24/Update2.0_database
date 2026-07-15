@@ -266,7 +266,7 @@ export default function ComplaintsPage() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       className="space-y-6 max-w-full overflow-x-hidden"
     >
@@ -357,7 +357,7 @@ export default function ComplaintsPage() {
 
                 {selectedCategory && (
                   <motion.div
-                    initial={{ opacity: 0, height: 0 }}
+                    initial={false}
                     animate={{ opacity: 1, height: 'auto' }}
                     className="space-y-2"
                   >
@@ -518,7 +518,7 @@ export default function ComplaintsPage() {
               <AnimatePresence mode="popLayout">
                 {filteredComplaints(tab).length === 0 ? (
                   <motion.div
-                    initial={{ opacity: 0 }}
+                    initial={false}
                     animate={{ opacity: 1 }}
                     className="text-center py-12"
                   >
@@ -536,7 +536,7 @@ export default function ComplaintsPage() {
                     return (
                       <motion.div
                         key={complaint.rawId}
-                        initial={{ opacity: 0, y: 10 }}
+                        initial={false}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
                         transition={{ delay: idx * 0.03 }}
@@ -583,7 +583,7 @@ export default function ComplaintsPage() {
 
                               <CollapsibleContent>
                                 <motion.div
-                                  initial={{ opacity: 0 }}
+                                  initial={false}
                                   animate={{ opacity: 1 }}
                                   className="px-4 pb-4 pt-0 border-t border-border/50 mt-0"
                                 >

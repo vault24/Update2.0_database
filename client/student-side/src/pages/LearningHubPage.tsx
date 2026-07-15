@@ -160,7 +160,7 @@ export default function LearningHubPage() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       className="min-h-screen bg-background max-w-full overflow-x-hidden"
     >
@@ -283,7 +283,7 @@ export default function LearningHubPage() {
               <motion.div
                 key="activities"
                 variants={tabVariants}
-                initial="hidden"
+                initial={false}
                 animate="visible"
                 exit="exit"
                 className="space-y-4 max-w-full overflow-x-hidden"
@@ -376,7 +376,7 @@ export default function LearningHubPage() {
               <motion.div
                 key="assignments"
                 variants={tabVariants}
-                initial="hidden"
+                initial={false}
                 animate="visible"
                 exit="exit"
                 className="space-y-3 sm:space-y-4 max-w-full overflow-x-hidden"
@@ -470,7 +470,7 @@ export default function LearningHubPage() {
               <motion.div
                 key="materials"
                 variants={tabVariants}
-                initial="hidden"
+                initial={false}
                 animate="visible"
                 exit="exit"
                 className="space-y-4"

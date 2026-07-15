@@ -312,7 +312,7 @@ export default function AddAttendancePage() {
   return (
     <div className="space-y-5 pb-8 max-w-full overflow-x-hidden">
       {/* Header */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+      <motion.div initial={false} animate={{ opacity: 1, y: 0 }}>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h1 className="text-xl md:text-2xl font-display font-bold flex items-center gap-2.5">
@@ -351,7 +351,7 @@ export default function AddAttendancePage() {
 
       {/* Info Banner */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.05 }}
         className="bg-primary/5 border border-primary/20 rounded-xl p-4"
@@ -371,7 +371,7 @@ export default function AddAttendancePage() {
 
       {/* Step 1: Select Subject from Today's Routine */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
         className="bg-card border border-border rounded-xl p-4 md:p-5 shadow-card"
@@ -450,7 +450,7 @@ export default function AddAttendancePage() {
       <AnimatePresence>
         {selectedRoutine && (
           <motion.div
-            initial={{ opacity: 0, height: 0 }}
+            initial={false}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             className="space-y-4 overflow-hidden"
@@ -508,7 +508,7 @@ export default function AddAttendancePage() {
                 {filteredStudents.map((student, index) => (
                   <motion.div
                     key={student.id}
-                    initial={{ opacity: 0 }}
+                    initial={false}
                     animate={{ opacity: 1 }}
                     transition={{ delay: Math.min(index * 0.02, 0.5) }}
                     onClick={() => toggleAttendance(student.id)}

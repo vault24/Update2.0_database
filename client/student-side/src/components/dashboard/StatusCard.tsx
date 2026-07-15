@@ -75,7 +75,7 @@ export function StatusCard() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.1 }}
       className={`bg-card rounded-2xl border ${status.border} p-6 shadow-card`}
@@ -108,7 +108,7 @@ export function StatusCard() {
         </div>
         <div className="h-2 bg-secondary rounded-full overflow-hidden">
           <motion.div
-            initial={{ width: 0 }}
+            initial={false}
             animate={{ width: `${status.progress}%` }}
             transition={{ duration: 1, delay: 0.5 }}
             className={`h-full rounded-full ${

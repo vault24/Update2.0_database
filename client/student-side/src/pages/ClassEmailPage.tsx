@@ -303,7 +303,7 @@ export default function ClassEmailPage() {
       {/* Step 2 — recipients */}
       {selectedRoutine && (
         <motion.div
-          initial={{ opacity: 0, y: 12 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           className="surface-card p-4 md:p-6"
         >
@@ -382,7 +382,7 @@ export default function ClassEmailPage() {
       {/* Step 3 — compose */}
       {selectedRoutine && students && (
         <motion.div
-          initial={{ opacity: 0, y: 12 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           className="surface-card p-4 md:p-6"
         >

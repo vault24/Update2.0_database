@@ -116,7 +116,7 @@ export function QuickNotes() {
       <AnimatePresence>
         {isAdding && (
           <motion.div
-            initial={{ height: 0, opacity: 0 }}
+            initial={false}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             className="border-b border-border overflow-hidden"
@@ -188,7 +188,7 @@ export function QuickNotes() {
                 <motion.div
                   key={note.id}
                   layout
-                  initial={{ opacity: 0, scale: 0.9 }}
+                  initial={false}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9, x: -20 }}
                   className={cn(

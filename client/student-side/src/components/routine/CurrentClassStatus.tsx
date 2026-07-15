@@ -102,7 +102,7 @@ export function CurrentClassStatus({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       className={cn(
         "relative overflow-hidden rounded-2xl p-4 text-white shadow-lg",
@@ -168,7 +168,7 @@ export function CurrentClassStatus({
                 </div>
                 <div className="h-1.5 bg-white/20 rounded-full overflow-hidden">
                   <motion.div
-                    initial={{ width: 0 }}
+                    initial={false}
                     animate={{ 
                       width: `${Math.max(0, Math.min(100, 100 - (getTimeRemaining(displayClass.endTime) / 45) * 100))}%` 
                     }}

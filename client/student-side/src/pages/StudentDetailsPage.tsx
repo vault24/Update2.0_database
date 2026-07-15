@@ -279,7 +279,7 @@ export default function StudentDetailsPage() {
 
       {/* Hero Section - Profile Photo & Quick Info */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
       >
         <Card className="glass-card overflow-hidden">
@@ -352,7 +352,7 @@ export default function StudentDetailsPage() {
       {/* Collapsible Sections */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Personal Information */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+        <motion.div initial={false} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
           <CollapsibleSection title="Personal Information" icon={<User className="w-4 h-4" />} defaultOpen>
             <div className="space-y-1">
               <InfoRow label="Full Name (English)" value={student.fullNameEnglish} />
@@ -369,7 +369,7 @@ export default function StudentDetailsPage() {
         </motion.div>
 
         {/* Contact Information */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+        <motion.div initial={false} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
           <CollapsibleSection title="Contact Information" icon={<Phone className="w-4 h-4" />} defaultOpen>
             <div className="space-y-1">
               <InfoRow label="Student Mobile" value={student.mobileStudent} />
@@ -381,7 +381,7 @@ export default function StudentDetailsPage() {
         </motion.div>
 
         {/* Present Address */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+        <motion.div initial={false} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
           <CollapsibleSection title="Present Address" icon={<MapPin className="w-4 h-4" />}>
             <div className="space-y-1">
               <InfoRow label="Division" value={student.presentAddress.division} />
@@ -394,7 +394,7 @@ export default function StudentDetailsPage() {
         </motion.div>
 
         {/* Permanent Address */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
+        <motion.div initial={false} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
           <CollapsibleSection title="Permanent Address" icon={<Home className="w-4 h-4" />}>
             <div className="space-y-1">
               <InfoRow label="Division" value={student.permanentAddress.division} />
@@ -407,7 +407,7 @@ export default function StudentDetailsPage() {
         </motion.div>
 
         {/* Educational Background */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+        <motion.div initial={false} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <CollapsibleSection title="Educational Background" icon={<GraduationCap className="w-4 h-4" />}>
             <div className="space-y-1">
               <InfoRow label="Highest Exam" value={(student as any).highestExam} />
@@ -423,7 +423,7 @@ export default function StudentDetailsPage() {
         </motion.div>
 
         {/* Current Academic Info */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
+        <motion.div initial={false} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
           <CollapsibleSection title="Current Academic Information" icon={<BookOpen className="w-4 h-4" />}>
             <div className="space-y-1">
               <InfoRow label="Current Roll Number" value={student.currentRollNumber} />
@@ -439,7 +439,7 @@ export default function StudentDetailsPage() {
       </div>
 
       {/* Semester Results */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+      <motion.div initial={false} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
         <Card className="glass-card">
           <CardHeader>
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -487,7 +487,7 @@ export default function StudentDetailsPage() {
       </motion.div>
 
       {/* Semester Attendance */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}>
+      <motion.div initial={false} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}>
         <Card className="glass-card">
           <CardHeader>
             <CardTitle className="text-sm font-semibold flex items-center gap-2">

@@ -288,7 +288,7 @@ export default function TeacherAssignmentDetailPage() {
       <div className="container mx-auto px-4 py-6 max-w-7xl">
         {/* Header */}
         <motion.div 
-          initial={{ opacity: 0, y: -20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           className="mb-6"
         >
@@ -334,7 +334,7 @@ export default function TeacherAssignmentDetailPage() {
 
         {/* Stats Cards */}
         <motion.div 
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
           className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6"
@@ -423,7 +423,7 @@ export default function TeacherAssignmentDetailPage() {
 
           {/* Overview Tab */}
           <TabsContent value="overview">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid lg:grid-cols-3 gap-6">
+            <motion.div initial={false} animate={{ opacity: 1 }} className="grid lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 space-y-6">
                 <Card>
                   <CardHeader>
@@ -582,7 +582,7 @@ export default function TeacherAssignmentDetailPage() {
 
           {/* Submissions Tab */}
           <TabsContent value="submissions">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <motion.div initial={false} animate={{ opacity: 1 }}>
               <Card>
                 <CardHeader>
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -712,7 +712,7 @@ export default function TeacherAssignmentDetailPage() {
 
           {/* Grading Tab */}
           <TabsContent value="grading">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <motion.div initial={false} animate={{ opacity: 1 }}>
               <Card>
                 <CardHeader>
                   <CardTitle>Grading Dashboard</CardTitle>

@@ -504,7 +504,7 @@ export function ProfilePage() {
       <AnimatePresence mode="wait">
         <motion.div
           key={activeTab}
-          initial={{ opacity: 0, y: 10 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.2 }}
@@ -643,7 +643,7 @@ export function ProfilePage() {
                               </div>
                               <div className="h-2.5 bg-secondary rounded-full overflow-hidden">
                                 <motion.div
-                                  initial={{ width: 0 }}
+                                  initial={false}
                                   animate={{ width: `${percentage}%` }}
                                   transition={{ duration: 0.5, delay: i * 0.1 }}
                                   className={cn(
@@ -743,7 +743,7 @@ export function ProfilePage() {
                   {documents.map((doc) => (
                     <motion.div 
                       key={doc.id} 
-                      initial={{ opacity: 0, y: 10 }}
+                      initial={false}
                       animate={{ opacity: 1, y: 0 }}
                       whileHover={{ scale: 1.01 }}
                       className="bg-card rounded-xl lg:rounded-2xl border border-border p-4 shadow-card flex items-center gap-4 hover:border-primary/30 transition-all"

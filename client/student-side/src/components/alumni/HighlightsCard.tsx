@@ -93,7 +93,7 @@ export function HighlightsCard({ highlights, onAdd, onEdit, onDelete, isEditable
               return (
                 <motion.div
                   key={highlight.id}
-                  initial={{ opacity: 0, scale: 0.95 }}
+                  initial={false}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: index * 0.1 }}
                   className={`relative p-4 rounded-xl border ${colorClass} group`}

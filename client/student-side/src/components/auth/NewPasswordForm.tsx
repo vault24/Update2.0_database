@@ -43,10 +43,10 @@ function MathPopup({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: (
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+    <motion.div initial={false} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex items-center justify-center px-6"
       style={{ background: 'rgba(10,22,60,0.45)', backdropFilter: 'blur(4px)' }}>
-      <motion.div initial={{ scale: 0.85, y: 30 }} animate={{ scale: 1, y: 0 }}
+      <motion.div initial={false} animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.85, y: 30 }} transition={{ type: 'spring', stiffness: 260, damping: 22 }}
         className="w-full max-w-xs bg-white rounded-3xl p-7 shadow-2xl relative">
 
@@ -186,7 +186,7 @@ export function NewPasswordForm({ onSubmit, onBack, loading, error }: Props) {
 
             {/* Strength bar */}
             {password.length > 0 && (
-              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
+              <motion.div initial={false} animate={{ opacity: 1, height: 'auto' }}
                 className="mt-2 space-y-1.5">
                 <div className="flex items-center gap-2">
                   <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">

@@ -414,7 +414,7 @@ export function AttendanceRecordsTab() {
       <AnimatePresence initial={false}>
         {showFilters && (
           <motion.div
-            initial={{ height: 0, opacity: 0 }}
+            initial={false}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
@@ -513,7 +513,7 @@ export function AttendanceRecordsTab() {
             {summary.map((item, index) => (
               <motion.div
                 key={`${item.subject_code}-${item.department}-${item.semester}-${item.shift}-${index}`}
-                initial={{ opacity: 0, y: 10 }}
+                initial={false}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: Math.min(index * 0.05, 0.3) }}
                 className="bg-card rounded-2xl border border-border overflow-hidden shadow-card"
@@ -645,7 +645,7 @@ export function AttendanceRecordsTab() {
               </div>
             ) : (
               <motion.div
-                initial={{ opacity: 0, y: 10 }}
+                initial={false}
                 animate={{ opacity: 1, y: 0 }}
                 className="bg-card rounded-2xl border border-border shadow-card overflow-hidden"
               >

@@ -69,7 +69,7 @@ function SwipeableStudentCard({
   };
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.02 }} className="relative overflow-hidden rounded-xl">
+    <motion.div initial={false} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.02 }} className="relative overflow-hidden rounded-xl">
       <motion.div className="absolute inset-0 flex items-center justify-between px-4 pointer-events-none" style={{ background }}>
         <motion.div style={{ opacity: leftIconOpacity }}><X className="w-8 h-8 text-white" /></motion.div>
         <motion.div style={{ opacity: rightIconOpacity }}><Check className="w-8 h-8 text-white" /></motion.div>
@@ -557,7 +557,7 @@ export default function TeacherAttendancePage() {
 
   return (
     <div className="space-y-4 pb-28 max-w-full overflow-x-hidden">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-4">
+      <motion.div initial={false} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-4">
         <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
           <ClipboardCheck className="w-7 h-7 text-primary" />
         </div>
@@ -593,7 +593,7 @@ export default function TeacherAttendancePage() {
         <TabsContent value="take" className="mt-4">
           <AnimatePresence mode="wait">
             {currentStep === 'setup' && (
-              <motion.div key="setup" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
+              <motion.div key="setup" initial={false} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
                 <div className="bg-card rounded-2xl border border-border p-4 space-y-4 shadow-card">
                   <h3 className="font-semibold flex items-center gap-2">
                     <Calendar className="w-5 h-5 text-primary" />
@@ -683,7 +683,7 @@ export default function TeacherAttendancePage() {
             )}
 
             {currentStep === 'marking' && (
-              <motion.div key="marking" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
+              <motion.div key="marking" initial={false} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
                 <div className="bg-card rounded-2xl border border-border p-4 shadow-card">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
@@ -696,9 +696,9 @@ export default function TeacherAttendancePage() {
                   </div>
                   
                   <div className="h-3 bg-secondary rounded-full overflow-hidden flex mb-3">
-                    <motion.div className="bg-success h-full" initial={{ width: 0 }} animate={{ width: `${(counts.present / counts.total) * 100}%` }} transition={{ duration: 0.3 }} />
-                    <motion.div className="bg-warning h-full" initial={{ width: 0 }} animate={{ width: `${(counts.late / counts.total) * 100}%` }} transition={{ duration: 0.3 }} />
-                    <motion.div className="bg-destructive h-full" initial={{ width: 0 }} animate={{ width: `${(counts.absent / counts.total) * 100}%` }} transition={{ duration: 0.3 }} />
+                    <motion.div className="bg-success h-full" initial={false} animate={{ width: `${(counts.present / counts.total) * 100}%` }} transition={{ duration: 0.3 }} />
+                    <motion.div className="bg-warning h-full" initial={false} animate={{ width: `${(counts.late / counts.total) * 100}%` }} transition={{ duration: 0.3 }} />
+                    <motion.div className="bg-destructive h-full" initial={false} animate={{ width: `${(counts.absent / counts.total) * 100}%` }} transition={{ duration: 0.3 }} />
                   </div>
 
                   <div className="grid grid-cols-4 gap-2">
@@ -780,7 +780,7 @@ export default function TeacherAttendancePage() {
             )}
 
             {currentStep === 'review' && (
-              <motion.div key="review" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
+              <motion.div key="review" initial={false} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
                 <div className="bg-gradient-to-br from-primary/10 via-card to-card rounded-2xl border border-primary/20 p-5 shadow-card">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-bold text-lg">Review Summary</h3>
@@ -864,7 +864,7 @@ export default function TeacherAttendancePage() {
               {/* Bulk Actions Bar */}
               {selectedSubmissionKeys.size > 0 && (
                 <motion.div 
-                  initial={{ opacity: 0, y: -10 }} 
+                  initial={false} 
                   animate={{ opacity: 1, y: 0 }}
                   className="bg-primary/10 border border-primary/20 rounded-xl p-3 mb-4 flex items-center justify-between"
                 >
@@ -928,7 +928,7 @@ export default function TeacherAttendancePage() {
                   return (
                     <motion.div
                       key={submission.key}
-                      initial={{ opacity: 0, y: 10 }}
+                      initial={false}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.05 }}
                       className={cn(
@@ -1025,7 +1025,7 @@ export default function TeacherAttendancePage() {
                               return (
                                 <motion.tr
                                   key={student.id}
-                                  initial={{ opacity: 0 }}
+                                  initial={false}
                                   animate={{ opacity: 1 }}
                                   transition={{ delay: idx * 0.01 }}
                                   className="hover:bg-secondary/30 transition-colors"

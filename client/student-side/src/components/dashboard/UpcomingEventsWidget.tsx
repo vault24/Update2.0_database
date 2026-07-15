@@ -76,7 +76,7 @@ export function UpcomingEventsWidget() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.2 }}
       className="bg-card rounded-2xl border border-border p-5 shadow-card"
@@ -101,7 +101,7 @@ export function UpcomingEventsWidget() {
           return (
             <motion.div
               key={event.id}
-              initial={{ opacity: 0, x: -10 }}
+              initial={false}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.1 * index }}
               whileHover={{ scale: 1.01, x: 4 }}

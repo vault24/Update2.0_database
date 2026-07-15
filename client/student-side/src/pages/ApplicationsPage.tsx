@@ -174,7 +174,7 @@ export function ApplicationsPage() {
       {admissionIncomplete && <AdmissionBanner />}
 
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         className={`flex flex-col md:flex-row md:items-center md:justify-between gap-4${admissionIncomplete ? ' opacity-40 pointer-events-none select-none' : ''}`}
       >
@@ -191,7 +191,7 @@ export function ApplicationsPage() {
       {/* New Application Form */}
       {!admissionIncomplete && showNewForm && (
         <motion.div
-          initial={{ opacity: 0, height: 0 }}
+          initial={false}
           animate={{ opacity: 1, height: 'auto' }}
           exit={{ opacity: 0, height: 0 }}
           className="bg-card rounded-2xl border border-border p-6 shadow-card"
@@ -229,7 +229,7 @@ export function ApplicationsPage() {
 
           {selectedTemplate && (
             <motion.div
-              initial={{ opacity: 0, y: 10 }}
+              initial={false}
               animate={{ opacity: 1, y: 0 }}
               className="space-y-4"
             >
@@ -331,7 +331,7 @@ export function ApplicationsPage() {
             return (
               <motion.div
                 key={app.id}
-                initial={{ opacity: 0, y: 20 }}
+                initial={false}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
                 className="bg-card rounded-2xl border border-border p-5 shadow-card hover:shadow-card-hover transition-shadow"

@@ -103,7 +103,7 @@ export function MaterialFilters({ filters, onFilterChange }: MaterialFiltersProp
 
         <CollapsibleContent>
           <motion.div
-            initial={{ opacity: 0, height: 0 }}
+            initial={false}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mt-4"

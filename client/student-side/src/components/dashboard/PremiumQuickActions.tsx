@@ -104,7 +104,7 @@ export function PremiumQuickActions() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
       className="bg-card rounded-2xl border border-border p-5 md:p-6 shadow-card"
@@ -133,7 +133,7 @@ export function PremiumQuickActions() {
       
       <motion.div 
         variants={containerVariants}
-        initial="hidden"
+        initial={false}
         animate="visible"
         className="grid grid-cols-4 md:grid-cols-8 gap-3"
       >

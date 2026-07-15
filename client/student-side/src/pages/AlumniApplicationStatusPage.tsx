@@ -26,7 +26,7 @@ export default function AlumniApplicationStatusPage() {
     <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
       {/* Status hero */}
       <motion.div
-        initial={{ opacity: 0, y: -16 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         className={`rounded-3xl p-6 text-white shadow-lg ${
           rejected
@@ -52,7 +52,7 @@ export default function AlumniApplicationStatusPage() {
       {/* What happens next */}
       {!rejected && (
         <motion.div
-          initial={{ opacity: 0, y: 16 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           className="rounded-3xl bg-card border border-border shadow-sm p-5 sm:p-6"
         >
@@ -78,7 +78,7 @@ export default function AlumniApplicationStatusPage() {
 
       {/* Account options */}
       <motion.div
-        initial={{ opacity: 0, y: 16 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.05 }}
         className="rounded-3xl bg-card border border-border shadow-sm p-5 sm:p-6 space-y-4"

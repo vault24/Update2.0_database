@@ -130,7 +130,7 @@ export default function NotificationsPage() {
   return (
     <div className="space-y-4 pb-8">
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         className="flex items-center justify-between"
       >
@@ -196,7 +196,7 @@ export default function NotificationsPage() {
                   return (
                     <motion.div
                       key={notification.id}
-                      initial={{ opacity: 0, y: 10 }}
+                      initial={false}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, x: -100 }}
                       transition={{ delay: index * 0.03 }}

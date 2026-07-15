@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { MotionConfig } from "framer-motion";
 import { Toaster } from "@/components/ui/sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState, useEffect, lazy, Suspense } from "react";
@@ -133,7 +134,35 @@ const AlumniAccountGate = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
-const App = () => (
+/**
+ * Disable framer-motion transform/layout animations on phones & tablets.
+ *
+ * The entrance animations (y-offsets, staggered cards, width bars) run on
+ * requestAnimationFrame. On low-end Android the main thread stalls while a
+ * page mounts, the animations freeze mid-flight, and cards get stuck at
+ * half-way transforms with GPU paint trails — the "broken page" bug seen in
+ * production on the Attendance/Marks/report pages. With reducedMotion
+ * "always", framer skips transform/layout animation entirely (opacity fades
+ * are kept), so every element renders directly at its final position.
+ * Desktop (lg+) keeps the full animations.
+ */
+const useReducedMotionOnMobile = () => {
+  const [small, setSmall] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const onChange = (e: MediaQueryListEvent) => setSmall(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  return small;
+};
+
+const App = () => {
+  const reduceMotion = useReducedMotionOnMobile();
+  return (
+  <MotionConfig reducedMotion={reduceMotion ? "always" : "user"}>
   <BrowserRouter>
     <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-muted-foreground">Loading…</div>}>
 <Routes>
@@ -202,6 +231,8 @@ const App = () => (
             </Suspense>
     <Toaster />
   </BrowserRouter>
-);
+  </MotionConfig>
+  );
+};
 
 export default App;

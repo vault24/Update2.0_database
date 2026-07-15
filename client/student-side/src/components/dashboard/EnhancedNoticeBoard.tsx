@@ -85,7 +85,7 @@ export function EnhancedNoticeBoard() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.3 }}
       className="bg-card rounded-2xl border border-border shadow-card overflow-hidden"
@@ -100,7 +100,7 @@ export function EnhancedNoticeBoard() {
               </div>
               {unreadCount > 0 && (
                 <motion.span
-                  initial={{ scale: 0 }}
+                  initial={false}
                   animate={{ scale: 1 }}
                   className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground text-xs font-bold rounded-full flex items-center justify-center"
                 >
@@ -158,7 +158,7 @@ export function EnhancedNoticeBoard() {
                 return (
                   <motion.div
                     key={notice.id}
-                    initial={{ opacity: 0, x: -20 }}
+                    initial={false}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.05 * index }}
                     className="group"

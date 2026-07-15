@@ -101,7 +101,7 @@ export function SubjectActivityBox({ subject, activities, onEdit, onDelete, onAd
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
+      initial={false}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.2 }}
     >
@@ -188,7 +188,7 @@ export function SubjectActivityBox({ subject, activities, onEdit, onDelete, onAd
         <AnimatePresence>
           {isExpanded && (
             <motion.div
-              initial={{ height: 0, opacity: 0 }}
+              initial={false}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.2 }}
@@ -200,7 +200,7 @@ export function SubjectActivityBox({ subject, activities, onEdit, onDelete, onAd
                       sortedActivities.map((activity, index) => (
                         <motion.div 
                           key={activity.id}
-                          initial={{ opacity: 0, x: -10 }}
+                          initial={false}
                           animate={{ opacity: 1, x: 0 }}
                           transition={{ delay: index * 0.05 }}
                           className={cn(

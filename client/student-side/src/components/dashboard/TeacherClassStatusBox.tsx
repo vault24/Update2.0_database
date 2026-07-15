@@ -23,7 +23,7 @@ export function TeacherClassStatusBox() {
   if (!isClassDay || classes.length === 0) {
     return (
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15 }}
         className="bg-card rounded-xl md:rounded-2xl border border-border p-4 md:p-5 shadow-card flex items-center gap-4"
@@ -45,7 +45,7 @@ export function TeacherClassStatusBox() {
     const end = timeToMinutes(currentClass.endTime);
     return (
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15 }}
         className="relative overflow-hidden rounded-xl md:rounded-2xl border-2 border-primary/40 bg-gradient-to-r from-primary/10 via-card to-card p-4 md:p-5 shadow-card"
@@ -79,7 +79,7 @@ export function TeacherClassStatusBox() {
     const start = timeToMinutes(nextClass.startTime);
     return (
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15 }}
         className="bg-card rounded-xl md:rounded-2xl border border-border p-4 md:p-5 shadow-card"
@@ -114,7 +114,7 @@ export function TeacherClassStatusBox() {
 
   return allDone ? (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.15 }}
       className="bg-card rounded-xl md:rounded-2xl border border-success/30 bg-gradient-to-r from-success/5 to-card p-4 md:p-5 shadow-card flex items-center gap-4"

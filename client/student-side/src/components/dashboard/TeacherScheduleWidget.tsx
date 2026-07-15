@@ -130,7 +130,7 @@ export function TeacherScheduleWidget() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.3 }}
       className="bg-card rounded-xl md:rounded-2xl border border-border p-3 md:p-4 lg:p-6 shadow-card"
@@ -168,7 +168,7 @@ export function TeacherScheduleWidget() {
             return (
               <motion.div
                 key={item.id}
-                initial={{ opacity: 0, x: -20 }}
+                initial={false}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.05 * index }}
                 className={cn(

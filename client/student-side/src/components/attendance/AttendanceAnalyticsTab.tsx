@@ -88,7 +88,7 @@ export function AttendanceAnalyticsTab() {
     <div className="space-y-4">
       {/* Overview tiles */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+        initial={false} animate={{ opacity: 1, y: 0 }}
         className="grid grid-cols-3 sm:grid-cols-6 gap-2"
       >
         {overviewTiles.map(tile => (
@@ -105,7 +105,7 @@ export function AttendanceAnalyticsTab() {
       <div className="grid lg:grid-cols-2 gap-4">
         {/* Monthly trend */}
         <motion.div
-          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
+          initial={false} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
           className="bg-card rounded-2xl border border-border p-4 shadow-card"
         >
           <h3 className="font-semibold text-sm flex items-center gap-2 mb-3">
@@ -130,7 +130,7 @@ export function AttendanceAnalyticsTab() {
 
         {/* Weekly trend */}
         <motion.div
-          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+          initial={false} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
           className="bg-card rounded-2xl border border-border p-4 shadow-card"
         >
           <h3 className="font-semibold text-sm flex items-center gap-2 mb-3">
@@ -153,7 +153,7 @@ export function AttendanceAnalyticsTab() {
 
         {/* Overall distribution */}
         <motion.div
-          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+          initial={false} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
           className="bg-card rounded-2xl border border-border p-4 shadow-card"
         >
           <h3 className="font-semibold text-sm flex items-center gap-2 mb-3">
@@ -181,7 +181,7 @@ export function AttendanceAnalyticsTab() {
 
         {/* Semester statistics */}
         <motion.div
-          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+          initial={false} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
           className="bg-card rounded-2xl border border-border p-4 shadow-card"
         >
           <h3 className="font-semibold text-sm flex items-center gap-2 mb-3">
@@ -204,7 +204,7 @@ export function AttendanceAnalyticsTab() {
       {/* Department statistics */}
       {analytics.byDepartment.length > 0 && (
         <motion.div
-          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
+          initial={false} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
           className="bg-card rounded-2xl border border-border p-4 shadow-card"
         >
           <h3 className="font-semibold text-sm flex items-center gap-2 mb-3">
@@ -234,7 +234,7 @@ export function AttendanceAnalyticsTab() {
 
       {/* Subject statistics table */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+        initial={false} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
         className="bg-card rounded-2xl border border-border shadow-card overflow-hidden"
       >
         <h3 className="font-semibold text-sm flex items-center gap-2 p-4 pb-3">

@@ -16,7 +16,7 @@ export function QuickActions() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.2 }}
       className="bg-card rounded-2xl border border-border p-6 shadow-card"
@@ -27,7 +27,7 @@ export function QuickActions() {
         {actions.map((action, index) => (
           <motion.button
             key={action.path}
-            initial={{ opacity: 0, scale: 0.9 }}
+            initial={false}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.1 * index }}
             whileHover={{ scale: 1.05, y: -2 }}

@@ -89,7 +89,7 @@ export default function AlumniDirectoryPage() {
     <div className="space-y-5 pb-8">
       {/* Header */}
       <motion.div
-        initial={{ opacity: 0, y: -12 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-700 via-blue-600 to-blue-500 p-6 text-white shadow-lg shadow-blue-500/20"
       >
@@ -192,7 +192,7 @@ export default function AlumniDirectoryPage() {
           {entries.map((a, i) => (
             <motion.div
               key={a.id}
-              initial={{ opacity: 0, y: 14 }}
+              initial={false}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: Math.min(i * 0.03, 0.3) }}
               onClick={() => openDetail(a.id)}

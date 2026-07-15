@@ -10,7 +10,7 @@ export function AdmissionPage() {
   if (user?.admissionStatus === 'approved') {
     return (
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         className="max-w-2xl mx-auto text-center py-12"
       >
@@ -28,7 +28,7 @@ export function AdmissionPage() {
     <div className="space-y-6">
       {user?.admissionStatus === 'pending' && (
         <motion.div
-          initial={{ opacity: 0, y: -10 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           className="bg-warning/10 border border-warning/30 rounded-xl p-4 flex items-center gap-3"
         >
@@ -42,7 +42,7 @@ export function AdmissionPage() {
 
       {user?.admissionStatus === 'rejected' && (
         <motion.div
-          initial={{ opacity: 0, y: -10 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 flex items-center gap-3"
         >

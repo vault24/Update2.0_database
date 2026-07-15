@@ -81,7 +81,7 @@ export default function LiveClassesPage() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       className="min-h-screen bg-background max-w-full overflow-x-hidden"
     >
@@ -200,7 +200,7 @@ export default function LiveClassesPage() {
             {/* Live Now Alert */}
             {liveNow.length > 0 && (
               <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
+                initial={false}
                 animate={{ opacity: 1, scale: 1 }}
                 className="mt-4"
               >
@@ -244,7 +244,7 @@ export default function LiveClassesPage() {
             <motion.div
               key="list"
               variants={containerVariants}
-              initial="hidden"
+              initial={false}
               animate="visible"
               className="space-y-8"
             >
@@ -341,7 +341,7 @@ export default function LiveClassesPage() {
             /* Calendar View */
             <motion.div
               key="calendar"
-              initial={{ opacity: 0 }}
+              initial={false}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="space-y-6"
@@ -354,7 +354,7 @@ export default function LiveClassesPage() {
                 return (
                   <motion.div
                     key={dateStr}
-                    initial={{ opacity: 0, y: 20 }}
+                    initial={false}
                     animate={{ opacity: 1, y: 0 }}
                   >
                     <div className={`sticky top-0 z-10 py-3 px-4 rounded-xl mb-4 flex items-center justify-between ${

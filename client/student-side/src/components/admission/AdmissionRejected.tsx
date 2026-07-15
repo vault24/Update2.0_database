@@ -27,12 +27,12 @@ export function AdmissionRejected({
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.9 }}
+      initial={false}
       animate={{ opacity: 1, scale: 1 }}
       className="max-w-2xl mx-auto text-center py-8 md:py-12"
     >
       <motion.div
-        initial={{ scale: 0 }}
+        initial={false}
         animate={{ scale: 1 }}
         transition={{ delay: 0.2, type: "spring" }}
         className="w-20 h-20 md:w-24 md:h-24 mx-auto mb-4 md:mb-6 rounded-full bg-destructive/10 flex items-center justify-center"

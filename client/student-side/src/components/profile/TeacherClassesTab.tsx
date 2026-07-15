@@ -89,7 +89,7 @@ export function TeacherClassesTab() {
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 lg:gap-4">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           className="bg-card rounded-xl md:rounded-2xl border border-border p-3 md:p-4 shadow-card"
         >
@@ -105,7 +105,7 @@ export function TeacherClassesTab() {
         </motion.div>
 
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
           className="bg-card rounded-xl md:rounded-2xl border border-border p-3 md:p-4 shadow-card"
@@ -124,7 +124,7 @@ export function TeacherClassesTab() {
         </motion.div>
 
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
           className="bg-card rounded-xl md:rounded-2xl border border-border p-3 md:p-4 shadow-card"
@@ -143,7 +143,7 @@ export function TeacherClassesTab() {
         </motion.div>
 
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
           className="bg-card rounded-xl md:rounded-2xl border border-border p-3 md:p-4 shadow-card"
@@ -170,7 +170,7 @@ export function TeacherClassesTab() {
           return (
             <motion.div
               key={classItem.id}
-              initial={{ opacity: 0, y: 20 }}
+              initial={false}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 * index }}
               className={cn(

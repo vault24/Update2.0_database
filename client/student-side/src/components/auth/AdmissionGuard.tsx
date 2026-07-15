@@ -78,7 +78,7 @@ export function AdmissionBanner() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: -8 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35 }}
       className="rounded-2xl border-2 border-amber-300 bg-amber-50 px-5 py-4 flex flex-col sm:flex-row items-start sm:items-center gap-3"

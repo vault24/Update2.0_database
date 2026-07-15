@@ -17,7 +17,7 @@ export function WelcomeCard() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
       className="relative overflow-hidden rounded-2xl gradient-hero p-6 md:p-8 text-primary-foreground"
@@ -30,7 +30,7 @@ export function WelcomeCard() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
           <div>
             <motion.div
-              initial={{ opacity: 0, x: -20 }}
+              initial={false}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.2 }}
               className="flex items-center gap-2 mb-2"
@@ -40,7 +40,7 @@ export function WelcomeCard() {
             </motion.div>
             
             <motion.h1
-              initial={{ opacity: 0, x: -20 }}
+              initial={false}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.3 }}
               className="text-2xl md:text-3xl font-display font-bold mb-2"
@@ -49,7 +49,7 @@ export function WelcomeCard() {
             </motion.h1>
             
             <motion.p
-              initial={{ opacity: 0, x: -20 }}
+              initial={false}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.4 }}
               className="text-primary-foreground/80 max-w-md"
@@ -60,7 +60,7 @@ export function WelcomeCard() {
 
           {user?.admissionStatus === 'pending' && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
+              initial={false}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.5 }}
             >
@@ -79,7 +79,7 @@ export function WelcomeCard() {
 
         {/* Student ID Badge */}
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6 }}
           className="mt-6 inline-flex items-center gap-3 bg-primary-foreground/15 rounded-full px-4 py-2"

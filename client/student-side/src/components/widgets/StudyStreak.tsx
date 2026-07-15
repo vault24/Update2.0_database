@@ -122,7 +122,7 @@ export function StudyStreak() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       className="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/20 border border-orange-200/50 dark:border-orange-800/30 rounded-xl p-4 shadow-sm relative overflow-hidden"
     >
@@ -135,7 +135,7 @@ export function StudyStreak() {
       {/* Celebration effect */}
       {showCelebration && (
         <motion.div
-          initial={{ opacity: 0, scale: 0 }}
+          initial={false}
           animate={{ opacity: 1, scale: 1 }}
           className="absolute inset-0 flex items-center justify-center bg-black/50 z-10"
         >
@@ -171,7 +171,7 @@ export function StudyStreak() {
         <div className="text-center mb-3">
           <motion.p
             key={data.currentStreak}
-            initial={{ scale: 0.5, opacity: 0 }}
+            initial={false}
             animate={{ scale: 1, opacity: 1 }}
             className="text-4xl font-bold bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent"
           >
@@ -197,7 +197,7 @@ export function StudyStreak() {
               >
                 {data.weekHistory[i] && i !== today && (
                   <motion.div
-                    initial={{ scale: 0 }}
+                    initial={false}
                     animate={{ scale: 1 }}
                   >
                     <Star className="w-3 h-3 fill-orange-500 text-orange-500" />
@@ -217,7 +217,7 @@ export function StudyStreak() {
           </div>
           <div className="h-2 bg-orange-100 dark:bg-orange-900/40 rounded-full overflow-hidden">
             <motion.div
-              initial={{ width: 0 }}
+              initial={false}
               animate={{ width: `${progress}%` }}
               transition={{ duration: 0.5, delay: 0.2 }}
               className="h-full bg-gradient-to-r from-orange-500 to-amber-500 rounded-full"

@@ -334,7 +334,7 @@ export default function AlumniProfilePage() {
 
   return (
     <motion.div
-      initial={{ opacity: 0 }}
+      initial={false}
       animate={{ opacity: 1 }}
       className="space-y-6 pb-8"
     >
@@ -365,7 +365,7 @@ export default function AlumniProfilePage() {
         if (completion.percentage >= 100) return null;
         return (
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
             className="rounded-2xl border border-border bg-card p-5 shadow-sm"
           >

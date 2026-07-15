@@ -29,7 +29,7 @@ export function TeacherWelcomeCard({ stats }: TeacherWelcomeCardProps) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
       className="relative overflow-hidden rounded-2xl lg:rounded-3xl bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-500 p-4 md:p-6 lg:p-8 text-white"
@@ -43,7 +43,7 @@ export function TeacherWelcomeCard({ stats }: TeacherWelcomeCardProps) {
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 md:gap-6">
           <div className="flex-1">
             <motion.div
-              initial={{ opacity: 0, x: -20 }}
+              initial={false}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.2 }}
               className="flex items-center gap-2 mb-2"
@@ -53,7 +53,7 @@ export function TeacherWelcomeCard({ stats }: TeacherWelcomeCardProps) {
             </motion.div>
             
             <motion.h1
-              initial={{ opacity: 0, x: -20 }}
+              initial={false}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.3 }}
               className="text-xl md:text-2xl lg:text-3xl font-display font-bold mb-1 md:mb-2"
@@ -62,7 +62,7 @@ export function TeacherWelcomeCard({ stats }: TeacherWelcomeCardProps) {
             </motion.h1>
             
             <motion.p
-              initial={{ opacity: 0, x: -20 }}
+              initial={false}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.4 }}
               className="text-white/80 text-sm md:text-base max-w-md"
@@ -72,7 +72,7 @@ export function TeacherWelcomeCard({ stats }: TeacherWelcomeCardProps) {
 
             {/* Teacher Badge */}
             <motion.div
-              initial={{ opacity: 0, y: 10 }}
+              initial={false}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.5 }}
               className="mt-3 md:mt-4 inline-flex items-center gap-2 md:gap-3 bg-white/20 rounded-full px-3 md:px-4 py-1.5 md:py-2"
@@ -89,7 +89,7 @@ export function TeacherWelcomeCard({ stats }: TeacherWelcomeCardProps) {
 
           {/* Quick Stats */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
+            initial={false}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.5 }}
             className="grid grid-cols-3 gap-2 md:gap-3 lg:flex lg:flex-col lg:gap-2"
@@ -97,7 +97,7 @@ export function TeacherWelcomeCard({ stats }: TeacherWelcomeCardProps) {
             {quickStats.map((stat, index) => (
               <motion.div
                 key={stat.label}
-                initial={{ opacity: 0, x: 20 }}
+                initial={false}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.6 + index * 0.1 }}
                 className={cn(

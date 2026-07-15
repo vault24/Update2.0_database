@@ -182,7 +182,7 @@ export function TeacherScheduleTab({ teacherId }: TeacherScheduleTabProps) {
     <div className="space-y-4 md:space-y-6">
       {/* Week Overview */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         className="bg-card rounded-xl md:rounded-2xl border border-border p-4 md:p-6 shadow-card"
       >
@@ -261,7 +261,7 @@ export function TeacherScheduleTab({ teacherId }: TeacherScheduleTabProps) {
       <div className="space-y-3 md:space-y-4">
         {schedule[selectedDay].length === 0 ? (
           <motion.div
-            initial={{ opacity: 0 }}
+            initial={false}
             animate={{ opacity: 1 }}
             className="bg-card rounded-xl md:rounded-2xl border border-border p-8 text-center"
           >
@@ -276,7 +276,7 @@ export function TeacherScheduleTab({ teacherId }: TeacherScheduleTabProps) {
             return (
               <motion.div
                 key={slot.id}
-                initial={{ opacity: 0, x: -20 }}
+                initial={false}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.1 * index }}
                 className={cn(

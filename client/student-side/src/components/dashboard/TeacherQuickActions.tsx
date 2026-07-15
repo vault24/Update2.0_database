@@ -62,7 +62,7 @@ export function TeacherQuickActions() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.2 }}
       className="bg-card rounded-xl md:rounded-2xl border border-border p-3 md:p-4 lg:p-6 shadow-card"
@@ -76,7 +76,7 @@ export function TeacherQuickActions() {
         {actions.map((action, index) => (
           <motion.button
             key={action.label}
-            initial={{ opacity: 0, scale: 0.9 }}
+            initial={false}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.1 * index }}
             onClick={() => navigate(action.path)}

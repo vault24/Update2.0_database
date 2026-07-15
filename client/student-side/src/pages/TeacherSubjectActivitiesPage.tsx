@@ -397,7 +397,7 @@ export default function TeacherSubjectActivitiesPage() {
                   {sortedActivities.filter(a => a.status === 'today').map((activity) => (
                     <motion.div
                       key={activity.id}
-                      initial={{ opacity: 0, y: 10 }}
+                      initial={false}
                       animate={{ opacity: 1, y: 0 }}
                     >
                       <Card className="border-primary/30 bg-primary/5 overflow-hidden">
@@ -464,7 +464,7 @@ export default function TeacherSubjectActivitiesPage() {
                     {sortedActivities.filter(a => a.status === 'upcoming').map((activity, index) => (
                       <motion.div
                         key={activity.id}
-                        initial={{ opacity: 0, x: -10 }}
+                        initial={false}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: index * 0.05 }}
                       >
@@ -516,7 +516,7 @@ export default function TeacherSubjectActivitiesPage() {
                             <AnimatePresence>
                               {expandedActivity === activity.id && (
                                 <motion.div
-                                  initial={{ height: 0, opacity: 0 }}
+                                  initial={false}
                                   animate={{ height: 'auto', opacity: 1 }}
                                   exit={{ height: 0, opacity: 0 }}
                                   className="mt-4 pt-4 border-t border-border"
@@ -553,7 +553,7 @@ export default function TeacherSubjectActivitiesPage() {
                     {sortedActivities.filter(a => a.status === 'completed').map((activity, index) => (
                       <motion.div
                         key={activity.id}
-                        initial={{ opacity: 0, x: -10 }}
+                        initial={false}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: index * 0.05 }}
                       >
@@ -601,7 +601,7 @@ export default function TeacherSubjectActivitiesPage() {
                             <AnimatePresence>
                               {expandedActivity === activity.id && (
                                 <motion.div
-                                  initial={{ height: 0, opacity: 0 }}
+                                  initial={false}
                                   animate={{ height: 'auto', opacity: 1 }}
                                   exit={{ height: 0, opacity: 0 }}
                                   className="mt-4 pt-4 border-t border-border"

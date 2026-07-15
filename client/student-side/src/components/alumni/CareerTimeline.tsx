@@ -107,7 +107,7 @@ export function CareerTimeline({ careers, onAdd, onEdit, onDelete, isEditable = 
                 return (
                   <motion.div
                     key={career.id}
-                    initial={{ opacity: 0, x: -20 }}
+                    initial={false}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.1 }}
                     className="relative pl-12 group"

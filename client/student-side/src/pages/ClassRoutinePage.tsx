@@ -610,7 +610,7 @@ export default function ClassRoutinePage() {
     <div className="space-y-4 pb-6 max-w-full overflow-x-hidden">
       {/* Header */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         className="flex items-center justify-between"
       >
@@ -646,7 +646,7 @@ export default function ClassRoutinePage() {
 
       {/* Quick Stats */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
         className="grid grid-cols-3 gap-2"
@@ -668,7 +668,7 @@ export default function ClassRoutinePage() {
 
       {/* View Toggle */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15 }}
         className="flex items-center gap-1 p-1 bg-muted rounded-lg w-fit"
@@ -698,7 +698,7 @@ export default function ClassRoutinePage() {
       {/* Swipeable Cards View */}
       {viewMode === 'cards' && (
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
         >
@@ -716,7 +716,7 @@ export default function ClassRoutinePage() {
       {/* Table View */}
       {viewMode === 'table' && (
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
           className="bg-card rounded-xl md:rounded-2xl border border-border overflow-hidden"
@@ -815,7 +815,7 @@ export default function ClassRoutinePage() {
 
       {/* Legend */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.25 }}
         className="bg-card rounded-lg md:rounded-xl border border-border p-3 md:p-4"

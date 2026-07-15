@@ -64,7 +64,7 @@ export function StudentOverviewTab({
     <div className="grid md:grid-cols-2 gap-4 md:gap-6">
       {/* Personal Information */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
         className="bg-card rounded-xl lg:rounded-2xl border border-border p-4 md:p-6 shadow-card"
@@ -95,7 +95,7 @@ export function StudentOverviewTab({
 
       {/* Academic Information */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
         className="bg-card rounded-xl lg:rounded-2xl border border-border p-4 md:p-6 shadow-card"
@@ -133,7 +133,7 @@ export function StudentOverviewTab({
 
       {/* Academic Performance */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
         className="bg-card rounded-xl lg:rounded-2xl border border-border p-4 md:p-6 shadow-card md:col-span-2"
@@ -175,7 +175,7 @@ export function StudentOverviewTab({
       {/* Parent/Guardian Information */}
       {parentInfo && (parentInfo.fatherName || parentInfo.motherName) && (
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
           className="bg-card rounded-xl lg:rounded-2xl border border-border p-4 md:p-6 shadow-card"
@@ -206,7 +206,7 @@ export function StudentOverviewTab({
       {/* Address Information */}
       {address && (address.present || address.permanent) && (
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
           className="bg-card rounded-xl lg:rounded-2xl border border-border p-4 md:p-6 shadow-card"

@@ -91,7 +91,7 @@ export function PremiumWelcomeCard({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
       className="relative overflow-hidden rounded-2xl lg:rounded-3xl bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-500 p-4 md:p-6 lg:p-8 text-white shadow-xl"
@@ -104,7 +104,7 @@ export function PremiumWelcomeCard({
       <div className="relative z-10">
         {/* Top Row - Date and Time */}
         <motion.div
-          initial={{ opacity: 0, y: -10 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
           className="flex items-center justify-between mb-3 md:mb-4"
@@ -123,7 +123,7 @@ export function PremiumWelcomeCard({
           {/* Left Content */}
           <div className="flex-1">
             <motion.div
-              initial={{ opacity: 0, x: -20 }}
+              initial={false}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.2 }}
               className="flex items-center gap-2 mb-2"
@@ -133,7 +133,7 @@ export function PremiumWelcomeCard({
             </motion.div>
             
             <motion.h1
-              initial={{ opacity: 0, x: -20 }}
+              initial={false}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.3 }}
               className="text-xl md:text-2xl lg:text-3xl font-display font-bold mb-1 md:mb-2"
@@ -143,7 +143,7 @@ export function PremiumWelcomeCard({
             
             {motivationEnabled && (
               <motion.p
-                initial={{ opacity: 0, x: -20 }}
+                initial={false}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.4 }}
                 className="text-white/80 text-sm md:text-base max-w-md italic"
@@ -154,7 +154,7 @@ export function PremiumWelcomeCard({
 
             {/* Quick Stats Row */}
             <motion.div
-              initial={{ opacity: 0, y: 10 }}
+              initial={false}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.5 }}
               className="flex flex-wrap gap-2 md:gap-3 mt-3 md:mt-4"
@@ -172,7 +172,7 @@ export function PremiumWelcomeCard({
 
           {/* Right Content - Profile Card */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
+            initial={false}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.5 }}
             className="flex items-center lg:flex-col gap-3 lg:gap-3"

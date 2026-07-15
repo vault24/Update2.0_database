@@ -50,7 +50,7 @@ export function NoticeBoard() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.3 }}
       className="bg-card rounded-2xl border border-border p-6 shadow-card"
@@ -102,7 +102,7 @@ export function NoticeBoard() {
               return (
                 <motion.div
                   key={notice.id}
-                  initial={{ opacity: 0, x: -20 }}
+                  initial={false}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.1 * index }}
                   className="group"

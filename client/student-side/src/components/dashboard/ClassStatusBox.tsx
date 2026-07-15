@@ -391,7 +391,7 @@ export function ClassStatusBox({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       className={cn('space-y-3', className)}
     >
@@ -444,7 +444,7 @@ export function ClassStatusBox({
       <AnimatePresence mode="wait">
         <motion.div
           key={showMotivation ? 'motivation' : 'class'}
-          initial={{ opacity: 0, x: showMotivation ? 20 : -20 }}
+          initial={false}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: showMotivation ? -20 : 20 }}
           transition={{ duration: 0.3 }}

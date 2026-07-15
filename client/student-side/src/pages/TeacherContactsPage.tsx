@@ -77,7 +77,7 @@ export default function TeacherContactsPage() {
     <div className="space-y-6 max-w-full overflow-x-hidden">
       {/* Header */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
       >
         <h1 className="text-2xl md:text-3xl font-display font-bold flex items-center gap-3">
@@ -91,7 +91,7 @@ export default function TeacherContactsPage() {
 
       {/* Search */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
         className="relative max-w-md"
@@ -111,7 +111,7 @@ export default function TeacherContactsPage() {
         {filteredTeachers.map((teacher, index) => (
           <motion.div
             key={teacher.id}
-            initial={{ opacity: 0, y: 20 }}
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1 }}
             className="glass-card p-6 rounded-xl hover:shadow-card-hover transition-all duration-300"
@@ -176,7 +176,7 @@ export default function TeacherContactsPage() {
 
       {filteredTeachers.length === 0 && (
         <motion.div
-          initial={{ opacity: 0 }}
+          initial={false}
           animate={{ opacity: 1 }}
           className="text-center py-12"
         >

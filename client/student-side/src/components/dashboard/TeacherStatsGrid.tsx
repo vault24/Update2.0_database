@@ -91,7 +91,7 @@ export function TeacherStatsGrid({ stats }: TeacherStatsGridProps) {
       {statItems.map((stat, index) => (
         <motion.div
           key={stat.label}
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 * index }}
           className={cn(

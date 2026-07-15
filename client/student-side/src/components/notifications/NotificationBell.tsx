@@ -174,7 +174,7 @@ export function NotificationBell({ unreadCount, onCountChange }: NotificationBel
                 return (
                   <motion.button
                     key={notification.id}
-                    initial={{ opacity: 0, y: 6 }}
+                    initial={false}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: Math.min(index * 0.03, 0.2) }}
                     onClick={() => handleItemClick(notification)}

@@ -111,7 +111,7 @@ export default function StudentListPage() {
     <div className="space-y-5 pb-8">
       {/* Header */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         className="flex flex-col sm:flex-row sm:items-center justify-between gap-3"
       >
@@ -142,7 +142,7 @@ export default function StudentListPage() {
 
       {/* Filters */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.05 }}
         className="bg-card border border-border rounded-2xl p-4 shadow-card"
@@ -220,7 +220,7 @@ export default function StudentListPage() {
 
       {/* Table */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
         className="bg-card border border-border rounded-2xl overflow-hidden shadow-card"
@@ -269,7 +269,7 @@ export default function StudentListPage() {
                 {students.map((student, index) => (
                   <motion.tr
                     key={student.id}
-                    initial={{ opacity: 0 }}
+                    initial={false}
                     animate={{ opacity: 1 }}
                     transition={{ delay: Math.min(index * 0.015, 0.3) }}
                     className="hover:bg-secondary/40 transition-colors cursor-pointer"

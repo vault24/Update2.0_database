@@ -68,7 +68,7 @@ export function TeacherSettingsTab() {
     <div className="space-y-4 md:space-y-6">
       {/* Contact Information */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         className="bg-card rounded-xl md:rounded-2xl border border-border p-4 md:p-6 shadow-card"
       >
@@ -128,7 +128,7 @@ export function TeacherSettingsTab() {
       {settingSections.map((section, sectionIndex) => (
         <motion.div
           key={section.title}
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 * (sectionIndex + 1) }}
           className="bg-card rounded-xl md:rounded-2xl border border-border p-4 md:p-6 shadow-card"
@@ -168,7 +168,7 @@ export function TeacherSettingsTab() {
 
       {/* Theme Settings */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
         className="bg-card rounded-xl md:rounded-2xl border border-border p-4 md:p-6 shadow-card"

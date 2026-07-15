@@ -287,7 +287,7 @@ export default function MarksPage() {
     <div className="space-y-4 md:space-y-6 max-w-full overflow-x-hidden">
       {/* Page Header */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4"
       >
@@ -310,7 +310,7 @@ export default function MarksPage() {
       {/* Performance Overview */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3 lg:gap-4">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 }}
           className="bg-gradient-to-br from-primary/10 via-primary/5 to-transparent rounded-lg md:rounded-xl lg:rounded-2xl border border-primary/20 p-2.5 md:p-3 lg:p-5 shadow-card"
@@ -328,7 +328,7 @@ export default function MarksPage() {
         </motion.div>
 
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
           className="bg-gradient-to-br from-success/10 via-success/5 to-transparent rounded-lg md:rounded-xl lg:rounded-2xl border border-success/20 p-2.5 md:p-3 lg:p-5 shadow-card"
@@ -345,7 +345,7 @@ export default function MarksPage() {
         </motion.div>
 
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
           className="bg-gradient-to-br from-warning/10 via-warning/5 to-transparent rounded-lg md:rounded-xl lg:rounded-2xl border border-warning/20 p-2.5 md:p-3 lg:p-5 shadow-card"
@@ -362,7 +362,7 @@ export default function MarksPage() {
         </motion.div>
 
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
           className="bg-gradient-to-br from-accent/10 via-accent/5 to-transparent rounded-lg md:rounded-xl lg:rounded-2xl border border-accent/20 p-2.5 md:p-3 lg:p-5 shadow-card"
@@ -382,7 +382,7 @@ export default function MarksPage() {
       {/* Top Performer Card */}
       {highestSubject && (
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
           className="bg-gradient-to-r from-warning/10 via-warning/5 to-transparent rounded-lg md:rounded-xl lg:rounded-2xl border border-warning/30 p-2.5 md:p-3 lg:p-5"
@@ -405,7 +405,7 @@ export default function MarksPage() {
 
       {/* Semester Selector */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
         className="flex gap-1.5 md:gap-2 overflow-x-auto pb-2"
@@ -425,7 +425,7 @@ export default function MarksPage() {
 
       {/* Marks Table */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4 }}
         className="bg-card rounded-lg md:rounded-xl lg:rounded-2xl border border-border shadow-card overflow-hidden"
@@ -461,7 +461,7 @@ export default function MarksPage() {
                 marksData.map((row, i) => (
                   <motion.tr
                     key={`${row.code}-${i}`}
-                    initial={{ opacity: 0, x: -20 }}
+                    initial={false}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.05 * i }}
                     className={cn(
@@ -536,7 +536,7 @@ export default function MarksPage() {
 
       {/* Subject Performance Bars */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.5 }}
         className="bg-card rounded-lg md:rounded-xl lg:rounded-2xl border border-border p-3 md:p-4 lg:p-6 shadow-card"
@@ -556,7 +556,7 @@ export default function MarksPage() {
               </div>
               <div className="h-2 md:h-2.5 lg:h-3 bg-secondary rounded-full overflow-hidden">
                 <motion.div
-                  initial={{ width: 0 }}
+                  initial={false}
                   animate={{ width: `${subject.percentage}%` }}
                   transition={{ duration: 0.8, delay: 0.1 * i }}
                   className={cn("h-full rounded-full", subject.percentage >= 40 ? 'bg-emerald-500' : 'bg-red-500')}

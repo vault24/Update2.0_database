@@ -307,7 +307,7 @@ export default function AttendancePage() {
     <div className="space-y-5 md:space-y-6 max-w-full overflow-x-hidden pb-6">
       {/* Page Header */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         className="flex flex-col sm:flex-row sm:items-center justify-between gap-3"
       >
@@ -328,7 +328,7 @@ export default function AttendancePage() {
 
       {/* Overall Progress Ring + Stats */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
         className="bg-card rounded-2xl border border-border p-4 sm:p-6 shadow-card"
@@ -344,7 +344,7 @@ export default function AttendancePage() {
                 strokeWidth="8"
                 strokeLinecap="round"
                 strokeDasharray={`${2 * Math.PI * 42}`}
-                initial={{ strokeDashoffset: 2 * Math.PI * 42 }}
+                initial={false}
                 animate={{ strokeDashoffset: 2 * Math.PI * 42 * (1 - overallPercentage / 100) }}
                 transition={{ duration: 1.2, ease: 'easeOut' }}
               />
@@ -389,7 +389,7 @@ export default function AttendancePage() {
         {/* Low attendance warning inline */}
         {overallPercentage > 0 && overallPercentage < 75 && (
           <motion.div
-            initial={{ opacity: 0, height: 0 }}
+            initial={false}
             animate={{ opacity: 1, height: 'auto' }}
             className="mt-4 bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex items-center gap-3"
           >
@@ -423,7 +423,7 @@ export default function AttendancePage() {
         {/* Subject-wise Tab */}
         <TabsContent value="overview" className="mt-4">
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
             className="space-y-3"
           >
@@ -437,7 +437,7 @@ export default function AttendancePage() {
               subjectSummary.map((subject, i) => (
                 <motion.div
                   key={subject.subject_code}
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={false}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.05 * i }}
                   className="bg-card rounded-xl border border-border p-4 shadow-sm hover:shadow-md transition-shadow"
@@ -462,7 +462,7 @@ export default function AttendancePage() {
                   
                   <div className="relative h-2 bg-secondary rounded-full overflow-hidden">
                     <motion.div
-                      initial={{ width: 0 }}
+                      initial={false}
                       animate={{ width: `${subject.percentage}%` }}
                       transition={{ duration: 0.6, delay: 0.1 + i * 0.05 }}
                       className={cn("absolute inset-y-0 left-0 rounded-full", getProgressColor(subject.percentage))}
@@ -489,7 +489,7 @@ export default function AttendancePage() {
         {/* Calendar Tab */}
         <TabsContent value="calendar" className="mt-4">
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
             className="bg-card rounded-2xl border border-border p-4 sm:p-6 shadow-card"
           >
@@ -534,7 +534,7 @@ export default function AttendancePage() {
               {monthData.map((record, i) => (
                 <motion.div
                   key={i}
-                  initial={{ opacity: 0, scale: 0.8 }}
+                  initial={false}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: i * 0.008 }}
                   onClick={() => record.date > 0 && record.status && setSelectedDay(record)}
@@ -577,7 +577,7 @@ export default function AttendancePage() {
         {/* History Tab */}
         <TabsContent value="history" className="mt-4">
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
             className="space-y-3"
           >
@@ -597,7 +597,7 @@ export default function AttendancePage() {
                 return (
                   <motion.div
                     key={day.date}
-                    initial={{ opacity: 0, x: -10 }}
+                    initial={false}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.05 * i }}
                     className="bg-card rounded-xl border border-border overflow-hidden shadow-sm"

@@ -227,7 +227,7 @@ export function PomodoroTimer() {
         <AnimatePresence>
           {showQuote && (
             <motion.div
-              initial={{ opacity: 0, y: 10 }}
+              initial={false}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               className="mt-4 text-center text-sm font-medium text-primary"
@@ -240,7 +240,7 @@ export function PomodoroTimer() {
         {/* Session Stats */}
         {isExpanded && sessionsCompleted > 0 && (
           <motion.div
-            initial={{ opacity: 0, height: 0 }}
+            initial={false}
             animate={{ opacity: 1, height: 'auto' }}
             className="mt-4 pt-4 border-t border-border"
           >

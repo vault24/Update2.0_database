@@ -260,7 +260,7 @@ This is a public profile showcasing academic information and achievements.`,
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-4">
         {/* Profile Header */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           className="bg-card rounded-xl border border-border shadow-card"
         >
@@ -336,7 +336,7 @@ This is a public profile showcasing academic information and achievements.`,
 
         {/* Stats */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
           className="grid grid-cols-3 gap-2 sm:gap-3"
@@ -360,7 +360,7 @@ This is a public profile showcasing academic information and achievements.`,
 
         {/* About */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
           className="bg-card rounded-xl border border-border p-4 md:p-6 shadow-card"
@@ -478,7 +478,7 @@ This is a public profile showcasing academic information and achievements.`,
 
         {/* Skills & Interests */}
         <div className="grid md:grid-cols-2 gap-4">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="bg-card rounded-xl border border-border p-4 md:p-6 shadow-card">
+          <motion.div initial={false} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="bg-card rounded-xl border border-border p-4 md:p-6 shadow-card">
             <h3 className="font-semibold mb-3 flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-primary" />
               Skills
@@ -490,7 +490,7 @@ This is a public profile showcasing academic information and achievements.`,
             </div>
           </motion.div>
 
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="bg-card rounded-xl border border-border p-4 md:p-6 shadow-card">
+          <motion.div initial={false} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="bg-card rounded-xl border border-border p-4 md:p-6 shadow-card">
             <h3 className="font-semibold mb-3 flex items-center gap-2">
               <Target className="w-5 h-5 text-primary" />
               Interests
@@ -504,7 +504,7 @@ This is a public profile showcasing academic information and achievements.`,
         </div>
 
         {/* Contact */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }} className="bg-card rounded-lg sm:rounded-xl border border-border p-3 sm:p-4 md:p-6 shadow-card">
+        <motion.div initial={false} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }} className="bg-card rounded-lg sm:rounded-xl border border-border p-3 sm:p-4 md:p-6 shadow-card">
           <h3 className="font-semibold mb-3 sm:mb-4 flex items-center gap-2 text-sm sm:text-base">
             <Mail className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
             Contact
