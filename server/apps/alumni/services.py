@@ -229,91 +229,41 @@ def create_alumni_from_essentials(
     return alumni
 
 
-def _slugify_username(base):
-    import re
-    base = re.sub(r'[^a-zA-Z0-9._-]', '', (base or '').lower())
-    return base or 'alumni'
-
-
-@transaction.atomic
-def create_portal_account_for_alumni(alumni, *, email=None, password=None):
+def create_portal_account_for_alumni(alumni, *, email=None, password=None, actor=None):
     """
-    Create a student-portal login account linked to an existing alumni's student
-    profile. Used by the "Create Student Portal Account" action on the alumni
-    profile (admin) and is idempotent-guarded against duplicates.
+    Create the portal login for an alumnus (admin "Create Portal Account").
+
+    A thin adapter over the ONE implementation in
+    `apps.students.account_service` — the same code the Student details page
+    uses. Only the alumni-specific policy lives here: the password may be
+    auto-generated so the admin can read it out to the alumnus.
 
     Returns:
-        dict: { 'user': User, 'username': str, 'password': str|None, 'email': str }
-              `password` is only returned when it was auto-generated (so the admin
-              can hand it to the alumnus).
+        dict: { 'user', 'username', 'password', 'email' } — `password` is only
+        set when it was auto-generated.
 
     Raises:
         ValueError: if an account is already linked, or no email is available.
     """
-    from django.contrib.auth import get_user_model
+    from apps.students.account_service import AccountError, create_student_portal_account
 
-    User = get_user_model()
-    student = alumni.student
+    try:
+        result = create_student_portal_account(
+            alumni.student,
+            email=email,
+            password=password,
+            generate_password=True,   # the alumni flow may mint one
+            actor=actor,
+        )
+    except AccountError as exc:
+        # Callers here expect a plain ValueError (the view maps it to a 400).
+        raise ValueError(exc.detail or exc.message) from exc
 
-    if User.objects.filter(related_profile_id=student.id).exists():
-        raise ValueError('A portal account is already linked to this alumni.')
-
-    email = (email or student.email or '').strip().lower()
-    if not email:
-        raise ValueError('An email address is required to create a portal account.')
-
-    if User.objects.filter(email__iexact=email).exists():
-        raise ValueError('A user with this email already exists.')
-
-    # Generate a unique username.
-    base_username = _slugify_username(email.split('@')[0])
-    username = base_username
-    while User.objects.filter(username=username).exists():
-        username = f"{base_username}{uuid.uuid4().hex[:4]}"
-
-    # Generate a unique student_id (reuse roll number when it looks real).
-    roll = (student.currentRollNumber or '').strip()
-    if roll and not roll.startswith('ALM'):
-        student_id = f"SIPI-{roll}"
-    else:
-        student_id = f"SIPI-ALM{uuid.uuid4().hex[:8].upper()}"
-    while User.objects.filter(student_id=student_id).exists():
-        student_id = f"SIPI-ALM{uuid.uuid4().hex[:8].upper()}"
-
-    generated_password = None
-    if not password:
-        generated_password = uuid.uuid4().hex[:10]
-        password = generated_password
-
-    name_parts = (student.fullNameEnglish or '').split()
-    first_name = name_parts[0] if name_parts else ''
-    last_name = ' '.join(name_parts[1:]) if len(name_parts) > 1 else ''
-
-    user = User.objects.create_user(
-        username=username,
-        email=email,
-        password=password,
-        role='student',
-        account_status='active',
-        admission_status='approved',
-        related_profile_id=student.id,
-        student_id=student_id,
-        first_name=first_name,
-        last_name=last_name,
-        mobile_number=student.mobileStudent or '',
-    )
-
-    # Keep the student's email in sync if it was blank.
-    if not student.email:
-        student.email = email
-        student.save(update_fields=['email'])
-
-    logger.info("Portal account created for alumni student=%s user=%s", student.id, user.id)
     return {
-        'user': user,
-        'username': username,
-        'password': generated_password,
-        'email': email,
+        'user': result['user'],
+        'username': result['username'],
+        'password': result['generated_password'],
+        'email': result['email'],
     }
 
 

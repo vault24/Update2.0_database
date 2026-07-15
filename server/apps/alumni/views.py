@@ -1700,6 +1700,7 @@ class AlumniViewSet(viewsets.ModelViewSet):
                 alumni,
                 email=request.data.get('email'),
                 password=request.data.get('password'),
+                actor=request.user,
             )
         except ValueError as exc:
             return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)

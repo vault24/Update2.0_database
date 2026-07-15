@@ -535,6 +535,8 @@ export interface ImportFieldDoc {
   choices: string[];
   example: string;
   helpText: string;
+  /** Bangla note for the import-guide page (from import_config.note_bn). */
+  noteBn?: string;
 }
 
 export interface ImportSchema {

@@ -14,13 +14,48 @@ from .validators import (
 from apps.departments.serializers import DepartmentListSerializer, DepartmentSerializer
 
 
+def build_profile_photo_url(obj, request=None):
+    """
+    Absolute URL for a student's profile photo, with a cache-busting `?v=`.
+
+    The version token is derived from the student's last update, so:
+      * replacing a photo yields a new URL (no stale image), and
+      * browsers that cached a failure for the bare URL (e.g. while /files/
+        was misconfigured and 404'd) request the new URL and recover on their
+        own — a poisoned cache entry can never strand a user on a broken
+        avatar again.
+
+    Returns None when the student has no photo.
+    """
+    path = (obj.profilePhoto or '').strip()
+    if not path:
+        return None
+
+    if path.startswith(('http://', 'https://')):
+        url = path
+    else:
+        if not path.startswith('/files/'):
+            path = f'/files/{path}'
+        url = request.build_absolute_uri(path) if request else path
+
+    updated = getattr(obj, 'updatedAt', None) or getattr(obj, 'updated_at', None)
+    if updated is not None:
+        try:
+            version = int(updated.timestamp())
+        except (AttributeError, OSError, ValueError):
+            version = None
+        if version:
+            url = f"{url}{'&' if '?' in url else '?'}v={version}"
+    return url
+
+
 class StudentListSerializer(serializers.ModelSerializer):
     """
     Lightweight serializer for list views
     """
     department = DepartmentListSerializer(read_only=True)
     profilePhoto = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Student
         fields = [
@@ -33,25 +68,10 @@ class StudentListSerializer(serializers.ModelSerializer):
             'status',
             'profilePhoto'
         ]
-    
+
     def get_profilePhoto(self, obj):
         """Return full URL for profile photo"""
-        if obj.profilePhoto:
-            # Check if it's already a full URL
-            if obj.profilePhoto.startswith('http://') or obj.profilePhoto.startswith('https://'):
-                return obj.profilePhoto
-            # Check if it already starts with /files/
-            if obj.profilePhoto.startswith('/files/'):
-                request = self.context.get('request')
-                if request:
-                    return request.build_absolute_uri(obj.profilePhoto)
-                return obj.profilePhoto
-            # It's a relative path, prepend /files/
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(f'/files/{obj.profilePhoto}')
-            return f'/files/{obj.profilePhoto}'
-        return None
+        return build_profile_photo_url(obj, self.context.get('request'))
 
 
 class StudentDetailSerializer(serializers.ModelSerializer):
@@ -67,22 +87,63 @@ class StudentDetailSerializer(serializers.ModelSerializer):
     
     def get_profilePhoto(self, obj):
         """Return full URL for profile photo"""
-        if obj.profilePhoto:
-            # Check if it's already a full URL
-            if obj.profilePhoto.startswith('http://') or obj.profilePhoto.startswith('https://'):
-                return obj.profilePhoto
-            # Check if it already starts with /files/
-            if obj.profilePhoto.startswith('/files/'):
-                request = self.context.get('request')
-                if request:
-                    return request.build_absolute_uri(obj.profilePhoto)
-                return obj.profilePhoto
-            # It's a relative path, prepend /files/
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(f'/files/{obj.profilePhoto}')
-            return f'/files/{obj.profilePhoto}'
-        return None
+        return build_profile_photo_url(obj, self.context.get('request'))
+
+
+class StudentPublicProfileSerializer(serializers.ModelSerializer):
+    """
+    The shareable /student/<roll> profile, readable WITHOUT a login.
+
+    Deliberately a strict allow-list, not `exclude`: this payload is reachable
+    by anyone and keyed by a guessable roll number, so a field added to the
+    model must never become public by accident. Everything here is either
+    academic (the point of a verification link) or contact details the
+    institute chose to publish.
+
+    NEVER exposed here: NID / father's & mother's NID, date of birth, birth
+    certificate number, guardian mobile, and the street-level address — only
+    district + division are published.
+    """
+    department = DepartmentListSerializer(read_only=True)
+    departmentName = serializers.CharField(source='department.name', read_only=True, default='')
+    profilePhoto = serializers.SerializerMethodField()
+    presentAddress = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Student
+        fields = [
+            'id',
+            'fullNameEnglish',
+            'fullNameBangla',
+            'currentRollNumber',
+            'department',
+            'departmentName',
+            'session',
+            'semester',
+            'shift',
+            'status',
+            'profilePhoto',
+            # Academic record
+            'finalCgpa',
+            'semesterResults',
+            'semesterAttendance',
+            # Contact (published by institute decision)
+            'email',
+            'mobileStudent',
+            'presentAddress',
+        ]
+        read_only_fields = fields
+
+    def get_profilePhoto(self, obj):
+        return build_profile_photo_url(obj, self.context.get('request'))
+
+    def get_presentAddress(self, obj):
+        """Coarse location only — never the street-level address."""
+        address = obj.presentAddress if isinstance(obj.presentAddress, dict) else {}
+        return {
+            'district': address.get('district', ''),
+            'division': address.get('division', ''),
+        }
 
 
 def generate_student_identifiers(department, session):

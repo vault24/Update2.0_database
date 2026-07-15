@@ -3,7 +3,7 @@ Student Views
 """
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
-from rest_framework.permissions import BasePermission, SAFE_METHODS
+from rest_framework.permissions import AllowAny, BasePermission, SAFE_METHODS
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q
@@ -13,6 +13,7 @@ from .serializers import (
     StudentListSerializer,
     StudentDetailSerializer,
     StudentCreateSerializer,
+    StudentPublicProfileSerializer,
     StudentUpdateSerializer
 )
 
@@ -120,6 +121,21 @@ class StudentViewSet(viewsets.ModelViewSet):
     search_fields = ['fullNameEnglish', 'fullNameBangla', 'currentRollNumber', 'currentRegistrationNumber', 'email']
     ordering_fields = ['createdAt', 'fullNameEnglish', 'semester', 'currentRollNumber']
     ordering = ['-createdAt']
+
+    # The single public action: the shareable /student/<roll> profile page.
+    # It is routed manually in urls.py via as_view({'get': 'by_identifier'}),
+    # and that bypasses @action(permission_classes=...) entirely — the
+    # initkwargs only reach the view through a router. Overriding
+    # get_permissions is therefore the only way the exemption reliably applies
+    # under BOTH routing styles. The response itself is still viewer-scoped
+    # (see by_identifier), so "public" means a restricted payload, not a
+    # restricted lookup.
+    PUBLIC_ACTIONS = ('by_identifier',)
+
+    def get_permissions(self):
+        if getattr(self, 'action', None) in self.PUBLIC_ACTIONS:
+            return [AllowAny()]
+        return super().get_permissions()
 
     def get_queryset(self):
         """Role-scoped rows (see scope_students_queryset); select_related dept."""
@@ -274,90 +290,70 @@ class StudentViewSet(viewsets.ModelViewSet):
         serializer = StudentListSerializer(students, many=True)
         return Response(serializer.data)
     
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], permission_classes=[AllowAny])
     def by_identifier(self, request, identifier=None):
         """
-        Get student by ID or roll number (public endpoint)
+        Look a student up by UUID, college roll, or application ID.
         GET /api/students/by-identifier/{id_or_roll}/
-        
-        This endpoint supports:
-        - UUID (student database ID)
-        - Roll number (currentRollNumber - college roll number)
-        - Application ID (user.student_id - like SIPI-202030)
+
+        Public: this backs the shareable /student/<roll> profile page, so it
+        must answer without a login.
+
+        The response is scoped to the VIEWER, not the endpoint:
+          * a viewer authorised for this record (admin/teacher/the student
+            themselves — see scope_students_queryset) gets the full record;
+          * everyone else, including anonymous visitors, gets
+            StudentPublicProfileSerializer — an allow-list with no NID, date of
+            birth, parents' NIDs or street address.
+        Identifiers are guessable, so the payload — not the lookup — is what
+        keeps private data private.
         """
         if not identifier:
             return Response(
                 {'error': 'Identifier is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
-        # Scope lookups so a caller can only resolve students they may see.
-        scoped = scope_students_queryset(
-            Student.objects.select_related('department'), request.user
-        )
 
-        # Try to find student by ID first (UUID format)
+        student = self._resolve_student_by_identifier(identifier)
+        if student is None:
+            return Response(
+                {
+                    'error': 'Student not found',
+                    'details': f'No student found with ID or roll number: {identifier}'
+                },
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Full record only for a viewer this student is in scope for.
+        may_see_full = scope_students_queryset(
+            Student.objects.filter(pk=student.pk), request.user
+        ).exists()
+        serializer_class = StudentDetailSerializer if may_see_full else StudentPublicProfileSerializer
+        return Response(serializer_class(student, context={'request': request}).data)
+
+    def _resolve_student_by_identifier(self, identifier):
+        """Find a student by UUID, college roll or application ID (or None)."""
+        from uuid import UUID
+
+        base = Student.objects.select_related('department')
+
         try:
-            from uuid import UUID
-            # Try to parse as UUID
-            UUID(identifier)
-            student = scoped.get(id=identifier)
-            serializer = StudentDetailSerializer(student, context={'request': request})
-            return Response(serializer.data)
-        except (Student.DoesNotExist, ValueError):
-            pass  # Continue to other search methods
+            UUID(str(identifier))
+        except (ValueError, TypeError, AttributeError):
+            pass
+        else:
+            return base.filter(id=identifier).first()
 
-        # Try by current roll number (college roll number)
-        try:
-            student = scoped.get(currentRollNumber=identifier)
-            serializer = StudentDetailSerializer(student, context={'request': request})
-            return Response(serializer.data)
-        except Student.DoesNotExist:
-            pass  # Continue to other search methods
+        student = base.filter(currentRollNumber=identifier).first()
+        if student:
+            return student
 
-        # Try by application ID (user.student_id like SIPI-202030)
-        try:
-            from apps.authentication.models import User
-            from django.db import models
-
-            # Find user with this student_id
-            user = User.objects.get(student_id=identifier)
-
-            # Try to find student by related_profile_id
-            if user.related_profile_id:
-                try:
-                    student = scoped.get(id=user.related_profile_id)
-                    serializer = StudentDetailSerializer(student, context={'request': request})
-                    return Response(serializer.data)
-                except Student.DoesNotExist:
-                    # related_profile_id exists but student not found
-                    return Response(
-                        {
-                            'error': 'Student profile not found',
-                            'details': f'User {identifier} has related_profile_id but student record is missing. Please contact administration.'
-                        },
-                        status=status.HTTP_404_NOT_FOUND
-                    )
-            else:
-                # User exists but related_profile_id is not set
-                return Response(
-                    {
-                        'error': 'Student profile not linked',
-                        'details': f'User {identifier} exists but is not linked to a student profile. The admission may still be pending or the profile was not created properly.'
-                    },
-                    status=status.HTTP_404_NOT_FOUND
-                )
-        except User.DoesNotExist:
-            pass  # Continue to final error
-        
-        # If not found by any method, return error
-        return Response(
-            {
-                'error': 'Student not found',
-                'details': f'No student found with ID or roll number: {identifier}'
-            },
-            status=status.HTTP_404_NOT_FOUND
-        )
+        # Application ID (user.student_id, e.g. SIPI-202030) -> linked profile.
+        from apps.authentication.models import User
+        user = User.objects.filter(student_id=identifier).first()
+        if user and user.related_profile_id:
+            return base.filter(id=user.related_profile_id).first()
+        return None
     
     @action(detail=True, methods=['post'])
     def upload_photo(self, request, pk=None):
@@ -993,24 +989,18 @@ class StudentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        def find_account():
-            return User.objects.filter(
-                related_profile_id=student.id, role__in=['student', 'captain']
-            ).order_by('date_joined').first()
+        # Account creation/lookup lives in account_service — the Alumni page's
+        # "Create Portal Account" calls the very same code, so the two flows
+        # cannot drift apart.
+        from .account_service import (
+            AccountError,
+            account_payload,
+            create_student_portal_account,
+            find_portal_account,
+        )
 
-        def account_payload(user):
-            return {
-                'has_account': True,
-                'user_id': str(user.id),
-                'username': user.username,
-                'email': user.email,
-                'role': user.role,
-                'account_status': user.account_status,
-                'is_active': bool(user.is_active) and user.account_status == 'active',
-                'student_id': user.student_id,
-                'created_at': user.date_joined.isoformat() if user.date_joined else None,
-                'last_login': user.last_login.isoformat() if user.last_login else None,
-            }
+        def find_account():
+            return find_portal_account(student)
 
         def client_meta():
             xff = request.META.get('HTTP_X_FORWARDED_FOR')
@@ -1039,70 +1029,24 @@ class StudentViewSet(viewsets.ModelViewSet):
 
         # ── POST: create account ──────────────────────────────────────────
         if request.method == 'POST':
-            if find_account():
-                return Response(
-                    {'error': 'Account already exists', 'detail': 'This student already has a portal account.'},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            email = (request.data.get('email') or '').strip().lower()
-            password = request.data.get('password') or ''
-
-            if not email:
-                return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
-            if '@' not in email or '.' not in email.split('@')[-1]:
-                return Response({'error': 'Enter a valid email address'}, status=status.HTTP_400_BAD_REQUEST)
-            if len(password) < 8:
-                return Response({'error': 'Password must be at least 8 characters'}, status=status.HTTP_400_BAD_REQUEST)
-            if User.objects.filter(Q(username__iexact=email) | Q(email__iexact=email)).exists():
-                return Response(
-                    {'error': 'Email already in use', 'detail': 'Another account is already using this email address.'},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            name_parts = (student.fullNameEnglish or '').strip().split(' ', 1)
-            user = User(
-                username=email,
-                email=email,
-                first_name=name_parts[0] if name_parts and name_parts[0] else '',
-                last_name=name_parts[1] if len(name_parts) > 1 else '',
-                role='student',
-                account_status='active',
-                admission_status='approved',
-                student_id=student.currentRollNumber,
-                related_profile_id=student.id,
-                mobile_number=(getattr(student, 'mobileStudent', '') or '')[:20],
-            )
-            user.set_password(password)
             try:
-                user.save()
-            except IntegrityError:
+                result = create_student_portal_account(
+                    student,
+                    email=request.data.get('email'),
+                    password=request.data.get('password') or '',
+                    # This flow always demands an explicit password from the
+                    # admin; only the alumni flow auto-generates one.
+                    generate_password=False,
+                    actor=request.user,
+                    ip_address=ip_address,
+                    user_agent=user_agent,
+                )
+            except AccountError as exc:
                 return Response(
-                    {'error': 'Could not create account', 'detail': 'A conflicting account already exists for this student.'},
+                    {'error': exc.message, 'detail': exc.detail},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-
-            # Welcome email + in-app notification (best-effort).
-            try:
-                from apps.notifications.dispatch import send_welcome_email
-                send_welcome_email(
-                    user, portal='student', role_label='Student',
-                    details=[
-                        {'label': 'Roll Number', 'value': student.currentRollNumber},
-                        {'label': 'Login Email', 'value': email},
-                    ],
-                )
-            except Exception as notify_err:
-                import logging
-                logging.getLogger(__name__).error('Welcome email failed: %s', notify_err)
-
-            log_activity(
-                request.user, 'create', 'StudentAccount', user.id,
-                f'Created Student Portal account ({email}) for {student.fullNameEnglish} [{student.currentRollNumber}]',
-                changes={'email': email, 'student_id': student.currentRollNumber},
-                ip_address=ip_address, user_agent=user_agent,
-            )
-            return Response(account_payload(user), status=status.HTTP_201_CREATED)
+            return Response(account_payload(result['user']), status=status.HTTP_201_CREATED)
 
         # ── PATCH: manage existing account ────────────────────────────────
         user = find_account()

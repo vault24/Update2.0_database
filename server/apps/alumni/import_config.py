@@ -57,6 +57,10 @@ class FieldSpec:
     example: str = ''
     choices: Tuple[str, ...] = ()
     help_text: str = ''
+    # Bangla note shown on the admin import-guide page. Optional: only worth
+    # filling in where the format matters (dates, categories, ID columns).
+    # Kept here so the guide stays generated from this one config file.
+    note_bn: str = ''
 
     @property
     def group(self) -> str:
@@ -78,12 +82,14 @@ FIELD_SPECS: Tuple[FieldSpec, ...] = (
                  'Alumni Name', 'English Name'),
         required=True, example='Md Mahadi Hasan',
         help_text='The only personal detail that is always required.',
+        note_bn='আবশ্যক। শিক্ষার্থীর পূর্ণ নাম ইংরেজিতে লিখুন। এই কলাম খালি থাকলে ঐ সারিটি বাদ পড়বে।',
     ),
     FieldSpec(
         key='department', label='Department', recommended='Department',
         aliases=('Dept', 'Department Name', 'Department Code', 'Dept Name', 'Technology'),
         required=True, type=TYPE_DEPARTMENT, example='Computer Science & Technology',
         help_text='Matched against department name or code (case-insensitive).',
+        note_bn='আবশ্যক। বিভাগের পুরো নাম (যেমন: Computer Science & Technology) অথবা কোড (যেমন: CS) লিখুন। ছোট-বড় হাতের অক্ষরে সমস্যা নেই, তবে নামটি অবশ্যই সিস্টেমে থাকা বিভাগের সাথে মিলতে হবে।',
     ),
 
     # ---------------- Identity ----------------
@@ -124,11 +130,13 @@ FIELD_SPECS: Tuple[FieldSpec, ...] = (
         aliases=('DOB', 'Birth Date', 'Birthday', 'D.O.B'),
         type=TYPE_DATE, example='1998-05-21',
         help_text='Accepts YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY or a real Excel date cell.',
+        note_bn='তারিখের ফরম্যাট: 1998-05-21 (বছর-মাস-দিন)। 21/05/1998 বা 21-05-1998 এবং Excel-এর আসল date সেলও গ্রহণযোগ্য।',
     ),
     FieldSpec(
         key='gender', label='Gender', recommended='Gender',
         aliases=('Sex',), type=TYPE_CHOICE, choices=('Male', 'Female', 'Other'),
         example='Male',
+        note_bn='গ্রহণযোগ্য মান: Male, Female, Other. ছোট হাতের (male) লিখলেও চলবে।',
     ),
     FieldSpec(
         key='religion', label='Religion', recommended='Religion', example='Islam',
@@ -152,6 +160,7 @@ FIELD_SPECS: Tuple[FieldSpec, ...] = (
         aliases=('Phone', 'Mobile Number', 'Phone Number', 'Contact', 'Cell',
                  'Contact Number', 'Mobile No'),
         example='01712345678',
+        note_bn='১১ ডিজিটের মোবাইল নম্বর। যেমন: 01712345678।',
     ),
     FieldSpec(
         key='guardianMobile', label='Guardian Mobile', recommended='Guardian Mobile',
@@ -162,6 +171,7 @@ FIELD_SPECS: Tuple[FieldSpec, ...] = (
         key='email', label='Email', recommended='Email',
         aliases=('Email Address', 'E-mail', 'Mail', 'E Mail'),
         type=TYPE_EMAIL, example='mahadi@example.com',
+        note_bn='সঠিক ইমেইল ফরম্যাট হতে হবে (যেমন: name@example.com)। ভুল হলে ঐ সারিতে ত্রুটি দেখাবে।',
     ),
     FieldSpec(
         key='emergencyContact', label='Emergency Contact', recommended='Emergency Contact',
@@ -205,6 +215,7 @@ FIELD_SPECS: Tuple[FieldSpec, ...] = (
         aliases=('Roll No', 'Roll Number', 'College Roll', 'Institute Roll'),
         example='CST-2019-001',
         help_text='Used to detect duplicates. Auto-generated when left blank.',
+        note_bn='ডুপ্লিকেট শনাক্ত করতে এই কলাম ব্যবহার হয়। একই রোল আগে থেকে থাকলে সারিটি Skip হবে। খালি রাখলে সিস্টেম নিজে একটি রোল তৈরি করবে।',
     ),
     FieldSpec(
         key='currentRegistrationNumber', label='College Registration', recommended='Registration',
@@ -212,14 +223,17 @@ FIELD_SPECS: Tuple[FieldSpec, ...] = (
                  'College Registration'),
         example='2019CST001',
         help_text='Used to detect duplicates. Auto-generated when left blank.',
+        note_bn='ডুপ্লিকেট শনাক্ত করতে ব্যবহার হয়। খালি রাখলে সিস্টেম নিজে তৈরি করবে।',
     ),
     FieldSpec(
         key='session', label='Session', recommended='Session',
         aliases=('Academic Session', 'Batch'), example='2019-20',
+        note_bn='সেশনের ফরম্যাট: 2022-23 (দুই বছর হাইফেন দিয়ে)। যেমন: 2019-20, 2021-22।',
     ),
     FieldSpec(
         key='shift', label='Shift', recommended='Shift',
         type=TYPE_CHOICE, choices=('Morning', 'Day', 'Evening'), example='Morning',
+        note_bn='গ্রহণযোগ্য মান: Morning, Day, Evening. (Morning = ১ম শিফট, Day = ২য় শিফট)',
     ),
     FieldSpec(
         key='currentGroup', label='Group (Institute)', recommended='Group',
@@ -229,6 +243,7 @@ FIELD_SPECS: Tuple[FieldSpec, ...] = (
         key='finalCgpa', label='Final CGPA', recommended='CGPA',
         aliases=('Final CGPA', 'Result', 'CGPA (Diploma)'),
         type=TYPE_DECIMAL, example='3.75',
+        note_bn='০.০০ থেকে ৫.০০ এর মধ্যে সংখ্যা। যেমন: 3.75।',
     ),
     FieldSpec(
         key='enrollmentDate', label='Enrollment Date', recommended='Enrollment Date',
@@ -277,18 +292,21 @@ FIELD_SPECS: Tuple[FieldSpec, ...] = (
         target=TARGET_ALUMNI,
         aliases=('Grad Year', 'Year of Graduation', 'Passing Year', 'Graduation'),
         type=TYPE_INT, example='2023',
+        note_bn='শুধু সাল লিখুন, চার সংখ্যায়। যেমন: 2023।',
     ),
     FieldSpec(
         key='alumniType', label='Alumni Type', recommended='Alumni Type',
         target=TARGET_ALUMNI, type=TYPE_CHOICE, choices=('recent', 'established'),
         example='established',
         help_text='Defaults to "established" for imported records.',
+        note_bn='গ্রহণযোগ্য মান: recent (সদ্য পাস) বা established (প্রতিষ্ঠিত)। না দিলে established ধরা হবে।',
     ),
     FieldSpec(
         key='currentSupportCategory', label='Support Category', recommended='Support Category',
         target=TARGET_ALUMNI, type=TYPE_CHOICE,
         choices=('receiving_support', 'needs_extra_support', 'no_support_needed'),
         example='no_support_needed',
+        note_bn='গ্রহণযোগ্য মান: receiving_support, needs_extra_support, no_support_needed।',
     ),
     FieldSpec(
         key='bio', label='Bio / About', recommended='Bio',
@@ -410,6 +428,7 @@ def documentation():
                 'choices': list(s.choices),
                 'example': s.example,
                 'helpText': s.help_text,
+                'noteBn': s.note_bn,
             }
             for s in FIELD_SPECS
         ],

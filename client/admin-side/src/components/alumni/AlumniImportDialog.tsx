@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Upload, FileSpreadsheet, Link2, Loader2, CheckCircle2, AlertTriangle,
   XCircle, ArrowRight, ArrowLeft, Copy, Check, BookOpen, Search, X, FileUp,
+  ExternalLink,
 } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -314,6 +315,25 @@ export function AlumniImportDialog({ open, onOpenChange, onImported }: Props) {
             automatically — a partial sheet is fine.
           </DialogDescription>
         </DialogHeader>
+
+        {/* Full how-to (Bangla): column names, accepted values, examples. */}
+        <a
+          href="/alumni-requests/import-guide"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-between gap-3 rounded-xl border border-primary/25 bg-primary/5 px-3 py-2.5 transition-colors hover:bg-primary/10"
+        >
+          <span className="flex items-center gap-2 text-sm">
+            <BookOpen className="h-4 w-4 shrink-0 text-primary" />
+            <span>
+              <strong className="text-foreground">ইম্পোর্ট গাইড (বাংলা)</strong>
+              <span className="ml-1.5 text-muted-foreground">
+                — কোন কলামের নাম কী, কোন মান গ্রহণযোগ্য, উদাহরণসহ
+              </span>
+            </span>
+          </span>
+          <ExternalLink className="h-4 w-4 shrink-0 text-primary" />
+        </a>
 
         {/* ---------------- Step 1: choose a source ---------------- */}
         {step === 'source' && (

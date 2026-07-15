@@ -21,7 +21,29 @@ class SecureFileView(View):
     """
     Secure file serving with access control and logging
     """
-    
+
+    def dispatch(self, request, *args, **kwargs):
+        """
+        Serve the request, then guarantee no failure is ever cached.
+
+        A browser (or CDN) that caches a 404/403 for a profile photo keeps
+        showing a broken avatar long after the cause is fixed, and never
+        re-asks the server. That is exactly what happened in production while
+        this location was misconfigured: clients cached the 404 and kept
+        replaying it from disk. Error responses are now explicitly no-store,
+        so a transient failure can never become sticky.
+        """
+        try:
+            response = super().dispatch(request, *args, **kwargs)
+        except Http404:
+            response = HttpResponse('File not found', status=404)
+        except PermissionDenied:
+            response = HttpResponse('Access denied', status=403)
+
+        if response.status_code >= 400:
+            response['Cache-Control'] = 'no-store'
+        return response
+
     def get(self, request, file_path):
         """
         Serve file with security checks
