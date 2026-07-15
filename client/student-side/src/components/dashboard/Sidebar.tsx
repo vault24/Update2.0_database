@@ -249,14 +249,24 @@ export function Sidebar() {
           CSS transitions instead of a framer spring: transform/width changes
           apply immediately even when rAF is starved, so the drawer can never
           hang half-open, and the compositor animates the transform off the
-          main thread (smoother on low-end devices). */}
+          main thread (smoother on low-end devices).
+
+          `invisible` while closed is load-bearing: a merely-translated
+          offscreen layer still exists in the compositor, and buggy low-end
+          Android GPUs sometimes painted it OVER the page (menu text bleeding
+          through content in production) and corrupted neighbouring tiles.
+          visibility:hidden removes the layer from compositing entirely, so it
+          cannot be mispainted. Trade-off: no slide-out animation on close
+          (slide-in on open still works — visibility flips on instantly). */}
       <aside
         className={cn(
           'fixed left-0 top-0 z-50 flex h-screen flex-col border-r border-sidebar-border bg-sidebar',
           'transition-[width,transform] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
           isCollapsed ? 'w-[84px]' : 'w-[280px]',
-          isMobileOpen ? 'translate-x-0' : '-translate-x-full',
-          'lg:sticky lg:top-0 lg:translate-x-0',
+          isMobileOpen
+            ? 'visible translate-x-0'
+            : 'invisible -translate-x-full pointer-events-none',
+          'lg:pointer-events-auto lg:visible lg:sticky lg:top-0 lg:translate-x-0',
         )}
       >
         {/* Brand header — click logo/name to go to the dashboard */}
