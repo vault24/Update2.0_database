@@ -176,6 +176,13 @@ class RoleBasedAccessMiddleware:
 
         # Special handling for admissions endpoint for students/captains.
         if path.startswith('/api/admissions/'):
+            # Admission module settings (enabled flag + document requirements)
+            # are readable by every authenticated user: the student sidebar and
+            # the admission form both need them (writes stay admin-only, which
+            # the DRF view enforces).
+            if path == '/api/admissions/settings/' and request.method in ('GET', 'HEAD', 'OPTIONS'):
+                return self.get_response(request)
+
             if role in ['student', 'captain']:
                 # Submit application
                 if request.method == 'POST' and path == '/api/admissions/':

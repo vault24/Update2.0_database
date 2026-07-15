@@ -403,6 +403,12 @@ setup_backend() {
   ( cd "${SERVER_DIR}"
     "${PYBIN}" manage.py migrate --noinput
     "${PYBIN}" manage.py collectstatic --noinput
+    # Idempotent data seeds/backfills required by the app:
+    #  - document templates power the admin "Application Availability" panel
+    #    and the student Applications page (missing templates = empty panel).
+    #  - profile-photo documents must be public so <img> tags can load them.
+    "${PYBIN}" manage.py seed_document_templates
+    "${PYBIN}" manage.py publish_profile_photos
   )
 
   # Optional superuser (all three secrets set + user absent).
@@ -705,15 +711,16 @@ nginx_app_locations() {
         add_header Cache-Control "private";
     }
     # SECURITY: the document store (NID / birth certificates / marksheets /
-    # photos) is NEVER served directly to the public web. It is reachable ONLY
-    # through the authenticated, per-object-authorised Django endpoints
-    # (/api/documents/{id}/download|preview/), which stream the file after
-    # checking the caller may see it. The 'internal' directive means an outside request to
-    # /files/... returns 404; the directive is kept so the app can opt into
-    # X-Accel-Redirect later without another Nginx change.
+    # photos) is never served from disk directly — every /files/ request is
+    # proxied to Django's SecureFileView, which authorises per object before
+    # streaming: only documents explicitly marked is_public (student profile
+    # photos, which must load from plain <img> tags without a JWT header) are
+    # served anonymously; everything else requires an authorised session.
+    # Previously this location was 'internal', which 404'd ALL /files/
+    # requests in production and broke profile pictures.
     location /files/ {
-        internal;
-        alias ${SERVER_DIR}/storage/Documents/;
+        proxy_pass http://${BACKEND_BIND};
+        include ${NGINX_ROOT}/snippets/sipi-proxy.conf;
     }
 
     # --- SPA assets: content-hashed filenames -> cache forever ---------------

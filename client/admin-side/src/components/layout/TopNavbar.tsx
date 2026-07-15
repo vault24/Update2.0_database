@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Menu,
-  Search,
   Bell,
   Sun,
   Moon,
@@ -11,13 +10,11 @@ import {
   User,
   Settings,
   LogOut,
-  X,
   BarChart3,
   Loader2,
   CheckCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -89,7 +86,6 @@ export function TopNavbar({ onMenuToggle, sidebarOpen }: TopNavbarProps) {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
-  const [searchOpen, setSearchOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -217,32 +213,11 @@ export function TopNavbar({ onMenuToggle, sidebarOpen }: TopNavbarProps) {
           </h1>
         </div>
 
-        {/* Center - Search */}
-        <div className="flex-1 max-w-md hidden md:block">
-          <div className="relative group">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search students, admissions…"
-              className="pl-10 pr-16 h-9 bg-secondary/60 border-border focus-visible:bg-card"
-            />
-            <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 hidden lg:inline-flex items-center gap-0.5 rounded border border-border bg-card px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-              Ctrl K
-            </kbd>
-          </div>
-        </div>
+        {/* Spacer (search removed) */}
+        <div className="flex-1" />
 
         {/* Right Section */}
         <div className="flex items-center gap-2">
-          {/* Mobile Search */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="md:hidden"
-            onClick={() => setSearchOpen(!searchOpen)}
-          >
-            <Search className="w-5 h-5" />
-          </Button>
-
           {/* Theme Toggle */}
           <Button
             variant="ghost"
@@ -459,31 +434,6 @@ export function TopNavbar({ onMenuToggle, sidebarOpen }: TopNavbarProps) {
         </div>
       </div>
 
-      {/* Mobile Search Bar */}
-      <AnimatePresence>
-        {searchOpen && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="md:hidden border-b border-border bg-background overflow-hidden"
-          >
-            <div className="p-4 flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search..."
-                  className="pl-10 bg-secondary/50 border-0"
-                  autoFocus
-                />
-              </div>
-              <Button variant="ghost" size="icon" onClick={() => setSearchOpen(false)}>
-                <X className="w-5 h-5" />
-              </Button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </header>
   );
 }

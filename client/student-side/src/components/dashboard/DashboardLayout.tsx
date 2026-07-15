@@ -2,9 +2,8 @@ import { Outlet, useNavigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { Footer } from '@/components/layout/Footer';
-import { Search, User, Settings, LogOut, ChevronDown } from 'lucide-react';
+import { User, Settings, LogOut, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { useState, useEffect } from 'react';
 import { noticeService } from '@/services/noticeService';
 import { connectNotificationsSocket } from '@/lib/notificationsSocket';
@@ -95,16 +94,9 @@ export function DashboardLayout() {
             drawer — and it costs a full-layer repaint per scroll frame on
             low-end devices. Desktop (lg+) keeps the frosted-glass look. */}
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-border bg-card px-4 md:px-6 lg:bg-card/80 lg:backdrop-blur-xl">
-          {/* Search */}
-          <div className="flex flex-1 items-center pl-12 lg:pl-0">
-            <div className="relative hidden w-full max-w-md md:block">
-              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search anything…"
-                className="h-10 border-transparent bg-secondary/70 pl-10 shadow-none focus-visible:bg-background focus-visible:border-primary"
-              />
-            </div>
-          </div>
+          {/* Spacer (keeps the action cluster right-aligned; leaves room for
+              the mobile menu button on the left) */}
+          <div className="flex flex-1 items-center pl-12 lg:pl-0" />
 
           <div className="flex items-center gap-1.5 sm:gap-2">
             {/* Notifications dropdown */}
