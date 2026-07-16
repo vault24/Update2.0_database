@@ -3,13 +3,13 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
   Eye, Clock, Loader2, AlertCircle, RefreshCw, X, Check, ShieldAlert,
-  Inbox, Building2, CheckCircle2, XCircle, GraduationCap, Briefcase,
-  CalendarDays, ArrowLeft, RotateCcw, Mail, UserPlus, FileSpreadsheet, BookOpen,
+  Building2, CheckCircle2, XCircle, GraduationCap, Briefcase, Users,
+  CalendarDays, RotateCcw, Mail, UserPlus, FileSpreadsheet, BookOpen,
 } from 'lucide-react';
 import { AlumniReminderDialog } from '@/components/alumni/AlumniReminderDialog';
 import { AlumniImportDialog } from '@/components/alumni/AlumniImportDialog';
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -164,12 +164,38 @@ export default function AlumniRequests() {
     }
   };
 
+  // Skeleton rather than a spinner: the page keeps its shape while loading,
+  // so nothing jumps when the data lands (matches Dashboard).
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading alumni requests...</p>
+      <div className="space-y-6">
+        <div>
+          <div className="h-7 w-52 rounded-md bg-muted animate-pulse" />
+          <div className="mt-2 h-4 w-80 rounded-md bg-muted animate-pulse" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="surface p-4">
+              <div className="flex items-center justify-between">
+                <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+                <div className="w-9 h-9 rounded-lg bg-muted animate-pulse" />
+              </div>
+              <div className="mt-3 h-7 w-12 rounded bg-muted animate-pulse" />
+            </div>
+          ))}
+        </div>
+        <div className="space-y-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="surface p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-full bg-muted animate-pulse shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-44 rounded bg-muted animate-pulse" />
+                  <div className="h-3 w-72 max-w-full rounded bg-muted animate-pulse" />
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -177,88 +203,110 @@ export default function AlumniRequests() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Card className="max-w-md">
-          <CardContent className="p-8 text-center">
-            <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Error Loading Requests</h3>
-            <p className="text-muted-foreground mb-4">{error}</p>
-            <Button onClick={fetchRequests}><RefreshCw className="w-4 h-4 mr-2" /> Try Again</Button>
-          </CardContent>
-        </Card>
+      <div className="surface max-w-md mx-auto mt-12 p-8 text-center">
+        <div className="inline-flex w-12 h-12 items-center justify-center rounded-lg bg-destructive/10 mb-3">
+          <AlertCircle className="w-6 h-6 text-destructive" />
+        </div>
+        <h3 className="text-[15px] font-semibold mb-1">Could not load requests</h3>
+        <p className="text-sm text-muted-foreground mb-4">{error}</p>
+        <Button onClick={fetchRequests} variant="outline" className="gap-2">
+          <RefreshCw className="w-4 h-4" /> Try again
+        </Button>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Hero header */}
-      <motion.div
-        initial={{ opacity: 0, y: -16 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-orange-500 via-orange-500 to-amber-500 p-6 text-white shadow-lg"
-      >
-        <div className="absolute -right-8 -top-8 opacity-10">
-          <Inbox className="w-44 h-44" />
+      {/* Page header — flat, enterprise; primary action stands alone, the
+          rest are quiet secondaries (matches Teachers / Dashboard). */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h1 className="text-xl md:text-2xl font-semibold text-foreground">Alumni requests</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Review self-registered alumni — they have no alumni access until approved.
+          </p>
         </div>
-        <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold mb-1">Alumni Requests</h1>
-            <p className="text-white/85">
-              Review self-registered alumni — they have no alumni access until approved.
-            </p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button variant="secondary" size="sm" onClick={fetchRequests} className="bg-white/15 hover:bg-white/25 text-white border-0">
-              <RefreshCw className="w-4 h-4 mr-2" /> Refresh
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => setReminderOpen(true)} className="bg-white/15 hover:bg-white/25 text-white border-0">
-              <Mail className="w-4 h-4 mr-2" /> Completion Reminders
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => navigate('/alumni')} className="bg-white/15 hover:bg-white/25 text-white border-0">
-              <ArrowLeft className="w-4 h-4 mr-2" /> Alumni Directory
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => navigate('/alumni-requests/import-guide')} className="bg-white/15 hover:bg-white/25 text-white border-0">
-              <BookOpen className="w-4 h-4 mr-2" /> ইম্পোর্ট গাইড
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => setImportOpen(true)} className="bg-white/15 hover:bg-white/25 text-white border-0">
-              <FileSpreadsheet className="w-4 h-4 mr-2" /> Import
-            </Button>
-            <Button size="sm" onClick={() => navigate('/alumni/add')} className="bg-white text-orange-600 hover:bg-white/90">
-              <UserPlus className="w-4 h-4 mr-2" /> Create New Alumni
-            </Button>
-          </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={fetchRequests} className="gap-2 text-muted-foreground">
+            <RefreshCw className="w-4 h-4" /> Refresh
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => navigate('/alumni')} className="gap-2">
+            <Users className="w-4 h-4" /> Directory
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setReminderOpen(true)} className="gap-2">
+            <Mail className="w-4 h-4" /> Reminders
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => navigate('/alumni-requests/import-guide')} className="gap-2">
+            <BookOpen className="w-4 h-4" /> গাইড
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} className="gap-2">
+            <FileSpreadsheet className="w-4 h-4" /> Import
+          </Button>
+          <Button size="sm" onClick={() => navigate('/alumni/add')} className="gap-2">
+            <UserPlus className="w-4 h-4" /> Add alumni
+          </Button>
         </div>
-      </motion.div>
+      </div>
 
       {/* Queue stats */}
-      <div className="grid grid-cols-3 gap-3">
-        <StatCard icon={Clock} label="Pending Review" value={totalPending} tone="orange" />
-        <StatCard icon={XCircle} label="Rejected" value={totalRejected} tone="red" />
-        <StatCard icon={CheckCircle2} label="Approved Alumni" value={approvedCount} tone="green" onClick={() => navigate('/alumni')} />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <StatTile
+          icon={Clock}
+          label="Pending review"
+          value={totalPending}
+          // amber-600/400 rather than the raw --warning token: amber-500 as
+          // text fails contrast on a light surface. Same convention as
+          // Teachers / Dashboard.
+          tint="bg-amber-500/10 text-amber-600 dark:text-amber-400"
+          hint={totalPending > 0 ? 'Awaiting your decision' : 'Nothing waiting'}
+        />
+        <StatTile
+          icon={XCircle}
+          label="Rejected"
+          value={totalRejected}
+          tint="bg-destructive/10 text-destructive"
+          hint="Can be re-approved"
+        />
+        <StatTile
+          icon={CheckCircle2}
+          label="Approved alumni"
+          value={approvedCount}
+          tint="bg-success/10 text-success"
+          hint="Open directory"
+          onClick={() => navigate('/alumni')}
+        />
       </div>
 
       {/* Tabs + department filter */}
       <Tabs value={tab} onValueChange={(v) => setTab(v as 'pending' | 'rejected')}>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <TabsList>
-            <TabsTrigger value="pending" className="gap-1.5">
+            <TabsTrigger value="pending" className="gap-2">
               <Clock className="w-4 h-4" /> Pending
-              {totalPending > 0 && <Badge className="bg-orange-500 text-white ml-1 h-5 min-w-[20px] px-1.5">{totalPending}</Badge>}
+              {totalPending > 0 && (
+                <Badge variant="secondary" className="ml-1 h-5 min-w-[20px] justify-center px-1.5 tabular-nums">
+                  {totalPending}
+                </Badge>
+              )}
             </TabsTrigger>
-            <TabsTrigger value="rejected" className="gap-1.5">
+            <TabsTrigger value="rejected" className="gap-2">
               <XCircle className="w-4 h-4" /> Rejected
-              {totalRejected > 0 && <Badge variant="secondary" className="ml-1 h-5 min-w-[20px] px-1.5">{totalRejected}</Badge>}
+              {totalRejected > 0 && (
+                <Badge variant="secondary" className="ml-1 h-5 min-w-[20px] justify-center px-1.5 tabular-nums">
+                  {totalRejected}
+                </Badge>
+              )}
             </TabsTrigger>
           </TabsList>
 
           <Select value={department} onValueChange={setDepartment}>
             <SelectTrigger className="h-9 w-full sm:w-[220px]">
               <Building2 className="w-4 h-4 mr-2 text-muted-foreground shrink-0" />
-              <SelectValue placeholder="All Departments" />
+              <SelectValue placeholder="All departments" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Departments</SelectItem>
+              <SelectItem value="all">All departments</SelectItem>
               {departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
             </SelectContent>
           </Select>
@@ -276,28 +324,28 @@ export default function AlumniRequests() {
           ) : (
             pending.map((request, index) => (
               <RequestCard key={request.id} request={request} index={index}>
-                <Button size="sm" variant="ghost" onClick={() => navigate(`/alumni/${request.id}`)}>
-                  <Eye className="w-4 h-4 mr-1.5" /> Review
+                <Button size="sm" variant="ghost" onClick={() => navigate(`/alumni/${request.id}`)} className="gap-1.5">
+                  <Eye className="w-4 h-4" /> Review
                 </Button>
                 <Button
                   size="sm"
-                  className="bg-green-600 hover:bg-green-700 text-white"
+                  className="gap-1.5 bg-success text-success-foreground hover:bg-success/90"
                   onClick={() => handleApprove(request)}
                   disabled={actionId === request.id}
                 >
                   {actionId === request.id
-                    ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-                    : <Check className="w-4 h-4 mr-1.5" />}
+                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                    : <Check className="w-4 h-4" />}
                   Approve
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
-                  className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                  className="gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
                   onClick={() => { setRejectTarget(request); setRejectNotes(''); }}
                   disabled={actionId === request.id}
                 >
-                  <X className="w-4 h-4 mr-1.5" /> Reject
+                  <X className="w-4 h-4" /> Reject
                 </Button>
               </RequestCard>
             ))
@@ -316,19 +364,19 @@ export default function AlumniRequests() {
           ) : (
             rejected.map((request, index) => (
               <RequestCard key={request.id} request={request} index={index} rejected>
-                <Button size="sm" variant="ghost" onClick={() => navigate(`/alumni/${request.id}`)}>
-                  <Eye className="w-4 h-4 mr-1.5" /> View
+                <Button size="sm" variant="ghost" onClick={() => navigate(`/alumni/${request.id}`)} className="gap-1.5">
+                  <Eye className="w-4 h-4" /> View
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
-                  className="text-green-700 border-green-600/40 hover:bg-green-600/10 hover:text-green-700"
+                  className="gap-1.5 text-success border-success/30 hover:bg-success/10 hover:text-success"
                   onClick={() => handleApprove(request)}
                   disabled={actionId === request.id}
                 >
                   {actionId === request.id
-                    ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-                    : <RotateCcw className="w-4 h-4 mr-1.5" />}
+                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                    : <RotateCcw className="w-4 h-4" />}
                   Re-approve
                 </Button>
               </RequestCard>
@@ -377,35 +425,39 @@ export default function AlumniRequests() {
 
 /* ----------------------------- sub-components ----------------------------- */
 
-function StatCard({
-  icon: Icon, label, value, tone, onClick,
+/**
+ * Queue stat tile — label above the number, tinted icon tile, tabular numbers.
+ * Same shape as the Teachers / Dashboard tiles so the admin panel reads as one
+ * system rather than a per-page palette.
+ */
+function StatTile({
+  icon: Icon, label, value, tint, hint, onClick,
 }: {
   icon: React.ElementType;
   label: string;
   value: number;
-  tone: 'orange' | 'red' | 'green';
+  tint: string;
+  hint?: string;
   onClick?: () => void;
 }) {
-  const tones = {
-    orange: 'bg-orange-500/15 text-orange-600 dark:text-orange-300',
-    red: 'bg-red-500/15 text-red-600 dark:text-red-300',
-    green: 'bg-green-500/15 text-green-600 dark:text-green-300',
-  } as const;
+  const Wrapper = onClick ? 'button' : 'div';
   return (
-    <Card
-      className={onClick ? 'cursor-pointer hover:bg-muted/50 hover:shadow-sm transition-all' : ''}
+    <Wrapper
       onClick={onClick}
+      className={cn(
+        'surface p-4 text-left w-full',
+        onClick && 'transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
+      )}
     >
-      <CardContent className="p-4 flex items-center gap-3">
-        <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${tones[tone]}`}>
-          <Icon className="w-5 h-5" />
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[13px] font-medium text-muted-foreground">{label}</p>
+        <div className={cn('w-9 h-9 rounded-lg flex items-center justify-center shrink-0', tint)}>
+          <Icon className="w-[18px] h-[18px]" />
         </div>
-        <div className="min-w-0">
-          <p className="text-xl font-bold text-foreground leading-tight">{value}</p>
-          <p className="text-[11px] text-muted-foreground truncate font-medium">{label}</p>
-        </div>
-      </CardContent>
-    </Card>
+      </div>
+      <p className="mt-2 text-2xl font-semibold text-foreground tabular-nums leading-none">{value}</p>
+      {hint && <p className="mt-1.5 text-xs text-muted-foreground">{hint}</p>}
+    </Wrapper>
   );
 }
 
@@ -419,68 +471,85 @@ function RequestCard({
 }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: Math.min(index * 0.03, 0.3) }}
+      transition={{ duration: 0.2, delay: Math.min(index * 0.03, 0.24) }}
     >
-      <Card className={`border-2 ${rejected ? 'border-border/50' : 'border-orange-500/30'}`}>
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <Avatar className="w-12 h-12 border border-border shrink-0">
-              <AvatarImage src={request.avatar} />
-              <AvatarFallback className={`text-sm font-bold ${
-                rejected
-                  ? 'bg-muted text-muted-foreground'
-                  : 'bg-orange-500/15 text-orange-700 dark:text-orange-300'
-              }`}>
-                {request.name.split(' ').map((n) => n[0]).join('').slice(0, 2)}
-              </AvatarFallback>
-            </Avatar>
-
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <p className="font-semibold text-foreground truncate">{request.name}</p>
-                <span className="text-xs text-muted-foreground font-mono">{request.roll}</span>
-              </div>
-              <div className="flex items-center gap-3 flex-wrap mt-1 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1"><Building2 className="w-3 h-3" /> {request.department}</span>
-                {request.graduationYear !== 'N/A' && (
-                  <span className="flex items-center gap-1"><GraduationCap className="w-3 h-3" /> Class of {request.graduationYear}</span>
-                )}
-                {request.currentJob && (
-                  <span className="flex items-center gap-1 truncate">
-                    <Briefcase className="w-3 h-3" /> {request.currentJob}{request.company ? ` @ ${request.company}` : ''}
-                  </span>
-                )}
-                <span className="flex items-center gap-1"><CalendarDays className="w-3 h-3" /> {formatDate(request.registeredAt)}</span>
-              </div>
-              {rejected && request.rejectionNotes && (
-                <p className="mt-1.5 text-xs text-destructive/90 bg-destructive/5 border border-destructive/20 rounded-md px-2 py-1 inline-block">
-                  Rejection note: {request.rejectionNotes}
-                </p>
+      {/* Flat surface + a single status accent bar down the left edge: state is
+          legible at a glance without tinting the whole card. */}
+      <div className="surface relative overflow-hidden p-4 transition-colors hover:bg-accent/40">
+        <span
+          aria-hidden="true"
+          className={cn(
+            'absolute inset-y-0 left-0 w-1',
+            rejected ? 'bg-destructive/40' : 'bg-amber-500',
+          )}
+        />
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 pl-2">
+          <Avatar className="w-11 h-11 border border-border shrink-0">
+            <AvatarImage src={request.avatar} />
+            <AvatarFallback
+              className={cn(
+                'text-xs font-semibold',
+                rejected ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary',
               )}
-            </div>
+            >
+              {request.name.split(' ').map((n) => n[0]).join('').slice(0, 2)}
+            </AvatarFallback>
+          </Avatar>
 
-            <div className="flex items-center gap-2 shrink-0 flex-wrap">
-              {children}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="font-medium text-foreground truncate">{request.name}</p>
+              <span className="text-xs text-muted-foreground font-mono tabular-nums">{request.roll}</span>
+              <Badge
+                variant="outline"
+                className={cn(
+                  'font-medium',
+                  rejected
+                    ? 'border-destructive/20 bg-destructive/10 text-destructive'
+                    : 'border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400',
+                )}
+              >
+                {rejected ? 'Rejected' : 'Pending'}
+              </Badge>
             </div>
+            <div className="flex items-center gap-x-3 gap-y-1 flex-wrap mt-1 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1"><Building2 className="w-3.5 h-3.5" /> {request.department}</span>
+              {request.graduationYear !== 'N/A' && (
+                <span className="flex items-center gap-1"><GraduationCap className="w-3.5 h-3.5" /> Class of {request.graduationYear}</span>
+              )}
+              {request.currentJob && (
+                <span className="flex items-center gap-1 truncate">
+                  <Briefcase className="w-3.5 h-3.5" /> {request.currentJob}{request.company ? ` @ ${request.company}` : ''}
+                </span>
+              )}
+              <span className="flex items-center gap-1"><CalendarDays className="w-3.5 h-3.5" /> {formatDate(request.registeredAt)}</span>
+            </div>
+            {rejected && request.rejectionNotes && (
+              <p className="mt-2 inline-block rounded-md border border-destructive/20 bg-destructive/5 px-2 py-1 text-xs text-destructive">
+                Rejection note: {request.rejectionNotes}
+              </p>
+            )}
           </div>
-        </CardContent>
-      </Card>
+
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            {children}
+          </div>
+        </div>
+      </div>
     </motion.div>
   );
 }
 
 function EmptyState({ icon: Icon, title, message }: { icon: React.ElementType; title: string; message: string }) {
   return (
-    <Card className="border-2 border-dashed border-border">
-      <CardContent className="p-12 text-center">
-        <div className="inline-flex p-4 rounded-full bg-muted/50 mb-4">
-          <Icon className="w-12 h-12 text-muted-foreground" />
-        </div>
-        <h3 className="text-lg font-semibold text-foreground mb-2">{title}</h3>
-        <p className="text-muted-foreground">{message}</p>
-      </CardContent>
-    </Card>
+    <div className="surface border-dashed p-12 text-center">
+      <div className="inline-flex w-12 h-12 items-center justify-center rounded-lg bg-muted mb-3">
+        <Icon className="w-6 h-6 text-muted-foreground" />
+      </div>
+      <h3 className="text-[15px] font-semibold text-foreground mb-1">{title}</h3>
+      <p className="text-sm text-muted-foreground">{message}</p>
+    </div>
   );
 }
