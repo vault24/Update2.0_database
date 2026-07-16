@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { MotionConfig } from "framer-motion";
 import { Toaster } from "@/components/ui/sonner";
+import { PWAProvider } from "@/components/pwa/PWAProvider";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState, useEffect, lazy, Suspense } from "react";
 import { AlertCircle } from "lucide-react";
@@ -230,6 +231,7 @@ const App = () => {
     </Routes>
             </Suspense>
     <Toaster />
+    <PWAProvider />
   </BrowserRouter>
   </MotionConfig>
   );

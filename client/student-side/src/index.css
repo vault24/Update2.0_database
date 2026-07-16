@@ -427,3 +427,48 @@
 .marquee-track:hover .marquee-content {
   animation-play-state: paused;
 }
+
+/* ============================ PWA / device fit ============================
+   Safe-area handling for notches, home indicators, and foldables, plus small
+   adjustments when the app runs installed (standalone). viewport-fit=cover is
+   set in index.html so the page can paint edge-to-edge; these insets keep
+   interactive content out from under the notch / rounded corners / home bar. */
+
+/* Expose the inset values as variables (fallback 0) for use anywhere. */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+}
+
+/* Utility classes for opt-in safe-area padding. */
+.pt-safe { padding-top: max(0px, env(safe-area-inset-top)); }
+.pb-safe { padding-bottom: max(0px, env(safe-area-inset-bottom)); }
+.pl-safe { padding-left: max(0px, env(safe-area-inset-left)); }
+.pr-safe { padding-right: max(0px, env(safe-area-inset-right)); }
+.px-safe { padding-left: max(0px, env(safe-area-inset-left)); padding-right: max(0px, env(safe-area-inset-right)); }
+.min-h-screen-safe { min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
+
+/* When installed (standalone / fullscreen), apply left/right/bottom insets to
+   the app shell so landscape notches and the home indicator never clip content.
+   The top inset is handled per-component (sticky header / offline banner) so we
+   don't double-pad it here. */
+@media all and (display-mode: standalone), all and (display-mode: fullscreen) {
+  body {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    /* Prevent the iOS rubber-band overscroll from revealing a white gap. */
+    overscroll-behavior-y: none;
+  }
+}
+
+/* Foldable / dual-screen: avoid placing the app under the hinge fold when the
+   browser exposes viewport segments. Progressive enhancement — ignored where
+   unsupported. */
+@media (horizontal-viewport-segments: 2) {
+  .fold-aware {
+    max-width: env(viewport-segment-right 0 0, 100%);
+  }
+}
+/* ======================================================================== */

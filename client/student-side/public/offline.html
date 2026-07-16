@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#059669" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0b1220" media="(prefers-color-scheme: dark)" />
+    <title>Offline — SIPI Student Portal</title>
+    <link rel="icon" href="/favicon.ico" />
+    <style>
+      :root {
+        --bg: #f8fafc;
+        --card: #ffffff;
+        --fg: #0f172a;
+        --muted: #64748b;
+        --primary: #059669;
+        --primary-fg: #ffffff;
+        --border: #e2e8f0;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0b1220;
+          --card: #111a2e;
+          --fg: #e2e8f0;
+          --muted: #94a3b8;
+          --primary: #10b981;
+          --primary-fg: #06231a;
+          --border: #1e293b;
+        }
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100%;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        padding: max(1.5rem, env(safe-area-inset-top)) 1.5rem max(1.5rem, env(safe-area-inset-bottom));
+        text-align: center;
+      }
+      main {
+        max-width: 26rem;
+        width: 100%;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 1.25rem;
+        padding: 2rem 1.75rem;
+        box-shadow: 0 12px 30px -12px rgba(2, 90, 70, 0.25);
+      }
+      .icon {
+        width: 88px;
+        height: 88px;
+        margin: 0 auto 1.25rem;
+        border-radius: 9999px;
+        background: color-mix(in srgb, var(--primary) 12%, transparent);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .icon svg { width: 44px; height: 44px; stroke: var(--primary); }
+      h1 { font-size: 1.35rem; margin: 0 0 0.5rem; }
+      p { color: var(--muted); line-height: 1.55; margin: 0 0 1.5rem; font-size: 0.95rem; }
+      button {
+        appearance: none;
+        border: 0;
+        cursor: pointer;
+        width: 100%;
+        min-height: 48px;
+        border-radius: 0.75rem;
+        background: var(--primary);
+        color: var(--primary-fg);
+        font-size: 1rem;
+        font-weight: 600;
+        transition: opacity 0.15s ease;
+      }
+      button:hover { opacity: 0.92; }
+      button:focus-visible { outline: 3px solid color-mix(in srgb, var(--primary) 45%, transparent); outline-offset: 2px; }
+      .status { margin-top: 1rem; font-size: 0.8rem; color: var(--muted); min-height: 1.2em; }
+      .dot { display: inline-block; width: 8px; height: 8px; border-radius: 9999px; background: #ef4444; margin-right: 0.4rem; vertical-align: middle; }
+      .dot.online { background: var(--primary); }
+    </style>
+  </head>
+  <body>
+    <main role="main">
+      <div class="icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1 1l22 22" />
+          <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
+          <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
+          <path d="M10.71 5.05A16 16 0 0 1 22.58 9" />
+          <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88" />
+          <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+          <line x1="12" y1="20" x2="12.01" y2="20" />
+        </svg>
+      </div>
+      <h1>You&rsquo;re offline</h1>
+      <p>
+        We couldn&rsquo;t load this page because your device isn&rsquo;t connected.
+        Please check your connection and try again — saved pages still work.
+      </p>
+      <button id="retry" type="button">Try again</button>
+      <div class="status" id="status" aria-live="polite">
+        <span class="dot" id="dot"></span><span id="statusText">No connection</span>
+      </div>
+    </main>
+    <script>
+      (function () {
+        var dot = document.getElementById("dot");
+        var statusText = document.getElementById("statusText");
+        function reload() { window.location.reload(); }
+        function render() {
+          if (navigator.onLine) {
+            dot.classList.add("online");
+            statusText.textContent = "Back online — reloading…";
+            setTimeout(reload, 600);
+          } else {
+            dot.classList.remove("online");
+            statusText.textContent = "No connection";
+          }
+        }
+        document.getElementById("retry").addEventListener("click", reload);
+        window.addEventListener("online", render);
+        window.addEventListener("offline", render);
+        render();
+      })();
+    </script>
+  </body>
+</html>

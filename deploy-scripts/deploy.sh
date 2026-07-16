@@ -610,7 +610,9 @@ add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment
 # same-origin API + WebSockets, images from self/data/blob/https.
 # Cloudflare Web Analytics beacon (auto-injected by the proxy) is allowed:
 # script from static.cloudflareinsights.com, RUM POST to cloudflareinsights.com.
-add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://fonts.googleapis.com https://fonts.gstatic.com https://cloudflareinsights.com; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'" always;
+# worker-src/manifest-src added for the PWA service worker + web manifest
+# (worker-src 'self' would otherwise fall back to script-src; explicit is safer).
+add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; worker-src 'self' blob:; manifest-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://fonts.googleapis.com https://fonts.gstatic.com https://cloudflareinsights.com; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'" always;
 EOF
 
   # Compression (safe types only; never compress already-compressed media).
@@ -757,6 +759,31 @@ nginx_app_locations() {
 
     # --- SPA entry point: never cache (instant rollout of new builds) --------
     location = /index.html {
+        include ${NGINX_ROOT}/snippets/sipi-security-headers.conf;
+        add_header Cache-Control "no-cache";
+        try_files \$uri =404;
+    }
+
+    # --- PWA service worker: MUST revalidate so updates roll out promptly -----
+    # A long-lived sw.js would strand users on an old worker. no-cache forces a
+    # conditional request each load; the browser also caps the SW script at 24h.
+    location = /sw.js {
+        include ${NGINX_ROOT}/snippets/sipi-security-headers.conf;
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+        types { } default_type "application/javascript";
+        try_files \$uri =404;
+    }
+
+    # --- Web app manifest: correct MIME type + short cache -------------------
+    location = /manifest.webmanifest {
+        include ${NGINX_ROOT}/snippets/sipi-security-headers.conf;
+        add_header Cache-Control "public, max-age=3600";
+        types { } default_type "application/manifest+json";
+        try_files \$uri =404;
+    }
+
+    # --- Offline fallback page: revalidate so edits show up ------------------
+    location = /offline.html {
         include ${NGINX_ROOT}/snippets/sipi-security-headers.conf;
         add_header Cache-Control "no-cache";
         try_files \$uri =404;

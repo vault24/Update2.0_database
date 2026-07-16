@@ -1,0 +1,82 @@
+{
+  "id": "/",
+  "name": "SIPI Student Portal — Sirajganj Government Polytechnic Institute",
+  "short_name": "SIPI Portal",
+  "description": "Official student & teacher portal of Sirajganj Government Polytechnic Institute. Manage admissions, track attendance and marks, view notices, class routines and documents — installable and available offline.",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["education", "productivity"],
+  "scope": "/",
+  "start_url": "/?source=pwa",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "theme_color": "#059669",
+  "background_color": "#ffffff",
+  "prefer_related_applications": false,
+  "icons": [
+    { "src": "/icons/icon-72.png", "sizes": "72x72", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-96.png", "sizes": "96x96", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-128.png", "sizes": "128x128", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-144.png", "sizes": "144x144", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-152.png", "sizes": "152x152", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-384.png", "sizes": "384x384", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/screenshot-narrow-1.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "SIPI Student Portal home"
+    },
+    {
+      "src": "/screenshots/screenshot-narrow-2.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Attendance, marks and notices at a glance"
+    },
+    {
+      "src": "/screenshots/screenshot-wide-1.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "SIPI Student Portal on desktop"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "Open your dashboard",
+      "url": "/dashboard?source=pwa-shortcut",
+      "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96", "type": "image/png" }]
+    },
+    {
+      "name": "Attendance",
+      "short_name": "Attendance",
+      "description": "View your attendance",
+      "url": "/dashboard/attendance?source=pwa-shortcut",
+      "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96", "type": "image/png" }]
+    },
+    {
+      "name": "Marks",
+      "short_name": "Marks",
+      "description": "View your academic marks",
+      "url": "/dashboard/marks?source=pwa-shortcut",
+      "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96", "type": "image/png" }]
+    },
+    {
+      "name": "Notices",
+      "short_name": "Notices",
+      "description": "Read the latest notices",
+      "url": "/dashboard/notices?source=pwa-shortcut",
+      "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96", "type": "image/png" }]
+    }
+  ]
+}

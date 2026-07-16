@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import api, { setAuthErrorHandler } from '@/lib/api';
+import { purgeSWCaches } from '@/pwa/swMessaging';
 
 export type UserRole = 'student' | 'captain' | 'teacher' | 'alumni';
 export type AdmissionStatus = 'not_started' | 'pending' | 'approved' | 'rejected';
@@ -544,6 +545,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('hasLoggedOut', 'true');
 
     clearUser();
+
+    // Drop any SW-cached reference data/images so nothing lingers for the next
+    // person on a shared device (privacy hygiene; best-effort).
+    void purgeSWCaches();
 
     try {
       await api.post('/auth/logout/', {});
