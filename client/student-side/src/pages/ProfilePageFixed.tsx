@@ -59,19 +59,20 @@ export function ProfilePageFixed() {
       return null;
     };
 
-    // Use auth-provided student ID first (from /auth/me) so student-side
-    // profile shows the same primary identifier used across auth/admin flows.
-    const normalizedFallback = clean(fallbackId);
-    if (normalizedFallback) return normalizedFallback;
-
+    // The COLLEGE roll (`currentRollNumber`) is the authoritative identifier the
+    // admin manages — it must win. Previously the stale `student_id` from
+    // /auth/me was preferred, so a profile kept showing the roll the account was
+    // created with even after an admin changed it. `rollNumber` here is the SSC
+    // board roll (educational background), not the college roll, so it comes
+    // after. The auth fallback is last-resort only.
     const candidates = [
-      data?.rollNumber,
-      data?.roll_number,
       data?.currentRollNumber,
       data?.current_roll_number,
+      data?.rollNumber,
+      data?.roll_number,
     ];
     const normalizedCandidates = candidates.map(clean).filter(Boolean) as string[];
-    return normalizedCandidates[0] || null;
+    return normalizedCandidates[0] || clean(fallbackId) || null;
   };
 
   useEffect(() => {
@@ -349,7 +350,10 @@ export function ProfilePageFixed() {
                   bloodGroup: studentData?.bloodGroup,
                 }}
                 academicInfo={{
-                  department: studentData?.departmentName || user?.department || 'N/A',
+                  // department is a nested object ({id,name,code}) from the API;
+                  // departmentName is usually null, so the object's name must be
+                  // read too — otherwise this silently fell back to 'N/A'.
+                  department: studentData?.departmentName || studentData?.department?.name || user?.department || 'N/A',
                   session: studentData?.session || '2024-25',
                   semester: studentData?.semester || user?.semester || 1,
                   shift: studentData?.shift || '1st Shift',

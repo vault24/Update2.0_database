@@ -290,7 +290,7 @@ install_system_packages() {
   retry apt-get install -y \
     python3 python3-venv python3-dev build-essential libpq-dev \
     postgresql postgresql-contrib redis-server nginx git curl \
-    ca-certificates gnupg ufw openssl
+    ca-certificates gnupg ufw openssl acl
 
   if (( SSL_ON )); then retry apt-get install -y certbot; fi
 
@@ -1176,6 +1176,19 @@ fix_permissions() {
   chown -R "${RUN_AS_USER}:${RUN_AS_USER}" "${PROJECT_PATH}"
   mkdir -p "${SERVER_DIR}/storage" "${SERVER_DIR}/media" "${SERVER_DIR}/staticfiles"
   chmod -R u+rwX,g+rX,o-rwx "${SERVER_DIR}/storage" "${SERVER_DIR}/media"
+
+  # Default ACLs so the app user can ALWAYS read the document/media store, even
+  # when files land with a different owner — e.g. a data restore or an rsync run
+  # as a login user. Without this, such files return 500 (PermissionError) from
+  # SecureFileView and profile photos / documents silently break until the next
+  # service restart re-runs the chown. The `d:` (default) entry makes every
+  # future file inherit the grant automatically.
+  if command -v setfacl >/dev/null 2>&1; then
+    setfacl -R -m "u:${RUN_AS_USER}:rX" -m "d:u:${RUN_AS_USER}:rX" \
+      "${SERVER_DIR}/storage" "${SERVER_DIR}/media" 2>/dev/null \
+      && ok "Storage ACLs: ${RUN_AS_USER} can read regardless of file owner" \
+      || warn "Could not apply storage ACLs (non-fatal)"
+  fi
   # Secrets stay root-only; the Django .env is owner-readable only.
   if [[ -f "${SECRETS_FILE}" ]]; then chown root:root "${SECRETS_FILE}"; chmod 600 "${SECRETS_FILE}"; fi
   if [[ -f "${SERVER_DIR}/.env" ]]; then chown "${RUN_AS_USER}:${RUN_AS_USER}" "${SERVER_DIR}/.env"; chmod 600 "${SERVER_DIR}/.env"; fi

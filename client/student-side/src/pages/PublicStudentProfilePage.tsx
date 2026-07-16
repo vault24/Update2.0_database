@@ -26,11 +26,15 @@ export default function PublicStudentProfilePage() {
   const [instituteSettings, setInstituteSettings] = useState<SystemSettings | null>(null);
 
   const getPreferredRollNumber = (studentData: any): string | null => {
+    // College roll (currentRollNumber) is authoritative and is what the
+    // by-identifier lookup resolves. It must come before the SSC board roll
+    // (rollNumber) so the shareable link points at the current roll, not the
+    // previous/board one.
     const rollCandidates = [
-      studentData?.rollNumber,
-      studentData?.roll_number,
       studentData?.currentRollNumber,
       studentData?.current_roll_number,
+      studentData?.rollNumber,
+      studentData?.roll_number,
     ];
 
     for (const value of rollCandidates) {
