@@ -1,5 +1,16 @@
 from django.contrib import admin
-from .models import Notification, NotificationPreference, NotificationPreferenceType, DeliveryLog
+from .models import (
+    Notification, NotificationPreference, NotificationPreferenceType, DeliveryLog,
+    WebPushSubscription,
+)
+
+
+@admin.register(WebPushSubscription)
+class WebPushSubscriptionAdmin(admin.ModelAdmin):
+    list_display = ('user', 'is_active', 'failure_count', 'created_at', 'last_used_at')
+    list_filter = ('is_active', 'created_at')
+    search_fields = ('user__username', 'endpoint', 'user_agent')
+    readonly_fields = ('created_at', 'last_used_at', 'endpoint', 'p256dh', 'auth', 'user_agent')
 
 
 @admin.register(Notification)

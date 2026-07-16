@@ -34,6 +34,7 @@ NOTIFICATION_STATUS = [
 DELIVERY_CHANNELS = [
     ('in_app', 'In-App'),
     ('email', 'Email'),
+    ('push', 'Web Push'),
 ]
 
 # Delivery status choices
@@ -159,3 +160,41 @@ class DeliveryLog(models.Model):
 
     def __str__(self):
         return f"{self.notification.title} - {self.channel} - {self.status}"
+
+
+class WebPushSubscription(models.Model):
+    """
+    A browser/PWA Web Push subscription for a user's device.
+
+    One user can have many (phone, laptop, installed PWA…). The endpoint is the
+    unique push-service URL; p256dh + auth are the encryption keys the push
+    service needs. Invalid endpoints (404/410 from the push service) are pruned
+    automatically by the push service, so this table stays clean.
+    """
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='push_subscriptions'
+    )
+    endpoint = models.TextField(unique=True)
+    p256dh = models.CharField(max_length=255)
+    auth = models.CharField(max_length=255)
+    user_agent = models.CharField(max_length=400, blank=True, default='')
+    is_active = models.BooleanField(default=True)
+    failure_count = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'is_active']),
+        ]
+
+    def __str__(self):
+        return f"PushSub({self.user_id}) {self.endpoint[:40]}…"
+
+    def as_subscription_info(self):
+        """Shape pywebpush expects: {endpoint, keys:{p256dh, auth}}."""
+        return {
+            "endpoint": self.endpoint,
+            "keys": {"p256dh": self.p256dh, "auth": self.auth},
+        }

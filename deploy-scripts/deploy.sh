@@ -148,6 +148,59 @@ ensure_secrets() {
     warn "outgoing email (OTP, password reset, notifications) is DISABLED"
     warn "until you fill them in and re-run:  sudo ./deploy.sh --backend"
   fi
+
+  # Web Push (VAPID) keys: generate ONCE and persist so existing device
+  # subscriptions keep working across deploys. Reuse an existing pair from
+  # server/.env if present (older installs), else generate with openssl (always
+  # available; no Python packages needed at this early stage).
+  if [[ -z "${VAPID_PRIVATE_KEY:-}" ]]; then
+    local existing_pub="" existing_priv=""
+    if [[ -f "${PROJECT_PATH}/server/.env" ]]; then
+      existing_pub="$(grep '^VAPID_PUBLIC_KEY=' "${PROJECT_PATH}/server/.env" 2>/dev/null | cut -d= -f2- || true)"
+      existing_priv="$(grep '^VAPID_PRIVATE_KEY=' "${PROJECT_PATH}/server/.env" 2>/dev/null | cut -d= -f2- || true)"
+    fi
+    if [[ -n "${existing_priv}" && -n "${existing_pub}" ]]; then
+      VAPID_PUBLIC_KEY="${existing_pub}"
+      VAPID_PRIVATE_KEY="${existing_priv}"
+    else
+      local vapid_out=""
+      vapid_out="$(gen_vapid_keys || true)"
+      VAPID_PUBLIC_KEY="$(printf '%s\n' "${vapid_out}" | sed -n 1p)"
+      VAPID_PRIVATE_KEY="$(printf '%s\n' "${vapid_out}" | sed -n 2p)"
+    fi
+    if [[ -n "${VAPID_PRIVATE_KEY}" && -n "${VAPID_PUBLIC_KEY}" ]]; then
+      set_config VAPID_PUBLIC_KEY "${VAPID_PUBLIC_KEY}"
+      set_config VAPID_PRIVATE_KEY "${VAPID_PRIVATE_KEY}"
+      ok "Web Push (VAPID) keys persisted to config.env"
+    else
+      warn "Could not generate VAPID keys (openssl missing?) — Web Push is DISABLED"
+      warn "until keys are set. The rest of the notification system is unaffected."
+    fi
+  fi
+}
+
+# Generate an EC P-256 VAPID keypair. Emits two lines: public then private, both
+# base64url. Uses openssl for key material + Python stdlib for encoding (both
+# always present); no cryptography package required. Returns non-zero on failure.
+gen_vapid_keys() {
+  command -v openssl >/dev/null 2>&1 || return 1
+  local pem text priv_hex pub_hex
+  pem="$(openssl ecparam -name prime256v1 -genkey -noout 2>/dev/null)" || return 1
+  text="$(printf '%s\n' "${pem}" | openssl ec -noout -text 2>/dev/null)" || return 1
+  priv_hex="$(printf '%s\n' "${text}" | awk '/priv:/{f=1;next} /pub:/{f=0} f' | tr -cd '0-9a-f')"
+  pub_hex="$(printf '%s\n' "${text}" | awk '/pub:/{f=1;next} /ASN1|NIST|Field/{f=0} f' | tr -cd '0-9a-f')"
+  priv_hex="${priv_hex: -64}"   # drop any leading pad byte -> 32 bytes
+  python3 - "${pub_hex}" "${priv_hex}" <<'PY'
+import sys, base64, binascii
+pub_hex, priv_hex = sys.argv[1], sys.argv[2]
+try:
+    pub, priv = binascii.unhexlify(pub_hex), binascii.unhexlify(priv_hex)
+    assert len(pub) == 65 and pub[0] == 4 and len(priv) == 32
+except Exception:
+    sys.exit(1)
+b64u = lambda b: base64.urlsafe_b64encode(b).rstrip(b'=').decode()
+print(b64u(pub)); print(b64u(priv))
+PY
 }
 
 # ---------------------------------------------------------------------------
@@ -380,6 +433,14 @@ PASSWORD_RESET_RATE_LIMIT_PER_HOUR=3
 # --- Google Sign-In (student portal) ------------------------------------------
 # Public OAuth Web Client ID; empty disables the "Continue with Google" flow.
 GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID:-}
+
+# --- Web Push (VAPID) ---------------------------------------------------------
+# Generated once into config.env (never regenerated, so device subscriptions
+# survive deploys). Empty = push disabled; the rest of notifications still work.
+# The client fetches the public key from /api/push/vapid-public-key/.
+VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
+VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
+VAPID_SUBJECT=${VAPID_SUBJECT:-mailto:${CONTACT_EMAIL:-admin@${STUDENT_DOMAIN:-spisg.gov.bd}}}
 EOF
 
   chown "${RUN_AS_USER}:${RUN_AS_USER}" "${env_file}"

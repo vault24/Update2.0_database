@@ -42,3 +42,8 @@ whitenoise==6.6.0
 # --- System monitoring (System Reports dashboard: CPU / memory metrics) ---
 # Optional at runtime: the health endpoint degrades gracefully if missing.
 psutil==5.9.8
+
+# --- Web Push (VAPID) — real mobile/desktop push notifications for the PWA ---
+# Standard Web Push protocol (no Firebase). Optional at runtime: if VAPID keys
+# are unset, push is disabled and the rest of the notification system is fine.
+pywebpush==2.3.0

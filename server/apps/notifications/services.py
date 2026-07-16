@@ -61,7 +61,27 @@ class NotificationService:
         # update instantly (this is what lets the frontend stop polling).
         NotificationService._push_realtime(notification)
 
+        # Send a real OS-level Web Push so it arrives even when the site/PWA is
+        # closed. Best-effort; disabled automatically when VAPID isn't set.
+        NotificationService._push_webpush(notification)
+
         return notification
+
+    @staticmethod
+    def _push_webpush(notification):
+        """
+        Fire a Web Push (VAPID) to the recipient's devices. Best-effort: any
+        failure is logged and swallowed so it can never break notification
+        creation, the DB record, the websocket update, or emails.
+        """
+        try:
+            from .push_service import send_push_for_notification
+            send_push_for_notification(notification)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Web push failed for notification %s: %s",
+                getattr(notification, "id", None), exc,
+            )
 
     @staticmethod
     def _push_realtime(notification):

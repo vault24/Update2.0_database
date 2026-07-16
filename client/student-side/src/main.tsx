@@ -25,3 +25,24 @@ createRoot(document.getElementById("root")!).render(
     </AuthProvider>
   </ThemeProvider>
 );
+
+// Fade out the launch screen once React has painted its first frame. A short
+// minimum keeps it from flashing on fast loads; two rAFs ensure the app has
+// actually painted underneath before we reveal it.
+(function hideLaunchScreen() {
+  const MIN_VISIBLE_MS = 500;
+  const start = performance.now();
+  const remove = () => {
+    const splash = document.getElementById("app-splash");
+    if (!splash) return;
+    if (window.__SIPI_SPLASH_TIMEOUT__) window.clearTimeout(window.__SIPI_SPLASH_TIMEOUT__);
+    splash.classList.add("app-splash--hide");
+    // Drop the node after the fade so it never intercepts events.
+    window.setTimeout(() => splash.remove(), 500);
+  };
+  const afterPaint = () => {
+    const wait = Math.max(0, MIN_VISIBLE_MS - (performance.now() - start));
+    window.setTimeout(remove, wait);
+  };
+  requestAnimationFrame(() => requestAnimationFrame(afterPaint));
+})();

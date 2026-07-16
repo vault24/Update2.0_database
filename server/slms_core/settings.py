@@ -497,3 +497,14 @@ SYSTEM_REPORTS_DISK_ALERT_PERCENT = 90
 OTP_EXPIRY_MINUTES = config('OTP_EXPIRY_MINUTES', default=10, cast=int)
 OTP_MAX_ATTEMPTS = config('OTP_MAX_ATTEMPTS', default=3, cast=int)
 PASSWORD_RESET_RATE_LIMIT_PER_HOUR = config('PASSWORD_RESET_RATE_LIMIT_PER_HOUR', default=3, cast=int)
+
+# --------------------------------------------------
+# WEB PUSH (VAPID) — standard Web Push, no Firebase required.
+# Keys are generated once by deploy.sh into config.env (persisted, never
+# regenerated so existing subscriptions keep working). When unset, push is
+# simply disabled and the rest of the notification system is unaffected.
+# VAPID_SUBJECT must be a mailto: or https: contact URL per the spec.
+# --------------------------------------------------
+VAPID_PUBLIC_KEY = config('VAPID_PUBLIC_KEY', default='')
+VAPID_PRIVATE_KEY = config('VAPID_PRIVATE_KEY', default='')
+VAPID_SUBJECT = config('VAPID_SUBJECT', default='mailto:admin@spisg.gov.bd')

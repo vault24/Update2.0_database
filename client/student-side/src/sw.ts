@@ -213,40 +213,144 @@ self.addEventListener('activate', (event) => {
 clientsClaim();
 
 // ── Push notifications (infrastructure; backend push can be added later) ─────
+interface PushPayload {
+  title?: string;
+  body?: string;
+  url?: string;
+  tag?: string;
+  icon?: string;
+  badge?: string;
+  image?: string;
+  vibrate?: number[];
+  renotify?: boolean;
+  requireInteraction?: boolean;
+  notificationId?: number | string;
+  type?: string;
+}
+
+// The DOM/WebWorker NotificationOptions lib type lags the platform; declare the
+// richer fields we use so TS is happy without `any`.
+interface RichNotificationOptions extends NotificationOptions {
+  actions?: { action: string; title: string; icon?: string }[];
+  image?: string;
+  vibrate?: number[];
+  renotify?: boolean;
+  timestamp?: number;
+  requireInteraction?: boolean;
+}
+
 self.addEventListener('push', (event) => {
-  let payload: { title?: string; body?: string; url?: string; tag?: string } = {};
+  let payload: PushPayload = {};
   try {
-    payload = event.data ? event.data.json() : {};
+    payload = event.data ? (event.data.json() as PushPayload) : {};
   } catch {
     payload = { body: event.data?.text() };
   }
+
   const title = payload.title || 'SIPI Student Portal';
-  const options: NotificationOptions = {
+  const targetUrl = payload.url || '/dashboard/notifications';
+  // Standard notification actions: a primary "Open" plus a dismiss. Android
+  // renders these as buttons; platforms that don't support actions ignore them.
+  const options: RichNotificationOptions = {
     body: payload.body || 'You have a new notification.',
-    icon: '/icons/icon-192.png',
-    badge: '/icons/icon-96.png',
-    tag: payload.tag,
-    data: { url: payload.url || '/dashboard/notifications' },
+    icon: payload.icon || '/icons/icon-192.png',
+    badge: payload.badge || '/icons/icon-96.png',
+    image: payload.image || undefined,
+    tag: payload.tag || 'sipi-notification',
+    renotify: payload.renotify ?? true,
+    requireInteraction: payload.requireInteraction ?? false,
+    // Vibrate: falls back to a gentle double-buzz if the server omits it.
+    vibrate: payload.vibrate && payload.vibrate.length ? payload.vibrate : [120, 60, 120],
+    timestamp: Date.now(),
+    data: {
+      url: targetUrl,
+      notificationId: payload.notificationId,
+      type: payload.type,
+    },
+    actions: [
+      { action: 'open', title: 'Open' },
+      { action: 'dismiss', title: 'Dismiss' },
+    ],
   };
-  event.waitUntil(self.registration.showNotification(title, options));
+
+  event.waitUntil(
+    (async () => {
+      await self.registration.showNotification(title, options);
+      // Let any open client refresh its in-app list/badge immediately.
+      const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const client of clients) {
+        client.postMessage({ type: 'PUSH_RECEIVED', payload });
+      }
+    })(),
+  );
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  if (event.action === 'dismiss') return;
+
   const targetUrl = (event.notification.data && event.notification.data.url) || '/dashboard/notifications';
   event.waitUntil(
     (async () => {
       const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      // Focus an already-open window (prefer one already on the target URL).
+      let fallback: WindowClient | null = null;
       for (const client of allClients) {
         if ('focus' in client) {
-          client.postMessage({ type: 'NOTIFICATION_CLICK', url: targetUrl });
-          return client.focus();
+          fallback = client as WindowClient;
+          const sameOrigin = new URL(client.url).origin === self.location.origin;
+          if (sameOrigin) {
+            (client as WindowClient).postMessage({ type: 'NOTIFICATION_CLICK', url: targetUrl });
+            return (client as WindowClient).focus();
+          }
         }
       }
+      if (fallback) {
+        fallback.postMessage({ type: 'NOTIFICATION_CLICK', url: targetUrl });
+        return fallback.focus();
+      }
+      // App is closed → open a new window at the destination.
       return self.clients.openWindow(targetUrl);
     })(),
   );
 });
+
+// Push service rotated the subscription (token refresh). Re-subscribe with the
+// same VAPID key and hand the new subscription to any open client to persist
+// (the client has the session + CSRF token). If none are open, the app re-syncs
+// on next launch and the stale endpoint is pruned on its next 410. Uses relative
+// /api which is same-origin in production.
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil(
+    (async () => {
+      try {
+        const res = await fetch('/api/push/vapid-public-key/');
+        const info = (await res.json()) as { enabled?: boolean; public_key?: string };
+        if (!info.enabled || !info.public_key) return;
+        const key = urlBase64ToUint8Array(info.public_key);
+        const sub = await self.registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: key,
+        });
+        const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        for (const client of clients) {
+          client.postMessage({ type: 'PUSH_RESUBSCRIBED', subscription: sub.toJSON() });
+        }
+      } catch {
+        // best-effort; next app launch re-syncs
+      }
+    })(),
+  );
+});
+
+function urlBase64ToUint8Array(base64: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64.length % 4)) % 4);
+  const b64 = (base64 + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(b64);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
 
 // Allow the app to purge cached reference data on logout (privacy hygiene).
 self.addEventListener('message', (event) => {

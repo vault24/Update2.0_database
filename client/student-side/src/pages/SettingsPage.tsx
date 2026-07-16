@@ -46,6 +46,12 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
+import {
+  ensurePushSubscription,
+  unsubscribeFromPush,
+  pushSupported,
+  notificationPermission,
+} from '@/pwa/notifications';
 
 interface SocialLink {
   id: string;
@@ -210,6 +216,40 @@ export default function SettingsPage() {
       toast.error('Failed to update preference');
       // Revert on error
       setNotifications(notifications);
+    }
+  };
+
+  // The "Push Notifications" toggle drives a REAL Web Push subscription for
+  // this device (not just a stored preference): turning it on requests
+  // permission + subscribes + registers the token with Django; off unsubscribes.
+  const handlePushToggle = async () => {
+    const turningOn = !notifications.push;
+    if (turningOn && !pushSupported()) {
+      toast.message('Push notifications are not supported on this browser.');
+      return;
+    }
+    setNotifications((prev) => ({ ...prev, push: turningOn }));
+    try {
+      if (turningOn) {
+        const ok = await ensurePushSubscription(true);
+        if (!ok) {
+          setNotifications((prev) => ({ ...prev, push: false }));
+          toast.message(
+            notificationPermission() === 'denied'
+              ? 'Notifications are blocked. Enable them in your browser site settings.'
+              : 'Could not enable push notifications.',
+          );
+          return;
+        }
+        toast.success('Push notifications enabled on this device');
+      } else {
+        await unsubscribeFromPush();
+        toast.success('Push notifications disabled on this device');
+      }
+      await settingsService.updatePreferences({ notifications: { ...notifications, push: turningOn } });
+    } catch {
+      setNotifications((prev) => ({ ...prev, push: !turningOn }));
+      toast.error('Failed to update push notifications');
     }
   };
 
@@ -844,9 +884,9 @@ export default function SettingsPage() {
                     <p className="text-sm text-muted-foreground">Browser push notifications</p>
                   </div>
                 </div>
-                <Switch 
-                  checked={notifications.push} 
-                  onCheckedChange={() => handleNotificationChange('push')}
+                <Switch
+                  checked={notifications.push}
+                  onCheckedChange={handlePushToggle}
                 />
               </div>
 
