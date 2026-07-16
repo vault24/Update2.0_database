@@ -83,7 +83,7 @@ export default function LiveClassesPage() {
     <motion.div
       initial={false}
       animate={{ opacity: 1, y: 0 }}
-      className="min-h-screen bg-background max-w-full overflow-x-hidden"
+      className="min-h-screen bg-background max-w-full overflow-x-clip"
     >
       {/* Beautiful Header */}
       <div className="relative overflow-hidden bg-gradient-to-br from-destructive/15 via-primary/10 to-accent/5 border-b border-border">

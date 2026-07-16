@@ -246,7 +246,7 @@ export default function MarksPage() {
   // Admission not complete — show page shell with banner
   if (admissionIncomplete) {
     return (
-      <div className="space-y-4 md:space-y-6 max-w-full overflow-x-hidden">
+      <div className="space-y-4 md:space-y-6 max-w-full overflow-x-clip">
         <AdmissionBanner />
         <div className="opacity-40 pointer-events-none select-none space-y-4 md:space-y-6">
           {/* Placeholder header */}
@@ -284,7 +284,7 @@ export default function MarksPage() {
   }
 
   return (
-    <div className="space-y-4 md:space-y-6 max-w-full overflow-x-hidden">
+    <div className="space-y-4 md:space-y-6 max-w-full overflow-x-clip">
       {/* Page Header */}
       <motion.div
         initial={false}

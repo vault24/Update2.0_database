@@ -185,7 +185,15 @@ export function DashboardLayout() {
         <MaintenanceNoticeBanner />
 
         {/* Main Content */}
-        <main className="flex-1 overflow-x-hidden overflow-y-auto p-4 md:p-6 lg:p-8">
+        {/* `overflow-x: clip` (not `hidden`): per spec `overflow-x: hidden`
+            forces `overflow-y` to compute to `auto`, which made this a nested
+            scroll container inside the document scroller. Stacked under the
+            sticky header, that mis-invalidated repaints on Android GPUs and
+            smeared content trails down the page. `clip` still clips sideways
+            but creates no scroller. The document is the only vertical scroller
+            (the column is min-h-screen, so main was never height-bounded and
+            `overflow-y-auto` could not actually scroll anything). */}
+        <main className="flex-1 overflow-x-clip p-4 md:p-6 lg:p-8">
           <div className="mx-auto min-w-0 max-w-7xl">
             <ErrorBoundary>
               <Outlet />

@@ -74,7 +74,7 @@ export default function TeacherContactsPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-full overflow-x-hidden">
+    <div className="space-y-6 max-w-full overflow-x-clip">
       {/* Header */}
       <motion.div
         initial={false}

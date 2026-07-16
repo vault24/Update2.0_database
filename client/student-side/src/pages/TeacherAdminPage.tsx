@@ -138,7 +138,7 @@ export default function TeacherAdminPage({
   showOnlyLiveClasses = false 
 }: TeacherAdminPageProps) {
   // Mobile-friendly wrapper classes
-  const mobileWrapperClass = "max-w-full overflow-x-hidden";
+  const mobileWrapperClass = "max-w-full overflow-x-clip";
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(defaultTab);
   const [searchQuery, setSearchQuery] = useState("");
@@ -482,7 +482,7 @@ export default function TeacherAdminPage({
     <motion.div
       initial={false}
       animate={{ opacity: 1, y: 0 }}
-      className="min-h-screen bg-background max-w-full overflow-x-hidden"
+      className="min-h-screen bg-background max-w-full overflow-x-clip"
     >
       {/* Header */}
       <div className="relative overflow-hidden bg-gradient-to-br from-primary/20 via-accent/10 to-success/5 border-b border-border">

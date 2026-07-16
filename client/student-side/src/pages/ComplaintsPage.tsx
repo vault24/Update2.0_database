@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   Clock, Eye, Loader2, CheckCircle, GraduationCap, Monitor, Building,
   Send, MessageSquare, Calendar, ChevronDown, ChevronUp, Search,
@@ -268,11 +268,16 @@ export default function ComplaintsPage() {
     <motion.div
       initial={false}
       animate={{ opacity: 1, y: 0 }}
-      className="space-y-6 max-w-full overflow-x-hidden"
+      className="space-y-6 max-w-full overflow-x-clip"
     >
       <div className="relative overflow-hidden bg-gradient-to-br from-destructive/10 via-orange-500/5 to-amber-500/10 rounded-2xl border border-destructive/20 p-6">
-        <div className="absolute -top-12 -right-12 w-48 h-48 bg-destructive/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-8 -left-8 w-32 h-32 bg-orange-500/10 rounded-full blur-2xl" />
+        {/* Decorative only — lg+ only. A large `filter: blur()` orb is a
+            GPU-blurred composited layer; inside this `overflow-hidden` hero it
+            left smeared colour trails while scrolling on Android. Hidden (not
+            `blur-0`) below lg: `blur-0` still applies a filter and still gets
+            its own layer. The gradient alone carries the hero on mobile. */}
+        <div className="hidden lg:block absolute -top-12 -right-12 w-48 h-48 bg-destructive/10 rounded-full blur-3xl" />
+        <div className="hidden lg:block absolute -bottom-8 -left-8 w-32 h-32 bg-orange-500/10 rounded-full blur-2xl" />
 
         <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
@@ -515,18 +520,20 @@ export default function ComplaintsPage() {
 
           {['all', 'pending', 'in_progress', 'resolved'].map((tab) => (
             <TabsContent key={tab} value={tab} className="space-y-3 mt-4">
-              <AnimatePresence mode="popLayout">
+              {/* Plain divs, no AnimatePresence: `initial={false}` already meant
+                  these never animated in, so the motion wrappers only cost. The
+                  `layout` prop re-measured and transformed every card on every
+                  render, and `mode="popLayout"` absolutely-positions exiting
+                  cards — both are transform/rAF driven and left ghost trails
+                  when the main thread stalled mid-scroll on Android. */}
+              <>
                 {filteredComplaints(tab).length === 0 ? (
-                  <motion.div
-                    initial={false}
-                    animate={{ opacity: 1 }}
-                    className="text-center py-12"
-                  >
+                  <div className="text-center py-12">
                     <FileText className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
                     <p className="text-muted-foreground">No reports found</p>
-                  </motion.div>
+                  </div>
                 ) : (
-                  filteredComplaints(tab).map((complaint, idx) => {
+                  filteredComplaints(tab).map((complaint) => {
                     const status = statusConfig[complaint.status];
                     const StatusIcon = status.icon;
                     const catConfig = categoryConfig[complaint.category];
@@ -534,14 +541,7 @@ export default function ComplaintsPage() {
                     const isExpanded = expandedId === complaint.rawId;
 
                     return (
-                      <motion.div
-                        key={complaint.rawId}
-                        initial={false}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        transition={{ delay: idx * 0.03 }}
-                        layout
-                      >
+                      <div key={complaint.rawId}>
                         <Card className="overflow-hidden border-border/50 hover:shadow-md transition-shadow">
                           <Collapsible open={isExpanded} onOpenChange={() => setExpandedId(isExpanded ? null : complaint.rawId)}>
                             <CardContent className="p-0">
@@ -582,11 +582,7 @@ export default function ComplaintsPage() {
                               </CollapsibleTrigger>
 
                               <CollapsibleContent>
-                                <motion.div
-                                  initial={false}
-                                  animate={{ opacity: 1 }}
-                                  className="px-4 pb-4 pt-0 border-t border-border/50 mt-0"
-                                >
+                                <div className="px-4 pb-4 pt-0 border-t border-border/50 mt-0">
                                   <div className="pt-4 space-y-4">
                                     <div>
                                       <h4 className="text-xs font-medium text-muted-foreground mb-1">Full Description</h4>
@@ -608,16 +604,16 @@ export default function ComplaintsPage() {
                                       <span>Updated: {format(new Date(complaint.updatedAt), 'PPpp')}</span>
                                     </div>
                                   </div>
-                                </motion.div>
+                                </div>
                               </CollapsibleContent>
                             </CardContent>
                           </Collapsible>
                         </Card>
-                      </motion.div>
+                      </div>
                     );
                   })
                 )}
-              </AnimatePresence>
+              </>
             </TabsContent>
           ))}
         </Tabs>

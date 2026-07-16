@@ -118,7 +118,7 @@ export function AlumniDashboard() {
   const topSkills = (profile?.skills || []).slice().sort((a, b) => (b.proficiency || 0) - (a.proficiency || 0)).slice(0, 5);
 
   return (
-    <div className="space-y-5 md:space-y-6 max-w-full overflow-x-hidden pb-8">
+    <div className="space-y-5 md:space-y-6 max-w-full overflow-x-clip pb-8">
       {/* ── Hero welcome ─────────────────────────────────────────── */}
       <motion.div
         {...fadeUp}

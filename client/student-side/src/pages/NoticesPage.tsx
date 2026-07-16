@@ -233,7 +233,7 @@ export default function NoticesPage() {
   if (error) return <ErrorState error={error} onRetry={loadNotices} />;
 
   return (
-    <div className="max-w-full space-y-5 overflow-x-hidden md:space-y-6">
+    <div className="max-w-full space-y-5 overflow-x-clip md:space-y-6">
       {/* ── Header ── */}
       <motion.div
         initial={false}

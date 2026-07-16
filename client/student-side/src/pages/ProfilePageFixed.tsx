@@ -260,7 +260,7 @@ export function ProfilePageFixed() {
   };
 
   return (
-    <div className="space-y-4 md:space-y-6 max-w-full overflow-x-hidden">
+    <div className="space-y-4 md:space-y-6 max-w-full overflow-x-clip">
       {/* Navigation Button for Semester 8 Students */}
       {user?.semester === 8 && (
         <div className="flex justify-end">

@@ -86,7 +86,7 @@ export default function StudyMaterialsPage() {
     <motion.div
       initial={false}
       animate={{ opacity: 1, y: 0 }}
-      className="space-y-6 max-w-full overflow-x-hidden"
+      className="space-y-6 max-w-full overflow-x-clip"
     >
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

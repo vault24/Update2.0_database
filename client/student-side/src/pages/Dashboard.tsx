@@ -498,7 +498,7 @@ export function Dashboard() {
     };
 
     return (
-      <div className="space-y-4 md:space-y-6 max-w-full overflow-x-hidden">
+      <div className="space-y-4 md:space-y-6 max-w-full overflow-x-clip">
         {/* Teacher Welcome Card with embedded stats */}
         <TeacherWelcomeCard stats={teacherStats} />
 
@@ -540,7 +540,7 @@ export function Dashboard() {
   const department = studentData?.student?.department || 'Department';
 
   return (
-    <div className="space-y-5 md:space-y-6 max-w-full overflow-x-hidden pb-8">
+    <div className="space-y-5 md:space-y-6 max-w-full overflow-x-clip pb-8">
       {/* Admission banner — shown when admission incomplete */}
       {admissionIncomplete && <AdmissionBanner />}
 

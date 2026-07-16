@@ -81,7 +81,7 @@ const FORMAT_RULES = [
   {
     label: 'CGPA / GPA',
     accepted: '3.75',
-    wrong: '3.75/4.00',
+    wrong: '0.75/4.00',
     note: '০.০০ – ৫.০০ এর মধ্যে শুধু সংখ্যা।',
   },
   {
@@ -351,7 +351,7 @@ export default function AlumniImportGuide() {
                 </tr>
                 <tr>
                   <td className="px-3 py-2">Zunaiyed Hafiz</td>
-                  <td className="px-3 py-2">CS</td>
+                  <td className="px-3 py-2">CST</td>
                   <td className="px-3 py-2">2020-21</td>
                   <td className="px-3 py-2">2024</td>
                   <td className="px-3 py-2">01812345678</td>
@@ -364,7 +364,7 @@ export default function AlumniImportGuide() {
           <div className="mt-3 flex items-start gap-2 rounded-xl border border-info/30 bg-info/5 p-3 text-sm text-muted-foreground">
             <Info className="mt-0.5 h-4 w-4 shrink-0 text-info" />
             <span>
-              লক্ষ্য করুন: প্রথম সারিতে বিভাগের পুরো নাম, দ্বিতীয় সারিতে কোড (CS) — দুটোই কাজ করে।
+              লক্ষ্য করুন: প্রথম সারিতে বিভাগের পুরো নাম, দ্বিতীয় সারিতে কোড (CST) — দুটোই কাজ করে।
               Company ও Position কলাম দুটি Alumni টেবিলে, বাকিগুলো Student টেবিলে সংরক্ষিত হয়।
             </span>
           </div>

@@ -162,7 +162,7 @@ export default function LearningHubPage() {
     <motion.div
       initial={false}
       animate={{ opacity: 1, y: 0 }}
-      className="min-h-screen bg-background max-w-full overflow-x-hidden"
+      className="min-h-screen bg-background max-w-full overflow-x-clip"
     >
       {/* Beautiful Header */}
       <div className="relative overflow-hidden bg-gradient-to-br from-primary/15 via-accent/10 to-primary/5 border-b border-border">
@@ -286,7 +286,7 @@ export default function LearningHubPage() {
                 initial={false}
                 animate="visible"
                 exit="exit"
-                className="space-y-4 max-w-full overflow-x-hidden"
+                className="space-y-4 max-w-full overflow-x-clip"
               >
                 {/* Subject Selection */}
                 <ScrollArea className="w-full -mx-1 px-1">
@@ -356,7 +356,7 @@ export default function LearningHubPage() {
                 )}
 
                 {/* Activity Timeline */}
-                <div className="max-w-full overflow-x-hidden">
+                <div className="max-w-full overflow-x-clip">
                   <ActivityTimeline activities={filteredActivities} />
                 </div>
 
@@ -379,7 +379,7 @@ export default function LearningHubPage() {
                 initial={false}
                 animate="visible"
                 exit="exit"
-                className="space-y-3 sm:space-y-4 max-w-full overflow-x-hidden"
+                className="space-y-3 sm:space-y-4 max-w-full overflow-x-clip"
               >
                 {/* Stats Overview */}
                 <div className="grid grid-cols-4 gap-1.5 sm:gap-3">

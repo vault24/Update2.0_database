@@ -556,7 +556,7 @@ export default function TeacherAttendancePage() {
   };
 
   return (
-    <div className="space-y-4 pb-28 max-w-full overflow-x-hidden">
+    <div className="space-y-4 pb-28 max-w-full overflow-x-clip">
       <motion.div initial={false} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-4">
         <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
           <ClipboardCheck className="w-7 h-7 text-primary" />

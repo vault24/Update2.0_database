@@ -310,7 +310,7 @@ export default function AddAttendancePage() {
   }
 
   return (
-    <div className="space-y-5 pb-8 max-w-full overflow-x-hidden">
+    <div className="space-y-5 pb-8 max-w-full overflow-x-clip">
       {/* Header */}
       <motion.div initial={false} animate={{ opacity: 1, y: 0 }}>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">

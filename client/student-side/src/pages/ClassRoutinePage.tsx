@@ -515,7 +515,7 @@ export default function ClassRoutinePage() {
   // Admission incomplete — show page shell with banner (students only)
   if (admissionIncomplete && user?.role !== 'teacher') {
     return (
-      <div className="space-y-4 pb-6 max-w-full overflow-x-hidden">
+      <div className="space-y-4 pb-6 max-w-full overflow-x-clip">
         <AdmissionBanner />
         <div className="opacity-40 pointer-events-none select-none space-y-4">
           {/* Placeholder Header */}
@@ -607,7 +607,7 @@ export default function ClassRoutinePage() {
   }
 
   return (
-    <div className="space-y-4 pb-6 max-w-full overflow-x-hidden">
+    <div className="space-y-4 pb-6 max-w-full overflow-x-clip">
       {/* Header */}
       <motion.div
         initial={false}

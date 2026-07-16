@@ -301,7 +301,7 @@ export function DocumentsPage() {
   // Admission not complete — show page shell with banner
   if (admissionIncomplete) {
     return (
-      <div className="space-y-4 md:space-y-6 max-w-full overflow-x-hidden">
+      <div className="space-y-4 md:space-y-6 max-w-full overflow-x-clip">
         <AdmissionBanner />
         <div className="opacity-40 pointer-events-none select-none space-y-4 md:space-y-6">
           <div className="bg-card rounded-lg md:rounded-xl lg:rounded-2xl border border-border p-4 md:p-6 shadow-card">
@@ -330,7 +330,7 @@ export function DocumentsPage() {
     const isDemoError = error.includes('Demo mode') || error.includes('Authentication required');
     
     return (
-      <div className="space-y-4 md:space-y-6 max-w-full overflow-x-hidden">
+      <div className="space-y-4 md:space-y-6 max-w-full overflow-x-clip">
         {/* Header */}
         <motion.div
           initial={false}
@@ -390,7 +390,7 @@ export function DocumentsPage() {
   }
 
   return (
-    <div className="space-y-4 md:space-y-6 max-w-full overflow-x-hidden">
+    <div className="space-y-4 md:space-y-6 max-w-full overflow-x-clip">
       {/* Header */}
       <motion.div
         initial={false}

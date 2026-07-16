@@ -261,7 +261,7 @@ export default function AttendancePage() {
   // When admission is incomplete, show page shell with banner and blurred content
   if (admissionIncomplete) {
     return (
-      <div className="space-y-5 md:space-y-6 max-w-full overflow-x-hidden pb-6">
+      <div className="space-y-5 md:space-y-6 max-w-full overflow-x-clip pb-6">
         <AdmissionBanner />
         <div className="opacity-40 pointer-events-none select-none space-y-5 md:space-y-6">
           {/* Page Header */}
@@ -304,7 +304,7 @@ export default function AttendancePage() {
   }
 
   return (
-    <div className="space-y-5 md:space-y-6 max-w-full overflow-x-hidden pb-6">
+    <div className="space-y-5 md:space-y-6 max-w-full overflow-x-clip pb-6">
       {/* Page Header */}
       <motion.div
         initial={false}

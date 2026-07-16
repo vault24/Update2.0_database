@@ -55,7 +55,7 @@ export default function AssignmentsPage() {
   );
 
   return (
-    <div className="min-h-screen bg-background max-w-full overflow-x-hidden">
+    <div className="min-h-screen bg-background max-w-full overflow-x-clip">
       {/* Header */}
       <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-4 md:p-6 border-b border-border">
         <div className="max-w-4xl mx-auto">
