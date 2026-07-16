@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
+import { formatFinalCgpa } from '@/lib/academics';
 
 interface CareerEntry {
   id: string;
@@ -84,7 +85,7 @@ interface AlumniData {
   currentJob: string;
   company: string;
   location: string;
-  gpa: number;
+  finalCgpa: string;
   avatar: string;
   category: string;
   supportStatus: 'needSupport' | 'needExtraSupport' | 'noSupportNeeded';
@@ -118,8 +119,9 @@ const transformAlumniData = (apiData: AlumniType): AlumniData => {
     currentJob: apiData.currentPosition?.positionTitle || 'Not specified',
     company: apiData.currentPosition?.organizationName || 'Not specified',
     location: apiData.student?.presentAddress?.district || apiData.currentPosition?.location || 'N/A',
-    // Extract GPA from student record (using the highest exam GPA)
-    gpa: apiData.student?.gpa || 0,
+    // Final CGPA — via the shared formatter so the Alumni and Student details
+    // pages can never show different values for the same person.
+    finalCgpa: formatFinalCgpa(apiData.student),
     avatar: apiData.student?.profilePhoto || '',
     category: apiData.alumniType,
     supportStatus: apiData.currentSupportCategory === 'receiving_support' ? 'needSupport' :
@@ -1335,8 +1337,8 @@ export default function AlumniDetails() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
                   <Card className="bg-muted/50">
                     <CardContent className="p-3 text-center">
-                      <p className="text-xs text-muted-foreground">Final GPA</p>
-                      <p className="text-xl font-bold text-primary">{alumni.gpa}</p>
+                      <p className="text-xs text-muted-foreground">Final CGPA</p>
+                      <p className="text-xl font-bold text-primary">{alumni.finalCgpa}</p>
                     </CardContent>
                   </Card>
                   <Card className="bg-muted/50">
@@ -1455,8 +1457,8 @@ export default function AlumniDetails() {
                 <span className="text-sm font-medium">{alumni.roll}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Final GPA</span>
-                <Badge className="gradient-primary text-primary-foreground">{alumni.gpa}</Badge>
+                <span className="text-sm text-muted-foreground">Final CGPA</span>
+                <Badge className="gradient-primary text-primary-foreground">{alumni.finalCgpa}</Badge>
               </div>
               {alumni.higherStudiesInstitute && (
                 <div className="flex justify-between">

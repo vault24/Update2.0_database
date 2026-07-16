@@ -25,6 +25,7 @@ import { getErrorMessage } from '@/lib/api';
 import { LoadingState } from '@/components/LoadingState';
 import { ErrorState } from '@/components/ErrorState';
 import { StudentAccountSection } from '@/components/students/StudentAccountSection';
+import { formatFinalCgpa } from '@/lib/academics';
 
 
 
@@ -801,11 +802,7 @@ export default function StudentDetails() {
                     <CardContent className="p-3 text-center">
                       <p className="text-xs text-muted-foreground">Final CGPA</p>
                       <p className="text-lg font-bold text-success">
-                        {student.finalCgpa != null
-                          ? Number(student.finalCgpa).toFixed(2)
-                          : (student.semesterResults && student.semesterResults.length > 0
-                              ? student.semesterResults[student.semesterResults.length - 1]?.cgpa ?? '-'
-                              : '-')}
+                        {formatFinalCgpa(student)}
                       </p>
                     </CardContent>
                   </Card>

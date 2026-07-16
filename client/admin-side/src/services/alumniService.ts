@@ -58,7 +58,9 @@ export interface Student {
     union?: string;
     village?: string;
   };
-  gpa?: number;
+  gpa?: number;                 // SSC/previous-exam GPA (NOT the diploma CGPA)
+  finalCgpa?: number | string | null;   // cumulative CGPA for the whole diploma
+  semesterResults?: Array<{ semester?: number; gpa?: number | string; cgpa?: number | string }>;
   profilePhoto?: string;
 }
 
