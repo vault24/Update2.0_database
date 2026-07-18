@@ -286,27 +286,13 @@
         .lost-note b { color: #7a4d00; }
 
         .emg-contact {
-            margin-top: 1.4mm;
-            padding-top: 1.2mm;
-            border-top: 0.2mm solid #f0d69a;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 0.3mm;
-        }
-
-        .emg-label {
-            font-size: 4.8px;
+            margin-top: 1mm;
+            display: block;
+            font-size: 5.2px;
             font-weight: 800;
             color: #c0392b;
             text-transform: uppercase;
-            letter-spacing: 0.4px;
-        }
-
-        .emg-number {
-            font-size: 6.8px;
-            font-weight: 800;
-            color: #c0392b;
+            letter-spacing: 0.3px;
         }
 
         /* ======================= CONTROLS ======================= */
@@ -427,8 +413,7 @@
                     institute. This card is the property of Sirajganj Government Polytechnic
                     Institute and is non-transferable.
                     <div class="emg-contact">
-                        <span class="emg-label">EMERGENCY CONTACT</span>
-                        <span class="emg-number">{{EMERGENCY_CONTACT}}</span>
+                        <span class="emg-label">EMERGENCY CONTACT</span> : <span class="emg-number">{{EMERGENCY_CONTACT}}</span>
                     </div>
                 </div>
             </div>
