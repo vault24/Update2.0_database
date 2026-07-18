@@ -91,8 +91,12 @@
             font-size: 5px;
             font-weight: 700;
             letter-spacing: 0.3px;
+            height: 6.5mm;
             min-height: 6.5mm;
-            padding: 1.2mm 4mm;
+            flex-shrink: 0;
+            width: 100%;
+            padding: 0 4mm;
+            margin-top: auto;
         }
 
         /* ======================= FRONT ======================= */
@@ -114,6 +118,8 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
+            overflow: hidden;
+            min-height: 0;
         }
 
         .photo-frame {
@@ -171,7 +177,7 @@
         .row .k { width: 17mm; flex-shrink: 0; font-weight: 700; color: var(--green-dark); }
         .row .v { flex: 1; font-weight: 600; color: var(--ink); word-break: break-word; }
 
-        .sign { width: 100%; margin-top: 2.6mm; padding-top: 1.4mm; text-align: right; }
+        .sign { width: 100%; margin-top: 0mm; padding-top: 1mm; text-align: right; }
 
         .sign-slot {
             height: 4mm;
@@ -193,6 +199,7 @@
             padding: 2mm 4mm 1.6mm;
             display: flex;
             flex-direction: column;
+            min-height: 0;
         }
 
         .watermark {
@@ -277,6 +284,30 @@
         }
 
         .lost-note b { color: #7a4d00; }
+
+        .emg-contact {
+            margin-top: 1.4mm;
+            padding-top: 1.2mm;
+            border-top: 0.2mm solid #f0d69a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.3mm;
+        }
+
+        .emg-label {
+            font-size: 4.8px;
+            font-weight: 800;
+            color: #c0392b;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        .emg-number {
+            font-size: 6.8px;
+            font-weight: 800;
+            color: #c0392b;
+        }
 
         /* ======================= CONTROLS ======================= */
         .controls { position: fixed; top: 16px; right: 16px; z-index: 100; }
@@ -383,10 +414,6 @@
                             <div class="v exp">{{EXPIRY_DATE}}</div>
                         </div>
                     </div>
-                    <div class="field emgrow">
-                        <div class="k">Emergency Contact</div>
-                        <div class="v emg">{{EMERGENCY_CONTACT}}</div>
-                    </div>
                 </div>
 
                 <ul class="bx-rules">
@@ -399,6 +426,10 @@
                     <b>If found</b>, please return this card to the address above or call the
                     institute. This card is the property of Sirajganj Government Polytechnic
                     Institute and is non-transferable.
+                    <div class="emg-contact">
+                        <span class="emg-label">EMERGENCY CONTACT</span>
+                        <span class="emg-number">{{EMERGENCY_CONTACT}}</span>
+                    </div>
                 </div>
             </div>
         </div>
