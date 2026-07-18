@@ -459,7 +459,32 @@ export function DocumentsPage() {
                     variant="accent"
                     size="sm"
                     className="flex-1"
-                    onClick={() => window.open(doc.url, '_blank', 'noopener')}
+                    onClick={async () => {
+                      const student = await studentService.getMe(validProfileId!).catch(() => null);
+                      const roll = student?.currentRollNumber;
+                      if (!roll) {
+                        toast.error('Unable to download', {
+                          description: 'Your roll number is required to download this document.',
+                        });
+                        return;
+                      }
+                      try {
+                        const blob = await applicationService.downloadDocumentBlob(doc.id, roll);
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `${doc.category.replace(/[^a-z0-9]+/gi, '_')}.html`;
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        document.body.removeChild(a);
+                        toast.success('Document downloaded successfully');
+                      } catch (err: any) {
+                        toast.error('Failed to download document', {
+                          description: getErrorMessage(err),
+                        });
+                      }
+                    }}
                   >
                     <Download className="w-4 h-4 mr-1" />
                     Download

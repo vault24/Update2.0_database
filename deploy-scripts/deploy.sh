@@ -676,7 +676,10 @@ add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment
 # script from static.cloudflareinsights.com, RUM POST to cloudflareinsights.com.
 # worker-src/manifest-src added for the PWA service worker + web manifest
 # (worker-src 'self' would otherwise fall back to script-src; explicit is safer).
-add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; worker-src 'self' blob:; manifest-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://fonts.googleapis.com https://fonts.gstatic.com https://cloudflareinsights.com; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'" always;
+# Google Identity Services (Sign in with Google): the gsi client script,
+# its iframe (frame-src), XHRs (connect-src) and injected styles are under
+# https://accounts.google.com/gsi/ — all four must be allow-listed.
+add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://static.cloudflareinsights.com https://accounts.google.com/gsi/client; worker-src 'self' blob:; manifest-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://fonts.googleapis.com https://fonts.gstatic.com https://cloudflareinsights.com https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'" always;
 EOF
 
   # Compression (safe types only; never compress already-compressed media).

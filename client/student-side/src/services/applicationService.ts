@@ -110,6 +110,32 @@ const applicationService = {
   getDocumentUrl(id: string, rollNumber: string): string {
     return `${API_BASE_URL}/applications/${id}/document/?rollNumber=${encodeURIComponent(rollNumber)}`;
   },
+
+  // Fetch the final document as a Blob for a real file download. The document
+  // endpoint renders HTML; `window.open` only *views* it (and is blocked by
+  // popup blockers on mobile), so downloads go through an authenticated fetch
+  // + anchor instead. `download=1` asks the server for an attachment filename.
+  async downloadDocumentBlob(id: string, rollNumber: string): Promise<Blob> {
+    const url =
+      `${API_BASE_URL}/applications/${id}/document/` +
+      `?rollNumber=${encodeURIComponent(rollNumber)}&download=1`;
+    const csrf = document.cookie
+      .split(';')
+      .find((c) => c.trim().startsWith('csrftoken='))
+      ?.split('=')[1] || '';
+    const res = await fetch(url, {
+      method: 'GET',
+      credentials: 'include',
+      headers: { 'X-CSRFToken': csrf },
+    });
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) {
+        throw new Error('Authentication required. Please log in.');
+      }
+      throw new Error('Failed to download document');
+    }
+    return res.blob();
+  },
 };
 
 export default applicationService;

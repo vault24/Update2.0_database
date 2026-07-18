@@ -649,7 +649,18 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                             status=status.HTTP_400_BAD_REQUEST)
 
         html = _render_document_html(application, request)
-        return HttpResponse(html, content_type='text/html')
+        response = HttpResponse(html, content_type='text/html')
+
+        # `?download=1` -> serve as a file attachment so the browser downloads it
+        # instead of only rendering it inline (the student "Download" button).
+        if request.query_params.get('download') in ('1', 'true', 'yes'):
+            template = getattr(application, 'template', None)
+            base = (getattr(template, 'name', None) or application.applicationType or 'document')
+            safe = re.sub(r'[^A-Za-z0-9]+', '_', base).strip('_') or 'document'
+            roll = application.rollNumber or application.registrationNumber or ''
+            filename = f"{safe}_{roll}.html" if roll else f"{safe}.html"
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
 
     # ---- Legacy review ----------------------------------------------------
     @action(detail=True, methods=['put'])

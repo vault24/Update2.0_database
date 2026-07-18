@@ -4,6 +4,7 @@
  */
 
 import { apiClient, PaginatedResponse } from '@/lib/api';
+import { API_BASE_URL } from '@/config/api';
 
 // Types
 export type DocumentCategory = 
@@ -155,8 +156,9 @@ export const documentService = {
    * Get document preview URL
    */
   getDocumentPreviewUrl: (id: string): string => {
-    // Real API URL
-    return `http://localhost:8000/api/documents/${id}/preview/`;
+    // Use the configured API base (was hardcoded to localhost, which broke
+    // "Open in New Tab" and document-based profile pictures in production).
+    return `${API_BASE_URL}/documents/${id}/preview/`;
   },
 
   /**
