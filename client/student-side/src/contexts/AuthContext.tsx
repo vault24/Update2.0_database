@@ -228,6 +228,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } else {
       localStorage.removeItem('relatedProfileId');
     }
+    // Cache the whole user so the app can still render (offline) when the
+    // network validation against /auth/me/ can't be reached. This is what lets
+    // the offline-capable pages (Dashboard, Class Routine) load without a
+    // connection. Cleared on logout / a real auth failure.
+    try {
+      localStorage.setItem('cachedUser', JSON.stringify(built));
+    } catch {
+      /* storage full / disabled — non-fatal */
+    }
   }, []);
 
   /** Clear all client-side auth state (used when the session is gone). */
@@ -235,6 +244,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     localStorage.removeItem('userId');
     localStorage.removeItem('relatedProfileId');
+    localStorage.removeItem('cachedUser');
   }, []);
 
   /**
@@ -309,22 +319,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // log them out (that is their valid admin session) — we simply don't
           // treat them as authenticated here.
           if (!isStudentPortalUser(response.user)) {
-            localStorage.removeItem('userId');
-            localStorage.removeItem('relatedProfileId');
+            clearUser();
           } else {
             const built = await buildUserFromResponse(response.user);
             applyUser(built);
           }
         }
       } catch (error) {
-        localStorage.removeItem('userId');
-        localStorage.removeItem('relatedProfileId');
+        // Distinguish a real sign-out from being offline. Only a genuine auth
+        // failure (401/403) clears the session; a network/offline error keeps
+        // the last-known user (restored from cache) so the installed PWA still
+        // opens straight to the dashboard without a connection.
+        if (isAuthFailure(error)) {
+          clearUser();
+        } else {
+          const cached = localStorage.getItem('cachedUser');
+          if (cached) {
+            try {
+              setUser(JSON.parse(cached) as User);
+            } catch {
+              /* corrupt cache — ignore */
+            }
+          }
+        }
       }
       setLoading(false);
     };
 
     checkAuth();
-  }, [applyUser]);
+  }, [applyUser, clearUser]);
 
   // Keep auth state fresh and the session alive:
   //  - re-validate when the tab regains focus / becomes visible (covers waking

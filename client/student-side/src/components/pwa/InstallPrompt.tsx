@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, X, Share, Plus } from "lucide-react";
 import { isStandalone } from "@/pwa/swMessaging";
+import { canInstall, promptInstall, subscribeInstall } from "@/pwa/installState";
 
 const DISMISS_KEY = "pwa-install-dismissed-until";
 const DISMISS_DAYS = 14;
@@ -45,7 +46,6 @@ function isIOSSafari(): boolean {
  * Never shown when already installed (standalone) or after a recent dismissal.
  */
 export function InstallPrompt() {
-  const deferred = useRef<BeforeInstallPromptEvent | null>(null);
   const [visible, setVisible] = useState(false);
   const [mode, setMode] = useState<"android" | "ios">("android");
   const cardRef = useRef<HTMLDivElement | null>(null);
@@ -53,50 +53,31 @@ export function InstallPrompt() {
   const hide = useCallback(() => setVisible(false), []);
 
   const dismiss = useCallback(() => {
-    remember();
-    hide();
+    remember(); // hide the popup for a while; the deferred prompt stays
+    hide(); //    available for the manual "Install App" button in Settings
   }, [hide]);
 
   const install = useCallback(async () => {
-    const evt = deferred.current;
-    if (!evt) return;
     hide();
-    try {
-      await evt.prompt();
-      const choice = await evt.userChoice;
-      if (choice.outcome === "accepted") {
-        remember(); // installed — don't re-prompt
-      } else {
-        remember(); // declined — respect it for a while
-      }
-    } catch {
-      /* ignore */
-    } finally {
-      deferred.current = null;
-    }
+    remember();
+    await promptInstall(); // consumes the shared deferred prompt
   }, [hide]);
 
   useEffect(() => {
     if (isStandalone() || recentlyDismissed()) return;
 
-    // Android / Chromium path
-    const onBIP = (e: BeforeInstallPromptEvent) => {
-      e.preventDefault(); // stop the mini-infobar; we present our own UI
-      deferred.current = e;
-      setMode("android");
-      // small delay so we never interrupt the very first paint / interaction
-      window.setTimeout(() => setVisible(true), 2500);
+    // Android / Chromium: show our card once a deferred prompt is available.
+    // installState captures the event globally; we just react to it here.
+    const maybeShow = () => {
+      if (canInstall()) {
+        setMode("android");
+        window.setTimeout(() => setVisible(true), 2500);
+      }
     };
-    const onInstalled = () => {
-      remember();
-      setVisible(false);
-      deferred.current = null;
-    };
+    maybeShow();
+    const unsubscribe = subscribeInstall(maybeShow);
 
-    window.addEventListener("beforeinstallprompt", onBIP);
-    window.addEventListener("appinstalled", onInstalled);
-
-    // iOS Safari path (no beforeinstallprompt) — offer manual instructions
+    // iOS Safari path (no beforeinstallprompt) — offer manual instructions.
     let iosTimer: number | undefined;
     if (isIOSSafari()) {
       setMode("ios");
@@ -104,8 +85,7 @@ export function InstallPrompt() {
     }
 
     return () => {
-      window.removeEventListener("beforeinstallprompt", onBIP);
-      window.removeEventListener("appinstalled", onInstalled);
+      unsubscribe();
       if (iosTimer) window.clearTimeout(iosTimer);
     };
   }, []);
@@ -148,7 +128,7 @@ export function InstallPrompt() {
           />
           <div className="min-w-0 flex-1">
             <h2 id="pwa-install-title" className="text-sm font-semibold text-foreground">
-              Install SIPI Portal
+              Install My SGPI
             </h2>
 
             {mode === "android" ? (

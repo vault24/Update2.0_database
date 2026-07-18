@@ -36,7 +36,7 @@ export function PWAUpdatePrompt() {
   useEffect(() => {
     if (offlineReady) {
       toast.success("Ready to work offline", {
-        description: "SIPI Portal is installed and can now be used without a connection.",
+        description: "My SGPI is installed and can now be used without a connection.",
         icon: <CheckCircle2 className="h-4 w-4" />,
         duration: 4000,
         onDismiss: () => setOfflineReady(false),

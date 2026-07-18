@@ -155,7 +155,10 @@ export async function unsubscribeFromPush(): Promise<boolean> {
 /** Send a test push to the current user (verification helper). */
 export async function sendTestPush(): Promise<boolean> {
   try {
-    const res = await apiClient.post<{ success: boolean; sent: number }>("/push/test/", {});
+    const res = await apiClient.post<{ success: boolean; sent: number }>(
+      "/push/test/",
+      {},
+    );
     return !!res.success;
   } catch (error) {
     console.warn("[PWA] test push failed:", getErrorMessage(error));

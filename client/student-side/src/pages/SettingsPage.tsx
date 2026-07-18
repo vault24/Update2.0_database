@@ -9,7 +9,7 @@ import {
   Smartphone, Mail, MessageSquare, Shield,
   Key, Eye, EyeOff, Loader2, Check, UserCog, LogOut, Link2,
   Facebook, Twitter, Linkedin, Github, Instagram, Globe2, Plus, Trash2,
-  ArrowRightLeft, AlertCircle, AlertTriangle
+  ArrowRightLeft, AlertCircle, AlertTriangle, Download, BellRing
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,6 +52,13 @@ import {
   pushSupported,
   notificationPermission,
 } from '@/pwa/notifications';
+import {
+  canInstall,
+  isInstalled,
+  promptInstall,
+  subscribeInstall,
+  isStandalone,
+} from '@/pwa/installState';
 
 interface SocialLink {
   id: string;
@@ -94,6 +101,26 @@ export default function SettingsPage() {
 
   // Language
   const [language, setLanguage] = useState('en');
+
+  // PWA install + push status (for the manual "Install app" / "Enable
+  // notifications" controls, so a user who dismissed the popups can still act).
+  const [installState, setInstallState] = useState({
+    installed: isStandalone(),
+    available: canInstall(),
+  });
+  const [installBusy, setInstallBusy] = useState(false);
+  const [pushState, setPushState] = useState<'unsupported' | 'default' | 'granted' | 'denied'>(
+    pushSupported() ? notificationPermission() : 'unsupported',
+  );
+  const [pushBusy, setPushBusy] = useState(false);
+
+  useEffect(() => {
+    // Keep the install button in sync as the browser offers / completes install.
+    const sync = () => setInstallState({ installed: isInstalled(), available: canInstall() });
+    sync();
+    const unsub = subscribeInstall(sync);
+    return unsub;
+  }, []);
 
   // Password change
   const [showPasswordSection, setShowPasswordSection] = useState(false);
@@ -250,6 +277,91 @@ export default function SettingsPage() {
     } catch {
       setNotifications((prev) => ({ ...prev, push: !turningOn }));
       toast.error('Failed to update push notifications');
+    }
+  };
+
+  const isIOSDevice = () => {
+    if (typeof navigator === 'undefined') return false;
+    return (
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' &&
+        (navigator as unknown as { maxTouchPoints: number }).maxTouchPoints > 1)
+    );
+  };
+
+  // Manual "Install App" button — for users who dismissed the install popup.
+  const handleInstallApp = async () => {
+    if (installState.installed) return;
+    setInstallBusy(true);
+    try {
+      const outcome = await promptInstall();
+      if (outcome === 'accepted') {
+        toast.success('App installed');
+        setInstallState({ installed: true, available: false });
+      } else if (outcome === 'dismissed') {
+        toast.message('Installation cancelled');
+      } else if (isIOSDevice()) {
+        toast.message('To install on iPhone/iPad', {
+          description: 'Tap the Share button, then "Add to Home Screen".',
+          duration: 7000,
+        });
+      } else {
+        toast.message('Install isn’t available right now', {
+          description: 'Your browser hasn’t offered installation yet, or the app is already installed.',
+          duration: 6000,
+        });
+      }
+    } finally {
+      setInstallBusy(false);
+    }
+  };
+
+  // Manual "Enable notifications" button — for users who missed the prompt.
+  const handleEnableNotifications = async () => {
+    if (!pushSupported()) {
+      toast.message('Push notifications are not supported on this browser.');
+      return;
+    }
+    setPushBusy(true);
+    try {
+      const ok = await ensurePushSubscription(true);
+      const perm = notificationPermission();
+      setPushState(perm);
+      if (ok) {
+        setNotifications((prev) => ({ ...prev, push: true }));
+        try {
+          await settingsService.updatePreferences({ notifications: { ...notifications, push: true } });
+        } catch {
+          /* preference save is best-effort */
+        }
+        toast.success('Notifications enabled on this device');
+      } else if (perm === 'denied') {
+        toast.message('Notifications are blocked', {
+          description: 'Enable them in your browser’s site settings for this site, then try again.',
+          duration: 7000,
+        });
+      } else {
+        toast.message('Could not enable notifications. Please try again.');
+      }
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
+  const handleDisableNotifications = async () => {
+    setPushBusy(true);
+    try {
+      await unsubscribeFromPush();
+      setNotifications((prev) => ({ ...prev, push: false }));
+      setPushState(notificationPermission());
+      try {
+        await settingsService.updatePreferences({ notifications: { ...notifications, push: false } });
+      } catch {
+        /* best-effort */
+      }
+      toast.success('Notifications disabled on this device');
+    } finally {
+      setPushBusy(false);
     }
   };
 
@@ -832,6 +944,102 @@ export default function SettingsPage() {
                   <span className="hidden sm:inline">Dark</span>
                 </Button>
               </div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* App & Device Section — manual install + notification permission,
+            for users who dismissed the popups and want to act later. */}
+        <motion.div
+          initial={false}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.22 }}
+          className="bg-card rounded-xl border border-border p-4 sm:p-6 shadow-card"
+        >
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Download className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <h3 className="font-semibold">App &amp; Device</h3>
+              <p className="text-sm text-muted-foreground">Install the app and turn on alerts on this device</p>
+            </div>
+          </div>
+
+          <Separator className="my-4" />
+
+          <div className="space-y-4">
+            {/* Install App */}
+            <div className="flex items-center justify-between gap-3 py-2">
+              <div className="flex items-center gap-3 min-w-0">
+                <Smartphone className="w-5 h-5 text-muted-foreground shrink-0" />
+                <div className="min-w-0">
+                  <p className="font-medium">Install App</p>
+                  <p className="text-sm text-muted-foreground">
+                    {installState.installed
+                      ? 'The app is installed on this device.'
+                      : 'Add My SGPI to your home screen for quick, full-screen access.'}
+                  </p>
+                </div>
+              </div>
+              {installState.installed ? (
+                <span className="inline-flex items-center gap-1.5 text-sm font-medium text-primary shrink-0">
+                  <Check className="w-4 h-4" /> Installed
+                </span>
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={handleInstallApp}
+                  disabled={installBusy}
+                  className="gap-2 shrink-0"
+                >
+                  {installBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                  Install
+                </Button>
+              )}
+            </div>
+
+            {/* Push notifications on this device */}
+            <div className="flex items-center justify-between gap-3 py-2">
+              <div className="flex items-center gap-3 min-w-0">
+                <BellRing className="w-5 h-5 text-muted-foreground shrink-0" />
+                <div className="min-w-0">
+                  <p className="font-medium">Push Notifications</p>
+                  <p className="text-sm text-muted-foreground">
+                    {pushState === 'unsupported'
+                      ? 'Not supported on this browser.'
+                      : pushState === 'granted'
+                        ? 'Enabled — you’ll get alerts even when the app is closed.'
+                        : pushState === 'denied'
+                          ? 'Blocked. Allow notifications in your browser’s site settings, then enable.'
+                          : 'Get notices and results instantly, even when the app is closed.'}
+                  </p>
+                </div>
+              </div>
+              {pushState === 'unsupported' ? (
+                <span className="text-sm text-muted-foreground shrink-0">Unavailable</span>
+              ) : pushState === 'granted' ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleDisableNotifications}
+                  disabled={pushBusy}
+                  className="gap-2 shrink-0"
+                >
+                  {pushBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  Enabled
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={handleEnableNotifications}
+                  disabled={pushBusy}
+                  className="gap-2 shrink-0"
+                >
+                  {pushBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <BellRing className="w-4 h-4" />}
+                  Enable
+                </Button>
+              )}
             </div>
           </div>
         </motion.div>

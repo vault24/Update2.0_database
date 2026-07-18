@@ -102,7 +102,7 @@ def send_test(request):
         return Response({"detail": "Push is not configured on the server."},
                         status=status.HTTP_503_SERVICE_UNAVAILABLE)
     sent = send_web_push_to_user(request.user, {
-        "title": "SIPI Portal — Test notification",
+        "title": "My SGPI — Test notification",
         "body": "If you can see this, push notifications are working.",
         "url": "/dashboard/notifications",
         "tag": "sipi-test",

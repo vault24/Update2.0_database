@@ -66,7 +66,7 @@ def build_payload_from_notification(notification) -> dict:
     """Translate a Notification row into the JSON the service worker expects."""
     data = getattr(notification, "data", None) or {}
     return {
-        "title": getattr(notification, "title", "SIPI Student Portal"),
+        "title": getattr(notification, "title", "My SGPI"),
         "body": getattr(notification, "message", "") or "You have a new notification.",
         "url": _deep_link_for(notification),
         "tag": f"sipi-{getattr(notification, 'notification_type', 'general')}",

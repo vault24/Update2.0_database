@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "SIPI Student Portal — Sirajganj Government Polytechnic Institute",
-  "short_name": "SIPI Portal",
+  "name": "My SGPI — Sirajganj Government Polytechnic Institute",
+  "short_name": "My SGPI",
   "description": "Official student & teacher portal of Sirajganj Government Polytechnic Institute. Manage admissions, track attendance and marks, view notices, class routines and documents — installable and available offline.",
   "lang": "en",
   "dir": "ltr",
@@ -32,7 +32,7 @@
       "sizes": "1080x1920",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "SIPI Student Portal home"
+      "label": "My SGPI home"
     },
     {
       "src": "/screenshots/screenshot-narrow-2.png",
@@ -46,7 +46,7 @@
       "sizes": "1920x1080",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "SIPI Student Portal on desktop"
+      "label": "My SGPI on desktop"
     }
   ],
   "shortcuts": [

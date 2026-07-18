@@ -23,8 +23,3 @@ interface BeforeInstallPromptEvent extends Event {
 interface WindowEventMap {
   beforeinstallprompt: BeforeInstallPromptEvent;
 }
-
-interface Window {
-  /** Backstop timer id that hides the launch screen (set in index.html). */
-  __SIPI_SPLASH_TIMEOUT__?: number;
-}

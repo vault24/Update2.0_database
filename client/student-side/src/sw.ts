@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 /**
- * SIPI Student Portal — Service Worker (Workbox, injectManifest mode)
+ * My SGPI (SGPI Student Portal) — Service Worker (Workbox, injectManifest mode)
  * ------------------------------------------------------------------------
  * SAFETY FIRST. This SW is scoped to "/" on https://spisg.gov.bd, which also
  * serves the Django API (/api), Django admin (/admin), websockets (/ws), and
@@ -151,21 +151,21 @@ registerRoute(
   'POST',
 );
 
-// ── Reference API (non-personal GETs only) — NetworkFirst ───────────────────
-// Online users ALWAYS get fresh data (network is tried first); offline users
-// get the last-seen reference copy. Personal/per-user endpoints are excluded.
-const REFERENCE_API = [
-  /^\/api\/notices\/(?:\?.*)?$/, // list (NOT unread-count / bulk-mark-read)
-  /^\/api\/notices\/[^/]+\/$/, // single notice detail
-  /^\/api\/class-routines\//,
-  /^\/api\/departments\//,
-  /^\/api\/subjects\//,
+// ── Offline-capable pages: Dashboard + Class Routine ONLY — NetworkFirst ─────
+// These two pages hold the content students most need at hand, so their GET
+// data is cached: online users ALWAYS get fresh data (network is tried first),
+// and offline users see the last-seen copy so the pages still render. EVERY
+// OTHER page's data stays network-only (see the /api NetworkOnly rule below),
+// so only these two are viewable without a connection. The cache is purged on
+// logout (PURGE_CACHES) so nothing personal lingers on a shared device.
+const OFFLINE_PAGE_API = [
+  /^\/api\/dashboard\//, // Dashboard (student/teacher stats)
+  /^\/api\/class-routines\//, // Class Routine page (+ dashboard routine widget)
 ];
-const isReferenceApi = (pathnameWithSearch: string) =>
-  REFERENCE_API.some((re) => re.test(pathnameWithSearch)) && !pathnameWithSearch.includes('unread-count');
+const isOfflinePageApi = (pathname: string) => OFFLINE_PAGE_API.some((re) => re.test(pathname));
 
 registerRoute(
-  ({ url, request, sameOrigin }) => sameOrigin && request.method === 'GET' && isReferenceApi(url.pathname + url.search),
+  ({ url, request, sameOrigin }) => sameOrigin && request.method === 'GET' && isOfflinePageApi(url.pathname),
   new NetworkFirst({
     cacheName: RUNTIME.referenceApi,
     networkTimeoutSeconds: 8,
@@ -247,7 +247,7 @@ self.addEventListener('push', (event) => {
     payload = { body: event.data?.text() };
   }
 
-  const title = payload.title || 'SIPI Student Portal';
+  const title = payload.title || 'My SGPI';
   const targetUrl = payload.url || '/dashboard/notifications';
   // Standard notification actions: a primary "Open" plus a dismiss. Android
   // renders these as buttons; platforms that don't support actions ignore them.
