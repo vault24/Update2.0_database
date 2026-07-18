@@ -607,13 +607,16 @@ User=${RUN_AS_USER}
 Group=${RUN_AS_USER}
 WorkingDirectory=${SERVER_DIR}
 Environment=PYTHONUNBUFFERED=1
-# Self-heal storage ownership on every (re)start ('+' = run as root).
-# Manual git pulls / rsyncs / manage.py runs as a login user have left
-# storage/ owned by that user before, which made every request that touched
-# the document store 500 (workers died on PermissionError) and profile
-# photos 404. The service now guarantees its own access instead of trusting
-# whoever touched the files last.
-ExecStartPre=+/bin/sh -c 'mkdir -p ${SERVER_DIR}/storage ${SERVER_DIR}/media && chown -R ${RUN_AS_USER}:${RUN_AS_USER} ${SERVER_DIR}/storage ${SERVER_DIR}/media && chmod -R u+rwX,g+rX,o-rwx ${SERVER_DIR}/storage ${SERVER_DIR}/media'
+# Self-heal storage access on every (re)start ('+' = run as root).
+# A data restore / rsync / manage.py run as a login user re-owns storage/ to
+# that user; the app then runs as ${RUN_AS_USER} and every /files/ request
+# 500s with PermissionError (profile photos + documents break) until the next
+# restart. Two layers, both idempotent:
+#   1. chown/chmod back to the app user (fixes existing files immediately);
+#   2. a DEFAULT setfacl so any FUTURE file inherits app-user read regardless
+#      of who created it — this survives even without a restart.
+# So `sudo systemctl restart sipi` (or ./deploy.sh --restart) always heals it.
+ExecStartPre=+/bin/sh -c 'mkdir -p ${SERVER_DIR}/storage ${SERVER_DIR}/media && chown -R ${RUN_AS_USER}:${RUN_AS_USER} ${SERVER_DIR}/storage ${SERVER_DIR}/media && chmod -R u+rwX,g+rX,o-rwx ${SERVER_DIR}/storage ${SERVER_DIR}/media && (command -v setfacl >/dev/null 2>&1 && setfacl -R -m u:${RUN_AS_USER}:rX -m d:u:${RUN_AS_USER}:rX ${SERVER_DIR}/storage ${SERVER_DIR}/media || true)'
 ExecStart=${VENV_DIR}/bin/gunicorn -c ${GUNICORN_CONF} slms_core.asgi:application
 # SIGHUP = graceful reload (finish in-flight requests, then swap workers).
 ExecReload=/bin/kill -s HUP \$MAINPID
