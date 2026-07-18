@@ -111,14 +111,79 @@ export class PDFExportService {
   }
 
   /**
+   * Generate a print-ready PVC ID-card PDF. Each `.id-card` element (front,
+   * back) is rendered onto its own page at the ISO CR80 trim size plus a 3mm
+   * bleed on every side (page 1 front, page 2 back), rasterised at ~300 DPI so
+   * text and the QR code stay sharp for PVC card production.
+   */
+  static async generateIdCardPDF(htmlContent: string): Promise<Blob> {
+    const BLEED = 3;            // mm bleed per edge
+    const TRIM_W = 53.98;       // mm — ISO/IEC 7810 ID-1 (CR80) portrait trim
+    const TRIM_H = 85.6;        // mm
+    const PAGE_W = TRIM_W + BLEED * 2; // 59.98mm
+    const PAGE_H = TRIM_H + BLEED * 2; // 91.60mm
+    const DPI = 300;
+    const scale = DPI / 96;     // html2canvas scale relative to 96dpi CSS px
+
+    const container = this.createTemporaryContainer(htmlContent);
+    document.body.appendChild(container);
+
+    try {
+      const cards = Array.from(container.querySelectorAll('.id-card')) as HTMLElement[];
+      // No card elements found — fall back to the standard single-image path.
+      if (cards.length === 0) {
+        return this.generatePDF(htmlContent, this.getDocumentTypeOptions('idcard'));
+      }
+
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [PAGE_W, PAGE_H] });
+
+      for (let i = 0; i < cards.length; i++) {
+        const canvas = await html2canvas(cards[i], {
+          scale,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+        });
+
+        if (i > 0) {
+          pdf.addPage([PAGE_W, PAGE_H], 'portrait');
+        }
+        // Fill the whole bleed page; the trim line sits 3mm inside every edge.
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, PAGE_W, PAGE_H);
+      }
+
+      return pdf.output('blob');
+    } finally {
+      document.body.removeChild(container);
+    }
+  }
+
+  /**
    * Prepare HTML content for print view
    */
   static preparePrintView(htmlContent: string, orientation?: 'portrait' | 'landscape'): string {
     const hasA4TemplateLayout = /@page[\s\S]*size:\s*A4|width:\s*210mm|height:\s*297mm/i.test(htmlContent);
+    // Card-size templates (e.g. the ID card) define their own small @page size and
+    // must print at that exact size — NOT be forced onto an A4 sheet.
+    const hasCardPageLayout =
+      /@page[^}]*size:\s*\d+(?:\.\d+)?mm\s+\d+(?:\.\d+)?mm/i.test(htmlContent) ||
+      /class=["'][^"']*\bid-card\b/i.test(htmlContent);
+    // Any template that owns its page geometry: suppress our injected padding/margins.
+    const usesTemplateNativeLayout = hasA4TemplateLayout || hasCardPageLayout;
     const templateLandscapeLayout =
       /@page[\s\S]*size:\s*A4\s+landscape|width:\s*297mm|height:\s*210mm/i.test(htmlContent);
     const effectiveOrientation: 'portrait' | 'landscape' =
       orientation ?? (templateLandscapeLayout ? 'landscape' : 'portrait');
+    // For card layouts we emit no @page rule so the template's own one governs.
+    const injectedPageRule = hasCardPageLayout
+      ? ''
+      : `@page {
+            size: A4 ${effectiveOrientation};
+            margin: ${usesTemplateNativeLayout ? '0' : '20mm'};
+            orphans: 3;
+            widows: 3;
+          }`;
 
     // Add print-specific styles without overriding template-native A4 layouts
     const printStyles = `
@@ -146,18 +211,13 @@ export class PDFExportService {
           }
           
           body {
-            padding: ${hasA4TemplateLayout ? '0' : '20mm'};
+            padding: ${usesTemplateNativeLayout ? '0' : '20mm'};
             box-sizing: border-box;
           }
-          
-          /* Page setup for A4 */
-          @page {
-            size: A4 ${effectiveOrientation};
-            margin: ${hasA4TemplateLayout ? '0' : '20mm'};
-            orphans: 3;
-            widows: 3;
-          }
-          
+
+          /* Page setup (omitted for card-size templates so their own @page wins) */
+          ${injectedPageRule}
+
           /* Ensure content is not cut off */
           * {
             box-sizing: border-box;
@@ -315,14 +375,12 @@ export class PDFExportService {
             max-height: 150pt;
           }
           
-          /* ID Card specific styles */
+          /* ID Card: let the template own its exact size/border; just keep each
+             card together on its page. (Do NOT hardcode dimensions here — the
+             template may be a portrait, double-sided card.) */
           .id-card {
-            width: 85.6mm;
-            height: 53.98mm;
-            border: 2pt solid #000;
-            padding: 5mm;
-            margin: 10mm auto;
             page-break-inside: avoid;
+            break-inside: avoid;
           }
           
           /* Certificate specific styles */
@@ -406,7 +464,7 @@ export class PDFExportService {
               overflow: visible;
             }
             body {
-              padding: ${hasA4TemplateLayout ? '0' : '20mm'};
+              padding: ${usesTemplateNativeLayout ? '0' : '20mm'};
               box-sizing: border-box;
             }
             * {
@@ -417,7 +475,7 @@ export class PDFExportService {
           ${styles}
           ${printStyles}
         </head>
-        <body style="margin: 0; padding: ${hasA4TemplateLayout ? '0' : '20mm'}; width: 100%; min-height: 100%; overflow: visible;">
+        <body style="margin: 0; padding: ${usesTemplateNativeLayout ? '0' : '20mm'}; width: 100%; min-height: 100%; overflow: visible;">
           ${bodyContent}
         </body>
       </html>

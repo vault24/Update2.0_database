@@ -4,6 +4,7 @@
  */
 
 import { DocumentStudentData, TemplateValidationResult, DocumentPreview, EditableField } from '@/types/template';
+import qrcode from 'qrcode-generator';
 
 // Template placeholder pattern: {{fieldName}} or [Field Name]
 const PLACEHOLDER_PATTERNS = [
@@ -65,6 +66,11 @@ const FIELD_MAPPING: Record<string, keyof DocumentStudentData | ((data?: Documen
   'Shift': 'shift',
   'shift': 'shift',
   
+  // Student photo (profile photo URL) — used by the ID card <img src>.
+  'photo': 'photo',
+  'Photo': 'photo',
+  'profilePhoto': 'photo',
+
   // Contact Information
   'Address': 'address',
   'address': 'address',
@@ -77,8 +83,19 @@ const FIELD_MAPPING: Record<string, keyof DocumentStudentData | ((data?: Documen
   'Phone Number': 'phoneNumber',
   'phone_number': 'phoneNumber',
   'phoneNumber': 'phoneNumber',
+  'Guardian Phone': 'guardianPhone',
+  'guardianPhone': 'guardianPhone',
+  'Emergency Contact': 'emergencyContact',
+  'EMERGENCY_CONTACT': 'emergencyContact',
+  'emergencyContact': 'emergencyContact',
   'Email': 'email',
   'email': 'email',
+
+  // Student public-profile link + its QR code (ID card back).
+  'publicProfileUrl': 'publicProfileUrl',
+  'PUBLIC_PROFILE_URL': 'publicProfileUrl',
+  'QR_CODE': (data) => buildQrImg(data?.publicProfileUrl || ''),
+  'qrCode': (data) => buildQrImg(data?.publicProfileUrl || ''),
   
   // Institutional Information
   'Admission Date': (data) => formatDate(data.admissionDate),
@@ -149,6 +166,14 @@ const FIELD_MAPPING: Record<string, keyof DocumentStudentData | ((data?: Documen
   'ISSUE_DATE': () => getCurrentDate(),
   'ISSUE_YEAR': () => new Date().getFullYear().toString(),
   'SERIAL_NUMBER': () => getSerialNumber(),
+
+  // ID-card validity (issue date + full diploma span). Auto-generated.
+  'EXPIRY_DATE': () => getExpiryDate(),
+  'VALID_UNTIL': () => getExpiryDate(),
+  'VALID_TILL': () => getExpiryDate(),
+  'expiryDate': () => getExpiryDate(),
+  'Expiry Date': () => getExpiryDate(),
+  'Valid Until': () => getExpiryDate(),
 };
 
 // Date formatting utility
@@ -230,6 +255,37 @@ function getCurrentDate(): string {
 function getSerialNumber(): string {
   // For now, return a timestamp-based serial number
   return `SN-${Date.now().toString().slice(-8)}`;
+}
+
+// Get ID-card expiry date (issue date + 4-year diploma span).
+function getExpiryDate(): string {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() + 4);
+  return formatDate(d);
+}
+
+// Build a QR code for the given URL/text as an <img> with a data-URL source.
+// A raster data-URL (not inline SVG) renders reliably in html2canvas (PDF
+// download), the print pipeline and the iframe preview alike. `image-rendering`
+// keeps the modules crisp when the small card scales it up. Returns '' when
+// there is nothing to encode so the card slot stays blank.
+function buildQrImg(text: string): string {
+  const value = (text || '').trim();
+  if (!value) return '';
+  try {
+    const qr = qrcode(0, 'M'); // auto version, medium error-correction
+    qr.addData(value);
+    qr.make();
+    // cellSize 6 + a 2-module quiet zone gives a sharp, scannable code.
+    const dataUrl = qr.createDataURL(6, 2);
+    return (
+      `<img src="${dataUrl}" alt="Profile QR code" ` +
+      'style="width:100%;height:100%;display:block;image-rendering:pixelated;image-rendering:crisp-edges;" />'
+    );
+  } catch (error) {
+    console.error('QR code generation failed:', error);
+    return '';
+  }
 }
 
 // Template Engine Class
@@ -591,6 +647,9 @@ export class TemplateEngine {
       const nonEditable = (key: string) =>
         /^SIG_/.test(key) ||
         /^GENDER_/.test(key) ||
+        /^(photo|profilePhoto)$/i.test(key) ||
+        /^(QR_CODE|qrCode|publicProfileUrl|PUBLIC_PROFILE_URL)$/i.test(key) ||
+        /^(EXPIRY_DATE|VALID_UNTIL|VALID_TILL|expiryDate|Expiry Date|Valid Until)$/i.test(key) ||
         ['ISSUE_DATE', 'ISSUE_YEAR', 'SERIAL_NUMBER', 'GOVERNMENT_NAME', 'OFFICE_NAME',
          'INSTITUTE_NAME', 'INSTITUTE_ADDRESS', 'INSTITUTE_LOGO', 'REGISTRAR_NAME',
          'PRINCIPAL_NAME'].includes(key);

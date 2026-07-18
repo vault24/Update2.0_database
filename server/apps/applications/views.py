@@ -2,7 +2,7 @@
 Application Views — multi-level document approval workflow.
 """
 import re
-from datetime import date
+from datetime import date, timedelta
 
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
@@ -308,6 +308,12 @@ def _render_document_html(app, request):
 
     today = date.today()
     today_str = today.strftime('%d %B %Y')
+    # ID-card validity: issue date + 4-year diploma span (guard leap-day 29 Feb).
+    try:
+        expiry = today.replace(year=today.year + 4)
+    except ValueError:
+        expiry = today + timedelta(days=365 * 4)
+    expiry_str = expiry.strftime('%d %B %Y')
     name = app.fullNameEnglish or ''
     dept = app.department or ''
     serial = app.registrationNumber or str(app.id)[:8]
@@ -336,6 +342,8 @@ def _render_document_html(app, request):
         'GOVERNMENT_NAME': "Government of the People's Republic of Bangladesh",
         'OFFICE_NAME': 'Office of the Principal',
         'ISSUE_DATE': today_str, 'currentDate': today_str, 'Date': today_str,
+        'EXPIRY_DATE': expiry_str, 'VALID_UNTIL': expiry_str, 'VALID_TILL': expiry_str,
+        'expiryDate': expiry_str,
         'ISSUE_YEAR': str(today.year), 'SERIAL_NUMBER': serial,
         'REGISTRAR_NAME': names['registrar'], 'PRINCIPAL_NAME': names['institute_head'],
     }

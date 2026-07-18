@@ -3,9 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Student ID Card - Sirajganj Polytechnic Institute</title>
+    <title>Student ID Card - Sirajganj Government Polytechnic Institute</title>
     <style>
-        /* Reset and Base Styles */
+        /* ============================================================
+           PVC Student ID Card — ISO/IEC 7810 ID-1 (CR80) PORTRAIT
+           Trim  : 53.98mm x 85.60mm
+           Bleed : 3mm every side  ->  page 59.98mm x 91.60mm
+           Green frame = full-bleed top/bottom bands + thin side borders
+           sitting on the trim line. Text stays inside a safe area.
+           Page 1 = FRONT, Page 2 = BACK.
+           ============================================================ */
         * {
             box-sizing: border-box;
             margin: 0;
@@ -14,364 +21,422 @@
             print-color-adjust: exact;
         }
 
+        :root {
+            --green: #0a6b3b;
+            --green-dark: #075029;
+            --green-light: #e7f3ec;
+            --amber: #e8a417;
+            --amber-soft: #fff6e2;
+            --ink: #1c2721;
+            --muted: #5b6b62;
+            --line: #d3e1d8;
+            --bleed: 3mm;
+        }
+
         body {
-            background-color: #f0f0f0;
-            font-family: Arial, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        /* ID Card Container - Standard ID card size (85.6mm x 53.98mm) */
-        .id-card {
-            width: 85.6mm;
-            height: 53.98mm;
-            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-            border: 2px solid #2c3e50;
-            border-radius: 8px;
-            position: relative;
-            overflow: hidden;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-            margin: 10mm auto;
-        }
-
-        /* Header Section */
-        .card-header {
-            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
-            color: white;
-            padding: 3mm 2mm;
-            text-align: center;
-            position: relative;
-        }
-
-        .institute-name {
-            font-size: 8px;
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            line-height: 1.2;
-        }
-
-        .card-type {
-            font-size: 6px;
-            margin-top: 1mm;
-            opacity: 0.9;
-        }
-
-        /* Logo */
-        .logo {
-            position: absolute;
-            top: 1mm;
-            right: 2mm;
-            width: 8mm;
-            height: 8mm;
-            background: white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .logo img {
-            width: 6mm;
-            height: 6mm;
-            object-fit: contain;
-        }
-
-        /* Main Content */
-        .card-body {
-            padding: 2mm;
-            display: flex;
-            gap: 2mm;
-            height: calc(100% - 12mm);
-        }
-
-        /* Photo Section */
-        .photo-section {
-            width: 15mm;
-            height: 18mm;
-            border: 1px solid #ddd;
-            border-radius: 3px;
-            overflow: hidden;
-            background: #f8f9fa;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-        }
-
-        .student-photo {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .photo-placeholder {
-            font-size: 8px;
-            color: #666;
-            text-align: center;
-            line-height: 1.2;
-        }
-
-        /* Info Section */
-        .info-section {
-            flex: 1;
+            background: #e9edeb;
+            font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
             display: flex;
             flex-direction: column;
-            justify-content: space-between;
-        }
-
-        .student-info {
-            flex: 1;
-        }
-
-        .info-row {
-            margin-bottom: 1mm;
-            font-size: 6px;
-            line-height: 1.3;
-        }
-
-        .info-label {
-            font-weight: bold;
-            color: #2c3e50;
-            display: inline-block;
-            width: 12mm;
-        }
-
-        .info-value {
-            color: #333;
-            font-weight: 500;
-        }
-
-        .student-name {
-            font-size: 7px;
-            font-weight: bold;
-            color: #2c3e50;
-            margin-bottom: 1mm;
-            text-transform: uppercase;
-        }
-
-        /* Footer */
-        .card-footer {
-            background: #ecf0f1;
-            padding: 1mm 2mm;
-            border-top: 1px solid #bdc3c7;
-            display: flex;
-            justify-content: space-between;
             align-items: center;
-            font-size: 5px;
+            gap: 9mm;
+            padding: 10mm 0;
+            color: var(--ink);
         }
 
-        .validity {
-            color: #e74c3c;
-            font-weight: bold;
-        }
-
-        .issue-date {
-            color: #7f8c8d;
-        }
-
-        /* Barcode/QR Code placeholder */
-        .barcode {
-            position: absolute;
-            bottom: 1mm;
-            right: 2mm;
-            width: 8mm;
-            height: 3mm;
-            background: repeating-linear-gradient(
-                90deg,
-                #000 0px,
-                #000 1px,
-                #fff 1px,
-                #fff 2px
-            );
-            opacity: 0.7;
-        }
-
-        /* Print Styles */
-        @page {
-            size: A4;
-            margin: 10mm;
-        }
-
-        @media print {
-            body {
-                background: white;
-                display: block;
-                padding: 0;
-                margin: 0;
-            }
-
-            .id-card {
-                box-shadow: none;
-                page-break-inside: avoid;
-                margin: 5mm;
-            }
-
-            .no-print {
-                display: none !important;
-            }
-        }
-
-        /* Controls */
-        .controls {
-            position: fixed;
-            top: 20px;
-            right: 20px;
+        /* Full-bleed page: trim + 3mm bleed all round. */
+        .id-card {
+            width: 59.98mm;
+            height: 91.60mm;
+            background: #ffffff;
+            position: relative;
+            overflow: hidden;
             display: flex;
-            gap: 10px;
-            z-index: 100;
+            flex-direction: column;
         }
+
+        @media screen {
+            .id-card { box-shadow: 0 2mm 7mm rgba(0, 0, 0, 0.16); }
+        }
+
+        /* Thin green side borders on the trim line (restored frame). Sits above
+           the white body but below the green bands, so it draws a clean line
+           only along the card's white area and merges seamlessly with the
+           header/footer bands. */
+        .frame-border {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: var(--bleed);
+            right: var(--bleed);
+            border-left: 0.6mm solid var(--green);
+            border-right: 0.6mm solid var(--green);
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        /* ---------- shared green header band ---------- */
+        .hdr {
+            position: relative;
+            z-index: 2;
+            background: linear-gradient(135deg, var(--green) 0%, var(--green-dark) 100%);
+            color: #fff;
+            text-align: center;
+            /* top padding folds in the 3mm bleed; keeps content below the trim */
+            padding: 4.5mm 5mm 2.2mm;
+        }
+
+        .hdr .inst-name {
+            font-size: 8px;
+            font-weight: 800;
+            letter-spacing: 0.2px;
+            line-height: 1.12;
+        }
+
+        .hdr .hdr-sub {
+            font-size: 5px;
+            font-weight: 600;
+            opacity: 0.95;
+            margin-top: 0.9mm;
+            letter-spacing: 0.2px;
+        }
+
+        /* ---------- shared green footer band ---------- */
+        .ftr {
+            position: relative;
+            z-index: 2;
+            background: linear-gradient(135deg, var(--green) 0%, var(--green-dark) 100%);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-size: 5px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+            min-height: 9mm;             /* taller, balanced bar */
+            padding: 0.6mm 5mm var(--bleed); /* bottom = bleed; text centres above trim */
+        }
+
+        .divider { height: 0; border-top: 0.2mm solid var(--line); }
+
+        /* ======================= FRONT ======================= */
+        .fx-title {
+            position: relative;
+            z-index: 2;
+            background: var(--amber);
+            color: #3a2a00;
+            font-size: 6.5px;
+            font-weight: 800;
+            letter-spacing: 1.4px;
+            text-align: center;
+            padding: 1.1mm 0;
+            text-transform: uppercase;
+            /* inset so it sits inside the green side frame */
+            margin: 0 3.6mm;
+        }
+
+        .fx-body {
+            flex: 1;
+            position: relative;
+            z-index: 2;
+            padding: 2mm 5mm;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;   /* even top/bottom spacing */
+        }
+
+        .photo-frame {
+            width: 20mm;
+            height: 24mm;
+            border: 0.4mm solid var(--green);
+            border-radius: 1mm;
+            overflow: hidden;
+            position: relative;
+            background: var(--green-light);
+            box-shadow: 0 0.4mm 1.2mm rgba(0, 0, 0, 0.12);
+        }
+
+        .photo-ph {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 6px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: #9bb3a4;
+        }
+
+        .photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+
+        .std-name {
+            margin-top: 1.6mm;
+            font-size: 9.5px;
+            font-weight: 800;
+            color: var(--green-dark);
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 0.2px;
+            line-height: 1.1;
+        }
+
+        .std-dept {
+            font-size: 6.2px;
+            font-weight: 600;
+            color: var(--muted);
+            text-align: center;
+            margin-top: 0.5mm;
+        }
+
+        .rows {
+            width: 100%;
+            margin-top: 1.8mm;
+            padding-top: 1.4mm;
+            border-top: 0.2mm dashed var(--line);
+        }
+
+        .row { display: flex; font-size: 6.6px; line-height: 1.3; margin-bottom: 0.5mm; }
+        .row .k { width: 17mm; flex-shrink: 0; font-weight: 700; color: var(--green-dark); }
+        .row .v { flex: 1; font-weight: 600; color: var(--ink); word-break: break-word; }
+
+        .sign { width: 100%; margin-top: 3mm; padding-top: 1.5mm; text-align: right; }
+
+        .sign-slot {
+            height: 4mm;
+            display: flex;
+            align-items: flex-end;
+            justify-content: flex-end;
+            overflow: hidden;
+        }
+
+        .sign-slot img { max-height: 4mm; max-width: 26mm; object-fit: contain; }
+        .sign-line { border-top: 0.3mm solid var(--ink); width: 25mm; margin-left: auto; }
+        .sign-label { font-size: 6px; font-weight: 700; color: var(--green-dark); margin-top: 0.4mm; }
+
+        /* ======================= BACK ======================= */
+        .bx-body {
+            flex: 1;
+            position: relative;
+            z-index: 2;
+            overflow: hidden;
+            padding: 3mm 5mm 2mm;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 44mm;
+            height: 44mm;
+            transform: translate(-50%, -50%);
+            object-fit: contain;
+            opacity: 0.06;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .bx-content { position: relative; z-index: 1; flex: 1; display: flex; flex-direction: column; }
+
+        /* QR — the focus, centred near the top */
+        .bx-qr { display: flex; flex-direction: column; align-items: center; }
+
+        .qr {
+            width: 26mm;
+            height: 26mm;
+            background: #fff;
+            border: 0.25mm solid var(--line);
+            border-radius: 1mm;
+            padding: 1.5mm;                 /* white quiet zone around the code */
+            box-shadow: 0 0.4mm 1.2mm rgba(0, 0, 0, 0.10);
+        }
+
+        .qr img, .qr svg { width: 100%; height: 100%; display: block; }
+
+        .qr-cap {
+            font-size: 4.8px;
+            font-weight: 700;
+            color: var(--muted);
+            text-align: center;
+            margin-top: 0.9mm;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        /* Issue / Expiry / Emergency — directly below the QR */
+        .bx-fields {
+            display: flex;
+            justify-content: space-between;
+            gap: 2mm;
+            margin-top: 2.6mm;
+            padding-top: 2mm;
+            border-top: 0.2mm dashed var(--line);
+            text-align: center;
+        }
+
+        .field { flex: 1; }
+
+        .field .k {
+            font-size: 4.8px;
+            font-weight: 700;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.2px;
+        }
+
+        .field .v { font-size: 6.6px; font-weight: 800; color: var(--ink); margin-top: 0.4mm; }
+        .field .v.exp { color: #b3261e; }
+        .field .v.emg { color: var(--green-dark); }
+
+        /* Lost & found — the last element, pinned just above the footer */
+        .lost-note {
+            margin-top: auto;
+            background: var(--amber-soft);
+            border: 0.2mm solid #f0d69a;
+            border-radius: 1mm;
+            padding: 1.4mm 1.8mm;
+            text-align: center;
+        }
+
+        .lost-note .ln-text { font-size: 5px; line-height: 1.45; color: #6b5518; }
+        .lost-note .ln-text b { color: #7a4d00; }
+
+        .lost-note .ln-contact {
+            margin-top: 0.8mm;
+            font-size: 5.2px;
+            font-weight: 700;
+            color: var(--green-dark);
+            letter-spacing: 0.2px;
+        }
+
+        /* ======================= CONTROLS ======================= */
+        .controls { position: fixed; top: 16px; right: 16px; z-index: 100; }
 
         .btn {
-            padding: 8px 16px;
-            background: #3498db;
-            color: white;
+            padding: 8px 14px;
+            background: var(--green);
+            color: #fff;
             border: none;
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
             font-size: 12px;
-            font-weight: bold;
+            font-weight: 700;
         }
 
-        .btn:hover {
-            background: #2980b9;
-        }
+        .btn:hover { background: var(--green-dark); }
 
-        /* Multiple cards layout for printing */
-        .cards-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10mm;
-            justify-content: center;
-            max-width: 190mm;
-        }
+        /* ======================= PRINT ======================= */
+        @page { size: 59.98mm 91.60mm; margin: 0; }
 
-        /* Responsive adjustments */
-        @media screen and (max-width: 600px) {
+        .card-front { page-break-after: always; break-after: page; }
+
+        @media print {
+            body { background: #fff; padding: 0; gap: 0; display: block; }
             .id-card {
-                transform: scale(1.5);
-                margin: 20mm auto;
+                width: 59.98mm;
+                height: 91.60mm;
+                margin: 0;
+                box-shadow: none;
+                page-break-inside: avoid;
+                break-inside: avoid;
             }
+            .no-print { display: none !important; }
         }
     </style>
 </head>
 <body>
     <div class="controls no-print">
         <button class="btn" onclick="window.print()">Print ID Card</button>
-        <button class="btn" onclick="duplicateCard()">Duplicate for Printing</button>
     </div>
 
-    <div class="cards-container" id="cardsContainer">
-        <div class="id-card">
-            <!-- Header -->
-            <div class="card-header">
-                <div class="logo">
-                    <img src="spi.png" alt="Logo" onerror="this.style.display='none'">
-                </div>
-                <div class="institute-name">
-                    Sirajganj Polytechnic Institute
-                </div>
-                <div class="card-type">Student Identity Card</div>
-            </div>
+    <!-- ==================== FRONT (page 1) ==================== -->
+    <div class="id-card card-front">
+        <div class="frame-border"></div>
 
-            <!-- Main Content -->
-            <div class="card-body">
-                <!-- Photo Section -->
-                <div class="photo-section">
-                    <img src="{{photo}}" alt="Student Photo" class="student-photo" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                    <div class="photo-placeholder" style="display: none;">
-                        PHOTO<br>
-                        {{name}}
-                    </div>
-                </div>
-
-                <!-- Info Section -->
-                <div class="info-section">
-                    <div class="student-info">
-                        <div class="student-name">{{name}}</div>
-                        
-                        <div class="info-row">
-                            <span class="info-label">Roll:</span>
-                            <span class="info-value">{{rollNumber}}</span>
-                        </div>
-                        
-                        <div class="info-row">
-                            <span class="info-label">Reg:</span>
-                            <span class="info-value">{{registrationNumber}}</span>
-                        </div>
-                        
-                        <div class="info-row">
-                            <span class="info-label">Dept:</span>
-                            <span class="info-value">{{department}}</span>
-                        </div>
-                        
-                        <div class="info-row">
-                            <span class="info-label">Session:</span>
-                            <span class="info-value">{{session}}</span>
-                        </div>
-                        
-                        <div class="info-row">
-                            <span class="info-label">Blood:</span>
-                            <span class="info-value">{{bloodGroup}}</span>
-                        </div>
-                        
-                        <div class="info-row">
-                            <span class="info-label">DOB:</span>
-                            <span class="info-value">{{dateOfBirth}}</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Footer -->
-            <div class="card-footer">
-                <div class="issue-date">Issued: <span id="currentDate"></span></div>
-                <div class="validity">Valid Till: <span id="validityDate"></span></div>
-            </div>
-
-            <!-- Barcode -->
-            <div class="barcode"></div>
+        <div class="hdr">
+            <div class="inst-name">Sirajganj Government Polytechnic Institute</div>
+            <div class="hdr-sub">Estd. 2004 &nbsp;&middot;&nbsp; Code 25054 &nbsp;&middot;&nbsp; EIIN 132927</div>
         </div>
+
+        <div class="fx-title">Student Identity Card</div>
+
+        <div class="fx-body">
+            <div class="photo-frame">
+                <span class="photo-ph">PHOTO</span>
+                <img class="photo" src="{{photo}}" alt="" onerror="this.style.display='none'">
+            </div>
+
+            <div class="std-name">{{name}}</div>
+            <div class="std-dept">{{department}}</div>
+
+            <div class="rows">
+                <div class="row"><span class="k">Roll No</span><span class="v">{{rollNumber}}</span></div>
+                <div class="row"><span class="k">Reg. No</span><span class="v">{{registrationNumber}}</span></div>
+                <div class="row"><span class="k">Session</span><span class="v">{{session}}</span></div>
+                <div class="row"><span class="k">Blood Group</span><span class="v">{{bloodGroup}}</span></div>
+                <div class="row"><span class="k">Date of Birth</span><span class="v">{{dateOfBirth}}</span></div>
+                <div class="row"><span class="k">Father's Name</span><span class="v">{{fatherName}}</span></div>
+                <div class="row"><span class="k">Contact No</span><span class="v">{{phoneNumber}}</span></div>
+            </div>
+
+            <div class="sign">
+                <div class="sign-slot">[SIG_PRINCIPAL]</div>
+                <div class="sign-line"></div>
+                <div class="sign-label">Principal</div>
+            </div>
+        </div>
+
+        <div class="ftr">This card is non-transferable &nbsp;&middot;&nbsp; sirajganj.polytech.gov.bd</div>
     </div>
 
-    <script>
-        function duplicateCard() {
-            const container = document.getElementById('cardsContainer');
-            const originalCard = container.querySelector('.id-card');
-            
-            // Create multiple copies for efficient printing
-            for (let i = 0; i < 7; i++) {
-                const clone = originalCard.cloneNode(true);
-                container.appendChild(clone);
-            }
-            
-            // Update button
-            const btn = document.querySelector('.controls button:last-child');
-            btn.textContent = 'Reset to Single Card';
-            btn.onclick = function() {
-                location.reload();
-            };
-        }
+    <!-- ==================== BACK (page 2) ==================== -->
+    <div class="id-card card-back">
+        <div class="frame-border"></div>
 
-        // Auto-format dates
-        document.addEventListener('DOMContentLoaded', function() {
-            // Format current date
-            const currentDateElement = document.getElementById('currentDate');
-            if (currentDateElement) {
-                currentDateElement.textContent = new Date().toLocaleDateString('en-GB');
-            }
+        <div class="hdr">
+            <div class="inst-name">Sirajganj Government Polytechnic Institute</div>
+            <div class="hdr-sub">Kazipur Road, Fakirtola, Sirajganj</div>
+        </div>
 
-            // Calculate validity date (4 years from now)
-            const validityDate = new Date();
-            validityDate.setFullYear(validityDate.getFullYear() + 4);
-            const validityDateElement = document.getElementById('validityDate');
-            if (validityDateElement) {
-                validityDateElement.textContent = validityDate.toLocaleDateString('en-GB');
-            }
-        });
-    </script>
+        <div class="bx-body">
+            <img class="watermark" src="spi.png" alt="" onerror="this.style.display='none'">
+
+            <div class="bx-content">
+                <div class="bx-qr">
+                    <div class="qr">{{QR_CODE}}</div>
+                    <div class="qr-cap">Scan for Profile</div>
+                </div>
+
+                <div class="bx-fields">
+                    <div class="field">
+                        <div class="k">Issue Date</div>
+                        <div class="v">{{ISSUE_DATE}}</div>
+                    </div>
+                    <div class="field">
+                        <div class="k">Expiry Date</div>
+                        <div class="v exp">{{EXPIRY_DATE}}</div>
+                    </div>
+                    <div class="field">
+                        <div class="k">Emergency</div>
+                        <div class="v emg">{{EMERGENCY_CONTACT}}</div>
+                    </div>
+                </div>
+
+                <div class="lost-note">
+                    <div class="ln-text">
+                        <b>If found</b>, please return this card to the institute office. It is the
+                        property of the institute and is non-transferable.
+                    </div>
+                    <div class="ln-contact">+8801309-132927 &nbsp;&middot;&nbsp; principal.spi@gmail.com</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="ftr">sirajganj.polytech.gov.bd</div>
+    </div>
 </body>
 </html>

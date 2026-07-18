@@ -398,12 +398,19 @@ export class DocumentGenerator {
         }
       }
 
+      // ID cards are double-sided, card-size documents: render each side onto its
+      // own 54x85.6mm page instead of one image on an A4 sheet.
+      const isIdCard = /id[\s-]*card/i.test(finalDocumentType || '');
+      if (isIdCard) {
+        return await PDFExportService.generateIdCardPDF(document.htmlContent);
+      }
+
       // Get PDF options based on document type
       const pdfOptions = PDFExportService.getDocumentTypeOptions(finalDocumentType);
 
       // Generate PDF
       const pdfBlob = await PDFExportService.generatePDF(document.htmlContent, pdfOptions);
-      
+
       return pdfBlob;
 
     } catch (error) {

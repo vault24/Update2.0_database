@@ -5,6 +5,7 @@
 
 import { studentService, Student } from './studentService';
 import { DocumentStudentData } from '@/types/template';
+import { buildStudentPublicProfileUrl } from '@/config/api';
 
 export interface StudentSearchResult {
   id: string;
@@ -393,7 +394,13 @@ export class DocumentStudentService {
       presentAddress: formatAddress(student.presentAddress),
       permanentAddress: formatAddress(student.permanentAddress),
       phoneNumber: student.mobileStudent,
+      guardianPhone: student.guardianMobile,
+      // Emergency contact on the ID card: guardian's number, else the student's.
+      emergencyContact: student.guardianMobile || student.mobileStudent,
       email: student.email,
+
+      // Public profile link (student portal) — QR target on the ID card.
+      publicProfileUrl: buildStudentPublicProfileUrl(student.currentRollNumber || student.id),
 
       // Institutional Information
       admissionDate: formatDate(student.createdAt), // Using creation date as admission date

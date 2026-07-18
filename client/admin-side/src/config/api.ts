@@ -7,6 +7,19 @@
 // Default to localhost for development, override with .env for production
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
+// Public student portal origin (where /student/<roll> public profiles live).
+// Admin runs on su.spisg.gov.bd; the student portal is spisg.gov.bd. Used to
+// build the QR link printed on ID cards. Override with VITE_STUDENT_PORTAL_URL.
+export const STUDENT_PORTAL_URL = (
+  import.meta.env.VITE_STUDENT_PORTAL_URL || 'https://spisg.gov.bd'
+).replace(/\/+$/, '');
+
+/** Build a student's public-profile URL (matches the student portal's own format). */
+export function buildStudentPublicProfileUrl(rollOrId: string): string {
+  const id = (rollOrId || '').toString().trim();
+  return id ? `${STUDENT_PORTAL_URL}/student/${encodeURIComponent(id)}` : '';
+}
+
 // API Endpoints
 export const API_ENDPOINTS = {
   // Authentication

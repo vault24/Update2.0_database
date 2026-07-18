@@ -58,7 +58,12 @@ export interface DocumentStudentData {
   presentAddress?: string;
   permanentAddress?: string;
   phoneNumber?: string;
+  guardianPhone?: string;
+  emergencyContact?: string;
   email?: string;
+
+  // Public profile link (student portal) — used to build the ID-card QR code.
+  publicProfileUrl?: string;
   
   // Institutional Information
   admissionDate?: Date;
