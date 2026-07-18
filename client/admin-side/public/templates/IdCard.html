@@ -7,10 +7,8 @@
     <style>
         /* ============================================================
            PVC Student ID Card — ISO/IEC 7810 ID-1 (CR80) PORTRAIT
-           Trim  : 53.98mm x 85.60mm
-           Bleed : 3mm every side  ->  page 59.98mm x 91.60mm
-           Green frame = full-bleed top/bottom bands + thin side borders
-           sitting on the trim line. Text stays inside a safe area.
+           Exact card size: 53.98mm x 85.60mm (no bleed).
+           Green frame = border + full-width top/bottom bands.
            Page 1 = FRONT, Page 2 = BACK.
            ============================================================ */
         * {
@@ -30,7 +28,6 @@
             --ink: #1c2721;
             --muted: #5b6b62;
             --line: #d3e1d8;
-            --bleed: 3mm;
         }
 
         body {
@@ -44,11 +41,12 @@
             color: var(--ink);
         }
 
-        /* Full-bleed page: trim + 3mm bleed all round. */
+        /* Exact card: 53.98 x 85.60mm with a thin green frame border. */
         .id-card {
-            width: 59.98mm;
-            height: 91.60mm;
+            width: 53.98mm;
+            height: 85.60mm;
             background: #ffffff;
+            border: 0.6mm solid var(--green);
             position: relative;
             overflow: hidden;
             display: flex;
@@ -59,35 +57,16 @@
             .id-card { box-shadow: 0 2mm 7mm rgba(0, 0, 0, 0.16); }
         }
 
-        /* Thin green side borders on the trim line (restored frame). Sits above
-           the white body but below the green bands, so it draws a clean line
-           only along the card's white area and merges seamlessly with the
-           header/footer bands. */
-        .frame-border {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            left: var(--bleed);
-            right: var(--bleed);
-            border-left: 0.6mm solid var(--green);
-            border-right: 0.6mm solid var(--green);
-            z-index: 1;
-            pointer-events: none;
-        }
-
         /* ---------- shared green header band ---------- */
         .hdr {
-            position: relative;
-            z-index: 2;
             background: linear-gradient(135deg, var(--green) 0%, var(--green-dark) 100%);
             color: #fff;
             text-align: center;
-            /* top padding folds in the 3mm bleed; keeps content below the trim */
-            padding: 4.5mm 5mm 2.2mm;
+            padding: 2.4mm 3mm 1.8mm;
         }
 
         .hdr .inst-name {
-            font-size: 8px;
+            font-size: 7.5px;
             font-weight: 800;
             letter-spacing: 0.2px;
             line-height: 1.12;
@@ -103,8 +82,6 @@
 
         /* ---------- shared green footer band ---------- */
         .ftr {
-            position: relative;
-            z-index: 2;
             background: linear-gradient(135deg, var(--green) 0%, var(--green-dark) 100%);
             color: #fff;
             display: flex;
@@ -114,16 +91,16 @@
             font-size: 5px;
             font-weight: 700;
             letter-spacing: 0.3px;
-            min-height: 9mm;             /* taller, balanced bar */
-            padding: 0.6mm 5mm var(--bleed); /* bottom = bleed; text centres above trim */
+            height: 6.5mm;
+            min-height: 6.5mm;
+            flex-shrink: 0;
+            width: 100%;
+            padding: 0 4mm;
+            margin-top: auto;
         }
-
-        .divider { height: 0; border-top: 0.2mm solid var(--line); }
 
         /* ======================= FRONT ======================= */
         .fx-title {
-            position: relative;
-            z-index: 2;
             background: var(--amber);
             color: #3a2a00;
             font-size: 6.5px;
@@ -132,19 +109,17 @@
             text-align: center;
             padding: 1.1mm 0;
             text-transform: uppercase;
-            /* inset so it sits inside the green side frame */
-            margin: 0 3.6mm;
         }
 
         .fx-body {
             flex: 1;
-            position: relative;
-            z-index: 2;
-            padding: 2mm 5mm;
+            padding: 1.8mm 4mm;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;   /* even top/bottom spacing */
+            justify-content: center;
+            overflow: hidden;
+            min-height: 0;
         }
 
         .photo-frame {
@@ -193,16 +168,16 @@
 
         .rows {
             width: 100%;
-            margin-top: 1.8mm;
+            margin-top: 1.6mm;
             padding-top: 1.4mm;
             border-top: 0.2mm dashed var(--line);
         }
 
-        .row { display: flex; font-size: 6.6px; line-height: 1.3; margin-bottom: 0.5mm; }
+        .row { display: flex; font-size: 6.6px; line-height: 1.3; margin-bottom: 0.45mm; }
         .row .k { width: 17mm; flex-shrink: 0; font-weight: 700; color: var(--green-dark); }
         .row .v { flex: 1; font-weight: 600; color: var(--ink); word-break: break-word; }
 
-        .sign { width: 100%; margin-top: 3mm; padding-top: 1.5mm; text-align: right; }
+        .sign { width: 100%; margin-top: 0mm; padding-top: 1mm; text-align: right; }
 
         .sign-slot {
             height: 4mm;
@@ -220,19 +195,19 @@
         .bx-body {
             flex: 1;
             position: relative;
-            z-index: 2;
             overflow: hidden;
-            padding: 3mm 5mm 2mm;
+            padding: 2mm 4mm 1.6mm;
             display: flex;
             flex-direction: column;
+            min-height: 0;
         }
 
         .watermark {
             position: absolute;
-            top: 50%;
+            top: 46%;
             left: 50%;
-            width: 44mm;
-            height: 44mm;
+            width: 40mm;
+            height: 40mm;
             transform: translate(-50%, -50%);
             object-fit: contain;
             opacity: 0.06;
@@ -246,40 +221,38 @@
         .bx-qr { display: flex; flex-direction: column; align-items: center; }
 
         .qr {
-            width: 26mm;
-            height: 26mm;
+            width: 23mm;
+            height: 23mm;
             background: #fff;
             border: 0.25mm solid var(--line);
             border-radius: 1mm;
-            padding: 1.5mm;                 /* white quiet zone around the code */
+            padding: 1.3mm;
             box-shadow: 0 0.4mm 1.2mm rgba(0, 0, 0, 0.10);
         }
 
         .qr img, .qr svg { width: 100%; height: 100%; display: block; }
 
         .qr-cap {
-            font-size: 4.8px;
+            font-size: 4.6px;
             font-weight: 700;
             color: var(--muted);
             text-align: center;
-            margin-top: 0.9mm;
+            margin-top: 0.8mm;
             text-transform: uppercase;
             letter-spacing: 0.4px;
         }
 
-        /* Issue / Expiry / Emergency — directly below the QR */
+        /* Issue / Expiry (row) with Emergency Contact underneath */
         .bx-fields {
-            display: flex;
-            justify-content: space-between;
-            gap: 2mm;
-            margin-top: 2.6mm;
-            padding-top: 2mm;
+            margin-top: 2mm;
+            padding-top: 1.6mm;
             border-top: 0.2mm dashed var(--line);
-            text-align: center;
         }
 
-        .field { flex: 1; }
+        .frow { display: flex; gap: 2mm; }
+        .frow .field { flex: 1; }
 
+        .field { text-align: center; }
         .field .k {
             font-size: 4.8px;
             font-weight: 700;
@@ -287,30 +260,39 @@
             text-transform: uppercase;
             letter-spacing: 0.2px;
         }
-
-        .field .v { font-size: 6.6px; font-weight: 800; color: var(--ink); margin-top: 0.4mm; }
+        .field .v { font-size: 6.6px; font-weight: 800; color: var(--ink); margin-top: 0.3mm; }
         .field .v.exp { color: #b3261e; }
         .field .v.emg { color: var(--green-dark); }
 
-        /* Lost & found — the last element, pinned just above the footer */
+        .emgrow { margin-top: 1.4mm; }
+
+        /* Instructions */
+        .bx-rules { margin-top: 2mm; padding-left: 3.4mm; list-style: disc; }
+        .bx-rules li { font-size: 5px; line-height: 1.4; color: var(--muted); margin-bottom: 0.35mm; }
+
+        /* Lost & found — last element, pinned above the footer */
         .lost-note {
             margin-top: auto;
             background: var(--amber-soft);
             border: 0.2mm solid #f0d69a;
             border-radius: 1mm;
-            padding: 1.4mm 1.8mm;
+            padding: 1.3mm 1.6mm;
+            font-size: 4.9px;
+            line-height: 1.42;
+            color: #6b5518;
             text-align: center;
         }
 
-        .lost-note .ln-text { font-size: 5px; line-height: 1.45; color: #6b5518; }
-        .lost-note .ln-text b { color: #7a4d00; }
+        .lost-note b { color: #7a4d00; }
 
-        .lost-note .ln-contact {
-            margin-top: 0.8mm;
+        .emg-contact {
+            margin-top: 1mm;
+            display: block;
             font-size: 5.2px;
-            font-weight: 700;
-            color: var(--green-dark);
-            letter-spacing: 0.2px;
+            font-weight: 800;
+            color: #c0392b;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
         }
 
         /* ======================= CONTROLS ======================= */
@@ -330,15 +312,15 @@
         .btn:hover { background: var(--green-dark); }
 
         /* ======================= PRINT ======================= */
-        @page { size: 59.98mm 91.60mm; margin: 0; }
+        @page { size: 53.98mm 85.60mm; margin: 0; }
 
         .card-front { page-break-after: always; break-after: page; }
 
         @media print {
             body { background: #fff; padding: 0; gap: 0; display: block; }
             .id-card {
-                width: 59.98mm;
-                height: 91.60mm;
+                width: 53.98mm;
+                height: 85.60mm;
                 margin: 0;
                 box-shadow: none;
                 page-break-inside: avoid;
@@ -355,8 +337,6 @@
 
     <!-- ==================== FRONT (page 1) ==================== -->
     <div class="id-card card-front">
-        <div class="frame-border"></div>
-
         <div class="hdr">
             <div class="inst-name">Sirajganj Government Polytechnic Institute</div>
             <div class="hdr-sub">Estd. 2004 &nbsp;&middot;&nbsp; Code 25054 &nbsp;&middot;&nbsp; EIIN 132927</div>
@@ -395,8 +375,6 @@
 
     <!-- ==================== BACK (page 2) ==================== -->
     <div class="id-card card-back">
-        <div class="frame-border"></div>
-
         <div class="hdr">
             <div class="inst-name">Sirajganj Government Polytechnic Institute</div>
             <div class="hdr-sub">Kazipur Road, Fakirtola, Sirajganj</div>
@@ -412,26 +390,31 @@
                 </div>
 
                 <div class="bx-fields">
-                    <div class="field">
-                        <div class="k">Issue Date</div>
-                        <div class="v">{{ISSUE_DATE}}</div>
-                    </div>
-                    <div class="field">
-                        <div class="k">Expiry Date</div>
-                        <div class="v exp">{{EXPIRY_DATE}}</div>
-                    </div>
-                    <div class="field">
-                        <div class="k">Emergency</div>
-                        <div class="v emg">{{EMERGENCY_CONTACT}}</div>
+                    <div class="frow">
+                        <div class="field">
+                            <div class="k">Issue Date</div>
+                            <div class="v">{{ISSUE_DATE}}</div>
+                        </div>
+                        <div class="field">
+                            <div class="k">Expiry Date</div>
+                            <div class="v exp">{{EXPIRY_DATE}}</div>
+                        </div>
                     </div>
                 </div>
 
+                <ul class="bx-rules">
+                    <li>This card must be carried on campus and shown on demand.</li>
+                    <li>Valid only for the holder named on the front side.</li>
+                    <li>Report loss to the institute office immediately.</li>
+                </ul>
+
                 <div class="lost-note">
-                    <div class="ln-text">
-                        <b>If found</b>, please return this card to the institute office. It is the
-                        property of the institute and is non-transferable.
+                    <b>If found</b>, please return this card to the address above or call the
+                    institute. This card is the property of Sirajganj Government Polytechnic
+                    Institute and is non-transferable.
+                    <div class="emg-contact">
+                        <span class="emg-label">EMERGENCY CONTACT</span> : <span class="emg-number">{{EMERGENCY_CONTACT}}</span>
                     </div>
-                    <div class="ln-contact">+8801309-132927 &nbsp;&middot;&nbsp; principal.spi@gmail.com</div>
                 </div>
             </div>
         </div>

@@ -21,7 +21,7 @@ def create_default_settings(apps, schema_editor):
             institute_name='Sirajganj Polytechnic Institute',
             institute_address='Sirajganj, Bangladesh',
             institute_phone='',
-            institute_email='',
+            institute_email='principal.spi@gmail.com',
             maintenance_mode=False,
             maintenance_message=''
         )
