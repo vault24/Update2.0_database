@@ -10,7 +10,7 @@ export const defaultFormData: AdmissionFormState = {
   dateOfBirth: '',
   gender: '',
   religion: '',
-  nationality: '',
+  nationality: 'Bangladeshi',
   nid: '',
   birthCertificate: '',
   bloodGroup: '',

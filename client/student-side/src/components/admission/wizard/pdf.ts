@@ -2,7 +2,7 @@
 import autoTable from 'jspdf-autotable';
 import { AdmissionFormState } from './types';
 import { toast } from 'sonner';
-import { semesterOptions, admissionTypeOptions } from './stepConfig';
+import { semesterOptions, admissionTypeOptions, ADMISSION_DOCUMENT_FIELDS } from './stepConfig';
 
 const semesterLabel = (v: string): string => semesterOptions.find((o) => o.value === v)?.label || v;
 const admissionTypeLabel = (v: string): string => admissionTypeOptions.find((o) => o.value === v)?.label || v;
@@ -22,7 +22,7 @@ const ACCENT: [number, number, number] = [180, 130, 30];
 const LABEL_BG: [number, number, number] = [240, 243, 248];
 const BORDER: [number, number, number] = [214, 221, 232];
 
-type Field = { label: string; value: string; full?: boolean };
+type Field = { label: string; value: string; full?: boolean; bangla?: boolean };
 interface Section { title: string; fields: Field[]; }
 
 const capitalize = (text: string): string => (text ? text.charAt(0).toUpperCase() + text.slice(1) : text);
@@ -45,7 +45,7 @@ function buildSections(
       title: 'Personal Information',
       fields: [
         { label: 'Full Name (English)', value: val(formData.fullNameEnglish) },
-        { label: 'Full Name (Bangla)', value: val(formData.fullNameBangla) },
+        { label: 'Full Name (Bangla)', value: val(formData.fullNameBangla), bangla: true },
         { label: "Father's Name", value: val(formData.fatherName) },
         { label: "Mother's Name", value: val(formData.motherName) },
         { label: "Father's NID", value: val(formData.fatherNID) },
@@ -54,7 +54,7 @@ function buildSections(
         { label: 'Gender', value: val(capitalize(formData.gender)) },
         { label: 'Blood Group', value: val(formData.bloodGroup) },
         { label: 'Religion', value: val(capitalize(formData.religion)) },
-        { label: 'Nationality', value: val(formData.nationality) },
+        { label: 'Nationality', value: val(formData.nationality || 'Bangladeshi') },
         { label: 'Marital Status', value: val(capitalize(formData.maritalStatus)) },
         { label: 'NID Number', value: val(formData.nid) },
         { label: 'Birth Certificate No.', value: val(formData.birthCertificate) },
@@ -121,7 +121,62 @@ function buildSections(
       ],
     },
   ];
+
+  // Attached documents — list every document the applicant added, so the form
+  // records exactly what was submitted with the application.
+  const attachedDocs = ADMISSION_DOCUMENT_FIELDS
+    .filter((d) => !!(formData as unknown as Record<string, unknown>)[d.key])
+    .map((d) => d.label);
+  sections.push({
+    title: 'Attached Documents',
+    fields: attachedDocs.length
+      ? attachedDocs.map((name, i) => ({ label: String(i + 1), value: name, full: true }))
+      : [{ label: '-', value: 'No documents were attached with this application.', full: true }],
+  });
+
   return sections;
+}
+
+// ---------------------------------------------------------------------------
+// Bangla rendering. jsPDF's built-in fonts are Latin-1 only, so Bangla Unicode
+// turns into mojibake. Instead we paint the Bangla string onto a canvas (the
+// browser shapes Bengali conjuncts/matras correctly) and embed it as an image.
+// ---------------------------------------------------------------------------
+function renderBanglaToImage(text: string): { dataUrl: string; ratio: number } | null {
+  if (typeof document === 'undefined' || !text) return null;
+  try {
+    const fontPx = 40;
+    const fontStack = `${fontPx}px "Noto Sans Bengali","Nikosh","Vrinda","SolaimanLipi","Kalpurush","Siyam Rupali",sans-serif`;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.font = fontStack;
+    const w = Math.max(1, Math.ceil(ctx.measureText(text).width) + 10);
+    const h = Math.ceil(fontPx * 1.5);
+    canvas.width = w;
+    canvas.height = h;
+    ctx.font = fontStack; // resizing the canvas resets the context
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#1e1e1e';
+    ctx.fillText(text, 5, h / 2);
+    return { dataUrl: canvas.toDataURL('image/png'), ratio: w / h };
+  } catch {
+    return null;
+  }
+}
+
+function drawBanglaInCell(doc: jsPDF, cell: { x: number; y: number; width: number; height: number }, text: string) {
+  const img = renderBanglaToImage(text);
+  if (!img) return;
+  const pad = 1.6;
+  const maxW = cell.width - pad * 2;
+  let h = Math.min(cell.height - pad, 4.2);
+  let w = h * img.ratio;
+  if (w > maxW) { w = maxW; h = w / img.ratio; }
+  const x = cell.x + pad;
+  const y = cell.y + (cell.height - h) / 2;
+  try { doc.addImage(img.dataUrl, 'PNG', x, y, w, h); } catch { /* ignore draw errors */ }
 }
 
 const makeDeptResolver = (departments?: Department[]) => (deptId: string): string => {
@@ -198,31 +253,36 @@ function buildAdmissionDoc(
     const colLabel2 = 33;
     const colVal2 = contentWidth / 2 - colLabel2;
 
+    const labelCell = (label: string) => ({
+      content: label,
+      styles: { fillColor: LABEL_BG, fontStyle: 'bold' as const, textColor: NAVY },
+    });
+    const valueCell = (f: Field, colSpan?: number) => {
+      const cell: any = { content: f.value };
+      if (colSpan) cell.colSpan = colSpan;
+      // Blank the mojibake text and flag the cell so didDrawCell paints the
+      // Bangla string as an image instead.
+      if (f.bangla && f.value && f.value !== '-') {
+        cell.content = '';
+        cell._bangla = f.value;
+      }
+      return cell;
+    };
+
     sections.forEach((section) => {
       const body: any[] = [];
       const fields = section.fields;
       for (let i = 0; i < fields.length; i++) {
         const f = fields[i];
         if (f.full) {
-          body.push([
-            { content: f.label, styles: { fillColor: LABEL_BG, fontStyle: 'bold', textColor: NAVY } },
-            { content: f.value, colSpan: 3 },
-          ]);
+          body.push([labelCell(f.label), valueCell(f, 3)]);
         } else {
           const next = fields[i + 1];
           if (next && !next.full) {
-            body.push([
-              { content: f.label, styles: { fillColor: LABEL_BG, fontStyle: 'bold', textColor: NAVY } },
-              { content: f.value },
-              { content: next.label, styles: { fillColor: LABEL_BG, fontStyle: 'bold', textColor: NAVY } },
-              { content: next.value },
-            ]);
+            body.push([labelCell(f.label), valueCell(f), labelCell(next.label), valueCell(next)]);
             i++;
           } else {
-            body.push([
-              { content: f.label, styles: { fillColor: LABEL_BG, fontStyle: 'bold', textColor: NAVY } },
-              { content: f.value, colSpan: 3 },
-            ]);
+            body.push([labelCell(f.label), valueCell(f, 3)]);
           }
         }
       }
@@ -243,6 +303,12 @@ function buildAdmissionDoc(
         margin: { left: margin, right: margin },
         pageBreak: 'auto',
         rowPageBreak: 'avoid',
+        didDrawCell: (data: any) => {
+          const raw = data.cell.raw;
+          if (raw && typeof raw === 'object' && raw._bangla) {
+            drawBanglaInCell(doc, data.cell, raw._bangla as string);
+          }
+        },
       });
       y = (doc as any).lastAutoTable.finalY + 5;
     });

@@ -20,7 +20,7 @@ const BANNER_TEXT = {
         তুমি এখনও এডমিশন কম্পিলিট করো নি, এডমিশন কম্পিলিট না করলে কোন ফিচার ব্যবহার করতে
         পারবে নাহ। তাই এডমিশন দ্রুত কম্পিলিট করো। কিভাবে করতে হবে বুঝতে না পারলে{' '}
         <a
-          href="https://youtu.be/KmFUuvslHds?si=bLcBP8uWKAGi6kr8"
+          href="https://youtu.be/WxCQfHvYFIg?si=ee9Tq5dAuBe1s2Uz"
           target="_blank"
           rel="noopener noreferrer"
           className="underline font-semibold text-amber-900 hover:text-amber-950"
