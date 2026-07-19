@@ -549,6 +549,7 @@ export function Dashboard() {
         attendancePercentage={attendancePercentage}
         semester={semester}
         department={department}
+        roll={studentData?.student?.rollNumber}
       />
 
       {/* Class Status Box - for students/captains */}

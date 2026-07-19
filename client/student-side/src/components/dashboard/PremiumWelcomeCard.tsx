@@ -18,14 +18,19 @@ interface PremiumWelcomeCardProps {
   attendancePercentage?: number;
   semester?: number;
   department?: string;
+  roll?: string;
 }
 
-export function PremiumWelcomeCard({ 
-  attendancePercentage = 0, 
+export function PremiumWelcomeCard({
+  attendancePercentage = 0,
   semester = 1,
-  department = 'Computer Science'
+  department = 'Computer Science',
+  roll
 }: PremiumWelcomeCardProps) {
   const { user } = useAuth();
+
+  // Show only the first two words of the name (e.g. "Md Mahadi Hasan" -> "Md Mahadi").
+  const shortName = user?.name?.trim().split(/\s+/).slice(0, 2).join(' ');
   const navigate = useNavigate();
   const [motivationalQuote, setMotivationalQuote] = useState<string>('');
   const [motivationEnabled, setMotivationEnabled] = useState(true);
@@ -138,7 +143,7 @@ export function PremiumWelcomeCard({
               transition={{ delay: 0.3 }}
               className="text-xl md:text-2xl lg:text-3xl font-display font-bold mb-1 md:mb-2"
             >
-              Welcome back, {user?.name?.split(' ')[0]}
+              Welcome back, {shortName}
             </motion.h1>
             
             {motivationEnabled && (
@@ -193,8 +198,8 @@ export function PremiumWelcomeCard({
 
             {/* Student ID Badge */}
             <div className="bg-white/15 rounded-xl md:rounded-2xl px-3 md:px-4 py-2 md:py-2.5 text-center">
-              <p className="text-[10px] md:text-xs opacity-70">Student ID</p>
-              <p className="text-sm md:text-base font-bold tracking-wide">{user?.studentId || 'N/A'}</p>
+              <p className="text-[10px] md:text-xs opacity-70">Roll</p>
+              <p className="text-sm md:text-base font-bold tracking-wide">{roll || user?.studentId || 'N/A'}</p>
               <p className="text-[9px] md:text-xs opacity-70">{department}</p>
             </div>
 

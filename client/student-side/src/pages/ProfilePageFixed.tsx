@@ -23,13 +23,10 @@ import { StudentStatsCard } from '@/components/profile/StudentStatsCard';
 import { StudentOverviewTab } from '@/components/profile/StudentOverviewTab';
 import { LinkedInTeacherProfile } from '@/components/profile/LinkedInTeacherProfile';
 
+// Admission / Routine / Attendance / Marks / Documents are already reachable from
+// the sidebar, so the profile page only keeps the Overview tab.
 const studentTabs = [
   { id: 'overview', label: 'Overview', icon: User },
-  { id: 'admission', label: 'Admission', icon: FileText },
-  { id: 'routine', label: 'Routine', icon: Calendar },
-  { id: 'attendance', label: 'Attendance', icon: ClipboardCheck },
-  { id: 'marks', label: 'Marks', icon: BarChart3 },
-  { id: 'documents', label: 'Documents', icon: FolderOpen },
 ];
 
 const teacherTabs = [
@@ -301,7 +298,8 @@ export function ProfilePageFixed() {
         rank={classRank}
       />
 
-      {/* Tabs */}
+      {/* Tabs — hidden when there is only a single tab (e.g. student Overview) */}
+      {tabs.length > 1 && (
       <div className="overflow-x-auto -mx-3 px-3 md:-mx-4 md:px-4 lg:mx-0 lg:px-0">
         <div className="flex gap-1 md:gap-1.5 lg:gap-2 min-w-max pb-2">
           {tabs.map((tab) => {
@@ -324,6 +322,7 @@ export function ProfilePageFixed() {
           })}
         </div>
       </div>
+      )}
 
       {/* Tab Content */}
       <AnimatePresence mode="wait">
