@@ -53,3 +53,7 @@ pywebpush==2.3.0
 # interleaves the notice's 4 columns and destroys records) and PyMuPDF
 # (AGPL). pypdf preserves content-stream order, keeping records contiguous.
 pypdf==6.14.2
+
+# Result-sheet exports (apps.results.reportsheet): colourful PDF tabulation
+# sheets (reportlab) and Excel workbooks (openpyxl, already a dependency).
+reportlab==5.0.0

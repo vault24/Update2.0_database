@@ -6,7 +6,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.db.models import Count, Q, Avg
 from django.contrib.auth import get_user_model
-from apps.students.models import Student
+from apps.students.models import Student, exclude_unapproved_alumni
 from apps.alumni.models import Alumni
 from apps.applications.models import Application
 from apps.admissions.models import Admission
@@ -35,26 +35,32 @@ class DashboardStatsView(APIView):
         Get comprehensive dashboard statistics
         """
         try:
+            # Base queryset of CONFIRMED students only — alumni self-registrations
+            # still pending review (or rejected) are not students yet, so they are
+            # excluded from every count below.
+            students = exclude_unapproved_alumni(Student.objects.all())
+
             # Total students count
-            total_students = Student.objects.count()
-            active_students = Student.objects.filter(status='active').count()
-            graduated_students = Student.objects.filter(status='graduated').count()
-            discontinued_students = Student.objects.filter(status='discontinued').count()
-            
+            total_students = students.count()
+            active_students = students.filter(status='active').count()
+            graduated_students = students.filter(status='graduated').count()
+            discontinued_students = students.filter(status='discontinued').count()
+
             # Student statistics by status
-            student_stats_by_status = list(Student.objects.values('status').annotate(
+            student_stats_by_status = list(students.values('status').annotate(
                 count=Count('id')
             ).order_by('status'))
-            
+
             # Student statistics by department
-            student_stats_by_department = list(Student.objects.values(
+            student_stats_by_department = list(students.values(
                 'department__name', 'department__code'
             ).annotate(
                 count=Count('id')
             ).order_by('department__name'))
-            
-            # Student statistics by semester
-            student_stats_by_semester = list(Student.objects.values('semester').annotate(
+
+            # Student statistics by semester — active students only, so graduated
+            # students (who sit at semester 8) never inflate the 8th-semester count.
+            student_stats_by_semester = list(students.filter(status='active').values('semester').annotate(
                 count=Count('id')
             ).order_by('semester'))
             

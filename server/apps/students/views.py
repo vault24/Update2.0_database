@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q
 from django.conf import settings
-from .models import Student
+from .models import Student, exclude_unapproved_alumni
 from .serializers import (
     StudentListSerializer,
     StudentDetailSerializer,
@@ -68,6 +68,20 @@ def scope_students_queryset(qs, user):
     if not (user and getattr(user, 'is_authenticated', False)):
         return qs.none()
     role = getattr(user, 'role', None)
+    if role == 'student':
+        # A student may always read their OWN record — including an alumni
+        # self-registration that is still awaiting review. (Handled first so
+        # the unapproved-alumni exclusion below never hides them from
+        # themselves.)
+        pid = getattr(user, 'related_profile_id', None)
+        return qs.filter(id=pid) if pid else qs.none()
+
+    # Every staff/captain-facing student view must ignore alumni
+    # self-registrations that haven't been approved — without an admin's
+    # approval they are not students, so they never appear in lists,
+    # searches, department pages, etc.
+    qs = exclude_unapproved_alumni(qs)
+
     if user.is_superuser or role in ('institute_head', 'registrar'):
         return qs
     if role == 'department_head':
@@ -91,9 +105,6 @@ def scope_students_queryset(qs, user):
         if not prof:
             return qs.none()
         return qs.filter(department_id=prof.department_id, semester=prof.semester, shift=prof.shift)
-    if role == 'student':
-        pid = getattr(user, 'related_profile_id', None)
-        return qs.filter(id=pid) if pid else qs.none()
     return qs.none()
 
 
@@ -1010,7 +1021,15 @@ class StudentViewSet(viewsets.ModelViewSet):
         # ── GET: status only ──────────────────────────────────────────────
         if request.method == 'GET':
             user = find_account()
-            return Response(account_payload(user) if user else {'has_account': False})
+            if user:
+                return Response(account_payload(user, student=student))
+            # No portal login, but the student may still be scheduled for
+            # deletion (admin-created students have no login) — surface that.
+            from .account_service import pending_deletion_payload
+            return Response({
+                'has_account': False,
+                'pending_deletion': pending_deletion_payload(student),
+            })
 
         # ── Sensitive write: confirm the admin's own password ─────────────
         admin_password = (request.data.get('admin_password') or '').strip()
@@ -1161,16 +1180,18 @@ class StudentViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['delete'], url_path='account/delete')
     def account_delete(self, request, pk=None):
         """
-        Full deletion: verify the OTP sent to the admin's own email, then
-        delete BOTH the linked student portal account AND the student record.
+        Schedule full deletion: verify the OTP sent to the admin's own email,
+        then mark the student (and every linked account/record) for permanent
+        deletion after a 7-day recovery window. Nothing is removed yet — the
+        student can undo it by logging in, and the ``purge_pending_deletions``
+        job removes everything if the window elapses.
         DELETE /api/students/{id}/account/delete/
           body: { otp }
         """
         from apps.authentication.services import OTPService
         from apps.activity_logs.signals import log_activity
-        from django.contrib.auth import get_user_model
+        from .deletion_service import schedule_student_deletion
 
-        User = get_user_model()
         student = self.get_object()
 
         if not request.user.is_admin():
@@ -1199,46 +1220,70 @@ class StudentViewSet(viewsets.ModelViewSet):
         ip = xff.split(',')[0].strip() if xff else request.META.get('REMOTE_ADDR')
         student_name = student.fullNameEnglish
         student_roll = student.currentRollNumber
-        student_id = str(student.id)
 
-        # 1. Delete linked student portal account (if any)
-        portal_user = User.objects.filter(
-            related_profile_id=student.id, role__in=['student', 'captain']
-        ).order_by('date_joined').first()
-        portal_deleted = False
-        if portal_user:
-            portal_email = portal_user.email
-            portal_user.delete()
-            portal_deleted = True
-        else:
-            portal_email = None
-
-        # 2. Delete the student record itself
-        student.delete()
+        req = schedule_student_deletion(student, actor=admin)
 
         log_activity(
-            admin, 'delete', 'StudentRecord', None,
-            f'Fully deleted student {student_name} [{student_roll}]'
-            + (f' + portal account ({portal_email})' if portal_deleted else ' (no portal account)'),
+            admin, 'delete', 'StudentRecord', str(student.id),
+            f'Scheduled deletion of student {student_name} [{student_roll}] — '
+            f'permanent purge on {req.purge_at.isoformat()} (7-day recovery)',
             changes={
-                'student_id': student_id,
+                'student_id': str(student.id),
                 'student_name': student_name,
                 'roll_number': student_roll,
-                'portal_account_deleted': portal_deleted,
-                'portal_email': portal_email,
+                'purge_at': req.purge_at.isoformat(),
             },
             ip_address=ip, user_agent=request.META.get('HTTP_USER_AGENT', ''),
         )
 
         return Response(
             {
-                'deleted': True,
-                'portal_account_deleted': portal_deleted,
+                'scheduled': True,
+                'purge_at': req.purge_at.isoformat(),
+                'recovery_days': req.RECOVERY_DAYS,
                 'message': (
-                    f'Student record and portal account for {student_name} have been permanently deleted.'
-                    if portal_deleted else
-                    f'Student record for {student_name} has been permanently deleted (no portal account found).'
+                    f'{student_name} has been scheduled for permanent deletion on '
+                    f'{req.purge_at.date().isoformat()}. If the student logs in before then, '
+                    'the deletion is cancelled automatically.'
                 ),
             },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=['post'], url_path='account/cancel-delete')
+    def account_cancel_delete(self, request, pk=None):
+        """
+        Admin: cancel a pending deletion for this student (restores it fully).
+        POST /api/students/{id}/account/cancel-delete/
+        Reversible + admin-only, so session auth is sufficient (no OTP).
+        """
+        from apps.activity_logs.signals import log_activity
+        from .deletion_service import cancel_student_deletion
+
+        student = self.get_object()
+
+        if not request.user.is_admin():
+            return Response(
+                {'error': 'Permission denied', 'detail': 'Only administrators can perform this action.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        req = cancel_student_deletion(student=student, reason='admin')
+        if not req:
+            return Response(
+                {'error': 'Nothing to cancel', 'detail': 'This student is not scheduled for deletion.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        xff = request.META.get('HTTP_X_FORWARDED_FOR')
+        ip = xff.split(',')[0].strip() if xff else request.META.get('REMOTE_ADDR')
+        log_activity(
+            request.user, 'update', 'StudentRecord', str(student.id),
+            f'Cancelled scheduled deletion of student {student.fullNameEnglish} [{student.currentRollNumber}]',
+            ip_address=ip, user_agent=request.META.get('HTTP_USER_AGENT', ''),
+        )
+
+        return Response(
+            {'cancelled': True, 'message': 'Scheduled deletion cancelled. The account has been restored.'},
             status=status.HTTP_200_OK,
         )

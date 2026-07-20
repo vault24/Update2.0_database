@@ -197,23 +197,26 @@ function SecureAccountDialog({
   );
 }
 
-// ── Delete Account Dialog (math challenge → OTP sent to ADMIN's email) ───────
+// ── Delete Account Dialog ────────────────────────────────────────────────────
+// Staged, high-friction flow: (1) math check → (2) OTP to the ADMIN's own email
+// → (3) plain-language warning → (4) confirm. Confirming SCHEDULES a soft-delete
+// with a 7-day recovery window; it does NOT purge immediately.
 function DeleteAccountDialog({
-  studentId, onClose, onDone,
+  studentId, studentName, onClose, onScheduled,
 }: {
   studentId: string;
+  studentName?: string;
   onClose: () => void;
-  onDone: () => void;
+  onScheduled: () => void;
 }) {
   const { toast } = useToast();
 
-  const generateMath = () => {
-    const a = Math.floor(Math.random() * 20) + 1;
-    const b = Math.floor(Math.random() * 20) + 1;
-    return { a, b };
-  };
+  const generateMath = () => ({
+    a: Math.floor(Math.random() * 20) + 1,
+    b: Math.floor(Math.random() * 20) + 1,
+  });
 
-  const [step, setStep] = useState<'math' | 'otp'>('math');
+  const [step, setStep] = useState<'math' | 'otp' | 'warning'>('math');
   const [math, setMath] = useState(generateMath);
   const [mathAnswer, setMathAnswer] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
@@ -221,6 +224,11 @@ function DeleteAccountDialog({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  const restart = () => {
+    setStep('math'); setMath(generateMath()); setMathAnswer(''); setOtp(''); setError('');
+  };
+
+  // Step 1 → sends the OTP to the admin's email, then moves to the OTP step.
   const handleMathSubmit = async () => {
     if (parseInt(mathAnswer) !== math.a + math.b) {
       setError('Incorrect answer. Please try again.');
@@ -233,7 +241,7 @@ function DeleteAccountDialog({
     try {
       const res = await studentAccountService.sendDeleteOtp(studentId, {});
       setAdminEmail(res.email || '');
-      toast({ title: 'Verification code sent', description: `A code has been sent to your email.` });
+      toast({ title: 'Verification code sent', description: 'A code has been sent to your email.' });
       setStep('otp');
     } catch (e: any) {
       setError(accountErrorMessage(e));
@@ -242,18 +250,25 @@ function DeleteAccountDialog({
     }
   };
 
-  const handleDelete = async () => {
-    if (!otp.trim()) { setError('Enter the verification code.'); return; }
+  // Step 2 → the code is verified server-side on the final confirm, so here we
+  // just make sure something was entered before showing the warning.
+  const handleOtpContinue = () => {
+    if (!otp.trim()) { setError('Enter the verification code from your email.'); return; }
+    setError('');
+    setStep('warning');
+  };
+
+  // Step 4 → schedule the soft-delete (verifies OTP on the server).
+  const handleConfirm = async () => {
     setError('');
     setSubmitting(true);
     try {
-      await studentAccountService.deleteAccount(studentId, { otp: otp.trim() });
+      const res = await studentAccountService.deleteAccount(studentId, { otp: otp.trim() });
       toast({
-        title: 'Student permanently deleted',
-        description: 'The student record and portal account have been removed.',
-        variant: 'destructive',
+        title: 'Scheduled for deletion',
+        description: res?.message || 'The account enters a 7-day recovery period.',
       });
-      onDone();
+      onScheduled();
     } catch (e: any) {
       setError(accountErrorMessage(e));
     } finally {
@@ -263,21 +278,37 @@ function DeleteAccountDialog({
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o && !submitting) onClose(); }}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-destructive">
             <Trash2 className="h-5 w-5" />
-            Delete Student Permanently
+            Delete Account
           </DialogTitle>
           <DialogDescription>
-            {step === 'math'
-              ? 'This will permanently delete the student record and portal account. Solve the math problem to send a verification code to your email.'
-              : `Enter the code sent to ${adminEmail || 'your email'} to confirm permanent deletion.`}
+            {step === 'math' && 'Solve the security check to send a verification code to your email.'}
+            {step === 'otp' && `Enter the code sent to ${adminEmail || 'your email'} to continue.`}
+            {step === 'warning' && 'Please review what will happen before confirming.'}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          {step === 'math' ? (
+          {/* Step indicator */}
+          <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+            {(['math', 'otp', 'warning'] as const).map((s, i) => (
+              <span key={s} className="flex items-center gap-1.5">
+                <span className={`flex h-5 w-5 items-center justify-center rounded-full border text-[10px] ${
+                  step === s ? 'border-destructive bg-destructive text-destructive-foreground'
+                    : (['math', 'otp', 'warning'].indexOf(step) > i ? 'border-success bg-success/15 text-success' : 'border-border')
+                }`}>{i + 1}</span>
+                {i < 2 && <span className="h-px w-4 bg-border" />}
+              </span>
+            ))}
+            <span className="ml-1">
+              {step === 'math' ? 'Security check' : step === 'otp' ? 'Email code' : 'Confirm'}
+            </span>
+          </div>
+
+          {step === 'math' && (
             <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-center space-y-3">
               <p className="text-2xl font-bold text-foreground tracking-wide">
                 {math.a} + {math.b} = ?
@@ -292,7 +323,9 @@ function DeleteAccountDialog({
                 autoFocus
               />
             </div>
-          ) : (
+          )}
+
+          {step === 'otp' && (
             <div className="space-y-1.5">
               <Label htmlFor="del-otp">Verification Code</Label>
               <Input
@@ -303,7 +336,7 @@ function DeleteAccountDialog({
                 value={otp}
                 placeholder="Enter code from your email"
                 onChange={(e) => setOtp(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleDelete(); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleOtpContinue(); }}
                 autoFocus
                 className="text-center tracking-widest text-lg font-mono"
               />
@@ -313,11 +346,29 @@ function DeleteAccountDialog({
                   type="button"
                   className="underline text-primary hover:text-primary/80 disabled:opacity-50"
                   disabled={submitting}
-                  onClick={() => { setStep('math'); setMath(generateMath()); setMathAnswer(''); setOtp(''); setError(''); }}
+                  onClick={restart}
                 >
                   Start over
                 </button>
               </p>
+            </div>
+          )}
+
+          {step === 'warning' && (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 space-y-2 text-sm">
+              <div className="flex items-center gap-2 font-semibold text-destructive">
+                <ShieldAlert className="h-4 w-4" /> This action is permanent
+              </div>
+              <p className="text-muted-foreground">
+                This will schedule <span className="font-medium text-foreground">{studentName || 'this student'}</span>'s
+                portal account and <span className="font-medium text-foreground">all associated records</span> (student,
+                alumni, captain, authentication, sessions and tokens) for permanent deletion.
+              </p>
+              <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
+                <li>The account enters a <span className="font-medium text-foreground">7-day recovery period</span>.</li>
+                <li>If the student logs in during this period, the deletion is <span className="font-medium text-foreground">cancelled automatically</span>.</li>
+                <li>After 7 days with no login, <span className="font-medium text-foreground">all data is permanently removed</span>.</li>
+              </ul>
             </div>
           )}
 
@@ -331,13 +382,19 @@ function DeleteAccountDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
-          {step === 'math' ? (
+          {step === 'math' && (
             <Button variant="destructive" onClick={handleMathSubmit} disabled={submitting || !mathAnswer}>
-              {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending…</> : 'Send OTP'}
+              {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending…</> : 'Send Code'}
             </Button>
-          ) : (
-            <Button variant="destructive" onClick={handleDelete} disabled={submitting}>
-              {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting…</> : 'Confirm Delete'}
+          )}
+          {step === 'otp' && (
+            <Button variant="destructive" onClick={handleOtpContinue} disabled={submitting || !otp.trim()}>
+              Continue
+            </Button>
+          )}
+          {step === 'warning' && (
+            <Button variant="destructive" onClick={handleConfirm} disabled={submitting}>
+              {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Scheduling…</> : 'Confirm Delete'}
             </Button>
           )}
         </DialogFooter>

@@ -175,6 +175,49 @@ class SyncTests(TestCase):
         self.assertEqual(student.finalCgpa, Decimal('3.25'))
         self.assertEqual(student.semester, 8)
 
+    def test_next_semester_updates_without_duplicates(self):
+        """Importing the 8th-sem result must extend the same per-semester
+        entries, never create a parallel gpa1/gpa2… set."""
+        self._result(
+            self.exam5, self.import5, '700010', 'passed',
+            grades=[(5, '3.20'), (4, '3.10'), (3, '3.00'), (2, '3.05'), (1, '3.15')],
+        )
+        student = self._student('700010', semester=5)
+        student.refresh_from_db()
+        self.assertEqual(len(student.semesterResults), 5)
+
+        # 8th-sem history republishes semesters 1–5 (same values) + adds 6–8.
+        self._result(
+            self.exam8, self.import8, '700010', 'passed', cgpa=Decimal('3.30'),
+            grades=[(8, '3.40'), (7, '3.35'), (6, '3.25'), (5, '3.20'),
+                    (4, '3.10'), (3, '3.00'), (2, '3.05'), (1, '3.15')],
+        )
+        sync_student(student)
+        student.refresh_from_db()
+        semesters = [e['semester'] for e in student.semesterResults]
+        self.assertEqual(semesters, [1, 2, 3, 4, 5, 6, 7, 8])
+        self.assertEqual(len(semesters), len(set(semesters)))  # no duplicates
+
+    def test_legacy_string_semester_key_collides(self):
+        """A legacy entry storing semester as a string must be updated in
+        place, not duplicated, when results are synced."""
+        self._result(
+            self.exam5, self.import5, '700011', 'passed',
+            grades=[(5, '3.50'), (4, '3.00'), (3, '3.00'), (2, '3.00'), (1, '3.00')],
+        )
+        student = self._student('700011', semester=5)
+        # Simulate malformed legacy data: semester 5 stored as the string "5".
+        student.semesterResults = [{'semester': '5', 'resultType': 'gpa', 'gpa': 2.0}]
+        student._result_sync_in_progress = True
+        student.save()
+        student._result_sync_in_progress = False
+
+        sync_student(student)
+        student.refresh_from_db()
+        fives = [e for e in student.semesterResults if int(e['semester']) == 5]
+        self.assertEqual(len(fives), 1)
+        self.assertEqual(fives[0]['gpa'], 3.5)  # updated to the imported value
+
     def test_unmatched_roll_changes_nothing(self):
         student = self._student('999999')
         self.assertFalse(sync_student(student))

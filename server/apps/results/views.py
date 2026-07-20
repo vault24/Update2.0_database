@@ -217,77 +217,95 @@ class PublicRollSearchView(APIView):
         return Response(_search_payload(roll))
 
 
-class AnalyticsExamsView(APIView):
-    """Exams that have imported results — for the analytics exam picker."""
+def _semester_param(request):
+    """Parse a 1–12 semester number from the query string, or None."""
+    try:
+        semester = int(request.query_params.get('semester', ''))
+    except (ValueError, TypeError):
+        return None
+    return semester if 1 <= semester <= 12 else None
+
+
+class AnalyticsSemestersView(APIView):
+    """Semester numbers (1–8…) that have results for our enrolled students."""
 
     permission_classes = [IsAdminRole]
 
     def get(self, request):
-        from .analytics import exams_with_results
+        from .analytics import available_semesters
 
-        return Response(exams_with_results())
+        return Response(available_semesters())
 
 
 class AnalyticsSummaryView(APIView):
-    """Institute / department / national summary for one exam.
+    """Institute / department / national summary for one semester.
 
-    Powers the admin "Analytics" tab: summary cards, department comparison,
-    shift breakdown, most-failed subjects and top performers.
+    Aggregates across every regulation year — analytics is keyed by semester
+    number, and covers only students who have an account in our database.
     """
 
     permission_classes = [IsAdminRole]
 
     def get(self, request):
-        from .analytics import exam_summary
+        from .analytics import semester_summary
 
-        exam = self._exam(request)
-        if exam is None:
+        semester = _semester_param(request)
+        if semester is None:
             return Response(
-                {'error': 'Pass a valid ?exam=<id> (see analytics/exams/).'},
+                {'error': 'Pass a valid ?semester=<1-12>.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        payload = exam_summary(exam)
-        payload['exam'] = ExamSerializer(exam).data
-        return Response(payload)
-
-    @staticmethod
-    def _exam(request):
-        from .models import Exam
-
-        try:
-            return Exam.objects.get(id=int(request.query_params.get('exam', '')))
-        except (Exam.DoesNotExist, ValueError, TypeError):
-            return None
+        return Response(semester_summary(semester))
 
 
 class AnalyticsDownloadView(APIView):
-    """CSV export of matched student results, optionally filtered by
-    department and shift. GET …/download/?exam=<id>[&department=<uuid>][&shift=Morning]"""
+    """Result-sheet download for one semester, filtered by department + shift.
+
+    GET …/download/?semester=<n>[&department=<uuid>][&shift=Morning][&type=pdf|excel]
+    Renders the institute's official tabulation-sheet layout.
+
+    Note: the export type is ``type``, not ``format`` — DRF reserves the
+    ``format`` query parameter for content negotiation.
+    """
 
     permission_classes = [IsAdminRole]
 
     def get(self, request):
         from django.http import HttpResponse
 
-        from .analytics import results_csv
+        from .analytics import sheet_rows
+        from .reportsheet import render_excel, render_pdf
 
-        exam = AnalyticsSummaryView._exam(request)
-        if exam is None:
+        semester = _semester_param(request)
+        if semester is None:
             return Response(
-                {'error': 'Pass a valid ?exam=<id> (see analytics/exams/).'},
+                {'error': 'Pass a valid ?semester=<1-12>.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         department_id = request.query_params.get('department') or None
         shift = (request.query_params.get('shift') or '').strip()
+        fmt = (request.query_params.get('type') or 'pdf').lower()
 
-        csv_text = results_csv(exam, department_id=department_id, shift=shift)
-        filename = f"results_sem{exam.semester}_{exam.regulationYear}"
-        if department_id:
-            filename += '_dept'
+        sheet = sheet_rows(semester, department_id=department_id, shift=shift)
+
+        base = f"result_sheet_sem{semester}"
+        if department_id and sheet['departmentName'] != 'All Departments':
+            base += '_' + sheet['departmentName'].split()[0].lower()
         if shift:
-            filename += f'_{shift.lower()}'
-        response = HttpResponse(csv_text, content_type='text/csv; charset=utf-8')
-        response['Content-Disposition'] = f'attachment; filename="{filename}.csv"'
+            base += f'_{shift.lower()}'
+
+        if fmt == 'excel':
+            content = render_excel(sheet)
+            response = HttpResponse(
+                content,
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            )
+            response['Content-Disposition'] = f'attachment; filename="{base}.xlsx"'
+            return response
+
+        content = render_pdf(sheet)
+        response = HttpResponse(content, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{base}.pdf"'
         return response
 
 

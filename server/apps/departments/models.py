@@ -32,8 +32,13 @@ class Department(models.Model):
         return f"{self.name} ({self.code})"
 
     def student_count(self):
-        """Return the number of students in this department"""
-        return self.student_set.count()
+        """Return the number of students in this department.
+
+        Alumni self-registrations still pending review (or rejected) are not
+        confirmed students, so they are not counted.
+        """
+        from apps.students.models import exclude_unapproved_alumni
+        return exclude_unapproved_alumni(self.student_set).count()
     
     def teacher_count(self):
         """Return the number of teachers in this department"""

@@ -2,8 +2,26 @@
 Student Models
 """
 from django.db import models
+from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
 import uuid
+
+
+# Alumni self-registrations sitting in these review states are NOT confirmed
+# members of the institute — an application that an admin has not approved (or
+# has rejected) must never be treated as a student. Shared by the students and
+# dashboard querysets so "no student without approval" is enforced in one place.
+UNAPPROVED_ALUMNI_REVIEW_STATUSES = ('pending', 'rejected')
+
+
+def exclude_unapproved_alumni(queryset):
+    """Drop rows whose linked alumni record is still pending review or rejected.
+
+    Rows with no alumni record (regular students) and rows whose alumni was
+    approved are kept — Django's ``exclude()`` across the reverse relation only
+    removes students that DO have a matching (unapproved) alumni row.
+    """
+    return queryset.exclude(alumni__reviewStatus__in=UNAPPROVED_ALUMNI_REVIEW_STATUSES)
 
 
 class Student(models.Model):
@@ -182,3 +200,58 @@ class Student(models.Model):
                 return True
 
         return False
+
+
+class StudentDeletionRequest(models.Model):
+    """
+    Soft-delete record for the admin "Delete Account" flow.
+
+    Deleting a student from the admin panel does NOT remove anything
+    immediately. Instead a request is scheduled here with a 7-day recovery
+    window. The account stays fully usable during the window so that:
+
+      * if the student logs into their own portal within 7 days, the request is
+        automatically cancelled (see the ``user_logged_in`` signal in
+        apps.authentication.signals), and
+      * if no login happens, the ``purge_pending_deletions`` management command
+        permanently removes the student and every related record.
+
+    One row per student (reused/reset if an admin re-requests deletion).
+    """
+    RECOVERY_DAYS = 7
+
+    STATUS_CHOICES = [
+        ('pending', 'Pending Deletion'),
+        ('cancelled', 'Cancelled'),
+        ('completed', 'Completed'),
+    ]
+
+    student = models.OneToOneField(
+        Student, on_delete=models.CASCADE, related_name='deletion_request'
+    )
+    # The portal login that existed when deletion was requested — lets the login
+    # signal cancel the request even if related_profile_id is not set.
+    user_id = models.UUIDField(null=True, blank=True)
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='requested_student_deletions',
+    )
+    requested_at = models.DateTimeField(auto_now_add=True)
+    purge_at = models.DateTimeField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    cancel_reason = models.CharField(max_length=20, blank=True)  # 'student_login' | 'admin'
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    updatedAt = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'student_deletion_requests'
+        ordering = ['-requested_at']
+        verbose_name = 'Student Deletion Request'
+        verbose_name_plural = 'Student Deletion Requests'
+        indexes = [
+            models.Index(fields=['status', 'purge_at']),
+            models.Index(fields=['user_id']),
+        ]
+
+    def __str__(self):
+        return f"DeletionRequest({self.student_id}, {self.status})"

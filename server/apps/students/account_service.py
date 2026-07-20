@@ -46,29 +46,79 @@ class AccountError(ValueError):
 
 
 def find_portal_account(student):
-    """The portal login linked to this student, or None."""
+    """
+    The Student-Portal login for this person, or None.
+
+    A student may hold a portal login under any student-side account type —
+    a plain Student account, an Alumni self-registration (``role='student'`` +
+    ``is_alumni_account=True``) or a Captain account (``role='captain'``). The
+    login is normally linked via ``related_profile_id``, but the person may have
+    registered one way and been linked to a *different* Student record later, so
+    we ALSO match by the student's email. Without the email fallback the admin
+    page wrongly shows "No Portal Account" and offers to create a duplicate.
+    """
     User = get_user_model()
+    match = Q(related_profile_id=student.id)
+    email = (getattr(student, 'email', '') or '').strip()
+    if email:
+        match |= Q(email__iexact=email)
     return (
-        User.objects.filter(related_profile_id=student.id, role__in=['student', 'captain'])
+        User.objects.filter(match, role__in=['student', 'captain'])
         .order_by('date_joined')
         .first()
     )
 
 
-def account_payload(user):
-    """The account shape both APIs return."""
+def account_type_label(user):
+    """Human label for the kind of portal account this User represents."""
+    if getattr(user, 'is_alumni_account', False):
+        return 'Alumni'
+    if user.role == 'captain':
+        return 'Captain'
+    return 'Student'
+
+
+def pending_deletion_payload(student):
+    """
+    The soft-delete status for a student: ``{scheduled, purge_at, requested_at}``.
+    Returned by the account API so the admin UI can show the recovery banner even
+    when there is no portal login (an admin-created student can also be scheduled).
+    """
+    from .models import StudentDeletionRequest
+    req = (
+        StudentDeletionRequest.objects
+        .filter(student=student, status='pending')
+        .order_by('-requested_at')
+        .first()
+    )
+    if not req:
+        return {'scheduled': False}
     return {
+        'scheduled': True,
+        'requested_at': req.requested_at.isoformat() if req.requested_at else None,
+        'purge_at': req.purge_at.isoformat() if req.purge_at else None,
+    }
+
+
+def account_payload(user, *, student=None):
+    """The account shape both APIs return."""
+    payload = {
         'has_account': True,
         'user_id': str(user.id),
         'username': user.username,
         'email': user.email,
         'role': user.role,
+        'account_type': account_type_label(user),
+        'is_alumni_account': bool(getattr(user, 'is_alumni_account', False)),
         'account_status': user.account_status,
         'is_active': bool(user.is_active) and user.account_status == 'active',
         'student_id': user.student_id,
         'created_at': user.date_joined.isoformat() if user.date_joined else None,
         'last_login': user.last_login.isoformat() if user.last_login else None,
     }
+    if student is not None:
+        payload['pending_deletion'] = pending_deletion_payload(student)
+    return payload
 
 
 def _unique_student_id(student):

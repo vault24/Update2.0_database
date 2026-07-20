@@ -314,6 +314,9 @@ export default function DepartmentView() {
       try {
         const filters: any = {
           department: id,
+          // The department page lists currently-enrolled students only —
+          // graduated/alumni belong on the Alumni page, not here.
+          status: 'active',
           page_size: 1000, // Get all students for this department
         };
 

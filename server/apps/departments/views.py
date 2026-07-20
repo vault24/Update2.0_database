@@ -191,8 +191,10 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         Example: GET /api/departments/{id}/students/?semester=3&shift=Morning
         """
         department = self.get_object()
-        students = department.student_set.all()
-        
+        # Unapproved alumni self-registrations are not students yet — never list them.
+        from apps.students.models import exclude_unapproved_alumni
+        students = exclude_unapproved_alumni(department.student_set.all())
+
         # Filter by semester if provided
         semester = request.query_params.get('semester')
         if semester:

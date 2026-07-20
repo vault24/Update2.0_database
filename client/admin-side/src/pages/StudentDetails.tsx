@@ -590,6 +590,13 @@ export default function StudentDetails() {
     return Math.round((total / subjects.length) * 100) / 100;
   };
 
+  // A graduated student has finished the course, so they have no "current"
+  // semester — show their standing (Graduated) instead of a misleading "8th".
+  const semesterStanding = (): string => {
+    if (!student) return '';
+    return (student.status || '').toLowerCase() === 'graduated' ? 'Graduated' : `${student.semester}th`;
+  };
+
   // Check if student is eligible for alumni transition
   const isEligibleForAlumni = () => {
     if (!student) return false;
@@ -795,7 +802,7 @@ export default function StudentDetails() {
                   <Card className="bg-muted/50 border-0 shadow-none">
                     <CardContent className="p-3 text-center">
                       <p className="text-xs text-muted-foreground">Semester</p>
-                      <p className="text-lg font-bold text-foreground">{student.semester}th</p>
+                      <p className="text-lg font-bold text-foreground">{semesterStanding()}</p>
                     </CardContent>
                   </Card>
                   <Card className="bg-muted/50 border-0 shadow-none">
@@ -937,7 +944,7 @@ export default function StudentDetails() {
             <div className="space-y-1">
               <InfoRow label="Roll Number" value={student.currentRollNumber} />
               <InfoRow label="Registration Number" value={student.currentRegistrationNumber} />
-              <InfoRow label="Semester" value={`${student.semester}th`} />
+              <InfoRow label="Semester" value={semesterStanding()} />
               <InfoRow label="Department" value={typeof student.department === 'string' ? student.department : student.department.name} />
               <InfoRow label="Session" value={student.session} />
               <InfoRow label="Shift" value={student.shift} />

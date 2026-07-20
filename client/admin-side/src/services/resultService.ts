@@ -100,16 +100,6 @@ export interface ParserIssue {
   createdAt: string;
 }
 
-export interface AnalyticsExam {
-  id: number;
-  semester: number;
-  regulationYear: number;
-  program: string;
-  heldIn: string;
-  publicationDate: string | null;
-  resultCount: number;
-}
-
 export interface ResultBucket {
   appeared: number;
   passed: number;
@@ -129,8 +119,15 @@ export interface DepartmentSummary extends ResultBucket {
   shifts: Record<string, { appeared: number; passed: number; passRate: number | null }>;
 }
 
+export interface SemesterOption {
+  semester: number;
+  label: string;
+  students: number;
+}
+
 export interface AnalyticsSummary {
-  exam: ResultExam;
+  semester: number;
+  label: string;
   institute: ResultBucket;
   departments: DepartmentSummary[];
   topFailedSubjects: { subjectCode: string; students: number }[];
@@ -149,6 +146,8 @@ export interface AnalyticsSummary {
     passRate: number | null;
   };
 }
+
+export type DownloadFormat = 'pdf' | 'excel';
 
 class ResultService {
   private baseURL = '/results';
@@ -185,27 +184,30 @@ class ResultService {
     return await apiClient.delete<void>(`${this.baseURL}/imports/${id}/`);
   }
 
-  async getAnalyticsExams(): Promise<AnalyticsExam[]> {
-    return await apiClient.get<AnalyticsExam[]>(`${this.baseURL}/analytics/exams/`);
+  /** Semester numbers (1–8…) that have results for our enrolled students. */
+  async getAnalyticsSemesters(): Promise<SemesterOption[]> {
+    return await apiClient.get<SemesterOption[]>(`${this.baseURL}/analytics/semesters/`);
   }
 
-  async getAnalyticsSummary(examId: number): Promise<AnalyticsSummary> {
+  async getAnalyticsSummary(semester: number): Promise<AnalyticsSummary> {
     return await apiClient.get<AnalyticsSummary>(
-      `${this.baseURL}/analytics/summary/?exam=${examId}`,
+      `${this.baseURL}/analytics/summary/?semester=${semester}`,
     );
   }
 
   /**
-   * Download the results CSV. Fetched as a blob (with the admin portal
-   * header + session cookie) and saved client-side.
+   * Download the result sheet (PDF or Excel) for a semester, optionally
+   * filtered by department and shift. Fetched as a blob (with the admin
+   * portal header + session cookie) and saved client-side.
    */
-  async downloadCsv(
-    examId: number,
-    options?: { departmentId?: string; shift?: string },
+  async downloadSheet(
+    semester: number,
+    options?: { departmentId?: string; shift?: string; format?: DownloadFormat },
   ): Promise<void> {
-    const params = new URLSearchParams({ exam: String(examId) });
+    const params = new URLSearchParams({ semester: String(semester) });
     if (options?.departmentId) params.set('department', options.departmentId);
     if (options?.shift) params.set('shift', options.shift);
+    params.set('type', options?.format === 'excel' ? 'excel' : 'pdf');
 
     const response = await fetch(
       `${API_BASE_URL}${this.baseURL}/analytics/download/?${params.toString()}`,
@@ -219,7 +221,8 @@ class ResultService {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = match?.[1] ?? 'results.csv';
+    link.download =
+      match?.[1] ?? `result_sheet.${options?.format === 'excel' ? 'xlsx' : 'pdf'}`;
     document.body.appendChild(link);
     link.click();
     link.remove();

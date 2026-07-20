@@ -1,25 +1,34 @@
 /**
- * Board Results — BTEB result import + roll search (admin).
+ * Board Results — BTEB result management (admin).
  *
- * Two tabs:
- *   Roll Search — look up any roll from any institute; shows the complete
- *                 imported result history (all semesters, CGPA, referred
- *                 subjects).
- *   Imports     — upload the official BTEB PDF, watch it parse (the row
- *                 polls while processing), review statistics and parser
- *                 issues, delete an import.
+ * Four tabs:
+ *   Roll Search — look up any roll; full imported history.
+ *   Analytics   — per-semester institute/department insight (semester picker
+ *                 sits on the right of the tab header). Aggregates across all
+ *                 regulation years, over students who have an account here.
+ *   Download    — one box per semester; opens a dialog to pick department /
+ *                 shift / format and download the official result sheet.
+ *   Imports     — multi-file upload; history grouped into one box per day.
+ *
+ * Shared building blocks (result cards, stat cards, the download dialog) live
+ * at the top so each tab stays small and readable.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  CalendarDays,
   CheckCircle2,
-  FileDown,
+  Download,
+  FileSpreadsheet,
+  FileText,
   FileUp,
   Info,
+  Layers,
   Loader2,
   RefreshCw,
   Search,
   Trash2,
+  Trophy,
   XCircle,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -62,13 +71,17 @@ import {
 } from 'recharts';
 import { toast } from 'sonner';
 import resultService, {
-  AnalyticsExam,
   AnalyticsSummary,
+  DownloadFormat,
   ParserIssue,
   ResultImport,
   RollSearchResponse,
+  SemesterOption,
   StudentResult,
 } from '@/services/resultService';
+import departmentService, { Department } from '@/services/departmentService';
+
+const SHIFTS = ['Morning', 'Day', 'Evening'];
 
 const RESULT_TYPE_META: Record<string, { label: string; className: string }> = {
   passed: { label: 'Passed', className: 'bg-emerald-100 text-emerald-700' },
@@ -80,6 +93,12 @@ const RESULT_TYPE_META: Record<string, { label: string; className: string }> = {
     className: 'bg-orange-100 text-orange-700',
   },
 };
+
+const SEVERITY_ICON = {
+  error: <XCircle className="h-4 w-4 text-red-600" />,
+  warning: <AlertTriangle className="h-4 w-4 text-amber-600" />,
+  info: <Info className="h-4 w-4 text-sky-600" />,
+} as const;
 
 function formatSubject(subject: StudentResult['subjects'][number]): string {
   const parts = [
@@ -94,7 +113,31 @@ function ResultTypeBadge({ type }: { type: string }) {
   return <Badge className={`${meta.className} hover:${meta.className}`}>{meta.label}</Badge>;
 }
 
-/** One exam's result: header, GPA grid, subject chips. */
+function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
+  return (
+    <Card>
+      <CardContent className="py-4">
+        <p className="text-xs font-medium uppercase text-muted-foreground">{label}</p>
+        <p className="mt-1 text-2xl font-bold">{value}</p>
+        {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Shared department loader (used by the download dialog). */
+function useDepartments(): Department[] {
+  const [departments, setDepartments] = useState<Department[]>([]);
+  useEffect(() => {
+    departmentService
+      .getDepartments({ page_size: 100 })
+      .then((res) => setDepartments(res.results ?? []))
+      .catch(() => setDepartments([]));
+  }, []);
+  return departments;
+}
+
+/** Full result card for the Roll Search tab. */
 function ResultCard({ result }: { result: StudentResult }) {
   return (
     <Card>
@@ -126,17 +169,10 @@ function ResultCard({ result }: { result: StudentResult }) {
             {[...result.gpas]
               .sort((a, b) => a.semester - b.semester)
               .map((gpa) => (
-                <div
-                  key={gpa.semester}
-                  className="rounded-md border bg-slate-50 px-2 py-1.5 text-center"
-                >
-                  <div className="text-[11px] uppercase text-muted-foreground">
-                    Sem {gpa.semester}
-                  </div>
+                <div key={gpa.semester} className="rounded-md border bg-slate-50 px-2 py-1.5 text-center">
+                  <div className="text-[11px] uppercase text-muted-foreground">Sem {gpa.semester}</div>
                   <div
-                    className={`text-sm font-semibold ${
-                      gpa.isReferred ? 'text-amber-600' : 'text-slate-800'
-                    }`}
+                    className={`text-sm font-semibold ${gpa.isReferred ? 'text-amber-600' : 'text-slate-800'}`}
                   >
                     {gpa.isReferred ? 'ref' : gpa.gpa}
                   </div>
@@ -145,15 +181,11 @@ function ResultCard({ result }: { result: StudentResult }) {
           </div>
         )}
         {result.expelledRule && (
-          <p className="text-sm text-red-700">
-            Expelled under: {result.expelledRule}
-          </p>
+          <p className="text-sm text-red-700">Expelled under: {result.expelledRule}</p>
         )}
         {result.subjects.length > 0 && (
           <div>
-            <p className="mb-1 text-xs font-medium uppercase text-muted-foreground">
-              Subjects
-            </p>
+            <p className="mb-1 text-xs font-medium uppercase text-muted-foreground">Subjects</p>
             <div className="flex flex-wrap gap-1.5">
               {result.subjects.map((subject, index) => (
                 <Badge
@@ -166,7 +198,8 @@ function ResultCard({ result }: { result: StudentResult }) {
                   }
                 >
                   {formatSubject(subject)}
-                  {subject.role !== 'referred' && ` · ${RESULT_TYPE_META[subject.role]?.label ?? subject.role}`}
+                  {subject.role !== 'referred' &&
+                    ` · ${RESULT_TYPE_META[subject.role]?.label ?? subject.role}`}
                 </Badge>
               ))}
             </div>
@@ -176,6 +209,152 @@ function ResultCard({ result }: { result: StudentResult }) {
     </Card>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Download dialog (shared by Download tab + Analytics "download this semester")
+// ---------------------------------------------------------------------------
+
+function DownloadDialog({
+  semester,
+  semesterLabel,
+  departments,
+  open,
+  onOpenChange,
+}: {
+  semester: number | null;
+  semesterLabel?: string;
+  departments: Department[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [department, setDepartment] = useState('all');
+  const [shift, setShift] = useState('all');
+  const [format, setFormat] = useState<DownloadFormat>('pdf');
+  const [downloading, setDownloading] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setDepartment('all');
+      setShift('all');
+      setFormat('pdf');
+    }
+  }, [open, semester]);
+
+  const download = async () => {
+    if (semester === null) return;
+    try {
+      setDownloading(true);
+      await resultService.downloadSheet(semester, {
+        departmentId: department === 'all' ? undefined : department,
+        shift: shift === 'all' ? undefined : shift,
+        format,
+      });
+      toast.success('Result sheet downloaded');
+      onOpenChange(false);
+    } catch {
+      toast.error('Download failed');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Download result sheet</DialogTitle>
+          <DialogDescription>
+            {semesterLabel ?? `Semester ${semester}`} — choose department, shift
+            and format. The sheet follows the institute's official tabulation
+            layout.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3 py-1">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Department</label>
+            <Select value={department} onValueChange={setDepartment}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All departments</SelectItem>
+                {departments.map((dept) => (
+                  <SelectItem key={dept.id} value={String(dept.id)}>
+                    {dept.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Shift</label>
+            <Select value={shift} onValueChange={setShift}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All shifts</SelectItem>
+                {SHIFTS.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Format</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setFormat('pdf')}
+                className={`flex items-center justify-center gap-2 rounded-lg border p-3 text-sm font-medium transition-colors ${
+                  format === 'pdf'
+                    ? 'border-red-400 bg-red-50 text-red-700'
+                    : 'border-border hover:bg-muted/50'
+                }`}
+              >
+                <FileText className="h-4 w-4" /> PDF
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormat('excel')}
+                className={`flex items-center justify-center gap-2 rounded-lg border p-3 text-sm font-medium transition-colors ${
+                  format === 'excel'
+                    ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
+                    : 'border-border hover:bg-muted/50'
+                }`}
+              >
+                <FileSpreadsheet className="h-4 w-4" /> Excel
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={download} disabled={downloading || semester === null}>
+            {downloading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4" />
+            )}
+            <span className="ml-1.5">Download</span>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Roll Search tab
+// ---------------------------------------------------------------------------
 
 function RollSearchTab() {
   const [roll, setRoll] = useState('');
@@ -210,11 +389,7 @@ function RollSearchTab() {
           inputMode="numeric"
         />
         <Button onClick={search} disabled={searching}>
-          {searching ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Search className="h-4 w-4" />
-          )}
+          {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
           <span className="ml-1.5">Search</span>
         </Button>
       </div>
@@ -251,384 +426,73 @@ function RollSearchTab() {
   );
 }
 
-const SEVERITY_ICON = {
-  error: <XCircle className="h-4 w-4 text-red-600" />,
-  warning: <AlertTriangle className="h-4 w-4 text-amber-600" />,
-  info: <Info className="h-4 w-4 text-sky-600" />,
-} as const;
+// ---------------------------------------------------------------------------
+// Analytics tab (semester-based; picker on the right)
+// ---------------------------------------------------------------------------
 
-function ImportsTab() {
-  const [imports, setImports] = useState<ResultImport[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [issuesFor, setIssuesFor] = useState<ResultImport | null>(null);
-  const [issues, setIssues] = useState<ParserIssue[]>([]);
-  const [deleteTarget, setDeleteTarget] = useState<ResultImport | null>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
-
-  const refresh = useCallback(async () => {
-    try {
-      setImports(await resultService.getImports());
-    } catch {
-      toast.error('Could not load import history');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-
-  // Poll while any import is still processing.
-  const hasProcessing = imports.some((item) => item.status === 'processing');
-  useEffect(() => {
-    if (!hasProcessing) return;
-    const timer = setInterval(refresh, 4000);
-    return () => clearInterval(timer);
-  }, [hasProcessing, refresh]);
-
-  const upload = async (file: File) => {
-    try {
-      setUploading(true);
-      await resultService.uploadPdf(file);
-      toast.success('Import started — parsing the PDF in the background');
-      await refresh();
-    } catch (error: unknown) {
-      const detail = error instanceof Error ? error.message : '';
-      toast.error(detail || 'Upload failed');
-    } finally {
-      setUploading(false);
-      if (fileInput.current) fileInput.current.value = '';
-    }
-  };
-
-  const showIssues = async (item: ResultImport) => {
-    setIssuesFor(item);
-    try {
-      setIssues(await resultService.getImportIssues(item.id));
-    } catch {
-      toast.error('Could not load issues');
-    }
-  };
-
-  const confirmDelete = async () => {
-    if (!deleteTarget) return;
-    try {
-      await resultService.deleteImport(deleteTarget.id);
-      toast.success('Import and its results removed');
-      setDeleteTarget(null);
-      refresh();
-    } catch {
-      toast.error('Delete failed');
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <Card>
-        <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
-          <div>
-            <p className="font-medium">Upload official BTEB result PDF</p>
-            <p className="text-sm text-muted-foreground">
-              Every institute in the PDF is imported; matching student profiles
-              sync automatically.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              ref={fileInput}
-              type="file"
-              accept="application/pdf"
-              className="hidden"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) upload(file);
-              }}
-            />
-            <Button onClick={() => fileInput.current?.click()} disabled={uploading}>
-              {uploading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <FileUp className="h-4 w-4" />
-              )}
-              <span className="ml-1.5">Upload PDF</span>
-            </Button>
-            <Button variant="outline" size="icon" onClick={refresh} title="Refresh">
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Import history</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="py-8 text-center text-muted-foreground">Loading…</div>
-          ) : imports.length === 0 ? (
-            <div className="py-8 text-center text-muted-foreground">
-              No imports yet. Upload the first BTEB result PDF above.
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>File</TableHead>
-                  <TableHead>Exam</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Records</TableHead>
-                  <TableHead className="text-right">Institutes</TableHead>
-                  <TableHead className="text-right">Synced</TableHead>
-                  <TableHead>Issues</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {imports.map((item) => {
-                  const issuesTotal = Object.values(item.stats.issuesBySeverity ?? {}).reduce(
-                    (sum, count) => sum + count,
-                    0,
-                  );
-                  return (
-                    <TableRow key={item.id}>
-                      <TableCell className="max-w-[220px]">
-                        <div className="truncate font-medium">{item.fileName}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {new Date(item.createdAt).toLocaleString()}
-                          {item.uploadedByName && ` · ${item.uploadedByName}`}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {item.exam
-                          ? `Sem ${item.exam.semester} (${item.exam.regulationYear})`
-                          : '—'}
-                      </TableCell>
-                      <TableCell>
-                        {item.status === 'processing' && (
-                          <Badge className="bg-sky-100 text-sky-700 hover:bg-sky-100">
-                            <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                            Processing
-                          </Badge>
-                        )}
-                        {item.status === 'completed' && (
-                          <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
-                            <CheckCircle2 className="mr-1 h-3 w-3" />
-                            Completed
-                          </Badge>
-                        )}
-                        {item.status === 'failed' && (
-                          <Badge
-                            className="bg-red-100 text-red-700 hover:bg-red-100"
-                            title={item.errorMessage}
-                          >
-                            <XCircle className="mr-1 h-3 w-3" />
-                            Failed
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {item.stats.recordCount?.toLocaleString() ?? '—'}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {item.stats.instituteCount ?? '—'}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {item.stats.sync?.updatedStudents ?? '—'}
-                      </TableCell>
-                      <TableCell>
-                        {issuesTotal > 0 ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => showIssues(item)}
-                          >
-                            {issuesTotal} issue{issuesTotal === 1 ? '' : 's'}
-                          </Button>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">none</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setDeleteTarget(item)}
-                          title="Delete import"
-                        >
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      <Dialog open={issuesFor !== null} onOpenChange={(open) => !open && setIssuesFor(null)}>
-        <DialogContent className="max-h-[80vh] max-w-2xl overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Parser issues — {issuesFor?.fileName}</DialogTitle>
-            <DialogDescription>
-              Everything the parser could not fully understand is listed here;
-              nothing is dropped silently.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            {issues.map((issue) => (
-              <div key={issue.id} className="flex gap-2 rounded-md border p-2 text-sm">
-                {SEVERITY_ICON[issue.severity]}
-                <div className="min-w-0">
-                  <p className="font-medium">
-                    {issue.code}
-                    {issue.rollNumber && ` · roll ${issue.rollNumber}`}
-                  </p>
-                  <p className="text-muted-foreground">{issue.message}</p>
-                  {issue.context && (
-                    <p className="mt-1 break-all rounded bg-slate-50 p-1 font-mono text-xs">
-                      {issue.context}
-                    </p>
-                  )}
-                </div>
-              </div>
-            ))}
-            {issues.length === 0 && (
-              <p className="py-4 text-center text-muted-foreground">No issues.</p>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={deleteTarget !== null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete this import?</DialogTitle>
-            <DialogDescription>
-              This removes “{deleteTarget?.fileName}” and every result imported
-              from it ({deleteTarget?.stats.recordCount?.toLocaleString() ?? 0}{' '}
-              records). Student profiles keep their already-synced data.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={confirmDelete}>
-              Delete import
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  sub,
-}: {
-  label: string;
-  value: string | number;
-  sub?: string;
-}) {
-  return (
-    <Card>
-      <CardContent className="py-4">
-        <p className="text-xs font-medium uppercase text-muted-foreground">{label}</p>
-        <p className="mt-1 text-2xl font-bold">{value}</p>
-        {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
-      </CardContent>
-    </Card>
-  );
-}
-
-function AnalyticsTab() {
-  const [exams, setExams] = useState<AnalyticsExam[]>([]);
-  const [examId, setExamId] = useState<string>('');
+function AnalyticsTab({ departments }: { departments: Department[] }) {
+  const [semesters, setSemesters] = useState<SemesterOption[]>([]);
+  const [semester, setSemester] = useState<string>('');
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
   const [loading, setLoading] = useState(false);
-  const [downloadDept, setDownloadDept] = useState<string>('all');
-  const [downloadShift, setDownloadShift] = useState<string>('all');
-  const [downloading, setDownloading] = useState(false);
+  const [downloadOpen, setDownloadOpen] = useState(false);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const list = await resultService.getAnalyticsExams();
-        setExams(list);
-        if (list.length > 0) setExamId(String(list[0].id));
-      } catch {
-        toast.error('Could not load exams');
-      }
-    })();
+    resultService
+      .getAnalyticsSemesters()
+      .then((list) => {
+        setSemesters(list);
+        if (list.length > 0) setSemester(String(list[0].semester));
+      })
+      .catch(() => toast.error('Could not load semesters'));
   }, []);
 
   useEffect(() => {
-    if (!examId) return;
-    (async () => {
-      try {
-        setLoading(true);
-        setSummary(await resultService.getAnalyticsSummary(Number(examId)));
-      } catch {
-        toast.error('Could not load the summary');
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [examId]);
-
-  const download = async () => {
-    if (!examId) return;
-    try {
-      setDownloading(true);
-      await resultService.downloadCsv(Number(examId), {
-        departmentId: downloadDept === 'all' ? undefined : downloadDept,
-        shift: downloadShift === 'all' ? undefined : downloadShift,
-      });
-    } catch {
-      toast.error('Download failed');
-    } finally {
-      setDownloading(false);
-    }
-  };
+    if (!semester) return;
+    setLoading(true);
+    resultService
+      .getAnalyticsSummary(Number(semester))
+      .then(setSummary)
+      .catch(() => toast.error('Could not load the summary'))
+      .finally(() => setLoading(false));
+  }, [semester]);
 
   const chartData = (summary?.departments ?? []).map((dept) => ({
     name: dept.code || dept.name,
     Passed: dept.passed,
     Referred: dept.referred,
     Failed: dept.failed + dept.expelled + dept.continuousFail,
-    'Pass %': dept.passRate ?? 0,
   }));
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <Select value={examId} onValueChange={setExamId}>
-          <SelectTrigger className="w-[320px]">
-            <SelectValue placeholder="Select an exam" />
-          </SelectTrigger>
-          <SelectContent>
-            {exams.map((exam) => (
-              <SelectItem key={exam.id} value={String(exam.id)}>
-                Semester {exam.semester} — {exam.regulationYear} Regulation (
-                {exam.resultCount.toLocaleString()} records)
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {loading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+      {/* Semester picker on the right of the section header. */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+          <span>Analytics cover students who have an account on this site.</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">Semester</span>
+          <Select value={semester} onValueChange={setSemester}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Select semester" />
+            </SelectTrigger>
+            <SelectContent>
+              {semesters.map((option) => (
+                <SelectItem key={option.semester} value={String(option.semester)}>
+                  {option.label} ({option.students})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      {exams.length === 0 && (
+      {semesters.length === 0 && (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
-            No imported exams yet — upload a BTEB result PDF first.
+            No imported results yet — upload a BTEB result PDF first.
           </CardContent>
         </Card>
       )}
@@ -636,7 +500,7 @@ function AnalyticsTab() {
       {summary && (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-            <StatCard label="Appeared (our students)" value={summary.institute.appeared} />
+            <StatCard label="Our students appeared" value={summary.institute.appeared} />
             <StatCard
               label="Passed"
               value={summary.institute.passed}
@@ -645,29 +509,26 @@ function AnalyticsTab() {
             <StatCard label="Referred" value={summary.institute.referred} />
             <StatCard
               label="Failed / Expelled / CA"
-              value={
-                summary.institute.failed +
-                summary.institute.expelled +
-                summary.institute.continuousFail
-              }
+              value={summary.institute.failed + summary.institute.expelled + summary.institute.continuousFail}
             />
             <StatCard
               label="Average GPA"
               value={summary.institute.avgGpa ?? '—'}
-              sub={
-                summary.institute.avgCgpa !== null
-                  ? `Avg CGPA ${summary.institute.avgCgpa}`
-                  : undefined
-              }
+              sub={summary.institute.avgCgpa !== null ? `Avg CGPA ${summary.institute.avgCgpa}` : undefined}
             />
           </div>
 
-          <p className="text-xs text-muted-foreground">
-            National context: {summary.national.records.toLocaleString()} records
-            across {summary.national.institutes} institutes
-            {summary.national.passRate !== null &&
-              ` · national pass rate ${summary.national.passRate}%`}
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground">
+              National context: {summary.national.records.toLocaleString()} records across{' '}
+              {summary.national.institutes} institutes
+              {summary.national.passRate !== null && ` · national pass rate ${summary.national.passRate}%`}
+            </p>
+            <Button variant="outline" size="sm" onClick={() => setDownloadOpen(true)}>
+              <Download className="h-4 w-4" />
+              <span className="ml-1.5">Download {summary.label} sheet</span>
+            </Button>
+          </div>
 
           <Card>
             <CardHeader className="pb-2">
@@ -676,7 +537,7 @@ function AnalyticsTab() {
             <CardContent>
               {chartData.length === 0 ? (
                 <p className="py-6 text-center text-muted-foreground">
-                  No enrolled students matched this exam's rolls.
+                  No enrolled students matched this semester.
                 </p>
               ) : (
                 <div className="h-72 w-full">
@@ -732,9 +593,11 @@ function AnalyticsTab() {
                         <TableCell className="text-right">{dept.avgGpa ?? '—'}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {Object.entries(dept.shifts)
-                            .map(([shift, s]) =>
-                              `${shift}: ${s.passed}/${s.appeared}` +
-                              (s.passRate !== null ? ` (${s.passRate}%)` : ''))
+                            .map(
+                              ([shift, s]) =>
+                                `${shift}: ${s.passed}/${s.appeared}` +
+                                (s.passRate !== null ? ` (${s.passRate}%)` : ''),
+                            )
                             .join(' · ')}
                         </TableCell>
                       </TableRow>
@@ -748,7 +611,9 @@ function AnalyticsTab() {
           <div className="grid gap-4 lg:grid-cols-2">
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">Top performers</CardTitle>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Trophy className="h-4 w-4 text-amber-500" /> Top performers
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 {summary.topPerformers.length === 0 ? (
@@ -795,9 +660,7 @@ function AnalyticsTab() {
               </CardHeader>
               <CardContent>
                 {summary.topFailedSubjects.length === 0 ? (
-                  <p className="py-4 text-center text-muted-foreground">
-                    No referred subjects. 🎉
-                  </p>
+                  <p className="py-4 text-center text-muted-foreground">No referred subjects. 🎉</p>
                 ) : (
                   <div className="space-y-2">
                     {summary.topFailedSubjects.map((subject) => {
@@ -822,76 +685,428 @@ function AnalyticsTab() {
               </CardContent>
             </Card>
           </div>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Download result sheet (CSV)</CardTitle>
-              <p className="text-xs text-muted-foreground">
-                Roll, name, department, shift, status, GPA history and subjects
-                to clear — filtered by department and shift.
-              </p>
-            </CardHeader>
-            <CardContent className="flex flex-wrap items-center gap-2">
-              <Select value={downloadDept} onValueChange={setDownloadDept}>
-                <SelectTrigger className="w-[220px]">
-                  <SelectValue placeholder="All departments" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All departments</SelectItem>
-                  {summary.departments.map((dept) => (
-                    <SelectItem key={dept.id} value={dept.id}>
-                      {dept.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={downloadShift} onValueChange={setDownloadShift}>
-                <SelectTrigger className="w-[160px]">
-                  <SelectValue placeholder="All shifts" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All shifts</SelectItem>
-                  <SelectItem value="Morning">Morning</SelectItem>
-                  <SelectItem value="Day">Day</SelectItem>
-                  <SelectItem value="Evening">Evening</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button onClick={download} disabled={downloading}>
-                {downloading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <FileDown className="h-4 w-4" />
-                )}
-                <span className="ml-1.5">Download CSV</span>
-              </Button>
-            </CardContent>
-          </Card>
         </>
       )}
+
+      <DownloadDialog
+        semester={summary ? summary.semester : null}
+        semesterLabel={summary?.label}
+        departments={departments}
+        open={downloadOpen}
+        onOpenChange={setDownloadOpen}
+      />
     </div>
   );
 }
 
+// ---------------------------------------------------------------------------
+// Download tab (one box per semester → dialog)
+// ---------------------------------------------------------------------------
+
+function DownloadTab({ departments }: { departments: Department[] }) {
+  const [semesters, setSemesters] = useState<SemesterOption[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<SemesterOption | null>(null);
+
+  useEffect(() => {
+    resultService
+      .getAnalyticsSemesters()
+      .then(setSemesters)
+      .catch(() => toast.error('Could not load semesters'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-base font-semibold">Download result sheet</h2>
+        <p className="text-sm text-muted-foreground">
+          Pick a semester, then choose department, shift and format (PDF or
+          Excel) in the dialog.
+        </p>
+      </div>
+
+      {loading ? (
+        <div className="py-8 text-center text-muted-foreground">Loading…</div>
+      ) : semesters.length === 0 ? (
+        <Card>
+          <CardContent className="py-8 text-center text-muted-foreground">
+            No imported results yet.
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {semesters.map((option) => (
+            <button
+              key={option.semester}
+              type="button"
+              onClick={() => setSelected(option)}
+              className="group flex flex-col items-start gap-2 rounded-xl border bg-gradient-to-br from-indigo-50 to-white p-4 text-left transition-all hover:border-indigo-300 hover:shadow-md"
+            >
+              <div className="flex w-full items-center justify-between">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-white">
+                  <Layers className="h-4 w-4" />
+                </span>
+                <Download className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-indigo-600" />
+              </div>
+              <div>
+                <p className="font-semibold">{option.label}</p>
+                <p className="text-xs text-muted-foreground">
+                  {option.students} student{option.students === 1 ? '' : 's'}
+                </p>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <DownloadDialog
+        semester={selected ? selected.semester : null}
+        semesterLabel={selected?.label}
+        departments={departments}
+        open={selected !== null}
+        onOpenChange={(open) => !open && setSelected(null)}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Imports tab (multi-file upload + day-grouped history)
+// ---------------------------------------------------------------------------
+
+function groupByDay(imports: ResultImport[]): { day: string; items: ResultImport[] }[] {
+  const groups = new Map<string, ResultImport[]>();
+  for (const item of imports) {
+    const day = new Date(item.createdAt).toLocaleDateString(undefined, {
+      weekday: 'short',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+    const list = groups.get(day) ?? [];
+    list.push(item);
+    groups.set(day, list);
+  }
+  return Array.from(groups.entries()).map(([day, items]) => ({ day, items }));
+}
+
+function ImportStatusBadge({ item }: { item: ResultImport }) {
+  if (item.status === 'processing') {
+    return (
+      <Badge className="bg-sky-100 text-sky-700 hover:bg-sky-100">
+        <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+        Processing
+      </Badge>
+    );
+  }
+  if (item.status === 'completed') {
+    return (
+      <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+        <CheckCircle2 className="mr-1 h-3 w-3" />
+        Completed
+      </Badge>
+    );
+  }
+  return (
+    <Badge className="bg-red-100 text-red-700 hover:bg-red-100" title={item.errorMessage}>
+      <XCircle className="mr-1 h-3 w-3" />
+      Failed
+    </Badge>
+  );
+}
+
+function ImportsTab() {
+  const [imports, setImports] = useState<ResultImport[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [queue, setQueue] = useState<{ done: number; total: number } | null>(null);
+  const [issuesFor, setIssuesFor] = useState<ResultImport | null>(null);
+  const [issues, setIssues] = useState<ParserIssue[]>([]);
+  const [deleteTarget, setDeleteTarget] = useState<ResultImport | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  const refresh = useCallback(async () => {
+    try {
+      setImports(await resultService.getImports());
+    } catch {
+      toast.error('Could not load import history');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const hasProcessing = imports.some((item) => item.status === 'processing');
+  useEffect(() => {
+    if (!hasProcessing) return;
+    const timer = setInterval(refresh, 4000);
+    return () => clearInterval(timer);
+  }, [hasProcessing, refresh]);
+
+  /** Upload every selected PDF sequentially (BTEB publishes results across
+   *  several files — this lets the admin add them all in one go). */
+  const uploadFiles = async (files: File[]) => {
+    const pdfs = files.filter((file) => file.name.toLowerCase().endsWith('.pdf'));
+    if (pdfs.length === 0) {
+      toast.error('Select one or more PDF files');
+      return;
+    }
+    setQueue({ done: 0, total: pdfs.length });
+    let succeeded = 0;
+    for (let index = 0; index < pdfs.length; index += 1) {
+      try {
+        await resultService.uploadPdf(pdfs[index]);
+        succeeded += 1;
+      } catch (error: unknown) {
+        const detail = error instanceof Error ? error.message : '';
+        toast.error(`${pdfs[index].name}: ${detail || 'upload failed'}`);
+      }
+      setQueue({ done: index + 1, total: pdfs.length });
+      await refresh();
+    }
+    setQueue(null);
+    if (succeeded > 0) {
+      toast.success(
+        `${succeeded} file${succeeded === 1 ? '' : 's'} queued — parsing in the background`,
+      );
+    }
+    if (fileInput.current) fileInput.current.value = '';
+  };
+
+  const showIssues = async (item: ResultImport) => {
+    setIssuesFor(item);
+    try {
+      setIssues(await resultService.getImportIssues(item.id));
+    } catch {
+      toast.error('Could not load issues');
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await resultService.deleteImport(deleteTarget.id);
+      toast.success('Import and its results removed');
+      setDeleteTarget(null);
+      refresh();
+    } catch {
+      toast.error('Delete failed');
+    }
+  };
+
+  const days = useMemo(() => groupByDay(imports), [imports]);
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+          <div>
+            <p className="font-medium">Upload official BTEB result PDFs</p>
+            <p className="text-sm text-muted-foreground">
+              Select multiple files at once — BTEB publishes results across
+              several PDFs. Every institute is imported and matching student
+              profiles sync automatically.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              ref={fileInput}
+              type="file"
+              accept="application/pdf"
+              multiple
+              className="hidden"
+              onChange={(event) => {
+                const files = Array.from(event.target.files ?? []);
+                if (files.length) uploadFiles(files);
+              }}
+            />
+            <Button onClick={() => fileInput.current?.click()} disabled={queue !== null}>
+              {queue ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="ml-1.5">
+                    Uploading {queue.done}/{queue.total}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <FileUp className="h-4 w-4" />
+                  <span className="ml-1.5">Upload PDFs</span>
+                </>
+              )}
+            </Button>
+            <Button variant="outline" size="icon" onClick={refresh} title="Refresh">
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {loading ? (
+        <div className="py-8 text-center text-muted-foreground">Loading…</div>
+      ) : days.length === 0 ? (
+        <Card>
+          <CardContent className="py-8 text-center text-muted-foreground">
+            No imports yet. Upload the first BTEB result PDFs above.
+          </CardContent>
+        </Card>
+      ) : (
+        days.map(({ day, items }) => (
+          <Card key={day}>
+            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <CalendarDays className="h-4 w-4 text-indigo-500" />
+                {day}
+              </CardTitle>
+              <Badge variant="outline">
+                {items.length} file{items.length === 1 ? '' : 's'}
+              </Badge>
+            </CardHeader>
+            <CardContent className="divide-y">
+              {items.map((item) => {
+                const issuesTotal = Object.values(item.stats.issuesBySeverity ?? {}).reduce(
+                  (sum, count) => sum + count,
+                  0,
+                );
+                return (
+                  <div
+                    key={item.id}
+                    className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <span className="truncate font-medium">{item.fileName}</span>
+                        <ImportStatusBadge item={item} />
+                      </div>
+                      <div className="mt-0.5 pl-6 text-xs text-muted-foreground">
+                        {new Date(item.createdAt).toLocaleTimeString()}
+                        {item.exam && ` · Sem ${item.exam.semester} (${item.exam.regulationYear})`}
+                        {item.uploadedByName && ` · ${item.uploadedByName}`}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4 text-sm">
+                      {item.status === 'completed' && (
+                        <div className="hidden text-right text-xs text-muted-foreground sm:block">
+                          <div>{item.stats.recordCount?.toLocaleString() ?? 0} records</div>
+                          <div>
+                            {item.stats.instituteCount ?? 0} institutes ·{' '}
+                            {item.stats.sync?.updatedStudents ?? 0} synced
+                          </div>
+                        </div>
+                      )}
+                      {issuesTotal > 0 && (
+                        <Button variant="ghost" size="sm" onClick={() => showIssues(item)}>
+                          {issuesTotal} issue{issuesTotal === 1 ? '' : 's'}
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setDeleteTarget(item)}
+                        title="Delete import"
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        ))
+      )}
+
+      <Dialog open={issuesFor !== null} onOpenChange={(open) => !open && setIssuesFor(null)}>
+        <DialogContent className="max-h-[80vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Parser issues — {issuesFor?.fileName}</DialogTitle>
+            <DialogDescription>
+              Everything the parser could not fully understand is listed here;
+              nothing is dropped silently.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            {issues.map((issue) => (
+              <div key={issue.id} className="flex gap-2 rounded-md border p-2 text-sm">
+                {SEVERITY_ICON[issue.severity]}
+                <div className="min-w-0">
+                  <p className="font-medium">
+                    {issue.code}
+                    {issue.rollNumber && ` · roll ${issue.rollNumber}`}
+                  </p>
+                  <p className="text-muted-foreground">{issue.message}</p>
+                  {issue.context && (
+                    <p className="mt-1 break-all rounded bg-slate-50 p-1 font-mono text-xs">
+                      {issue.context}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+            {issues.length === 0 && (
+              <p className="py-4 text-center text-muted-foreground">No issues.</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteTarget !== null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete this import?</DialogTitle>
+            <DialogDescription>
+              This removes “{deleteTarget?.fileName}” and every result imported
+              from it ({deleteTarget?.stats.recordCount?.toLocaleString() ?? 0} records).
+              Student profiles keep their already-synced data.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete}>
+              Delete import
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
 export default function Results() {
+  const departments = useDepartments();
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Board Results</h1>
         <p className="text-muted-foreground">
-          Import official BTEB result PDFs and search any roll number.
+          Import official BTEB result PDFs, search any roll, analyse by semester
+          and download result sheets.
         </p>
       </div>
       <Tabs defaultValue="search">
         <TabsList>
           <TabsTrigger value="search">Roll Search</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
+          <TabsTrigger value="download">Download</TabsTrigger>
           <TabsTrigger value="imports">Imports</TabsTrigger>
         </TabsList>
         <TabsContent value="search" className="mt-4">
           <RollSearchTab />
         </TabsContent>
         <TabsContent value="analytics" className="mt-4">
-          <AnalyticsTab />
+          <AnalyticsTab departments={departments} />
+        </TabsContent>
+        <TabsContent value="download" className="mt-4">
+          <DownloadTab departments={departments} />
         </TabsContent>
         <TabsContent value="imports" className="mt-4">
           <ImportsTab />

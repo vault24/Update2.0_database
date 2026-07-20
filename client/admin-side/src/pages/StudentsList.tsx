@@ -127,12 +127,18 @@ export default function StudentsList() {
       departmentName = student.department.name || student.department.code || '';
     }
     const rawStatus = forceStatusLabel || student.status || '';
+    // Graduated students / alumni have no "current" semester — they finished the
+    // course — so show their standing instead of a misleading "8th" semester.
+    const isGraduated = rawStatus.toLowerCase() === 'graduated' || rawStatus.toLowerCase() === 'alumni';
+    const semesterLabel = isGraduated
+      ? (forceStatusLabel === 'Alumni' ? 'Alumni' : 'Graduated')
+      : student.semester ? ordinal(Number(student.semester)) : '—';
     return {
       id: student.id,
       name: student.fullNameEnglish || 'N/A',
       roll: student.currentRollNumber || 'N/A',
       department: departmentName,
-      semester: student.semester ? ordinal(Number(student.semester)) : '—',
+      semester: semesterLabel,
       status: rawStatus ? rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1) : '—',
       session: student.session || '—',
       photo: student.profilePhoto,

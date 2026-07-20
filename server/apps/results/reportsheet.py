@@ -1,0 +1,272 @@
+"""
+Result-sheet renderers: the official BTEB-style tabulation sheet as a
+colourful PDF (reportlab) or Excel workbook (openpyxl).
+
+Both renderers consume the same structured data from
+``analytics.sheet_rows`` so the two formats never drift apart. Layout mirrors
+the institute's printed tabulation sheet: SL, Student Name, Gender, Roll,
+GPA, Referred subjects, Failed subjects, a one-off Summary block, the
+sem-wise referred column and Position.
+"""
+from __future__ import annotations
+
+from io import BytesIO
+
+from django.utils import timezone
+
+# Palette (kept in one place so PDF + Excel share the same colours).
+_HEADER_BG = '#1e3a8a'      # indigo-900
+_HEADER_FG = '#ffffff'
+_PASS_BG = '#dcfce7'        # emerald-100
+_REFERRED_BG = '#fef3c7'    # amber-100
+_FAIL_BG = '#fee2e2'        # red-100
+_ALT_ROW = '#f1f5f9'        # slate-100
+_SUMMARY_BG = '#e0e7ff'     # indigo-100
+_BORDER = '#94a3b8'         # slate-400
+
+INSTITUTE_NAME = 'Sirajganj Polytechnic Institute, Sirajganj'
+
+
+def _title(sheet: dict) -> str:
+    return (
+        f"Technology: {sheet['departmentName']}, "
+        f"Result Semester: {sheet['semesterLabel']}, "
+        f"Shift: {sheet['shift']}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# PDF
+# ---------------------------------------------------------------------------
+
+def render_pdf(sheet: dict) -> bytes:
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.units import mm
+    from reportlab.platypus import (
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
+    )
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=landscape(A4),
+        leftMargin=10 * mm, rightMargin=10 * mm,
+        topMargin=10 * mm, bottomMargin=10 * mm,
+        title=f"Result Sheet — {sheet['semesterLabel']} Semester",
+    )
+    styles = getSampleStyleSheet()
+    cell = ParagraphStyle('cell', parent=styles['Normal'], fontSize=7, leading=8.5)
+    cell_center = ParagraphStyle('cellc', parent=cell, alignment=1)
+    summary_style = ParagraphStyle('summary', parent=cell, fontSize=7.5, leading=12)
+    head_style = ParagraphStyle(
+        'title', parent=styles['Title'], fontSize=14, spaceAfter=2,
+        textColor=colors.HexColor('#1e3a8a'),
+    )
+    sub_style = ParagraphStyle('sub', parent=styles['Normal'], fontSize=9,
+                               alignment=1, textColor=colors.HexColor('#334155'))
+
+    story = [
+        Paragraph(INSTITUTE_NAME, head_style),
+        Paragraph(_title(sheet), sub_style),
+        Spacer(1, 6),
+    ]
+
+    header = ['SL', 'Student Name', 'Gen', 'Roll', 'GPA', 'Referred',
+              'Failed', 'Summary', 'Ref. Sub.\nSem Wise', 'Position']
+    data = [header]
+
+    summary = sheet['summary']
+    summary_lines = [
+        f"Total Student: {summary['totalStudent']}",
+        f"Total Pass: {summary['totalPass']:02d}",
+        f"Total Referred: {summary['totalReferred']:02d}",
+        f"Total Fail: {summary['totalFail']:02d}",
+        f"% Pass: {summary['pctPass']}",
+        f"% Referred: {summary['pctReferred']}",
+        f"% Fail: {summary['pctFail']}",
+        f"Total %: {summary['pctTotal']}",
+    ]
+
+    # The whole summary block lives in the FIRST data row's summary cell as a
+    # multi-line paragraph; the SPAN below merges the column so it reads as one
+    # box (a spanned reportlab cell only renders its top-left content).
+    summary_para = Paragraph('<br/>'.join(summary_lines), summary_style)
+    for index, row in enumerate(sheet['rows']):
+        data.append([
+            str(row['sl']),
+            Paragraph(row['name'], cell),
+            row['gender'],
+            row['roll'],
+            row['gpa'],
+            Paragraph(row['referredSubjects'], cell),
+            Paragraph(row['failedSubjects'], cell),
+            summary_para if index == 0 else '',
+            Paragraph(row['refSubSemWise'], cell_center),
+            row['position'],
+        ])
+
+    # Column widths (sum ≈ 277mm usable landscape A4).
+    col_widths = [10, 58, 12, 22, 16, 62, 30, 30, 22, 18]
+    col_widths = [w * mm for w in col_widths]
+
+    table = Table(data, colWidths=col_widths, repeatRows=1)
+    style = [
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor(_HEADER_BG)),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor(_HEADER_FG)),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 7.5),
+        ('FONTSIZE', (0, 1), (-1, -1), 7),
+        ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor(_BORDER)),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('ALIGN', (0, 0), (0, -1), 'CENTER'),   # SL
+        ('ALIGN', (2, 0), (4, -1), 'CENTER'),   # Gen, Roll, GPA
+        ('ALIGN', (9, 0), (9, -1), 'CENTER'),   # Position
+        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+    ]
+
+    # Merge the Summary column (index 7) into one tall block.
+    n_rows = len(sheet['rows'])
+    if n_rows:
+        style.append(('SPAN', (7, 1), (7, n_rows)))
+        style.append(('BACKGROUND', (7, 1), (7, n_rows), colors.HexColor(_SUMMARY_BG)))
+        style.append(('VALIGN', (7, 1), (7, 1), 'TOP'))
+        style.append(('FONTSIZE', (7, 1), (7, 1), 7.5))
+
+    # Row tinting by result + zebra striping on the name column.
+    for index, row in enumerate(sheet['rows'], start=1):
+        if row['passed']:
+            tint = _PASS_BG
+        elif row['failedSubjects']:
+            tint = _FAIL_BG
+        else:
+            tint = _REFERRED_BG
+        # GPA cell coloured by outcome for a quick scan.
+        style.append(('BACKGROUND', (4, index), (4, index), colors.HexColor(tint)))
+        if index % 2 == 0:
+            style.append(('BACKGROUND', (0, index), (3, index), colors.HexColor(_ALT_ROW)))
+        if row['position']:
+            style.append(('BACKGROUND', (9, index), (9, index), colors.HexColor('#fde68a')))
+            style.append(('FONTNAME', (9, index), (9, index), 'Helvetica-Bold'))
+
+    table.setStyle(TableStyle(style))
+    story.append(table)
+
+    footer_style = ParagraphStyle('footer', parent=styles['Normal'], fontSize=7,
+                                  textColor=colors.HexColor('#64748b'), spaceBefore=6)
+    story.append(Paragraph(
+        f"Generated {timezone.localtime():%Y-%m-%d %H:%M} · "
+        f"{summary['totalStudent']} students · Sirajganj Polytechnic Institute",
+        footer_style,
+    ))
+
+    doc.build(story)
+    return buffer.getvalue()
+
+
+# ---------------------------------------------------------------------------
+# Excel
+# ---------------------------------------------------------------------------
+
+def render_excel(sheet: dict) -> bytes:
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+    from openpyxl.utils import get_column_letter
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = f"{sheet['semesterLabel']} Semester"
+
+    def fill(hex_color: str) -> PatternFill:
+        return PatternFill('solid', fgColor=hex_color.lstrip('#'))
+
+    thin = Side(style='thin', color=_BORDER.lstrip('#'))
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    center = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    left = Alignment(horizontal='left', vertical='center', wrap_text=True)
+
+    headers = ['SL', 'Student Name', 'Gender', 'Roll', 'GPA', 'Referred',
+               'Failed', 'Summary', 'Ref. Sub. Sem Wise', 'Position']
+
+    # Title rows.
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers))
+    title_cell = ws.cell(row=1, column=1, value=INSTITUTE_NAME)
+    title_cell.font = Font(bold=True, size=14, color='1E3A8A')
+    title_cell.alignment = center
+
+    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=len(headers))
+    sub_cell = ws.cell(row=2, column=1, value=_title(sheet))
+    sub_cell.font = Font(size=11, color='334155')
+    sub_cell.alignment = center
+
+    header_row = 4
+    for col, name in enumerate(headers, start=1):
+        c = ws.cell(row=header_row, column=col, value=name)
+        c.fill = fill(_HEADER_BG)
+        c.font = Font(bold=True, color='FFFFFF', size=10)
+        c.alignment = center
+        c.border = border
+
+    summary = sheet['summary']
+    summary_lines = [
+        f"Total Student: {summary['totalStudent']}",
+        f"Total Pass: {summary['totalPass']:02d}",
+        f"Total Referred: {summary['totalReferred']:02d}",
+        f"Total Fail: {summary['totalFail']:02d}",
+        f"% Pass: {summary['pctPass']}",
+        f"% Referred: {summary['pctReferred']}",
+        f"% Fail: {summary['pctFail']}",
+        f"Total %: {summary['pctTotal']}",
+    ]
+
+    start = header_row + 1
+    for index, row in enumerate(sheet['rows']):
+        r = start + index
+        tint = _PASS_BG if row['passed'] else (_FAIL_BG if row['failedSubjects'] else _REFERRED_BG)
+        # Full summary block goes in the first data row's summary cell (the
+        # merge below shows only the top-left cell); newlines + wrap render it
+        # as one box.
+        summary_cell = '\n'.join(summary_lines) if index == 0 else ''
+        values = [
+            row['sl'], row['name'], row['gender'], row['roll'], row['gpa'],
+            row['referredSubjects'], row['failedSubjects'],
+            summary_cell,
+            row['refSubSemWise'], row['position'],
+        ]
+        for col, value in enumerate(values, start=1):
+            c = ws.cell(row=r, column=col, value=value)
+            c.border = border
+            c.alignment = left if col in (2, 6, 7) else center
+            if col == 5:  # GPA cell tinted by outcome
+                c.fill = fill(tint)
+            elif col == 8:
+                c.fill = fill(_SUMMARY_BG)
+            elif index % 2 == 1 and col <= 4:
+                c.fill = fill(_ALT_ROW)
+            if col == 10 and row['position']:
+                c.fill = fill('#fde68a')
+                c.font = Font(bold=True)
+
+    # Merge the summary column into one block.
+    n_rows = len(sheet['rows'])
+    if n_rows:
+        ws.merge_cells(start_row=start, start_column=8, end_row=start + n_rows - 1, end_column=8)
+        ws.cell(row=start, column=8).alignment = Alignment(
+            horizontal='left', vertical='top', wrap_text=True,
+        )
+
+    widths = [5, 30, 8, 12, 8, 34, 20, 22, 16, 9]
+    for col, width in enumerate(widths, start=1):
+        ws.column_dimensions[get_column_letter(col)].width = width
+
+    ws.freeze_panes = ws.cell(row=start, column=1)
+
+    buffer = BytesIO()
+    wb.save(buffer)
+    return buffer.getvalue()

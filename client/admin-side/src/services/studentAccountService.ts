@@ -4,17 +4,35 @@
  */
 import { apiClient } from '@/lib/api';
 
+export interface PendingDeletion {
+  scheduled: boolean;
+  requested_at?: string | null;
+  purge_at?: string | null;
+}
+
 export interface StudentAccount {
   has_account: boolean;
   user_id?: string;
   username?: string;
   email?: string;
   role?: string;
+  /** Human label for the account type: 'Student' | 'Alumni' | 'Captain'. */
+  account_type?: string;
+  is_alumni_account?: boolean;
   account_status?: string;
   is_active?: boolean;
   student_id?: string;
   created_at?: string | null;
   last_login?: string | null;
+  /** Soft-delete status — present whether or not a portal login exists. */
+  pending_deletion?: PendingDeletion;
+}
+
+export interface ScheduleDeleteResponse {
+  scheduled: true;
+  purge_at: string;
+  recovery_days: number;
+  message: string;
 }
 
 export interface CreateAccountPayload {
@@ -65,10 +83,18 @@ export const studentAccountService = {
       data,
     ),
 
+  /** Schedule a soft-delete (7-day recovery window) — does NOT purge immediately. */
   deleteAccount: (studentId: string, data: DeleteAccountPayload) =>
-    apiClient.delete<{ has_account: false; message: string }>(
+    apiClient.delete<ScheduleDeleteResponse>(
       `/students/${studentId}/account/delete/`,
       { data },
+    ),
+
+  /** Admin: cancel a pending deletion and restore the account. */
+  cancelDelete: (studentId: string) =>
+    apiClient.post<{ cancelled: true; message: string }>(
+      `/students/${studentId}/account/cancel-delete/`,
+      {},
     ),
 };
 

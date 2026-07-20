@@ -74,11 +74,27 @@ def sync_student(student: Student, email_async: bool = True) -> bool:
     if not results:
         return False
 
-    entries = {
-        entry.get('semester'): dict(entry)
-        for entry in (student.semesterResults or [])
-        if isinstance(entry, dict) and entry.get('semester') is not None
-    }
+    # Key existing entries by an INT semester so re-imports update the same
+    # slot instead of creating a parallel entry (e.g. a legacy entry storing
+    # semester as "4" must collide with our int 4). Any entry whose semester
+    # is unparseable is dropped — it can only be malformed legacy data, and
+    # the authoritative history is being rebuilt from imported results anyway.
+    def _norm_sem(value):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    entries = {}
+    for entry in (student.semesterResults or []):
+        if not isinstance(entry, dict):
+            continue
+        semester = _norm_sem(entry.get('semester'))
+        if semester is None:
+            continue
+        normalized = dict(entry)
+        normalized['semester'] = semester
+        entries[semester] = normalized
     final_cgpa = student.finalCgpa
 
     for result in results:
