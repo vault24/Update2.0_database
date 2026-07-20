@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Eye, EyeOff, Mail, Lock, User, Phone, GraduationCap,
@@ -410,20 +410,26 @@ function MobileAuthForm({
 
                   {/* Student sub-type: captain / alumni (mutually exclusive) */}
                   {isStudentFamily(selectedRole) && (
-                    <div className="space-y-2 rounded-xl border border-gray-200 bg-gray-50/70 p-3">
-                      <label className="flex items-center gap-2.5 cursor-pointer">
-                        <input type="checkbox" className="h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
-                          checked={selectedRole === 'captain'}
-                          onChange={(e) => setSelectedRole(e.target.checked ? 'captain' : 'student')} />
-                        <span className="text-sm text-gray-700">I am a <span className="font-semibold">Class Captain</span></span>
-                      </label>
-                      <label className="flex items-center gap-2.5 cursor-pointer">
-                        <input type="checkbox" className="h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
-                          checked={selectedRole === 'alumni'}
-                          onChange={(e) => setSelectedRole(e.target.checked ? 'alumni' : 'student')} />
-                        <span className="text-sm text-gray-700">I am an <span className="font-semibold">Alumnus</span> <span className="text-gray-400">(already graduated)</span></span>
-                      </label>
-                    </div>
+                    <>
+                      <div className="space-y-2 rounded-xl border border-gray-200 bg-gray-50/70 p-3">
+                        <label className="flex items-center gap-2.5 cursor-pointer">
+                          <input type="checkbox" className="h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
+                            checked={selectedRole === 'captain'}
+                            onChange={(e) => setSelectedRole(e.target.checked ? 'captain' : 'student')} />
+                          <span className="text-sm text-gray-700">I am a <span className="font-semibold">Class Captain</span></span>
+                        </label>
+                        <label className="flex items-center gap-2.5 cursor-pointer">
+                          <input type="checkbox" className="h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
+                            checked={selectedRole === 'alumni'}
+                            onChange={(e) => setSelectedRole(e.target.checked ? 'alumni' : 'student')} />
+                          <span className="text-sm text-gray-700">I am an <span className="font-semibold">Alumnus</span> <span className="text-gray-400">(already graduated)</span></span>
+                        </label>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2 px-1 leading-relaxed">
+                        <span className="block">• Captain না হলে টিক দেওয়ার প্রয়োজন নেই।</span>
+                        <span className="block">• প্রাক্তন শিক্ষার্থী না হলে টিক দেওয়ার প্রয়োজন নেই।</span>
+                      </p>
+                    </>
                   )}
 
                   {/* Full Name */}
@@ -654,6 +660,10 @@ export function AuthPage() {
   const [pendingSignup, setPendingSignup] = useState<any>(null);
   const [otpError, setOtpError] = useState<string | undefined>();
 
+  // Alumni confirmation popup (shown before OTP when role === 'alumni')
+  const [showAlumniConfirm, setShowAlumniConfirm] = useState(false);
+  const [pendingAlumniData, setPendingAlumniData] = useState<any>(null);
+
   // "Continue with Google": once a new Google email is verified we pre-fill the
   // signup form, lock the email, and keep the token so the final /register/ call
   // can skip the OTP step entirely.
@@ -716,6 +726,15 @@ export function AuthPage() {
           return;
         }
         const signupData = buildSignupData();
+
+        // If the user selected Alumni role, show a confirmation popup first
+        // to catch students who accidentally ticked the alumni checkbox.
+        if (selectedRole === 'alumni') {
+          setPendingAlumniData(signupData);
+          setShowAlumniConfirm(true);
+          setIsLoading(false);
+          return;
+        }
 
         // Google-verified signup: the email is already proven by Google, so we
         // skip the OTP step and create the account directly with the token.
@@ -823,6 +842,35 @@ export function AuthPage() {
     await requestSignupOtp(pendingSignup);
   };
 
+  // Called from the alumni confirmation popup.
+  const handleAlumniConfirm = async (isDiplomaFinished: boolean) => {
+    setShowAlumniConfirm(false);
+    if (!pendingAlumniData) return;
+    let signupData = { ...pendingAlumniData };
+    if (!isDiplomaFinished) {
+      signupData = { ...signupData, role: 'student' };
+      setSelectedRole('student');
+    }
+    setIsLoading(true);
+    try {
+      if (googleVerified && googleToken) {
+        await signup(signupData, undefined, googleToken);
+        afterSignup(signupData);
+      } else {
+        await requestSignupOtp(signupData);
+        setPendingSignup(signupData);
+        setOtpError(undefined);
+        setShowOtpStep(true);
+        toast.success('Verification code sent to your email');
+      }
+    } catch (err) {
+      toast.error(firstValidationError(err));
+    } finally {
+      setIsLoading(false);
+      setPendingAlumniData(null);
+    }
+  };
+
   const sharedFormProps = {
     mode, setMode,
     onBack: () => setMobileView('splash'),
@@ -842,6 +890,61 @@ export function AuthPage() {
   return (
     <>
       {/* ══════════ SIGN-UP EMAIL VERIFICATION (OTP) — overlay ══════════ */}
+      {/* Alumni confirmation popup */}
+      <AnimatePresence>
+        {showAlumniConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/70 p-4"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.25 }}
+              className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl"
+            >
+              <div className="flex flex-col items-center text-center gap-3 mb-5">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-amber-50 border border-amber-200">
+                  <GraduationCap className="w-7 h-7 text-amber-500" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">তোমার কি পলিটেকনিকে পড়া শেষ?</h3>
+                  <p className="text-sm text-gray-500 mt-1">সঠিক অ্যাকাউন্ট টাইপ নির্বাচন করো।</p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={() => handleAlumniConfirm(true)}
+                  className="w-full rounded-2xl border-2 border-emerald-400 bg-emerald-50 text-emerald-700 font-semibold text-sm py-3.5 px-4 hover:bg-emerald-100 transition-colors text-left flex items-start gap-3"
+                >
+                  <span className="mt-0.5 text-base">✅</span>
+                  <span>হ্যা, আমার Diploma শেষ।</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAlumniConfirm(false)}
+                  className="w-full rounded-2xl border-2 border-gray-200 bg-gray-50 text-gray-700 font-semibold text-sm py-3.5 px-4 hover:bg-gray-100 transition-colors text-left flex items-start gap-3"
+                >
+                  <span className="mt-0.5 text-base">🎓</span>
+                  <span>না, আমার এখনও পলিটেকনিকে পড়া শেষ হয় নি। আমি Running Student.</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowAlumniConfirm(false); setPendingAlumniData(null); }}
+                  className="w-full text-xs text-gray-400 hover:text-gray-600 py-2 transition-colors"
+                >
+                  বাতিল করো
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {showOtpStep && (
           <motion.div
@@ -1039,20 +1142,26 @@ export function AuthPage() {
 
                         {/* Student sub-type: captain / alumni (mutually exclusive) */}
                         {isStudentFamily(selectedRole) && (
-                          <div className="mt-2 space-y-2 rounded-xl border border-gray-200 bg-gray-50/70 p-3">
-                            <label className="flex items-center gap-2.5 cursor-pointer">
-                              <input type="checkbox" className="h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
-                                checked={selectedRole === 'captain'}
-                                onChange={(e) => setSelectedRole(e.target.checked ? 'captain' : 'student')} />
-                              <span className="text-sm text-gray-700">I am a <span className="font-semibold">Class Captain</span></span>
-                            </label>
-                            <label className="flex items-center gap-2.5 cursor-pointer">
-                              <input type="checkbox" className="h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
-                                checked={selectedRole === 'alumni'}
-                                onChange={(e) => setSelectedRole(e.target.checked ? 'alumni' : 'student')} />
-                              <span className="text-sm text-gray-700">I am an <span className="font-semibold">Alumnus</span> <span className="text-gray-400">(already graduated)</span></span>
-                            </label>
-                          </div>
+                          <>
+                            <div className="mt-2 space-y-2 rounded-xl border border-gray-200 bg-gray-50/70 p-3">
+                              <label className="flex items-center gap-2.5 cursor-pointer">
+                                <input type="checkbox" className="h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
+                                  checked={selectedRole === 'captain'}
+                                  onChange={(e) => setSelectedRole(e.target.checked ? 'captain' : 'student')} />
+                                <span className="text-sm text-gray-700">I am a <span className="font-semibold">Class Captain</span></span>
+                              </label>
+                              <label className="flex items-center gap-2.5 cursor-pointer">
+                                <input type="checkbox" className="h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
+                                  checked={selectedRole === 'alumni'}
+                                  onChange={(e) => setSelectedRole(e.target.checked ? 'alumni' : 'student')} />
+                                <span className="text-sm text-gray-700">I am an <span className="font-semibold">Alumnus</span> <span className="text-gray-400">(already graduated)</span></span>
+                              </label>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-2 px-1 leading-relaxed">
+                              <span className="block">• Captain না হলে টিক দেওয়ার প্রয়োজন নেই।</span>
+                              <span className="block">• প্রাক্তন শিক্ষার্থী না হলে টিক দেওয়ার প্রয়োজন নেই।</span>
+                            </p>
+                          </>
                         )}
                       </div>
                       <div><Label className="text-xs font-semibold text-gray-600 mb-1.5 block">Full Name</Label>
