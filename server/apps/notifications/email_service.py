@@ -193,10 +193,57 @@ def send_branded_email(
         logger.info("send_branded_email skipped '%s' - no recipients (after opt-out filter)", subject)
         return False
 
-    # Bulk/BCC-only send: use the system address as the visible "To" so BCC
-    # recipients never see each other's email addresses.
+    # Bulk/BCC-only send: send individual emails to each BCC recipient so the
+    # "To" field shows the recipient's own address instead of the system address.
     if not recipients and bcc:
-        recipients = [settings.DEFAULT_FROM_EMAIL]
+        support_email_bcc, support_phone_bcc = _institute_contact()
+        logo_url_bcc = ''
+        context_bcc = {
+            "subject": subject,
+            "brand_name": "Sirajganj Gov. Polytechnic Institute",
+            "brand_tagline": "Sirajganj Gov. Polytechnic Institute",
+            "logo_url": logo_url_bcc,
+            "support_email": support_email_bcc,
+            "support_phone": support_phone_bcc,
+        }
+        try:
+            html_body_bcc = render_to_string("emails/generic.html", {
+                **context_bcc,
+                "sections": sections or [],
+                "heading": heading,
+                "greeting": greeting,
+                "intro": intro,
+                "body_lines": body_lines or [],
+                "details": details or [],
+                "highlight": highlight,
+                "cta_label": cta_label,
+                "cta_url": cta_url,
+                "accent_label": accent_label,
+                "accent_color": accent_color,
+                "accent_soft": accent_soft,
+                "closing": closing,
+                "preheader": preheader,
+                "footer_note": footer_note,
+                "attachment_links": attachment_links or [],
+                "year": datetime.now().year,
+            })
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Failed to render email template for '%s': %s", subject, exc)
+            return False
+
+        def _send_bulk_individual(bcc_list, html, subj, attach, logo):
+            for addr in bcc_list:
+                _deliver(subj, [addr], html, None, attach, logo)
+
+        if async_send:
+            threading.Thread(
+                target=_send_bulk_individual,
+                args=(bcc, html_body_bcc, subject, attachments, False),
+                daemon=True,
+            ).start()
+        else:
+            _send_bulk_individual(bcc, html_body_bcc, subject, attachments, False)
+        return True
 
     support_email, support_phone = _institute_contact()
 
