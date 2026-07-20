@@ -458,18 +458,102 @@ export const alumniService = {
     payload: Record<string, unknown>,
     documents: AlumniDocUpload[] = [],
   ): Promise<{ alumni: any; documents: { created: string[]; errors: string[] }; message: string }> => {
-    const fd = new FormData();
-    fd.append('payload', JSON.stringify(payload));
-    const meta = documents.map((doc, index) => ({
-      field: `doc_${index}`,
-      category: doc.category,
-      customName: doc.customName || '',
-    }));
-    fd.append('documentMeta', JSON.stringify(meta));
-    documents.forEach((doc, index) => fd.append(`doc_${index}`, doc.file));
-    return await apiClient.post('/alumni/self_register/', fd, true);
+    return await apiClient.post('/alumni/self_register/', buildAlumniFormData(payload, documents), true);
+  },
+
+  /**
+   * Re-submit a rejected/pending alumni application after editing it (the alumni
+   * counterpart of the admission reapply flow). Updates the existing record in
+   * place and resets it to pending for re-review.
+   */
+  resubmitApplication: async (
+    payload: Record<string, unknown>,
+    documents: AlumniDocUpload[] = [],
+  ): Promise<{ alumni: any; documents: { created: string[]; errors: string[] }; message: string }> => {
+    return await apiClient.post('/alumni/resubmit_my_application/', buildAlumniFormData(payload, documents), true);
+  },
+
+  /**
+   * Fetch the current user's existing alumni application mapped back into the
+   * registration form's shape, so a rejected applicant can edit and reapply with
+   * their previous data pre-filled.
+   */
+  getMyApplicationForm: async (): Promise<AlumniApplicationPrefill> => {
+    const r = await apiClient.get<any>('/alumni/my_profile/');
+    const s = r.student || {};
+    const addr = (s.presentAddress && typeof s.presentAddress === 'object') ? s.presentAddress : {};
+    const cp = r.currentPosition || {};
+    const semesterGpas: Record<number, string> = {};
+    (Array.isArray(s.semesterResults) ? s.semesterResults : []).forEach((res: any) => {
+      const sem = Number(res?.semester);
+      const gpa = res?.gpa ?? res?.cgpa;
+      if (sem && gpa != null && gpa !== '') semesterGpas[sem] = String(gpa);
+    });
+    return {
+      form: {
+        fullNameEnglish: s.fullNameEnglish || s.full_name_english || '',
+        fullNameBangla: s.fullNameBangla || s.full_name_bangla || '',
+        fatherName: s.fatherName || s.father_name || '',
+        motherName: s.motherName || s.mother_name || '',
+        dateOfBirth: (s.dateOfBirth || s.date_of_birth || '').toString().slice(0, 10),
+        gender: s.gender || '',
+        mobileStudent: s.mobileStudent || s.mobile_student || '',
+        email: s.email || '',
+        division: addr.division || '',
+        presentDistrict: addr.district || '',
+        department: s.department?.id || '',
+        session: s.session || '',
+        graduationYear: r.graduationYear != null ? String(r.graduationYear) : '',
+        positionTitle: cp.positionTitle || cp.position || '',
+        organizationName: cp.organizationName || cp.company || '',
+        bio: r.bio || '',
+        linkedinUrl: r.linkedinUrl || r.linkedin_url || '',
+        portfolioUrl: r.portfolioUrl || r.portfolio_url || '',
+      },
+      semesterGpas,
+      reviewStatus: r.reviewStatus || r.review_status,
+    };
   },
 };
+
+/** Shared multipart builder for the self-register and resubmit endpoints. */
+function buildAlumniFormData(payload: Record<string, unknown>, documents: AlumniDocUpload[]): FormData {
+  const fd = new FormData();
+  fd.append('payload', JSON.stringify(payload));
+  const meta = documents.map((doc, index) => ({
+    field: `doc_${index}`,
+    category: doc.category,
+    customName: doc.customName || '',
+  }));
+  fd.append('documentMeta', JSON.stringify(meta));
+  documents.forEach((doc, index) => fd.append(`doc_${index}`, doc.file));
+  return fd;
+}
+
+export interface AlumniApplicationPrefill {
+  form: {
+    fullNameEnglish: string;
+    fullNameBangla: string;
+    fatherName: string;
+    motherName: string;
+    dateOfBirth: string;
+    gender: string;
+    mobileStudent: string;
+    email: string;
+    division: string;
+    presentDistrict: string;
+    department: string;
+    session: string;
+    graduationYear: string;
+    positionTitle: string;
+    organizationName: string;
+    bio: string;
+    linkedinUrl: string;
+    portfolioUrl: string;
+  };
+  semesterGpas: Record<number, string>;
+  reviewStatus?: string;
+}
 
 export interface AlumniDocCategory {
   key: string;

@@ -64,6 +64,13 @@ class DocumentViewSet(viewsets.ModelViewSet):
         certificate / photo by guessing an id. Teachers, admins and superusers
         keep full visibility. `get_object` funnels through this, so retrieve /
         download / preview are protected too.
+
+        Admission documents are saved with student_id=None until the admission
+        is approved and a Student record is linked, so the student_id filter
+        alone would hide an applicant's own uploads (e.g. the "Previously
+        uploaded" documents shown when editing after a rejection). We therefore
+        also allow documents attached to the user's OWN admission(s), scoped
+        strictly by their admission ids so this stays IDOR-safe.
         """
         qs = Document.objects.filter(status='active')
         user = self.request.user
@@ -72,9 +79,16 @@ class DocumentViewSet(viewsets.ModelViewSet):
         if role in ('student', 'captain') and not is_privileged:
             from django.db.models import Q
             pid = getattr(user, 'related_profile_id', None)
+            cond = Q(is_public=True)
             if pid:
-                return qs.filter(Q(student_id=pid) | Q(is_public=True))
-            return qs.filter(is_public=True)
+                cond |= Q(student_id=pid)
+            from apps.admissions.models import Admission
+            admission_ids = list(
+                Admission.objects.filter(user=user).values_list('id', flat=True)
+            )
+            if admission_ids:
+                cond |= Q(source_type='admission', source_id__in=admission_ids)
+            return qs.filter(cond)
         return qs
 
     def create(self, request, *args, **kwargs):

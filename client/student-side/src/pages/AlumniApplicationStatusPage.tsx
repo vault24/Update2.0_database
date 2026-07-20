@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  Clock, XCircle, ArrowRightLeft, Settings, GraduationCap, ShieldCheck, Mail,
+  Clock, XCircle, ArrowRightLeft, Settings, GraduationCap, ShieldCheck, Mail, Pencil,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -44,9 +44,20 @@ export default function AlumniApplicationStatusPage() {
         </div>
         <p className="text-white/90 text-sm">
           {rejected
-            ? 'Unfortunately your alumni application was not approved. You can contact the administration for details, or switch this account back to a General Student account.'
+            ? 'Unfortunately your alumni application was not approved. You can edit your details and reapply, contact the administration for more information, or switch this account back to a General Student account.'
             : 'Thanks for submitting your alumni information! An administrator will review your application shortly. You will get full access to the alumni portal once it is approved.'}
         </p>
+
+        {rejected && (
+          <Button
+            asChild
+            className="mt-4 bg-white text-red-600 hover:bg-white/90 font-semibold shadow-sm"
+          >
+            <Link to="/dashboard/alumni-registration">
+              <Pencil className="w-4 h-4 mr-2" /> Edit &amp; Reapply
+            </Link>
+          </Button>
+        )}
       </motion.div>
 
       {/* What happens next */}

@@ -33,14 +33,16 @@ export interface NotificationsSocket {
  * e.g. "http://localhost:8000/api" -> "ws://localhost:8000/ws/notifications/"
  */
 function buildSocketUrl(): string {
+  // `?portal=admin` tells the backend to authenticate this socket against
+  // the admin session cookie (separate from the student portal's session).
   try {
     const url = new URL(API_BASE_URL, window.location.origin);
     const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${wsProtocol}//${url.host}/ws/notifications/`;
+    return `${wsProtocol}//${url.host}/ws/notifications/?portal=admin`;
   } catch {
     // Fallback to the current origin if API_BASE_URL is malformed.
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${wsProtocol}//${window.location.host}/ws/notifications/`;
+    return `${wsProtocol}//${window.location.host}/ws/notifications/?portal=admin`;
   }
 }
 

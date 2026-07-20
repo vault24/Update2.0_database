@@ -47,3 +47,9 @@ psutil==5.9.8
 # Standard Web Push protocol (no Firebase). Optional at runtime: if VAPID keys
 # are unset, push is disabled and the rest of the notification system is fine.
 pywebpush==2.3.0
+
+# --- BTEB result-PDF parsing (apps.results) ---
+# MIT-licensed, pure Python. Chosen over pdfplumber (its layout analysis
+# interleaves the notice's 4 columns and destroys records) and PyMuPDF
+# (AGPL). pypdf preserves content-stream order, keeping records contiguous.
+pypdf==6.14.2

@@ -27,6 +27,7 @@ from .services import (
     ALUMNI_DOCUMENT_CATEGORIES,
     MAX_ALUMNI_DOCUMENTS,
     create_alumni_from_essentials,
+    update_alumni_from_essentials,
     attach_alumni_documents,
     create_portal_account_for_alumni,
     compute_profile_completion,
@@ -1619,6 +1620,69 @@ class AlumniViewSet(viewsets.ModelViewSet):
                 'message': 'Your alumni information has been submitted and is pending verification.',
             },
             status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=False, methods=['post'], parser_classes=[MultiPartParser, FormParser, JSONParser],
+            permission_classes=[IsAuthenticated])
+    def resubmit_my_application(self, request):
+        """
+        Student-side: a self-registered alumnus whose application was rejected
+        (or is still pending) edits and re-submits it — the alumni counterpart
+        of the admission reapply flow.
+        POST /api/alumni/resubmit_my_application/   (multipart/form-data)
+
+        Updates the existing Student + Alumni records in place, attaches any
+        newly uploaded documents, and resets reviewStatus to 'pending'.
+        """
+        user = request.user
+        student_id = user.related_profile_id
+        alumni = None
+        if student_id:
+            alumni = Alumni.objects.filter(student_id=student_id).first()
+        if alumni is None:
+            return Response(
+                {'error': 'No alumni application found for your account.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if alumni.reviewStatus == 'approved':
+            return Response(
+                {'error': 'Your alumni application is already approved and cannot be resubmitted.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        payload_raw = request.data.get('payload')
+        if payload_raw:
+            try:
+                data = json.loads(payload_raw) if isinstance(payload_raw, str) else payload_raw
+            except (ValueError, TypeError):
+                return Response({'error': 'Invalid payload JSON.'}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            data = {k: v for k, v in request.data.items() if k not in ('documentMeta',)}
+
+        if not data.get('email'):
+            data['email'] = user.email
+
+        try:
+            alumni = update_alumni_from_essentials(alumni=alumni, data=data)
+        except ValueError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Alumni re-submission failed")
+            return Response(
+                {'error': 'Failed to resubmit alumni application.', 'details': str(exc) if settings.DEBUG else None},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        document_result = attach_alumni_documents(alumni, _collect_document_items(request))
+
+        return Response(
+            {
+                'alumni': AlumniSerializer(alumni).data,
+                'documents': document_result,
+                'message': 'Your alumni application has been updated and resubmitted for review.',
+            },
+            status=status.HTTP_200_OK,
         )
 
     @action(detail=True, methods=['get', 'post'], parser_classes=[MultiPartParser, FormParser, JSONParser],

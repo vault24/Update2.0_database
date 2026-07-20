@@ -472,9 +472,13 @@ def logout_view(request):
         status=status.HTTP_200_OK
     )
     
-    # Explicitly delete session cookie
-    response.delete_cookie('sessionid')
-    
+    # Explicitly delete THIS portal's session cookie (the admin SPA keeps its
+    # session in a separate cookie — see apps.authentication.portal_sessions —
+    # so logging out of one portal must not clear the other's cookie).
+    response.delete_cookie(
+        getattr(request, '_portal_session_cookie', settings.SESSION_COOKIE_NAME)
+    )
+
     return response
 
 

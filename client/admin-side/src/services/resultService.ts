@@ -1,0 +1,231 @@
+/**
+ * Result Service (admin)
+ *
+ * BTEB board-result imports and roll search. Backed by apps.results:
+ * an admin uploads the official BTEB result PDF, the server parses every
+ * institute's records, and matching student profiles sync automatically.
+ */
+
+import { apiClient } from '@/lib/api';
+import { API_BASE_URL } from '@/config/api';
+
+// Types
+
+export interface ResultExam {
+  id: number;
+  semester: number;
+  regulationYear: number;
+  program: string;
+  heldIn: string;
+  publicationDate: string | null;
+  memoNo: string;
+}
+
+export interface ResultInstitute {
+  code: string;
+  name: string;
+}
+
+export interface SemesterGpa {
+  semester: number;
+  /** Decimal string ("3.25") or null when the semester is referred. */
+  gpa: string | null;
+  isReferred: boolean;
+}
+
+export interface ResultSubject {
+  subjectCode: string;
+  role: 'referred' | 'expelled' | 'continuous_fail';
+  hasTheory: boolean;
+  hasPractical: boolean;
+}
+
+export type ResultType =
+  | 'passed'
+  | 'referred'
+  | 'failed'
+  | 'expelled'
+  | 'continuous_fail';
+
+export interface StudentResult {
+  id: number;
+  rollNumber: string;
+  resultType: ResultType;
+  cgpa: string | null;
+  expelledRule: string;
+  exam: ResultExam;
+  institute: ResultInstitute;
+  gpas: SemesterGpa[];
+  subjects: ResultSubject[];
+}
+
+export interface RollSearchResponse {
+  roll: string;
+  found: boolean;
+  institute: ResultInstitute | null;
+  finalCgpa: string | null;
+  results: StudentResult[];
+}
+
+export interface ResultImport {
+  id: string;
+  fileName: string;
+  pageCount: number;
+  status: 'processing' | 'completed' | 'failed';
+  stats: {
+    pageCount?: number;
+    instituteCount?: number;
+    recordCount?: number;
+    recordsByType?: Record<string, number>;
+    issuesBySeverity?: Record<string, number>;
+    replacedExisting?: number;
+    sync?: { matchedStudents: number; updatedStudents: number };
+    timings?: Record<string, number>;
+  };
+  errorMessage: string;
+  exam: ResultExam | null;
+  uploadedByName: string;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export interface ParserIssue {
+  id: number;
+  severity: 'error' | 'warning' | 'info';
+  stage: string;
+  code: string;
+  message: string;
+  context: string;
+  rollNumber: string;
+  createdAt: string;
+}
+
+export interface AnalyticsExam {
+  id: number;
+  semester: number;
+  regulationYear: number;
+  program: string;
+  heldIn: string;
+  publicationDate: string | null;
+  resultCount: number;
+}
+
+export interface ResultBucket {
+  appeared: number;
+  passed: number;
+  referred: number;
+  failed: number;
+  expelled: number;
+  continuousFail: number;
+  passRate: number | null;
+  avgGpa: number | null;
+  avgCgpa: number | null;
+}
+
+export interface DepartmentSummary extends ResultBucket {
+  id: string;
+  name: string;
+  code: string;
+  shifts: Record<string, { appeared: number; passed: number; passRate: number | null }>;
+}
+
+export interface AnalyticsSummary {
+  exam: ResultExam;
+  institute: ResultBucket;
+  departments: DepartmentSummary[];
+  topFailedSubjects: { subjectCode: string; students: number }[];
+  topPerformers: {
+    roll: string;
+    name: string;
+    department: string;
+    shift: string;
+    gpa: string;
+    cgpa: string | null;
+  }[];
+  national: {
+    institutes: number;
+    records: number;
+    passed: number;
+    passRate: number | null;
+  };
+}
+
+class ResultService {
+  private baseURL = '/results';
+
+  async searchRoll(roll: string): Promise<RollSearchResponse> {
+    return await apiClient.get<RollSearchResponse>(
+      `${this.baseURL}/admin/search/?roll=${encodeURIComponent(roll)}`,
+    );
+  }
+
+  async getImports(): Promise<ResultImport[]> {
+    return await apiClient.get<ResultImport[]>(`${this.baseURL}/imports/`);
+  }
+
+  async getImport(id: string): Promise<ResultImport> {
+    return await apiClient.get<ResultImport>(`${this.baseURL}/imports/${id}/`);
+  }
+
+  async getImportIssues(id: string, severity?: string): Promise<ParserIssue[]> {
+    const query = severity ? `?severity=${severity}` : '';
+    return await apiClient.get<ParserIssue[]>(
+      `${this.baseURL}/imports/${id}/issues/${query}`,
+    );
+  }
+
+  async uploadPdf(file: File, replace = false): Promise<{ importId: string; message: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (replace) formData.append('replace', 'true');
+    return await apiClient.post(`${this.baseURL}/imports/`, formData);
+  }
+
+  async deleteImport(id: string): Promise<void> {
+    return await apiClient.delete<void>(`${this.baseURL}/imports/${id}/`);
+  }
+
+  async getAnalyticsExams(): Promise<AnalyticsExam[]> {
+    return await apiClient.get<AnalyticsExam[]>(`${this.baseURL}/analytics/exams/`);
+  }
+
+  async getAnalyticsSummary(examId: number): Promise<AnalyticsSummary> {
+    return await apiClient.get<AnalyticsSummary>(
+      `${this.baseURL}/analytics/summary/?exam=${examId}`,
+    );
+  }
+
+  /**
+   * Download the results CSV. Fetched as a blob (with the admin portal
+   * header + session cookie) and saved client-side.
+   */
+  async downloadCsv(
+    examId: number,
+    options?: { departmentId?: string; shift?: string },
+  ): Promise<void> {
+    const params = new URLSearchParams({ exam: String(examId) });
+    if (options?.departmentId) params.set('department', options.departmentId);
+    if (options?.shift) params.set('shift', options.shift);
+
+    const response = await fetch(
+      `${API_BASE_URL}${this.baseURL}/analytics/download/?${params.toString()}`,
+      { credentials: 'include', headers: { 'X-Portal': 'admin' } },
+    );
+    if (!response.ok) throw new Error('Download failed');
+
+    const blob = await response.blob();
+    const disposition = response.headers.get('Content-Disposition') ?? '';
+    const match = /filename="([^"]+)"/.exec(disposition);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = match?.[1] ?? 'results.csv';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+}
+
+export const resultService = new ResultService();
+export default resultService;

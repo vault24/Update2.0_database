@@ -47,6 +47,7 @@ urlpatterns = [
     path('api/stipends/', include('apps.stipends.urls')),
     path('api/complaints/', include('apps.complaints.urls')),
     path('api/system-reports/', include('apps.system_reports.urls')),
+    path('api/results/', include('apps.results.urls')),
     
     # Secure file serving
     re_path(r'^files/(?P<file_path>.+)$', SecureFileView.as_view(), name='secure-file'),

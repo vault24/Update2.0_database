@@ -20,15 +20,20 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'slms_core.settings')
 django_asgi_app = get_asgi_application()
 
 from apps.notifications.routing import websocket_urlpatterns
+from apps.authentication.portal_sessions import PortalWebsocketCookieMiddleware
 
 application = ProtocolTypeRouter({
     # Django's ASGI application to handle traditional HTTP requests
     "http": django_asgi_app,
-    
-    # WebSocket chat handler with authentication
-    "websocket": AuthMiddlewareStack(
-        URLRouter(
-            websocket_urlpatterns
+
+    # WebSocket handler with authentication. The portal middleware maps
+    # admin-portal connections (?portal=admin) onto the admin session cookie
+    # before the standard auth stack runs.
+    "websocket": PortalWebsocketCookieMiddleware(
+        AuthMiddlewareStack(
+            URLRouter(
+                websocket_urlpatterns
+            )
         )
     ),
 })

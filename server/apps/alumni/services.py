@@ -229,6 +229,80 @@ def create_alumni_from_essentials(
     return alumni
 
 
+def update_alumni_from_essentials(alumni, *, data):
+    """
+    Update an existing Student + Alumni pair from a self-service re-submission
+    (used when a rejected/pending applicant edits and reapplies, mirroring the
+    admission reapply flow). Only the fields the alumni registration form
+    controls are touched, so unrelated data — roll/registration numbers, career
+    history, skills, previously-uploaded documents — is preserved. The
+    application is reset to reviewStatus='pending' for a fresh review.
+
+    Args:
+        alumni: the existing Alumni instance to update.
+        data: dict with the same recognised keys as create_alumni_from_essentials.
+
+    Raises:
+        ValueError: on missing/invalid essential fields (name, department).
+    """
+    from apps.departments.models import Department
+
+    student = alumni.student
+
+    full_name_english = (data.get('fullNameEnglish') or '').strip()
+    if not full_name_english:
+        raise ValueError('Full name (English) is required.')
+
+    department_id = data.get('department') or data.get('departmentId')
+    if not department_id:
+        raise ValueError('Department is required.')
+    try:
+        department = Department.objects.get(pk=department_id)
+    except Department.DoesNotExist:
+        raise ValueError('Selected department does not exist.')
+
+    present_address = data.get('presentAddress')
+    semester_results = data.get('semesterResults')
+
+    # --- Update the student (only the form-controlled fields) ---
+    student.fullNameEnglish = full_name_english
+    student.fullNameBangla = (data.get('fullNameBangla') or '').strip()
+    student.fatherName = (data.get('fatherName') or '').strip()
+    student.motherName = (data.get('motherName') or '').strip()
+    student.gender = (data.get('gender') or '').strip()
+    student.mobileStudent = (data.get('mobileStudent') or '').strip()
+    parsed_dob = _parse_date(data.get('dateOfBirth'))
+    if parsed_dob is not None:
+        student.dateOfBirth = parsed_dob
+    if data.get('email'):
+        student.email = data['email'].strip()
+    if isinstance(present_address, dict):
+        student.presentAddress = present_address
+    if isinstance(semester_results, list):
+        student.semesterResults = semester_results
+    student.department = department
+    student.session = (data.get('session') or '').strip()
+    student.save()
+
+    # --- Update the alumni record and reset it for re-review ---
+    graduation_year = _parse_int(data.get('graduationYear'))
+    if graduation_year is not None:
+        alumni.graduationYear = graduation_year
+    alumni.currentPosition = data.get('currentPosition') or None
+    alumni.bio = (data.get('bio') or '').strip() or None
+    alumni.linkedinUrl = (data.get('linkedinUrl') or '').strip() or None
+    alumni.portfolioUrl = (data.get('portfolioUrl') or '').strip() or None
+    alumni.reviewStatus = 'pending'
+    alumni.isVerified = False
+    alumni.verificationNotes = ''
+    alumni.lastEditedBy = 'student'
+    alumni.lastEditedAt = timezone.now()
+    alumni.save()
+
+    logger.info("Alumni re-submitted (student=%s) reset to pending", student.id)
+    return alumni
+
+
 def create_portal_account_for_alumni(alumni, *, email=None, password=None, actor=None):
     """
     Create the portal login for an alumnus (admin "Create Portal Account").

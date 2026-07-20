@@ -39,6 +39,10 @@ interface AuthContextType {
 // Principal (super user), plus Department Head and Registrar.
 const ADMIN_ROLES = ['institute_head', 'department_head', 'registrar'];
 
+// Sent with every auth request so the backend keeps the admin session in its
+// own cookie — logging in here never logs the student portal out.
+const PORTAL_HEADER = { 'X-Portal': 'admin' } as const;
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -57,6 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.auth.me}`, {
           credentials: 'include',
+          headers: PORTAL_HEADER,
         });
 
         if (response.ok) {
@@ -70,6 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               await fetch(`${API_BASE_URL}${API_ENDPOINTS.auth.logout}`, {
                 method: 'POST',
                 credentials: 'include',
+                headers: PORTAL_HEADER,
               });
             } catch {
               // Ignore logout errors.
@@ -127,13 +133,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Get CSRF token first from the dedicated endpoint
       await fetch(`${API_BASE_URL}/auth/csrf/`, {
         credentials: 'include',
+        headers: PORTAL_HEADER,
       }).catch(() => {}); // Ignore error, just need the cookie
 
       const csrfToken = getCsrfToken();
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
+        ...PORTAL_HEADER,
       };
-      
+
       if (csrfToken) {
         headers['X-CSRFToken'] = csrfToken;
       }
@@ -219,6 +227,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await fetch(`${API_BASE_URL}${API_ENDPOINTS.auth.logout}`, {
           method: 'POST',
           credentials: 'include',
+          headers: PORTAL_HEADER,
         });
       } catch (e) {
         // Ignore logout errors
@@ -231,9 +240,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const verify2FA = async (email: string, otp: string, rememberMe: boolean = false) => {
-    await fetch(`${API_BASE_URL}/auth/csrf/`, { credentials: 'include' }).catch(() => {});
+    await fetch(`${API_BASE_URL}/auth/csrf/`, { credentials: 'include', headers: PORTAL_HEADER }).catch(() => {});
     const csrfToken = getCsrfToken();
-    const headers: HeadersInit = { 'Content-Type': 'application/json' };
+    const headers: HeadersInit = { 'Content-Type': 'application/json', ...PORTAL_HEADER };
     if (csrfToken) headers['X-CSRFToken'] = csrfToken;
 
     const response = await fetch(`${API_BASE_URL}/auth/login/verify-2fa/`, {
@@ -261,8 +270,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       const csrfToken = getCsrfToken();
-      const headers: HeadersInit = {};
-      
+      const headers: HeadersInit = { ...PORTAL_HEADER };
+
       if (csrfToken) {
         headers['X-CSRFToken'] = csrfToken;
       }

@@ -25,6 +25,8 @@ const ClassRoutinePage = lazy(() => import("./pages/ClassRoutinePage"));
 const LiveClassesPage = lazy(() => import("./pages/LiveClassesPage"));
 const AttendancePage = lazy(() => import("./pages/AttendancePage"));
 const MarksPage = lazy(() => import("./pages/MarksPage"));
+const BoardResultsPage = lazy(() => import("./pages/BoardResultsPage"));
+const PublicResultSearchPage = lazy(() => import("./pages/PublicResultSearchPage"));
 const DocumentsPage = lazy(() => import("./pages/DocumentsPage"));
 const ComplaintsPage = lazy(() => import("./pages/ComplaintsPage"));
 const ApplicationsPage = lazy(() => import("./pages/ApplicationsPage"));
@@ -122,7 +124,11 @@ const AlumniAccountGate = ({ children }: { children: React.ReactNode }) => {
     } else if (!approved) {
       // Stage 2: application under review (or rejected) — no alumni
       // privileges yet; only the status page (and Settings) are available.
-      if (location.pathname !== statusPath && !onAllowedPage) {
+      // A rejected applicant may also open the registration page to edit and
+      // reapply with their previous data pre-filled.
+      const rejected = user.alumniReviewStatus === "rejected";
+      const canReapply = rejected && location.pathname === regPath;
+      if (location.pathname !== statusPath && !onAllowedPage && !canReapply) {
         return <Navigate to={statusPath} replace />;
       }
     } else {
@@ -174,6 +180,7 @@ const App = () => {
       {/* Public routes - no authentication required */}
       <Route path="/student/:studentId" element={<PublicStudentProfilePage />} />
       <Route path="/faculty/:teacherId" element={<PublicTeacherProfilePage />} />
+      <Route path="/results" element={<PublicResultSearchPage />} />
       
       {/* Dashboard routes with nested structure */}
       <Route 
@@ -203,6 +210,7 @@ const App = () => {
         <Route path="routine" element={<ClassRoutinePage />} />
         <Route path="attendance" element={<AttendancePage />} />
         <Route path="marks" element={<MarksPage />} />
+        <Route path="board-results" element={<BoardResultsPage />} />
         <Route path="documents" element={<DocumentsPage />} />
         <Route path="applications" element={<ApplicationsPage />} />
         

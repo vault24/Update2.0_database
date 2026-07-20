@@ -33,6 +33,7 @@ import {
   Bell,
   Heart,
   MessageSquareWarning,
+  FileSearch,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -49,6 +50,7 @@ export type FeatureId =
   | 'teachers'
   | 'class_routine'
   | 'attendance_marks'
+  | 'board_results'
   | 'discontinued_students'
   | 'alumni'
   | 'alumni_requests'
@@ -100,6 +102,7 @@ export const MENU_GROUPS: MenuGroup[] = [
       { feature: 'teachers', label: 'Teachers', path: '/teachers', icon: UserCheck },
       { feature: 'class_routine', label: 'Class Routine', path: '/class-routine', icon: Calendar },
       { feature: 'attendance_marks', label: 'Attendance & Marks', path: '/attendance-marks', icon: ClipboardCheck },
+      { feature: 'board_results', label: 'Board Results', path: '/results', icon: FileSearch },
     ],
   },
   {
@@ -141,6 +144,7 @@ const FEATURE_ROUTES: Record<FeatureId, string[]> = {
   teachers: ['/teachers'],
   class_routine: ['/class-routine'],
   attendance_marks: ['/attendance-marks'],
+  board_results: ['/results'],
   discontinued_students: ['/discontinued-students'],
   alumni: ['/alumni'],
   alumni_requests: ['/alumni-requests'],
@@ -183,6 +187,7 @@ export const ROLE_PERMISSIONS: Record<AdminRole, RolePermission> = {
       'departments',
       'teachers',
       'class_routine',
+      'board_results',
       'discontinued_students',
       'alumni',
       'alumni_requests',
@@ -202,6 +207,7 @@ export const ROLE_PERMISSIONS: Record<AdminRole, RolePermission> = {
       'add_student',
       'admissions',
       'notices',
+      'board_results',
       'discontinued_students',
       'alumni',
       'alumni_requests',

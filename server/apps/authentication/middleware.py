@@ -51,6 +51,8 @@ ROLE_API_POLICY = {
             # no-op for this role — registrar/Principal see everything).
             '/api/attendance/',
             '/api/marks/',
+            # Board result imports + roll search (apps.results).
+            '/api/results/',
         ),
         'read_only': (),
     },
@@ -73,9 +75,12 @@ ROLE_API_POLICY = {
         ),
         # Read-only oversight of their own department's attendance and marks.
         # The Attendance/Marks viewsets scope rows to the head's department.
+        # Board results: heads may search rolls and review import history,
+        # but only the registrar/Principal may import or delete.
         'read_only': (
             '/api/attendance/',
             '/api/marks/',
+            '/api/results/',
         ),
     },
 }

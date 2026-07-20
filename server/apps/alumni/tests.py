@@ -328,3 +328,78 @@ class AlumniAPITests(APITestCase):
         self.assertEqual(response.data['established'], 1)
         self.assertIn('byDepartment', response.data)
         self.assertIn('byYear', response.data)
+
+
+class AlumniResubmitApplicationTests(APITestCase):
+    """
+    Reapply flow: a self-registered alumnus whose application was rejected can
+    edit and resubmit it. The existing records are updated in place and the
+    application resets to 'pending'; an approved application cannot be resubmitted.
+    """
+
+    def setUp(self):
+        import json
+        from django.contrib.auth import get_user_model
+        from apps.alumni.services import create_alumni_from_essentials
+        self._json = json
+        _User = get_user_model()
+        sfx = uuid.uuid4().hex[:8]
+        self.dept = Department.objects.create(name=f'CSE {sfx}', code=f'C{sfx[:5]}')
+        self.dept2 = Department.objects.create(name=f'EEE {sfx}', code=f'E{sfx[:5]}')
+        self.alumni = create_alumni_from_essentials(
+            data={'fullNameEnglish': 'Old Name', 'department': str(self.dept.id),
+                  'graduationYear': '2015', 'bio': 'old bio'},
+            registration_source='self_registration',
+            review_status='rejected',
+        )
+        self.user = _User.objects.create_user(
+            username=f'alum_{sfx}', email=f'alum_{sfx}@example.com',
+            password='testpass123', role='alumni', account_status='active',
+        )
+        self.user.related_profile_id = self.alumni.student.id
+        self.user.save()
+
+    def _post(self, payload):
+        return self.client.post(
+            '/api/alumni/resubmit_my_application/',
+            {'payload': self._json.dumps(payload), 'documentMeta': '[]'},
+            format='multipart',
+        )
+
+    def test_resubmit_updates_and_resets_to_pending(self):
+        self.client.force_authenticate(user=self.user)
+        resp = self._post({
+            'fullNameEnglish': 'New Name',
+            'department': str(self.dept2.id),
+            'graduationYear': '2018',
+            'bio': 'updated bio',
+            'presentAddress': {'division': 'Dhaka', 'district': 'Dhaka'},
+        })
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.alumni.refresh_from_db()
+        self.alumni.student.refresh_from_db()
+        self.assertEqual(self.alumni.reviewStatus, 'pending')
+        self.assertEqual(self.alumni.student.fullNameEnglish, 'New Name')
+        self.assertEqual(self.alumni.student.department_id, self.dept2.id)
+        self.assertEqual(self.alumni.graduationYear, 2018)
+        # Unique identifiers must be preserved (not regenerated) on update.
+        self.assertTrue(self.alumni.student.currentRollNumber)
+
+    def test_resubmit_blocked_for_approved(self):
+        self.alumni.reviewStatus = 'approved'
+        self.alumni.save(update_fields=['reviewStatus'])
+        self.client.force_authenticate(user=self.user)
+        resp = self._post({'fullNameEnglish': 'X', 'department': str(self.dept.id)})
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_resubmit_requires_existing_application(self):
+        from django.contrib.auth import get_user_model
+        _User = get_user_model()
+        sfx = uuid.uuid4().hex[:8]
+        stranger = _User.objects.create_user(
+            username=f'nobody_{sfx}', email=f'nobody_{sfx}@example.com',
+            password='testpass123', role='student', account_status='active',
+        )
+        self.client.force_authenticate(user=stranger)
+        resp = self._post({'fullNameEnglish': 'X', 'department': str(self.dept.id)})
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)

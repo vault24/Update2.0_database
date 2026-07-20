@@ -37,6 +37,7 @@ const pageNames: Record<string, string> = {
   '/admissions': 'Admissions',
   '/class-routine': 'Class Routine',
   '/attendance-marks': 'Attendance & Marks',
+  '/results': 'Board Results',
   '/alumni': 'Alumni',
   '/documents': 'Documents',
   '/applications': 'Applications',

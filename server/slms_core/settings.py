@@ -68,6 +68,7 @@ INSTALLED_APPS = [
     'apps.stipends',
     'apps.complaints',
     'apps.system_reports',
+    'apps.results',
 ]
 
 # --------------------------------------------------
@@ -75,7 +76,9 @@ INSTALLED_APPS = [
 # --------------------------------------------------
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
+    # Per-portal session cookies: the admin SPA (X-Portal: admin) gets its own
+    # session cookie so student + admin logins coexist in one browser.
+    'apps.authentication.portal_sessions.PortalSessionMiddleware',
 
     # CORS MUST BE BEFORE CommonMiddleware
     'corsheaders.middleware.CorsMiddleware',
@@ -240,6 +243,8 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'login': '10/min',
         'otp': '5/min',
+        # Public result search (apps.results) — anonymous, so rate-limited.
+        'result_search': '30/min',
     },
     # Production serves JSON only. DRF's interactive Browsable API (the HTML
     # interface at ?format=api, plus its write forms) exposes the whole API
@@ -261,7 +266,9 @@ if config('USE_X_FORWARDED_PROTO', default=False, cast=bool):
 # The dedicated throttle regression test re-enables specific rates via
 # override_settings.
 if 'test' in sys.argv:
-    REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {'login': None, 'otp': None}
+    REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
+        'login': None, 'otp': None, 'result_search': None,
+    }
 
 # Re-enable the interactive Browsable API ONLY in local development. In
 # production (DEBUG=False) the API answers JSON only, so hitting any endpoint
@@ -332,6 +339,13 @@ ADMIN_PORTAL_ORIGINS = _origins(
 
 CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
+
+# The admin SPA sends `X-Portal: admin` with every request (per-portal session
+# cookies — see apps.authentication.portal_sessions). The header must be in
+# the CORS allow-list or cross-origin dev setups fail the preflight.
+from corsheaders.defaults import default_headers  # noqa: E402
+
+CORS_ALLOW_HEADERS = list(default_headers) + ['x-portal']
 
 # CORS allow-list: explicit env value if given, otherwise the union of both
 # portal origin sets (which already include EXTRA + dev defaults).
@@ -423,6 +437,9 @@ SESSION_SAVE_EVERY_REQUEST = True
 
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_COOKIE_NAME = 'sessionid'
+# Separate cookie for the admin SPA's session (see
+# apps.authentication.portal_sessions) so admin + student logins coexist.
+ADMIN_SESSION_COOKIE_NAME = 'admin_sessionid'
 
 # --------------------------------------------------
 # EMAIL CONFIGURATION

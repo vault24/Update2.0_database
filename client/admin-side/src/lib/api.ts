@@ -59,17 +59,22 @@ class ApiClient {
    */
   private getHeaders(includeContentType: boolean = true): HeadersInit {
     const headers: HeadersInit = {};
-    
+
     if (includeContentType) {
       headers['Content-Type'] = 'application/json';
     }
-    
+
     // Add CSRF token for session-based auth
     const csrfToken = this.getCsrfToken();
     if (csrfToken) {
       headers['X-CSRFToken'] = csrfToken;
     }
-    
+
+    // Admin portal marker: the backend keeps the admin session in its own
+    // cookie so an admin login never logs the student portal out (and vice
+    // versa) when both run on the same host.
+    headers['X-Portal'] = 'admin';
+
     return headers;
   }
 

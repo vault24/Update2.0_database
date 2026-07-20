@@ -389,3 +389,67 @@ class DocumentAPITests(APITestCase):
         document.refresh_from_db()
         self.assertEqual(document.status, 'deleted')
         self.assertFalse(Document.objects.filter(id=document.id, status='active').exists())
+
+
+class AdmissionDocumentVisibilityTests(APITestCase):
+    """
+    Regression tests for applicants seeing the documents attached to their OWN
+    admission before a Student record exists (student_id is null on admission
+    documents until approval). This is the "Previously uploaded" list shown when
+    a rejected applicant re-opens the wizard to edit and resubmit.
+    """
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        from apps.admissions.models import Admission
+        _User = get_user_model()
+        _sfx = uuid.uuid4().hex[:8]
+
+        # Applicant: role=student, NO linked Student profile yet.
+        self.applicant = _User.objects.create_user(
+            username=f'applicant_{_sfx}', email=f'applicant_{_sfx}@example.com',
+            password='testpass123', role='student', account_status='active',
+        )
+        self.admission = Admission.objects.create(user=self.applicant, status='rejected')
+
+        # A different applicant's admission + document, to prove isolation.
+        self.other = _User.objects.create_user(
+            username=f'other_{_sfx}', email=f'other_{_sfx}@example.com',
+            password='testpass123', role='student', account_status='active',
+        )
+        self.other_admission = Admission.objects.create(user=self.other, status='rejected')
+
+        # Admission documents are saved with student=None and is_public=False.
+        self.my_doc = Document.objects.create(
+            student=None,
+            fileName='my_nid.pdf', fileType='pdf', category='NID',
+            filePath='documents/admission/my_nid.pdf', fileSize=1024,
+            source_type='admission', source_id=self.admission.id,
+            original_field_name='studentNIDCopy', is_public=False, status='active',
+        )
+        self.other_doc = Document.objects.create(
+            student=None,
+            fileName='other_nid.pdf', fileType='pdf', category='NID',
+            filePath='documents/admission/other_nid.pdf', fileSize=1024,
+            source_type='admission', source_id=self.other_admission.id,
+            original_field_name='studentNIDCopy', is_public=False, status='active',
+        )
+
+    def test_applicant_sees_own_admission_documents(self):
+        """The applicant can list documents attached to their own admission."""
+        self.client.force_authenticate(user=self.applicant)
+        response = self.client.get(
+            f'/api/documents/?source_type=admission&source_id={self.admission.id}'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        ids = [d['id'] for d in response.data['results']]
+        self.assertIn(str(self.my_doc.id), ids)
+
+    def test_applicant_cannot_see_another_applicants_documents(self):
+        """IDOR guard: the applicant cannot list another admission's documents."""
+        self.client.force_authenticate(user=self.applicant)
+        response = self.client.get(
+            f'/api/documents/?source_type=admission&source_id={self.other_admission.id}'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['results']), 0)

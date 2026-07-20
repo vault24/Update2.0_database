@@ -71,14 +71,40 @@ export default function AlumniRegistrationPage() {
   const [loadingMeta, setLoadingMeta] = useState(true);
   const [switchOpen, setSwitchOpen] = useState(false);
 
+  // Reapply mode: the account already submitted an alumni application that is
+  // not yet approved (i.e. rejected or pending). We pre-fill the form with the
+  // previous data and update the existing record instead of creating a new one.
+  const reapplyMode = !!user?.isAlumni && user?.alumniReviewStatus !== 'approved';
+  const [prefilled, setPrefilled] = useState(false);
+
   useEffect(() => {
-    // Prefill name & email from the account.
+    // On a fresh registration, prefill only name & email from the account.
+    if (reapplyMode) return;
     setForm((prev) => ({
       ...prev,
       fullNameEnglish: prev.fullNameEnglish || user?.name || '',
       email: prev.email || user?.email || '',
     }));
-  }, [user]);
+  }, [user, reapplyMode]);
+
+  useEffect(() => {
+    // Reapply: load the previous application and pre-fill every field.
+    if (!reapplyMode) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const pre = await alumniService.getMyApplicationForm();
+        if (cancelled) return;
+        setForm((prev) => ({ ...prev, ...pre.form }));
+        if (Object.keys(pre.semesterGpas).length) setSemesterGpas(pre.semesterGpas);
+      } catch {
+        toast.error('Could not load your previous application. You can still fill it in again.');
+      } finally {
+        if (!cancelled) setPrefilled(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [reapplyMode]);
 
   useEffect(() => {
     (async () => {
@@ -166,12 +192,16 @@ export default function AlumniRegistrationPage() {
         category: d.category,
         customName: d.customName,
       }));
-      const result = await alumniService.selfRegister(buildPayload(), uploads);
+      const result = reapplyMode
+        ? await alumniService.resubmitApplication(buildPayload(), uploads)
+        : await alumniService.selfRegister(buildPayload(), uploads);
       const errs = result.documents?.errors || [];
       if (errs.length) {
         toast.warning('Submitted, but some documents had issues: ' + errs.join(' • '));
       } else {
-        toast.success('Your alumni information was submitted for verification.');
+        toast.success(reapplyMode
+          ? 'Your updated application was resubmitted for verification.'
+          : 'Your alumni information was submitted for verification.');
       }
       await refreshUser();
       // The application starts as "pending" — the status page explains the
@@ -184,7 +214,7 @@ export default function AlumniRegistrationPage() {
     }
   };
 
-  if (loadingMeta) {
+  if (loadingMeta || (reapplyMode && !prefilled)) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
@@ -201,11 +231,12 @@ export default function AlumniRegistrationPage() {
           <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center">
             <Award className="w-6 h-6" />
           </div>
-          <h1 className="text-2xl font-bold">Alumni Registration</h1>
+          <h1 className="text-2xl font-bold">{reapplyMode ? 'Edit & Reapply' : 'Alumni Registration'}</h1>
         </div>
         <p className="text-blue-50 text-sm">
-          Welcome back! Share whatever information you have — only your name and department are required.
-          An administrator will verify your details after you submit.
+          {reapplyMode
+            ? 'Your previous details are pre-filled below. Update anything that needs correcting and resubmit — an administrator will review your application again.'
+            : 'Welcome back! Share whatever information you have — only your name and department are required. An administrator will verify your details after you submit.'}
         </p>
       </motion.div>
 
@@ -386,6 +417,11 @@ export default function AlumniRegistrationPage() {
       </Section>
 
       <Section icon={FileText} title="Documents">
+        {reapplyMode && (
+          <p className="mb-4 rounded-xl border border-blue-200 bg-blue-50 dark:border-blue-500/30 dark:bg-blue-500/10 px-4 py-3 text-sm text-blue-800 dark:text-blue-200">
+            Documents you uploaded previously are kept — you only need to add new ones here if something changed.
+          </p>
+        )}
         <AlumniDocumentUpload
           docCategories={docCategories}
           maxDocuments={maxDocuments}
@@ -403,7 +439,7 @@ export default function AlumniRegistrationPage() {
           {submitting ? (
             <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting...</>
           ) : (
-            <><CheckCircle2 className="w-5 h-5 mr-2" /> Submit Registration</>
+            <><CheckCircle2 className="w-5 h-5 mr-2" /> {reapplyMode ? 'Resubmit Application' : 'Submit Registration'}</>
           )}
         </Button>
       </div>
