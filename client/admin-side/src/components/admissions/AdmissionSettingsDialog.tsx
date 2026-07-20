@@ -11,7 +11,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { admissionService, AdmissionSettings } from '@/services/admissionService';
 
@@ -90,7 +89,7 @@ export function AdmissionSettingsDialog({ open, onOpenChange, onSaved }: Props) 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg flex flex-col max-h-[90vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Settings2 className="h-5 w-5 text-primary" />
@@ -106,7 +105,7 @@ export function AdmissionSettingsDialog({ open, onOpenChange, onSaved }: Props) 
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <div className="space-y-5">
+          <div className="overflow-y-auto flex-1 space-y-5 pr-1">
             {/* Enable / disable admission */}
             <div className="flex items-center justify-between rounded-xl border border-border bg-muted/30 p-4">
               <div className="flex items-start gap-3">
@@ -133,30 +132,28 @@ export function AdmissionSettingsDialog({ open, onOpenChange, onSaved }: Props) 
                   </p>
                 </div>
               </div>
-              <ScrollArea className="max-h-72">
-                <div className="divide-y divide-border/60">
-                  {DOCUMENT_LABELS.map((doc) => (
-                    <div key={doc.key} className="flex items-center justify-between px-4 py-2.5">
-                      <span className="text-sm">{doc.label}</span>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={
-                            docs[doc.key]
-                              ? 'text-xs font-medium text-success'
-                              : 'text-xs text-muted-foreground'
-                          }
-                        >
-                          {docs[doc.key] ? 'Mandatory' : 'Optional'}
-                        </span>
-                        <Switch
-                          checked={!!docs[doc.key]}
-                          onCheckedChange={(v) => setDocs((prev) => ({ ...prev, [doc.key]: v }))}
-                        />
-                      </div>
+              <div className="divide-y divide-border/60">
+                {DOCUMENT_LABELS.map((doc) => (
+                  <div key={doc.key} className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-sm">{doc.label}</span>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={
+                          docs[doc.key]
+                            ? 'text-xs font-medium text-success'
+                            : 'text-xs text-muted-foreground'
+                        }
+                      >
+                        {docs[doc.key] ? 'Mandatory' : 'Optional'}
+                      </span>
+                      <Switch
+                        checked={!!docs[doc.key]}
+                        onCheckedChange={(v) => setDocs((prev) => ({ ...prev, [doc.key]: v }))}
+                      />
                     </div>
-                  ))}
-                </div>
-              </ScrollArea>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
