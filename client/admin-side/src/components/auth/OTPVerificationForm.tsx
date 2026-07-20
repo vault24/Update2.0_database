@@ -210,6 +210,9 @@ export function OTPVerificationForm({
               Resend
             </Button>
           </div>
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed text-center">
+            📩 ওটিপি-র জন্য মেইল না আসলে Gmail-এর <span className="font-semibold">Spam</span> ফোল্ডার চেক করো — সেখানে পেয়ে যাবে।
+          </p>
         </div>
 
         {error && (
