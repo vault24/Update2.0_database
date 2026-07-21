@@ -87,6 +87,50 @@ def _attach_subject_info(serialized_results: list) -> None:
             }
 
 
+def _attach_ranks(result_objs: list, serialized: list) -> None:
+    """Institute-wise merit rank for each PASSED semester result.
+
+    Rank = position among all students of the same institute in the same
+    exam, ordered by that semester's GPA (highest first). Referred/failed
+    students (no numeric semester GPA) are not ranked. One query per distinct
+    (exam, institute, semester) — a roll's results share an institute, so
+    this is a small, bounded number of queries.
+    """
+    from .models import SemesterGPA
+
+    cohort_cache: dict[tuple, list] = {}
+    by_id = {obj.id: obj for obj in result_objs}
+
+    for row in serialized:
+        obj = by_id.get(row['id'])
+        if obj is None:
+            continue
+        semester = obj.exam.semester
+        own = next(
+            (g.gpa for g in obj.semesterGpas.all() if g.semester == semester),
+            None,
+        )
+        if own is None:
+            row['rank'] = None
+            row['rankTotal'] = None
+            continue
+        key = (obj.exam_id, obj.institute_id, semester)
+        cohort = cohort_cache.get(key)
+        if cohort is None:
+            cohort = sorted(
+                SemesterGPA.objects.filter(
+                    result__exam_id=obj.exam_id,
+                    result__institute_id=obj.institute_id,
+                    semester=semester,
+                    gpa__isnull=False,
+                ).values_list('gpa', flat=True),
+                reverse=True,
+            )
+            cohort_cache[key] = cohort
+        row['rank'] = sum(1 for g in cohort if g > own) + 1
+        row['rankTotal'] = len(cohort)
+
+
 def _search_payload(roll: str) -> dict:
     """Full result history for one roll, newest exam first.
 
@@ -120,6 +164,7 @@ def _search_payload(roll: str) -> dict:
 
     serialized = StudentResultSerializer(results, many=True).data
     _attach_subject_info(serialized)
+    _attach_ranks(results, serialized)
     latest_cgpa = next((r.cgpa for r in results if r.cgpa is not None), None)
 
     # Student name for our institute's enrolled students (public result

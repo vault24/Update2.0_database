@@ -19,6 +19,7 @@ import {
   BookOpen,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   Download,
   FileSpreadsheet,
   FileText,
@@ -102,17 +103,60 @@ const SEVERITY_ICON = {
   info: <Info className="h-4 w-4 text-sky-600" />,
 } as const;
 
-function formatSubject(subject: StudentResult['subjects'][number]): string {
-  const parts = [
-    subject.hasTheory ? 'T' : null,
-    subject.hasPractical ? 'P' : null,
-  ].filter(Boolean);
-  return parts.length ? `${subject.subjectCode}(${parts.join(',')})` : subject.subjectCode;
-}
-
 function ResultTypeBadge({ type }: { type: string }) {
   const meta = RESULT_TYPE_META[type] ?? { label: type, className: 'bg-slate-100 text-slate-700' };
   return <Badge className={`${meta.className} hover:${meta.className}`}>{meta.label}</Badge>;
+}
+
+/** BTEB letter grade for a GPA value. */
+function letterGrade(gpa: number): string {
+  if (gpa >= 4.0) return 'A+';
+  if (gpa >= 3.75) return 'A';
+  if (gpa >= 3.5) return 'A-';
+  if (gpa >= 3.25) return 'B+';
+  if (gpa >= 3.0) return 'B';
+  if (gpa >= 2.75) return 'B-';
+  if (gpa >= 2.5) return 'C+';
+  if (gpa >= 2.25) return 'C';
+  if (gpa >= 2.0) return 'D';
+  return 'F';
+}
+
+/** One subject row in the admin card: code, catalog name, chips, and an
+ *  expandable full marks breakdown. */
+function AdminSubjectRow({ subject }: { subject: StudentResult['subjects'][number] }) {
+  const [open, setOpen] = useState(false);
+  const info = subject.info;
+  const parts = [subject.hasTheory ? 'Theory' : null, subject.hasPractical ? 'Practical' : null].filter(Boolean);
+  return (
+    <div className="rounded-md border border-slate-200">
+      <button
+        type="button"
+        onClick={() => info && setOpen((v) => !v)}
+        className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 px-2.5 py-1.5 text-left"
+      >
+        <span className="font-mono text-sm font-semibold text-slate-700">{subject.subjectCode}</span>
+        <span className="text-sm">{info?.name ?? 'Unknown subject'}</span>
+        {parts.map((p) => (
+          <Badge key={p} variant="outline" className="text-[10px] text-muted-foreground">{p}</Badge>
+        ))}
+        {info?.credit != null && (
+          <Badge variant="outline" className="text-[10px] text-muted-foreground">{info.credit} cr</Badge>
+        )}
+        {info && (
+          <ChevronDown className={`ml-auto h-3.5 w-3.5 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} />
+        )}
+      </button>
+      {open && info && (
+        <div className="grid grid-cols-2 gap-2 border-t border-slate-100 px-2.5 py-2 text-xs sm:grid-cols-4">
+          <div><p className="font-semibold uppercase text-muted-foreground">Theory</p><p>Cont: {info.theoryContinuous ?? '—'}</p><p>Final: {info.theoryFinal ?? '—'}</p><p>Total: {info.theoryTotal ?? '—'}</p></div>
+          <div><p className="font-semibold uppercase text-muted-foreground">Practical</p><p>Cont: {info.practicalContinuous ?? '—'}</p><p>Final: {info.practicalFinal ?? '—'}</p><p>Total: {info.practicalTotal ?? '—'}</p></div>
+          <div><p className="font-semibold uppercase text-muted-foreground">Credit</p><p>{info.credit ?? '—'}</p></div>
+          <div><p className="font-semibold uppercase text-muted-foreground">Grand Total</p><p className="font-bold">{info.totalMarks ?? '—'}</p></div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
@@ -141,6 +185,8 @@ function useDepartments(): Department[] {
 
 /** Full result card for the Roll Search tab. */
 function ResultCard({ result }: { result: StudentResult }) {
+  const gpas = [...result.gpas].sort((a, b) => a.semester - b.semester);
+  const ownGpa = gpas.find((g) => g.semester === result.exam.semester);
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -151,7 +197,17 @@ function ResultCard({ result }: { result: StudentResult }) {
               {result.exam.program}
             </span>
           </CardTitle>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {result.resultType === 'passed' && ownGpa?.gpa && (
+              <Badge variant="outline" className="border-emerald-300 text-emerald-700">
+                GPA {ownGpa.gpa} · {letterGrade(parseFloat(ownGpa.gpa))}
+              </Badge>
+            )}
+            {result.rank != null && result.rankTotal ? (
+              <Badge variant="outline" className="border-amber-300 text-amber-700">
+                <Trophy className="mr-1 h-3 w-3" /> Rank {result.rank}/{result.rankTotal}
+              </Badge>
+            ) : null}
             {result.cgpa && (
               <Badge variant="outline" className="border-indigo-300 text-indigo-700">
                 CGPA {result.cgpa}
@@ -166,20 +222,19 @@ function ResultCard({ result }: { result: StudentResult }) {
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
-        {result.gpas.length > 0 && (
+        {gpas.length > 0 && (
           <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
-            {[...result.gpas]
-              .sort((a, b) => a.semester - b.semester)
-              .map((gpa) => (
-                <div key={gpa.semester} className="rounded-md border bg-slate-50 px-2 py-1.5 text-center">
-                  <div className="text-[11px] uppercase text-muted-foreground">Sem {gpa.semester}</div>
-                  <div
-                    className={`text-sm font-semibold ${gpa.isReferred ? 'text-amber-600' : 'text-slate-800'}`}
-                  >
-                    {gpa.isReferred ? 'ref' : gpa.gpa}
-                  </div>
+            {gpas.map((gpa) => (
+              <div key={gpa.semester} className="rounded-md border bg-slate-50 px-2 py-1.5 text-center">
+                <div className="text-[11px] uppercase text-muted-foreground">Sem {gpa.semester}</div>
+                <div className={`text-sm font-semibold ${gpa.isReferred ? 'text-amber-600' : 'text-slate-800'}`}>
+                  {gpa.isReferred ? 'ref' : gpa.gpa}
                 </div>
-              ))}
+                {!gpa.isReferred && gpa.gpa && (
+                  <div className="text-[10px] text-muted-foreground">{letterGrade(parseFloat(gpa.gpa))}</div>
+                )}
+              </div>
+            ))}
           </div>
         )}
         {result.expelledRule && (
@@ -187,22 +242,12 @@ function ResultCard({ result }: { result: StudentResult }) {
         )}
         {result.subjects.length > 0 && (
           <div>
-            <p className="mb-1 text-xs font-medium uppercase text-muted-foreground">Subjects</p>
-            <div className="flex flex-wrap gap-1.5">
+            <p className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">
+              Subjects to clear ({result.subjects.length})
+            </p>
+            <div className="space-y-1.5">
               {result.subjects.map((subject, index) => (
-                <Badge
-                  key={`${subject.subjectCode}-${index}`}
-                  variant="outline"
-                  className={
-                    subject.role === 'referred'
-                      ? 'border-amber-300 text-amber-700'
-                      : 'border-red-300 text-red-700'
-                  }
-                >
-                  {formatSubject(subject)}
-                  {subject.role !== 'referred' &&
-                    ` · ${RESULT_TYPE_META[subject.role]?.label ?? subject.role}`}
-                </Badge>
+                <AdminSubjectRow key={`${subject.subjectCode}-${index}`} subject={subject} />
               ))}
             </div>
           </div>
@@ -406,19 +451,46 @@ function RollSearchTab() {
 
       {response?.found && (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <h2 className="text-lg font-semibold">Roll {response.roll}</h2>
-            {response.finalCgpa && (
-              <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-100">
-                Final CGPA {response.finalCgpa}
-              </Badge>
-            )}
-            {response.institute && (
-              <span className="text-sm text-muted-foreground">
-                {response.institute.code} — {response.institute.name}
-              </span>
-            )}
-          </div>
+          <Card className="border-indigo-100 bg-indigo-50/40">
+            <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+              <div>
+                {response.studentName && (
+                  <p className="text-lg font-bold">{response.studentName}</p>
+                )}
+                <p className="text-sm font-semibold text-muted-foreground">
+                  Roll : {response.roll}
+                </p>
+                {response.institute && (
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {response.institute.code} — {response.institute.name}
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {(() => {
+                  const passed = response.results.filter((r) => r.resultType === 'passed').length;
+                  const pending = response.results.length - passed;
+                  return (
+                    <>
+                      <Badge variant="outline" className="border-emerald-300 text-emerald-700">
+                        {passed} passed
+                      </Badge>
+                      {pending > 0 && (
+                        <Badge variant="outline" className="border-red-300 text-red-700">
+                          {pending} pending
+                        </Badge>
+                      )}
+                    </>
+                  );
+                })()}
+                {response.finalCgpa && (
+                  <Badge className="bg-indigo-600 text-white hover:bg-indigo-600">
+                    Final CGPA {response.finalCgpa}
+                  </Badge>
+                )}
+              </div>
+            </CardContent>
+          </Card>
           {response.results.map((result) => (
             <ResultCard key={result.id} result={result} />
           ))}

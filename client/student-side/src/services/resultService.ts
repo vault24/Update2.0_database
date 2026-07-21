@@ -73,6 +73,9 @@ export interface StudentResult {
   institute: ResultInstitute;
   gpas: SemesterGpa[];
   subjects: ResultSubject[];
+  /** Institute-wise merit rank for this semester (passed results only). */
+  rank?: number | null;
+  rankTotal?: number | null;
 }
 
 export interface RollSearchResponse {

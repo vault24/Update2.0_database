@@ -33,11 +33,27 @@ export interface SemesterGpa {
   isReferred: boolean;
 }
 
+export interface SubjectInfo {
+  name: string;
+  semester: number;
+  credit: number | null;
+  technology: string;
+  regulationYear: number | null;
+  theoryContinuous: number | null;
+  theoryFinal: number | null;
+  theoryTotal: number | null;
+  practicalContinuous: number | null;
+  practicalFinal: number | null;
+  practicalTotal: number | null;
+  totalMarks: number | null;
+}
+
 export interface ResultSubject {
   subjectCode: string;
   role: 'referred' | 'expelled' | 'continuous_fail';
   hasTheory: boolean;
   hasPractical: boolean;
+  info?: SubjectInfo | null;
 }
 
 export type ResultType =
@@ -57,11 +73,14 @@ export interface StudentResult {
   institute: ResultInstitute;
   gpas: SemesterGpa[];
   subjects: ResultSubject[];
+  rank?: number | null;
+  rankTotal?: number | null;
 }
 
 export interface RollSearchResponse {
   roll: string;
   found: boolean;
+  studentName?: string;
   institute: ResultInstitute | null;
   finalCgpa: string | null;
   results: StudentResult[];

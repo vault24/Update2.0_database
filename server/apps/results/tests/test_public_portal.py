@@ -126,6 +126,32 @@ class PublicPortalApiTests(APITestCase):
         self.assertEqual(len(codes), 6)
         self.assertEqual(fourth[0]['exam']['publicationDate'], '2026-05-23')
 
+    def test_institute_rank(self):
+        """Passed results carry their institute-wise semester merit rank."""
+        exam = Exam.objects.create(
+            semester=4, regulationYear=2022, program='DIPLOMA IN ENGINEERING',
+            heldIn='2025 held in January-March, 2026', publicationDate='2026-04-28',
+        )
+        institute = Institute.objects.create(code='57057', name='Sirajganj Poly')
+        record = ResultImport.objects.create(
+            fileName='r.pdf', fileSha256='11' * 32, status='completed',
+        )
+        for roll, gpa in [('700001', '3.80'), ('700002', '3.50'), ('700003', '3.20')]:
+            row = StudentResult.objects.create(
+                exam=exam, institute=institute, importRecord=record,
+                rollNumber=roll, resultType='passed',
+            )
+            SemesterGPA.objects.create(result=row, semester=4, gpa=Decimal(gpa))
+
+        def rank_of(roll):
+            data = self.client.get('/api/results/public/search/', {'roll': roll}).json()
+            r = data['results'][0]
+            return r['rank'], r['rankTotal']
+
+        self.assertEqual(rank_of('700001'), (1, 3))
+        self.assertEqual(rank_of('700002'), (2, 3))
+        self.assertEqual(rank_of('700003'), (3, 3))
+
     def test_search_is_fast(self):
         """Indexed lookup — generous CI bound, real target is <300ms."""
         started = time.monotonic()

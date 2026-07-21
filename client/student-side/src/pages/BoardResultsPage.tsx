@@ -161,7 +161,8 @@ function MyResultsTab() {
     <div className="space-y-4">
       {data.found && <ResultHero data={data} />}
       {data.found && <MotivationSlide quotes={quotes} />}
-      <ResultHistory data={data} showHeader={false} />
+      {/* Dashboard = minimal: no published-date chips, just GPA + trend + rank. */}
+      <ResultHistory data={data} showHeader={false} dense />
     </div>
   );
 }

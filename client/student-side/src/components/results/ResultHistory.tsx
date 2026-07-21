@@ -26,8 +26,11 @@ import {
   Download,
   GraduationCap,
   Loader2,
+  Minus,
   Printer,
   Share2,
+  TrendingDown,
+  TrendingUp,
   Trophy,
   XCircle,
 } from 'lucide-react';
@@ -96,6 +99,12 @@ interface SemesterView {
    *  semester's result (enriched with catalog names), never regrouped. */
   subjects: ResultSubject[];
   expelledRule: string;
+  rank: number | null;
+  rankTotal: number | null;
+  /** GPA change vs the previous (lower) semester: 'up' | 'down' | 'flat'. */
+  trend: 'up' | 'down' | 'flat' | null;
+  /** Signed GPA delta vs the previous semester, e.g. +0.08. */
+  trendDelta: number | null;
 }
 
 const PASSING_TYPES = new Set(['passed']);
@@ -130,6 +139,10 @@ function deriveSemesters(results: StudentResult[]): SemesterView[] {
       publicationDate: result.exam.publicationDate,
       subjects: passed ? [] : result.subjects,
       expelledRule: result.expelledRule,
+      rank: passed ? result.rank ?? null : null,
+      rankTotal: passed ? result.rankTotal ?? null : null,
+      trend: null,
+      trendDelta: null,
     });
   }
 
@@ -145,11 +158,29 @@ function deriveSemesters(results: StudentResult[]): SemesterView[] {
         publicationDate: result.exam.publicationDate,
         subjects: [],
         expelledRule: '',
+        rank: null,
+        rankTotal: null,
+        trend: null,
+        trendDelta: null,
       });
     }
   }
 
-  return [...cards.values()].sort((a, b) => b.semester - a.semester);
+  const ordered = [...cards.values()].sort((a, b) => a.semester - b.semester);
+  // 3. Semester-over-semester GPA trend (compared to the previous semester
+  //    that has a numeric GPA).
+  let prevGpa: number | null = null;
+  for (const view of ordered) {
+    const gpa = view.gpa != null ? parseFloat(view.gpa) : null;
+    if (gpa != null && prevGpa != null) {
+      const delta = Number((gpa - prevGpa).toFixed(2));
+      view.trendDelta = delta;
+      view.trend = delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
+    }
+    if (gpa != null) prevGpa = gpa;
+  }
+
+  return ordered.reverse();
 }
 
 /* ----------------------------- subrows ----------------------------------- */
@@ -236,13 +267,37 @@ const STATUS_META: Record<string, { label: string; className: string }> = {
   continuous_fail: { label: 'Continuous Assessment Failed', className: 'text-orange-600' },
 };
 
-function SemesterCard({ view }: { view: SemesterView }) {
+/** Small ▲/▼ GPA trend pill vs the previous semester. */
+function TrendPill({ view }: { view: SemesterView }) {
+  if (!view.trend || view.trendDelta == null) return null;
+  if (view.trend === 'up') {
+    return (
+      <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+        <TrendingUp className="h-3 w-3" aria-hidden />+{view.trendDelta.toFixed(2)}
+      </span>
+    );
+  }
+  if (view.trend === 'down') {
+    return (
+      <span className="inline-flex items-center gap-0.5 rounded-full bg-red-100 px-1.5 py-0.5 text-[11px] font-semibold text-red-700 dark:bg-red-900/40 dark:text-red-300">
+        <TrendingDown className="h-3 w-3" aria-hidden />{view.trendDelta.toFixed(2)}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-0.5 rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
+      <Minus className="h-3 w-3" aria-hidden />0.00
+    </span>
+  );
+}
+
+function SemesterCard({ view, dense = false }: { view: SemesterView; dense?: boolean }) {
   const gpaValue = view.gpa !== null ? parseFloat(view.gpa) : null;
   const status = STATUS_META[view.status];
   const clearCount = view.subjects.length;
   return (
     <Card className="result-card overflow-hidden transition-shadow hover:shadow-md">
-      <CardContent className="space-y-3 p-4">
+      <CardContent className={dense ? 'space-y-2 p-3.5' : 'space-y-3 p-4'}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="flex items-center gap-1.5 font-semibold">
             <GraduationCap className="h-4 w-4 text-emerald-600" aria-hidden />
@@ -261,22 +316,28 @@ function SemesterCard({ view }: { view: SemesterView }) {
           )}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-          <p className="flex items-center gap-1.5 text-muted-foreground">
-            <CalendarDays className="h-3.5 w-3.5" aria-hidden />
-            Published:{' '}
-            <span className="text-sky-600">{formatDate(view.publicationDate)}</span>
-          </p>
-          {relativeAge(view.publicationDate) && (
-            <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-              {relativeAge(view.publicationDate)}
-            </span>
-          )}
-        </div>
+        {/* Published date — hidden in the minimal (dense) view. */}
+        {!dense && (
+          <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+            <p className="flex items-center gap-1.5 text-muted-foreground">
+              <CalendarDays className="h-3.5 w-3.5" aria-hidden />
+              Published:{' '}
+              <span className="text-sky-600">{formatDate(view.publicationDate)}</span>
+            </p>
+            {relativeAge(view.publicationDate) && (
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                {relativeAge(view.publicationDate)}
+              </span>
+            )}
+          </div>
+        )}
 
         {view.status === 'passed' ? (
           <div className="flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-3 dark:bg-emerald-950/40">
-            <span className="text-sm text-muted-foreground">GPA</span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">GPA</span>
+              <TrendPill view={view} />
+            </div>
             <span className="text-2xl font-extrabold text-emerald-600">{view.gpa}</span>
             <span className="text-sm font-semibold">
               {gpaValue !== null ? letterGrade(gpaValue) : ''}
@@ -297,6 +358,18 @@ function SemesterCard({ view }: { view: SemesterView }) {
             ))}
           </div>
         )}
+
+        {/* Institute merit rank for passed semesters. */}
+        {view.status === 'passed' && view.rank != null && view.rankTotal ? (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Trophy className="h-3.5 w-3.5 text-amber-500" aria-hidden />
+            Institute rank{' '}
+            <span className="font-semibold text-foreground">
+              {view.rank}
+              <span className="font-normal text-muted-foreground"> / {view.rankTotal}</span>
+            </span>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -397,11 +470,14 @@ export function ResultHistory({
   data,
   showHeader = true,
   actions,
+  dense = false,
 }: {
   data: RollSearchResponse;
   /** Hide the roll header when the page renders its own hero. */
   showHeader?: boolean;
   actions?: ResultHistoryActions;
+  /** Minimal cards (no published-date chips) — used by the dashboard. */
+  dense?: boolean;
 }) {
   const [cgpaOpen, setCgpaOpen] = useState(false);
   const semesters = useMemo(() => deriveSemesters(data.results), [data.results]);
@@ -426,9 +502,19 @@ export function ResultHistory({
     <div className="space-y-4">
       {showHeader && latest && (
         <header className="space-y-2 text-center">
-          <h2 className="text-3xl font-extrabold tracking-tight"># {data.roll}</h2>
-          {data.studentName && (
-            <p className="text-lg font-semibold">{data.studentName}</p>
+          {data.studentName ? (
+            <>
+              <h2 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
+                {data.studentName}
+              </h2>
+              <p className="text-base font-semibold text-muted-foreground">
+                Roll : {data.roll}
+              </p>
+            </>
+          ) : (
+            <h2 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
+              Roll : {data.roll}
+            </h2>
           )}
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
             <span className="flex items-center gap-1">
@@ -495,7 +581,7 @@ export function ResultHistory({
       )}
 
       {semesters.map((view) => (
-        <SemesterCard key={view.semester} view={view} />
+        <SemesterCard key={view.semester} view={view} dense={dense} />
       ))}
 
       <CgpaDialog

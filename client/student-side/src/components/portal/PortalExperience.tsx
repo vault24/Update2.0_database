@@ -303,6 +303,8 @@ export function PortalExperience({ standalone = false }: { standalone?: boolean 
       setError('Please enter a valid numeric board roll number (4–10 digits).');
       return;
     }
+    // Dismiss the mobile keyboard as the search begins.
+    inputRef.current?.blur();
     setError('');
     setSearching(true);
     try {
@@ -311,10 +313,24 @@ export function PortalExperience({ standalone = false }: { standalone?: boolean 
       setRoll(trimmed);
       if (response.found) setRecent(pushRecent(trimmed));
       if (updateUrl) syncUrl(trimmed);
+      // Bring the result into view from the top on mobile.
+      requestAnimationFrame(() =>
+        window.scrollTo({ top: 0, behavior: 'smooth' }),
+      );
     } catch {
       setError('Search is temporarily unavailable. Please try again in a minute.');
     } finally {
       setSearching(false);
+    }
+  }, []);
+
+  // On mobile, gently lift the page when the search box gains focus so the
+  // on-screen keyboard doesn't cover it.
+  const handleSearchFocus = useCallback(() => {
+    if (window.matchMedia('(max-width: 640px)').matches) {
+      setTimeout(() => {
+        inputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 250);
     }
   }, []);
 
@@ -463,6 +479,7 @@ export function PortalExperience({ standalone = false }: { standalone?: boolean 
               ref={inputRef}
               value={roll}
               onChange={(event) => setRoll(event.target.value.replace(/\D/g, ''))}
+              onFocus={handleSearchFocus}
               placeholder="Enter your board roll number…"
               inputMode="numeric"
               autoComplete="off"
