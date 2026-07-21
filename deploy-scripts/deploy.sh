@@ -753,6 +753,22 @@ nginx_app_locations() {
         include ${NGINX_ROOT}/snippets/sipi-proxy.conf;
     }
 
+    # --- Board-result PDF imports (apps.results) ---------------------------
+    # BTEB result PDFs run to tens of MB and admins upload several per
+    # publication (the front-end posts them one request at a time). Scoped
+    # here with a larger body cap + longer timeouts so the tight
+    # ${CLIENT_MAX_BODY_SIZE} limit still protects every other endpoint.
+    # Exact match: import detail/issue routes (/api/results/imports/<id>/…)
+    # are small JSON and correctly fall through to the generic /api/ block.
+    location = /api/results/imports/ {
+        proxy_pass http://${BACKEND_BIND};
+        include ${NGINX_ROOT}/snippets/sipi-proxy.conf;
+        client_max_body_size ${RESULT_IMPORT_MAX_BODY_SIZE:-120M};
+        proxy_request_buffering off;   # stream large uploads straight to Django
+        proxy_read_timeout 600s;
+        proxy_send_timeout 600s;
+    }
+
     # --- REST API ----------------------------------------------------------
     location /api/ {
         proxy_pass http://${BACKEND_BIND};

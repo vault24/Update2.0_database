@@ -3,10 +3,12 @@ Result-sheet renderers: the official BTEB-style tabulation sheet as a
 colourful PDF (reportlab) or Excel workbook (openpyxl).
 
 Both renderers consume the same structured data from
-``analytics.sheet_rows`` so the two formats never drift apart. Layout mirrors
-the institute's printed tabulation sheet: SL, Student Name, Gender, Roll,
-GPA, Referred subjects, Failed subjects, a one-off Summary block, the
-sem-wise referred column and Position.
+``analytics.sheet_rows`` so the two formats never drift apart. Column order
+mirrors the institute's printed tabulation sheet, with the aggregate Summary
+block kept in the LAST column:
+
+    SL · Student Name · Gender · Roll · GPA · Referred · Failed ·
+    Ref. Sub. Sem Wise · Position · Summary
 """
 from __future__ import annotations
 
@@ -26,6 +28,15 @@ _BORDER = '#94a3b8'         # slate-400
 
 INSTITUTE_NAME = 'Sirajganj Polytechnic Institute, Sirajganj'
 
+# Column layout — shared between both renderers so PDF and Excel stay aligned.
+# 0-based indices used by the PDF; +1 gives the 1-based Excel column.
+HEADERS_PDF = ['SL', 'Student Name', 'Gen', 'Roll', 'GPA', 'Referred',
+               'Failed', 'Ref. Sub.\nSem Wise', 'Position', 'Summary']
+HEADERS_XLSX = ['SL', 'Student Name', 'Gender', 'Roll', 'GPA', 'Referred',
+                'Failed', 'Ref. Sub. Sem Wise', 'Position', 'Summary']
+_COL_SL, _COL_NAME, _COL_GEN, _COL_ROLL, _COL_GPA = 0, 1, 2, 3, 4
+_COL_REFERRED, _COL_FAILED, _COL_REFSUB, _COL_POSITION, _COL_SUMMARY = 5, 6, 7, 8, 9
+
 
 def _title(sheet: dict) -> str:
     return (
@@ -33,6 +44,19 @@ def _title(sheet: dict) -> str:
         f"Result Semester: {sheet['semesterLabel']}, "
         f"Shift: {sheet['shift']}"
     )
+
+
+def _summary_lines(summary: dict) -> list[str]:
+    return [
+        f"Total Student: {summary['totalStudent']}",
+        f"Total Pass: {summary['totalPass']:02d}",
+        f"Total Referred: {summary['totalReferred']:02d}",
+        f"Total Fail: {summary['totalFail']:02d}",
+        f"% Pass: {summary['pctPass']}",
+        f"% Referred: {summary['pctReferred']}",
+        f"% Fail: {summary['pctFail']}",
+        f"Total %: {summary['pctTotal']}",
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -76,26 +100,13 @@ def render_pdf(sheet: dict) -> bytes:
         Spacer(1, 6),
     ]
 
-    header = ['SL', 'Student Name', 'Gen', 'Roll', 'GPA', 'Referred',
-              'Failed', 'Summary', 'Ref. Sub.\nSem Wise', 'Position']
-    data = [header]
+    data = [HEADERS_PDF]
 
     summary = sheet['summary']
-    summary_lines = [
-        f"Total Student: {summary['totalStudent']}",
-        f"Total Pass: {summary['totalPass']:02d}",
-        f"Total Referred: {summary['totalReferred']:02d}",
-        f"Total Fail: {summary['totalFail']:02d}",
-        f"% Pass: {summary['pctPass']}",
-        f"% Referred: {summary['pctReferred']}",
-        f"% Fail: {summary['pctFail']}",
-        f"Total %: {summary['pctTotal']}",
-    ]
-
     # The whole summary block lives in the FIRST data row's summary cell as a
     # multi-line paragraph; the SPAN below merges the column so it reads as one
     # box (a spanned reportlab cell only renders its top-left content).
-    summary_para = Paragraph('<br/>'.join(summary_lines), summary_style)
+    summary_para = Paragraph('<br/>'.join(_summary_lines(summary)), summary_style)
     for index, row in enumerate(sheet['rows']):
         data.append([
             str(row['sl']),
@@ -105,13 +116,14 @@ def render_pdf(sheet: dict) -> bytes:
             row['gpa'],
             Paragraph(row['referredSubjects'], cell),
             Paragraph(row['failedSubjects'], cell),
-            summary_para if index == 0 else '',
             Paragraph(row['refSubSemWise'], cell_center),
             row['position'],
+            summary_para if index == 0 else '',
         ])
 
-    # Column widths (sum ≈ 277mm usable landscape A4).
-    col_widths = [10, 58, 12, 22, 16, 62, 30, 30, 22, 18]
+    # Column widths (mm) — Summary now anchors the right edge.
+    #        SL Name Gen Roll GPA Ref Fail RefSub Pos Summary
+    col_widths = [9, 50, 10, 20, 14, 58, 28, 22, 16, 38]
     col_widths = [w * mm for w in col_widths]
 
     table = Table(data, colWidths=col_widths, repeatRows=1)
@@ -123,23 +135,24 @@ def render_pdf(sheet: dict) -> bytes:
         ('FONTSIZE', (0, 1), (-1, -1), 7),
         ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor(_BORDER)),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('ALIGN', (0, 0), (0, -1), 'CENTER'),   # SL
-        ('ALIGN', (2, 0), (4, -1), 'CENTER'),   # Gen, Roll, GPA
-        ('ALIGN', (9, 0), (9, -1), 'CENTER'),   # Position
+        ('ALIGN', (_COL_SL, 0), (_COL_SL, -1), 'CENTER'),
+        ('ALIGN', (_COL_GEN, 0), (_COL_GPA, -1), 'CENTER'),   # Gen, Roll, GPA
+        ('ALIGN', (_COL_POSITION, 0), (_COL_POSITION, -1), 'CENTER'),
         ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
         ('TOPPADDING', (0, 0), (-1, -1), 2),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
     ]
 
-    # Merge the Summary column (index 7) into one tall block.
+    # Merge the Summary column into one tall block.
     n_rows = len(sheet['rows'])
     if n_rows:
-        style.append(('SPAN', (7, 1), (7, n_rows)))
-        style.append(('BACKGROUND', (7, 1), (7, n_rows), colors.HexColor(_SUMMARY_BG)))
-        style.append(('VALIGN', (7, 1), (7, 1), 'TOP'))
-        style.append(('FONTSIZE', (7, 1), (7, 1), 7.5))
+        style.append(('SPAN', (_COL_SUMMARY, 1), (_COL_SUMMARY, n_rows)))
+        style.append(('BACKGROUND', (_COL_SUMMARY, 1), (_COL_SUMMARY, n_rows),
+                      colors.HexColor(_SUMMARY_BG)))
+        style.append(('VALIGN', (_COL_SUMMARY, 1), (_COL_SUMMARY, 1), 'TOP'))
+        style.append(('FONTSIZE', (_COL_SUMMARY, 1), (_COL_SUMMARY, 1), 7.5))
 
-    # Row tinting by result + zebra striping on the name column.
+    # Row tinting by result + zebra striping on the leading columns.
     for index, row in enumerate(sheet['rows'], start=1):
         if row['passed']:
             tint = _PASS_BG
@@ -148,12 +161,16 @@ def render_pdf(sheet: dict) -> bytes:
         else:
             tint = _REFERRED_BG
         # GPA cell coloured by outcome for a quick scan.
-        style.append(('BACKGROUND', (4, index), (4, index), colors.HexColor(tint)))
+        style.append(('BACKGROUND', (_COL_GPA, index), (_COL_GPA, index),
+                      colors.HexColor(tint)))
         if index % 2 == 0:
-            style.append(('BACKGROUND', (0, index), (3, index), colors.HexColor(_ALT_ROW)))
+            style.append(('BACKGROUND', (_COL_SL, index), (_COL_ROLL, index),
+                          colors.HexColor(_ALT_ROW)))
         if row['position']:
-            style.append(('BACKGROUND', (9, index), (9, index), colors.HexColor('#fde68a')))
-            style.append(('FONTNAME', (9, index), (9, index), 'Helvetica-Bold'))
+            style.append(('BACKGROUND', (_COL_POSITION, index), (_COL_POSITION, index),
+                          colors.HexColor('#fde68a')))
+            style.append(('FONTNAME', (_COL_POSITION, index), (_COL_POSITION, index),
+                          'Helvetica-Bold'))
 
     table.setStyle(TableStyle(style))
     story.append(table)
@@ -191,8 +208,12 @@ def render_excel(sheet: dict) -> bytes:
     center = Alignment(horizontal='center', vertical='center', wrap_text=True)
     left = Alignment(horizontal='left', vertical='center', wrap_text=True)
 
-    headers = ['SL', 'Student Name', 'Gender', 'Roll', 'GPA', 'Referred',
-               'Failed', 'Summary', 'Ref. Sub. Sem Wise', 'Position']
+    headers = HEADERS_XLSX
+    # 1-based Excel columns.
+    col_summary = _COL_SUMMARY + 1
+    col_gpa = _COL_GPA + 1
+    col_position = _COL_POSITION + 1
+    left_cols = {_COL_NAME + 1, _COL_REFERRED + 1, _COL_FAILED + 1}
 
     # Title rows.
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers))
@@ -214,16 +235,7 @@ def render_excel(sheet: dict) -> bytes:
         c.border = border
 
     summary = sheet['summary']
-    summary_lines = [
-        f"Total Student: {summary['totalStudent']}",
-        f"Total Pass: {summary['totalPass']:02d}",
-        f"Total Referred: {summary['totalReferred']:02d}",
-        f"Total Fail: {summary['totalFail']:02d}",
-        f"% Pass: {summary['pctPass']}",
-        f"% Referred: {summary['pctReferred']}",
-        f"% Fail: {summary['pctFail']}",
-        f"Total %: {summary['pctTotal']}",
-    ]
+    summary_block = '\n'.join(_summary_lines(summary))
 
     start = header_row + 1
     for index, row in enumerate(sheet['rows']):
@@ -232,36 +244,37 @@ def render_excel(sheet: dict) -> bytes:
         # Full summary block goes in the first data row's summary cell (the
         # merge below shows only the top-left cell); newlines + wrap render it
         # as one box.
-        summary_cell = '\n'.join(summary_lines) if index == 0 else ''
         values = [
             row['sl'], row['name'], row['gender'], row['roll'], row['gpa'],
             row['referredSubjects'], row['failedSubjects'],
-            summary_cell,
             row['refSubSemWise'], row['position'],
+            summary_block if index == 0 else '',
         ]
         for col, value in enumerate(values, start=1):
             c = ws.cell(row=r, column=col, value=value)
             c.border = border
-            c.alignment = left if col in (2, 6, 7) else center
-            if col == 5:  # GPA cell tinted by outcome
+            c.alignment = left if col in left_cols else center
+            if col == col_gpa:  # GPA cell tinted by outcome
                 c.fill = fill(tint)
-            elif col == 8:
+            elif col == col_summary:
                 c.fill = fill(_SUMMARY_BG)
-            elif index % 2 == 1 and col <= 4:
+            elif index % 2 == 1 and col <= _COL_ROLL + 1:
                 c.fill = fill(_ALT_ROW)
-            if col == 10 and row['position']:
+            if col == col_position and row['position']:
                 c.fill = fill('#fde68a')
                 c.font = Font(bold=True)
 
     # Merge the summary column into one block.
     n_rows = len(sheet['rows'])
     if n_rows:
-        ws.merge_cells(start_row=start, start_column=8, end_row=start + n_rows - 1, end_column=8)
-        ws.cell(row=start, column=8).alignment = Alignment(
+        ws.merge_cells(start_row=start, start_column=col_summary,
+                       end_row=start + n_rows - 1, end_column=col_summary)
+        ws.cell(row=start, column=col_summary).alignment = Alignment(
             horizontal='left', vertical='top', wrap_text=True,
         )
 
-    widths = [5, 30, 8, 12, 8, 34, 20, 22, 16, 9]
+    #          SL Name Gen Roll GPA Ref Fail RefSub Pos Summary
+    widths = [5, 30, 8, 12, 8, 34, 20, 16, 9, 26]
     for col, width in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(col)].width = width
 
