@@ -760,11 +760,20 @@ nginx_app_locations() {
     # ${CLIENT_MAX_BODY_SIZE} limit still protects every other endpoint.
     # Exact match: import detail/issue routes (/api/results/imports/<id>/…)
     # are small JSON and correctly fall through to the generic /api/ block.
+    #
+    # Proxy directives are written inline (NOT via the shared sipi-proxy.conf
+    # snippet) because this block needs longer proxy_read/send_timeout values;
+    # including the snippet as well would declare those directives twice and
+    # nginx rejects duplicates within one location.
     location = /api/results/imports/ {
         proxy_pass http://${BACKEND_BIND};
-        include ${NGINX_ROOT}/snippets/sipi-proxy.conf;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
         client_max_body_size ${RESULT_IMPORT_MAX_BODY_SIZE:-120M};
         proxy_request_buffering off;   # stream large uploads straight to Django
+        proxy_connect_timeout 10s;
         proxy_read_timeout 600s;
         proxy_send_timeout 600s;
     }
