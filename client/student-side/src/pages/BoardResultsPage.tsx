@@ -30,6 +30,7 @@ import {
   QUOTE_STRIVE,
 } from '@/components/results/MotivationSlide';
 import resultService, { RollSearchResponse } from '@/services/resultService';
+import { useAuth } from '@/contexts/AuthContext';
 
 const FRIENDS_KEY = 'boardResults.savedFriends';
 
@@ -167,11 +168,15 @@ function MyResultsTab() {
   );
 }
 
-function FriendsTab() {
+/** searchOnly: teacher context — "students" wording instead of "friends". */
+function FriendsTab({ searchOnly = false }: { searchOnly?: boolean }) {
   const [friends, setFriends] = useState<SavedFriend[]>(loadFriends);
   const [roll, setRoll] = useState('');
   const [searching, setSearching] = useState(false);
   const [result, setResult] = useState<RollSearchResponse | null>(null);
+
+  const noun = searchOnly ? 'student' : 'friend';
+  const savedLabel = searchOnly ? 'Saved rolls' : 'Saved friends';
 
   const isSaved = useMemo(
     () => result !== null && friends.some((f) => f.roll === result.roll),
@@ -201,7 +206,7 @@ function FriendsTab() {
     const next = [...friends, { roll: result.roll, label }];
     setFriends(next);
     saveFriends(next);
-    toast.success(`Roll ${result.roll} saved to your friends list`);
+    toast.success(`Roll ${result.roll} saved`);
   };
 
   const removeFriend = (target: string) => {
@@ -219,9 +224,9 @@ function FriendsTab() {
               value={roll}
               onChange={(event) => setRoll(event.target.value)}
               onKeyDown={(event) => event.key === 'Enter' && search()}
-              placeholder="Friend's board roll number"
+              placeholder={`${searchOnly ? 'Student' : "Friend"}'s board roll number`}
               inputMode="numeric"
-              aria-label="Friend's board roll number"
+              aria-label={`${noun}'s board roll number`}
             />
             <Button onClick={() => search()} disabled={searching}>
               {searching ? (
@@ -236,7 +241,7 @@ function FriendsTab() {
           {friends.length > 0 && (
             <div>
               <p className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">
-                Saved friends
+                {savedLabel}
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {friends.map((friend) => (
@@ -272,7 +277,7 @@ function FriendsTab() {
           {result.found && !isSaved && (
             <Button variant="outline" size="sm" onClick={saveCurrent}>
               <BookmarkPlus className="mr-1.5 h-4 w-4" />
-              Save roll {result.roll} to friends
+              Save roll {result.roll}
             </Button>
           )}
           <ResultHistory data={result} />
@@ -283,7 +288,7 @@ function FriendsTab() {
         <Card>
           <CardContent className="py-10 text-center text-muted-foreground">
             <Users className="mx-auto mb-2 h-8 w-8 opacity-40" />
-            Search a friend's roll number to see their result, and save it for
+            Search a {noun}'s roll number to see their result, and save it for
             quick checking after every publication.
           </CardContent>
         </Card>
@@ -293,6 +298,11 @@ function FriendsTab() {
 }
 
 export default function BoardResultsPage() {
+  const { user } = useAuth();
+  // Teachers have no personal board roll, so they get the search view only
+  // (look up any student's official result by roll number).
+  const isTeacher = user?.role === 'teacher';
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -302,26 +312,32 @@ export default function BoardResultsPage() {
         <div>
           <h1 className="text-xl font-bold sm:text-2xl">Board Results</h1>
           <p className="text-sm text-muted-foreground">
-            Official BTEB semester results — yours and your friends'
+            {isTeacher
+              ? "Look up any student's official BTEB result by roll number"
+              : "Official BTEB semester results — yours and your friends'"}
           </p>
         </div>
       </div>
 
-      <Tabs defaultValue="mine">
-        <TabsList>
-          <TabsTrigger value="mine">My Results</TabsTrigger>
-          <TabsTrigger value="friends">
-            <Users className="mr-1.5 h-4 w-4" />
-            Friends
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="mine" className="mt-4">
-          <MyResultsTab />
-        </TabsContent>
-        <TabsContent value="friends" className="mt-4">
-          <FriendsTab />
-        </TabsContent>
-      </Tabs>
+      {isTeacher ? (
+        <FriendsTab searchOnly />
+      ) : (
+        <Tabs defaultValue="mine">
+          <TabsList>
+            <TabsTrigger value="mine">My Results</TabsTrigger>
+            <TabsTrigger value="friends">
+              <Users className="mr-1.5 h-4 w-4" />
+              Friends
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="mine" className="mt-4">
+            <MyResultsTab />
+          </TabsContent>
+          <TabsContent value="friends" className="mt-4">
+            <FriendsTab />
+          </TabsContent>
+        </Tabs>
+      )}
     </div>
   );
 }
