@@ -143,6 +143,67 @@ function RecentExams({ exams }: { exams: RecentExam[] }) {
   );
 }
 
+// Canonical portal metadata. Applied at runtime so the tab title, canonical
+// URL and social tags are correct even when the origin served the student
+// index.html shell instead of the dedicated result.html (host-detected
+// render). Kept in sync with result.html's static <head>.
+const PORTAL_TITLE =
+  'BTEB Result – Diploma & Polytechnic Semester Result Search by Roll';
+const PORTAL_DESCRIPTION =
+  'Check your BTEB result instantly by roll number. Diploma in Engineering ' +
+  'semester results, GPA history, CGPA and referred subjects for every ' +
+  'polytechnic institute in Bangladesh — free, fast and from official BTEB notices.';
+const PORTAL_URL = 'https://result.spisg.gov.bd/';
+
+function upsertTag(
+  selector: string,
+  create: () => HTMLElement,
+  attr: string,
+  value: string,
+) {
+  let el = document.head.querySelector(selector);
+  if (!el) {
+    el = create();
+    document.head.appendChild(el);
+  }
+  el.setAttribute(attr, value);
+}
+
+function applyPortalMetadata() {
+  document.title = PORTAL_TITLE;
+  upsertTag(
+    'link[rel="canonical"]',
+    () => {
+      const l = document.createElement('link');
+      l.setAttribute('rel', 'canonical');
+      return l;
+    },
+    'href',
+    PORTAL_URL,
+  );
+  const metas: [string, string, string][] = [
+    ['meta[name="description"]', 'name=description', PORTAL_DESCRIPTION],
+    ['meta[property="og:title"]', 'property=og:title', PORTAL_TITLE],
+    ['meta[property="og:description"]', 'property=og:description', PORTAL_DESCRIPTION],
+    ['meta[property="og:url"]', 'property=og:url', PORTAL_URL],
+    ['meta[name="twitter:title"]', 'name=twitter:title', PORTAL_TITLE],
+    ['meta[name="twitter:description"]', 'name=twitter:description', PORTAL_DESCRIPTION],
+  ];
+  for (const [selector, spec, value] of metas) {
+    const [attr, key] = spec.split('=');
+    upsertTag(
+      selector,
+      () => {
+        const m = document.createElement('meta');
+        m.setAttribute(attr, key);
+        return m;
+      },
+      'content',
+      value,
+    );
+  }
+}
+
 /** Trust strip under the hero search. */
 function TrustStrip() {
   const items = [
@@ -276,6 +337,19 @@ export function PortalExperience({ standalone = false }: { standalone?: boolean 
   useEffect(() => {
     resultService.getRecentExams().then(setExams).catch(() => {});
   }, []);
+
+  // Own the document metadata so the tab title / canonical / social tags are
+  // the portal's — even when the origin served the student index.html shell.
+  useEffect(() => {
+    applyPortalMetadata();
+  }, []);
+
+  // Reflect the current result in the tab title (nice shareable-link titles).
+  useEffect(() => {
+    document.title = result?.found
+      ? `Roll ${result.roll} — BTEB Result`
+      : PORTAL_TITLE;
+  }, [result]);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
