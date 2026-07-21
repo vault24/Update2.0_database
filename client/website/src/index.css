@@ -1,0 +1,166 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  SGPI Public Website — Government-formal design system.
+  Palette: deep institutional green (primary) + gold/amber (accent).
+  Tokens are HSL channel triples so Tailwind can apply opacity modifiers.
+*/
+@layer base {
+  :root {
+    --background: 150 30% 99%;
+    --foreground: 168 40% 12%;
+    --surface: 150 33% 97%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 168 40% 12%;
+
+    --primary: 168 82% 20%;        /* deep institutional green #0B5B4E */
+    --primary-foreground: 150 40% 98%;
+    --primary-soft: 168 45% 92%;
+
+    --accent: 41 88% 47%;          /* gold / amber */
+    --accent-foreground: 168 60% 12%;
+
+    --muted: 165 20% 94%;
+    --muted-foreground: 168 12% 40%;
+
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 165 22% 88%;
+    --input: 165 22% 88%;
+    --ring: 168 82% 26%;
+
+    --radius: 1rem;
+    --glass-bg: 0 0% 100%;
+    --glass-alpha: 0.72;
+  }
+
+  .dark {
+    --background: 172 44% 6%;
+    --foreground: 150 24% 92%;
+    --surface: 172 40% 8%;
+
+    --card: 172 38% 10%;
+    --card-foreground: 150 24% 92%;
+
+    --primary: 160 62% 44%;        /* brighter green reads on dark */
+    --primary-foreground: 172 44% 6%;
+    --primary-soft: 168 40% 16%;
+
+    --accent: 41 90% 56%;
+    --accent-foreground: 172 44% 8%;
+
+    --muted: 172 26% 15%;
+    --muted-foreground: 150 14% 66%;
+
+    --destructive: 0 62% 52%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 172 24% 18%;
+    --input: 172 24% 18%;
+    --ring: 160 62% 50%;
+
+    --glass-bg: 172 40% 12%;
+    --glass-alpha: 0.55;
+  }
+
+  /* High-contrast accessibility mode (toggled via [data-contrast="high"]). */
+  :root[data-contrast="high"] {
+    --primary: 168 100% 15%;
+    --accent: 41 100% 38%;
+    --foreground: 0 0% 0%;
+    --muted-foreground: 0 0% 20%;
+    --border: 0 0% 25%;
+  }
+  .dark[data-contrast="high"] {
+    --foreground: 0 0% 100%;
+    --muted-foreground: 0 0% 90%;
+    --border: 0 0% 85%;
+    --primary: 160 90% 60%;
+    --accent: 41 100% 66%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "cv11", "ss01";
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Bangla locale: switch the whole document to the Bangla-optimised stack. */
+  html[lang="bn"] body {
+    @apply font-bangla;
+  }
+
+  ::selection {
+    background: hsl(var(--accent) / 0.28);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* Frosted-glass surface used for navbars, cards and stat tiles. */
+  .glass {
+    background: hsl(var(--glass-bg) / var(--glass-alpha));
+    backdrop-filter: blur(14px) saturate(1.4);
+    -webkit-backdrop-filter: blur(14px) saturate(1.4);
+    border: 1px solid hsl(var(--border) / 0.7);
+  }
+
+  .section {
+    @apply py-16 sm:py-20 lg:py-24;
+  }
+
+  .eyebrow {
+    @apply inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-accent;
+  }
+
+  .heading-serif {
+    @apply font-serif font-semibold tracking-tight;
+  }
+
+  /* Thin gold rule used under section headings and the masthead. */
+  .gold-rule {
+    height: 2px;
+    background-image: var(--tw-gradient-to, linear-gradient(90deg, transparent, hsl(var(--accent)), transparent));
+    background: linear-gradient(90deg, transparent, hsl(var(--accent)), transparent);
+  }
+
+  .link-underline {
+    @apply relative after:absolute after:-bottom-0.5 after:left-0 after:h-px after:w-0 after:bg-accent after:transition-all hover:after:w-full;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}

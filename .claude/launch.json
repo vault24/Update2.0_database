@@ -23,6 +23,13 @@
       "autoPort": false
     },
     {
+      "name": "website-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "client/website", "run", "dev", "--", "--port", "5200", "--strictPort"],
+      "port": 5200,
+      "autoPort": false
+    },
+    {
       "name": "email-preview",
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "4173", "--directory", "C:/Users/Mahadi/AppData/Local/Temp/claude/F--Collage-project-Update2-0-database/a82f2825-c397-4908-9a7e-8f6f9d1c7b60/scratchpad"],

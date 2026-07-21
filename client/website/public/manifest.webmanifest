@@ -1,0 +1,12 @@
+{
+  "name": "Sirajganj Government Polytechnic Institute",
+  "short_name": "SGPI",
+  "description": "Official website of Sirajganj Government Polytechnic Institute.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0B5B4E",
+  "theme_color": "#0B5B4E",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

@@ -211,6 +211,7 @@ derive_settings() {
   SERVER_DIR="${PROJECT_PATH}/server"
   ADMIN_DIR="${PROJECT_PATH}/client/admin-side"
   STUDENT_DIR="${PROJECT_PATH}/client/student-side"
+  WEBSITE_DIR="${PROJECT_PATH}/client/website"
   VENV_DIR="${SERVER_DIR}/venv"
   PYBIN="${VENV_DIR}/bin/python"
   PIPBIN="${VENV_DIR}/bin/pip"
@@ -228,6 +229,16 @@ derive_settings() {
     RESULT_DOMAIN="${RESULT_DOMAIN-result.${STUDENT_DOMAIN}}"
   else
     RESULT_DOMAIN=""
+  fi
+
+  # Public institute website subdomain (the official face of the institute).
+  # Defaults to ac.<STUDENT_DOMAIN> when the key is absent from config.env; an
+  # explicitly empty value disables it. Serves its own SPA (client/website/dist)
+  # and proxies /api same-origin to the shared backend.
+  if (( DOMAIN_MODE )); then
+    WEBSITE_DOMAIN="${WEBSITE_DOMAIN-ac.${STUDENT_DOMAIN}}"
+  else
+    WEBSITE_DOMAIN=""
   fi
 
   SSL_ON=0
@@ -248,9 +259,12 @@ derive_settings() {
   if (( DOMAIN_MODE )); then
     STUDENT_ORIGIN="${SCHEME}://${STUDENT_DOMAIN}"
     ADMIN_ORIGIN="${SCHEME}://${ADMIN_DOMAIN}"
+    WEBSITE_ORIGIN="${SCHEME}://${WEBSITE_DOMAIN}"
     ALLOWED_HOSTS="${STUDENT_DOMAIN},${ADMIN_DOMAIN},${PUBLIC_IP},localhost,127.0.0.1"
     # The result portal proxies /api same-origin, so Django must accept its Host.
     [[ -n "${RESULT_DOMAIN}" ]] && ALLOWED_HOSTS="${RESULT_DOMAIN},${ALLOWED_HOSTS}"
+    # The public website also proxies /api same-origin — accept its Host too.
+    [[ -n "${WEBSITE_DOMAIN}" ]] && ALLOWED_HOSTS="${WEBSITE_DOMAIN},${ALLOWED_HOSTS}"
     if (( SSL_ON )); then
       # With HTTPS, direct-IP requests are redirected to the domains, so the
       # plain-HTTP IP origins are intentionally NOT trusted for CSRF/CORS.
@@ -540,6 +554,11 @@ setup_frontends() {
   # Each SPA calls the API on its OWN origin — no CORS, first-party cookies.
   build_frontend "${STUDENT_DIR}" "${STUDENT_ORIGIN}/api" "student-side"
   build_frontend "${ADMIN_DIR}"   "${ADMIN_ORIGIN}/api"   "admin-side"
+  # Public website (ac.<domain>). Built only in domain mode and only when the
+  # app is present in the checkout, so older checkouts still deploy cleanly.
+  if [[ -n "${WEBSITE_DOMAIN}" && -d "${WEBSITE_DIR}" ]]; then
+    build_frontend "${WEBSITE_DIR}" "${WEBSITE_ORIGIN}/api" "website"
+  fi
 }
 
 # ===========================================================================
@@ -1158,6 +1177,30 @@ EOF
       fi
       echo
 
+      # ----- Public website domain (optional) -------------------------------
+      if [[ -n "${WEBSITE_DOMAIN}" && -d "${WEBSITE_DIR}/dist" ]]; then
+        local website_ssl=0
+        if (( SSL_ON )) && have_cert "${WEBSITE_DOMAIN}"; then website_ssl=1; fi
+        if (( website_ssl )); then
+          cat <<EOF
+# ---- ${WEBSITE_DOMAIN}: HTTP -> HTTPS (ACME stays on HTTP) ----
+server {
+    listen 80;
+    server_name ${WEBSITE_DOMAIN};
+$(nginx_acme_location)
+    location / { return 301 https://${WEBSITE_DOMAIN}\$request_uri; }
+}
+
+# ---- ${WEBSITE_DOMAIN}: public institute website (HTTPS) ----
+EOF
+          nginx_app_server "443 ssl http2" "${WEBSITE_DOMAIN}" "${WEBSITE_DIR}/dist" "$(nginx_ssl_extra "${WEBSITE_DOMAIN}")"
+        else
+          echo "# ---- ${WEBSITE_DOMAIN}: public institute website (HTTP) ----"
+          nginx_app_server "80" "${WEBSITE_DOMAIN}" "${WEBSITE_DIR}/dist" ""
+        fi
+        echo
+      fi
+
       # ----- Public result portal domain (optional) -------------------------
       if [[ -n "${RESULT_DOMAIN}" ]]; then
         local result_ssl=0
@@ -1304,6 +1347,7 @@ setup_ssl() {
   obtain_cert "${ADMIN_DOMAIN}"   && got_any=1 || true
   # Public result portal subdomain.
   [[ -n "${RESULT_DOMAIN}" ]] && { obtain_cert "${RESULT_DOMAIN}" && got_any=1 || true; }
+  [[ -n "${WEBSITE_DOMAIN}" ]] && { obtain_cert "${WEBSITE_DOMAIN}" && got_any=1 || true; }
   # Optional Mailcow reverse-proxy vhost gets its own certificate.
   [[ -n "${MAIL_DOMAIN}" ]] && { obtain_cert "${MAIL_DOMAIN}" && got_any=1 || true; }
 
