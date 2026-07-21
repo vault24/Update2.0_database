@@ -1,0 +1,8 @@
+# robots.txt for the public BTEB Result portal (result.spisg.gov.bd).
+# Served as /robots.txt on the result domain via an nginx alias.
+User-agent: *
+Allow: /
+# Roll-lookup views are query-parameter states of the single portal page;
+# the canonical tag points them all at the bare portal URL.
+
+Sitemap: https://result.spisg.gov.bd/sitemap.xml

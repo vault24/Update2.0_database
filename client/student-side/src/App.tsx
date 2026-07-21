@@ -180,7 +180,11 @@ const App = () => {
       {/* Public routes - no authentication required */}
       <Route path="/student/:studentId" element={<PublicStudentProfilePage />} />
       <Route path="/faculty/:teacherId" element={<PublicTeacherProfilePage />} />
+      {/* Public result portal — every alias serves the same application
+          (nginx 301s these to result.spisg.gov.bd in production). */}
       <Route path="/results" element={<PublicResultSearchPage />} />
+      <Route path="/result" element={<PublicResultSearchPage />} />
+      <Route path="/bteb-result" element={<PublicResultSearchPage />} />
       
       {/* Dashboard routes with nested structure */}
       <Route 

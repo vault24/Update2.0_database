@@ -188,6 +188,151 @@ def render_pdf(sheet: dict) -> bytes:
 
 
 # ---------------------------------------------------------------------------
+# Personal result card (public portal download)
+# ---------------------------------------------------------------------------
+
+def render_student_pdf(payload: dict) -> bytes:
+    """A clean A4 result card for one roll, from the public-search payload.
+
+    ``payload`` is the exact dict served by the public search endpoint
+    (roll / institute / finalCgpa / results[]), so the PDF can never drift
+    from what the portal displays.
+    """
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.platypus import (
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
+    )
+
+    roll = payload['roll']
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=A4,
+        leftMargin=16 * mm, rightMargin=16 * mm,
+        topMargin=14 * mm, bottomMargin=14 * mm,
+        title=f'BTEB Result — Roll {roll}',
+    )
+    styles = getSampleStyleSheet()
+    brand = ParagraphStyle('brand', parent=styles['Title'], fontSize=16,
+                           textColor=colors.HexColor('#047857'), spaceAfter=1)
+    subtitle = ParagraphStyle('subtitle', parent=styles['Normal'], fontSize=9.5,
+                              alignment=1, textColor=colors.HexColor('#475569'))
+    section = ParagraphStyle('section', parent=styles['Heading3'], fontSize=11,
+                             textColor=colors.HexColor('#0f172a'), spaceBefore=10,
+                             spaceAfter=4)
+    body = ParagraphStyle('body', parent=styles['Normal'], fontSize=9, leading=12)
+    small = ParagraphStyle('small', parent=body, fontSize=7.5,
+                           textColor=colors.HexColor('#64748b'))
+
+    story = [
+        Paragraph('BTEB Diploma Result', brand),
+        Paragraph('Bangladesh Technical Education Board — semester result transcript', subtitle),
+        Spacer(1, 8),
+    ]
+
+    institute = payload.get('institute') or {}
+    info_rows = [
+        ['Roll Number', roll],
+        ['Institute', f"{institute.get('code', '')} — {institute.get('name', '')}"
+                      if institute else '—'],
+    ]
+    if payload.get('finalCgpa'):
+        info_rows.append(['Final CGPA', payload['finalCgpa']])
+    info = Table(info_rows, colWidths=[38 * mm, 140 * mm])
+    info.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9.5),
+        ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#334155')),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('LINEBELOW', (0, 0), (-1, -2), 0.25, colors.HexColor('#e2e8f0')),
+    ]))
+    story.append(info)
+
+    status_colors = {
+        'passed': ('#dcfce7', '#166534', 'Passed'),
+        'referred': ('#fee2e2', '#991b1b', 'Referred'),
+        'failed': ('#fee2e2', '#991b1b', 'Failed'),
+        'expelled': ('#fecaca', '#7f1d1d', 'Expelled'),
+        'continuous_fail': ('#ffedd5', '#9a3412', 'Continuous Assessment Failed'),
+    }
+
+    for result in payload.get('results', []):
+        exam = result['exam']
+        bg, fg, label = status_colors.get(
+            result['resultType'], ('#f1f5f9', '#334155', result['resultType']),
+        )
+        story.append(Paragraph(
+            f"Semester {exam['semester']} — {exam['regulationYear']} Regulation "
+            f"<font size=8 color='#64748b'>({exam['program']})</font>",
+            section,
+        ))
+
+        meta_bits = [f"Status: <b><font color='{fg}'>{label}</font></b>"]
+        if result.get('cgpa'):
+            meta_bits.append(f"CGPA: <b>{result['cgpa']}</b>")
+        if exam.get('publicationDate'):
+            meta_bits.append(f"Published: {exam['publicationDate']}")
+        if result.get('expelledRule'):
+            meta_bits.append(f"Rule: {result['expelledRule']}")
+        story.append(Paragraph(' &nbsp;·&nbsp; '.join(meta_bits), body))
+
+        gpas = sorted(result.get('gpas', []), key=lambda g: g['semester'])
+        if gpas:
+            header = [f"Sem {g['semester']}" for g in gpas]
+            values = ['ref' if g['isReferred'] else str(g['gpa']) for g in gpas]
+            gpa_table = Table([header, values],
+                              colWidths=[(178 / max(len(gpas), 1)) * mm] * len(gpas))
+            table_style = [
+                ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#cbd5e1')),
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f1f5f9')),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 8.5),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('TOPPADDING', (0, 0), (-1, -1), 3),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+            ]
+            for col, g in enumerate(gpas):
+                if g['isReferred']:
+                    table_style.append(
+                        ('BACKGROUND', (col, 1), (col, 1), colors.HexColor('#fee2e2')))
+                    table_style.append(
+                        ('TEXTCOLOR', (col, 1), (col, 1), colors.HexColor('#991b1b')))
+            gpa_table.setStyle(TableStyle(table_style))
+            story.append(Spacer(1, 3))
+            story.append(gpa_table)
+
+        subjects = result.get('subjects', [])
+        if subjects:
+            rendered = ', '.join(
+                s['subjectCode']
+                + ('({}{}{})'.format('T' if s['hasTheory'] else '',
+                                     ',' if s['hasTheory'] and s['hasPractical'] else '',
+                                     'P' if s['hasPractical'] else '')
+                   if s['hasTheory'] or s['hasPractical'] else '')
+                for s in subjects
+            )
+            story.append(Spacer(1, 3))
+            story.append(Paragraph(f'<b>Subjects to clear:</b> {rendered}', body))
+
+    story.append(Spacer(1, 14))
+    story.append(Paragraph(
+        f"Generated {timezone.localtime():%d %b %Y, %H:%M} from officially "
+        f"published BTEB result notices · verify anytime at "
+        f"result.spisg.gov.bd · Sirajganj Polytechnic Institute",
+        small,
+    ))
+
+    doc.build(story)
+    return buffer.getvalue()
+
+
+# ---------------------------------------------------------------------------
 # Excel
 # ---------------------------------------------------------------------------
 

@@ -77,6 +77,13 @@ export default defineConfig(async ({ mode }) => {
     },
     build: {
       rollupOptions: {
+        // Two HTML entries: the student-portal SPA (index.html) and the
+        // public BTEB result portal (result.html → result.spisg.gov.bd).
+        // Both build into one dist/ and share hashed asset chunks.
+        input: {
+          main: path.resolve(__dirname, "index.html"),
+          result: path.resolve(__dirname, "result.html"),
+        },
         output: {
           // Split large, rarely-changing vendor libraries into their own chunks
           // so they cache independently and don't bloat the entry bundle.

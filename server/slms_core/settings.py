@@ -245,6 +245,8 @@ REST_FRAMEWORK = {
         'otp': '5/min',
         # Public result search (apps.results) — anonymous, so rate-limited.
         'result_search': '30/min',
+        # Public result-card PDF download — heavier than a search, so tighter.
+        'result_download': '10/min',
     },
     # Production serves JSON only. DRF's interactive Browsable API (the HTML
     # interface at ?format=api, plus its write forms) exposes the whole API
@@ -267,7 +269,7 @@ if config('USE_X_FORWARDED_PROTO', default=False, cast=bool):
 # override_settings.
 if 'test' in sys.argv:
     REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
-        'login': None, 'otp': None, 'result_search': None,
+        'login': None, 'otp': None, 'result_search': None, 'result_download': None,
     }
 
 # Re-enable the interactive Browsable API ONLY in local development. In

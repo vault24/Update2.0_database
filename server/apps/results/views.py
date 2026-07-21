@@ -217,6 +217,82 @@ class PublicRollSearchView(APIView):
         return Response(_search_payload(roll))
 
 
+class PublicRecentExamsView(APIView):
+    """Recent examinations for the public portal landing page.
+
+    Anonymous + cached: this renders on every portal visit, so the (already
+    cheap) aggregate is memoised for 10 minutes.
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'result_search'
+
+    CACHE_KEY = 'results:public:recent-exams'
+    CACHE_SECONDS = 600
+
+    def get(self, request):
+        from django.core.cache import cache
+        from django.db.models import Count
+
+        from .models import Exam
+
+        payload = cache.get(self.CACHE_KEY)
+        if payload is None:
+            exams = (
+                Exam.objects.annotate(resultCount=Count('results'))
+                .filter(resultCount__gt=0)
+                .order_by('-publicationDate', '-id')[:8]
+            )
+            payload = [
+                {
+                    'semester': exam.semester,
+                    'regulationYear': exam.regulationYear,
+                    'program': exam.program,
+                    'heldIn': exam.heldIn,
+                    'publicationDate': exam.publicationDate,
+                    'resultCount': exam.resultCount,
+                }
+                for exam in exams
+            ]
+            cache.set(self.CACHE_KEY, payload, self.CACHE_SECONDS)
+        return Response(payload)
+
+
+class PublicResultPdfView(APIView):
+    """Downloadable PDF of one roll's full result (public portal)."""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'result_download'
+
+    def get(self, request):
+        from django.http import HttpResponse
+
+        from .reportsheet import render_student_pdf
+
+        roll = (request.query_params.get('roll') or '').strip()
+        if not roll.isdigit() or not 4 <= len(roll) <= 10:
+            return Response(
+                {'error': 'Provide a numeric roll number, e.g. ?roll=612120.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        payload = _search_payload(roll)
+        if not payload['found']:
+            return Response(
+                {'error': f'No result found for roll {roll}.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        pdf = render_student_pdf(payload)
+        response = HttpResponse(pdf, content_type='application/pdf')
+        response['Content-Disposition'] = (
+            f'attachment; filename="BTEB-Result-{roll}.pdf"'
+        )
+        return response
+
+
 def _semester_param(request):
     """Parse a 1–12 semester number from the query string, or None."""
     try:

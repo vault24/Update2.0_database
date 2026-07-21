@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Sitemap for the public BTEB Result portal (result.spisg.gov.bd).
+     Served as /sitemap.xml on the result domain via an nginx alias.
+     Individual roll lookups are query-parameter views of the single portal
+     page (canonical: the bare portal URL), so only stable pages are listed. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://result.spisg.gov.bd/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://spisg.gov.bd/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+</urlset>

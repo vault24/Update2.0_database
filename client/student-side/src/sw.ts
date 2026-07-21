@@ -87,6 +87,12 @@ const navigationRoute = new NavigationRoute(
       /^\/static\//,
       /^\/sw\.js$/,
       /^\/manifest\.webmanifest$/,
+      // Public result portal aliases: nginx 301s these to the canonical
+      // result.spisg.gov.bd — the SW must NOT swallow the navigation and
+      // serve the cached SPA shell instead.
+      /^\/result\/?$/,
+      /^\/results\/?$/,
+      /^\/bteb-result\/?$/,
       // anything that looks like a file (has an extension) is not an app route
       /\/[^/?]+\.[^/?]+$/,
     ],

@@ -221,6 +221,15 @@ derive_settings() {
   DOMAIN_MODE=0
   if [[ -n "${STUDENT_DOMAIN}" && -n "${ADMIN_DOMAIN}" ]]; then DOMAIN_MODE=1; fi
 
+  # Public result portal subdomain. Defaults to result.<STUDENT_DOMAIN> when
+  # the key is absent from config.env (so existing deployments pick it up
+  # without editing config); an explicitly empty value disables it.
+  if (( DOMAIN_MODE )); then
+    RESULT_DOMAIN="${RESULT_DOMAIN-result.${STUDENT_DOMAIN}}"
+  else
+    RESULT_DOMAIN=""
+  fi
+
   SSL_ON=0
   if [[ "${ENABLE_SSL}" == "true" ]]; then
     if (( DOMAIN_MODE )); then SSL_ON=1
@@ -240,6 +249,8 @@ derive_settings() {
     STUDENT_ORIGIN="${SCHEME}://${STUDENT_DOMAIN}"
     ADMIN_ORIGIN="${SCHEME}://${ADMIN_DOMAIN}"
     ALLOWED_HOSTS="${STUDENT_DOMAIN},${ADMIN_DOMAIN},${PUBLIC_IP},localhost,127.0.0.1"
+    # The result portal proxies /api same-origin, so Django must accept its Host.
+    [[ -n "${RESULT_DOMAIN}" ]] && ALLOWED_HOSTS="${RESULT_DOMAIN},${ALLOWED_HOSTS}"
     if (( SSL_ON )); then
       # With HTTPS, direct-IP requests are redirected to the domains, so the
       # plain-HTTP IP origins are intentionally NOT trusted for CSRF/CORS.
@@ -999,6 +1010,88 @@ nginx_ssl_extra() {
 EOF
 }
 
+# Public BTEB result portal server block. Same student-side dist, but the
+# shell is result.html (a dedicated Vite entry with the portal's SEO head).
+# Read-only surface: /api (search / recent exams / PDF download), hashed
+# assets, per-domain robots + sitemap. $1=listen  $2=server_name  $3=extra.
+nginx_result_server() {
+  local listen="$1" names="$2" extra="$3"
+  cat <<EOF
+server {
+    listen ${listen};
+    server_name ${names};
+    root ${STUDENT_DIR}/dist;
+
+    access_log /var/log/nginx/${NGINX_SITE_NAME}-result-access.log;
+    error_log  /var/log/nginx/${NGINX_SITE_NAME}-result-error.log;
+${extra}
+$(nginx_acme_location)
+    include ${NGINX_ROOT}/snippets/sipi-security-headers.conf;
+    include ${NGINX_ROOT}/snippets/sipi-gzip.conf;
+
+    # The portal is read-only (searches + downloads) — no uploads.
+    client_max_body_size 1M;
+
+    error_page 502 503 504 /sipi-50x.html;
+    location = /sipi-50x.html { root ${ERROR_PAGE_DIR}; internal; }
+
+    # Per-domain SEO files (the dist is shared with the student portal).
+    location = /robots.txt  { alias ${STUDENT_DIR}/dist/result-robots.txt; }
+    location = /sitemap.xml { alias ${STUDENT_DIR}/dist/result-sitemap.xml; }
+
+    # Public result API (search, recent exams, PDF download).
+    location /api/ {
+        proxy_pass http://${BACKEND_BIND};
+        include ${NGINX_ROOT}/snippets/sipi-proxy.conf;
+    }
+
+    # Content-hashed bundles: cache forever.
+    location /assets/ {
+        include ${NGINX_ROOT}/snippets/sipi-security-headers.conf;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        try_files \$uri =404;
+    }
+
+    # Icons / images shared with the student dist.
+    location ~* \.(png|jpe?g|webp|gif|ico|svg|woff2?)\$ {
+        include ${NGINX_ROOT}/snippets/sipi-security-headers.conf;
+        expires 30d;
+        add_header Cache-Control "public";
+        try_files \$uri =404;
+    }
+
+    # The portal shell — revalidate on every load so deploys go live at once.
+    location = /result.html {
+        include ${NGINX_ROOT}/snippets/sipi-security-headers.conf;
+        add_header Cache-Control "no-cache";
+        try_files \$uri =404;
+    }
+
+    # Every route serves the portal shell (roll views are ?roll= states).
+    location / {
+        try_files \$uri /result.html;
+    }
+}
+EOF
+}
+
+# 301s on the STUDENT domain: /result, /results and /bteb-result all lead to
+# the canonical portal URL (query string preserved, so shared ?roll= links
+# keep working). Emitted only when the result domain is enabled.
+nginx_result_redirects() {
+  [[ -n "${RESULT_DOMAIN}" ]] || return 0
+  local scheme="http"
+  if (( SSL_ON )) && have_cert "${RESULT_DOMAIN}"; then scheme="https"; fi
+  cat <<EOF
+
+    # Public result portal aliases -> canonical ${RESULT_DOMAIN}
+    location ~ ^/(result|results|bteb-result)/?\$ {
+        return 301 ${scheme}://${RESULT_DOMAIN}/\$is_args\$args;
+    }
+EOF
+}
+
 write_nginx_site() {
   local site="${NGINX_ROOT}/sites-available/${NGINX_SITE_NAME}"
   local tmp; tmp="$(mktemp)"
@@ -1028,10 +1121,10 @@ $(nginx_acme_location)
 
 # ---- ${STUDENT_DOMAIN}: student portal (HTTPS) ----
 EOF
-        nginx_app_server "443 ssl http2" "${STUDENT_DOMAIN}" "${STUDENT_DIR}/dist" "$(nginx_ssl_extra "${STUDENT_DOMAIN}")"
+        nginx_app_server "443 ssl http2" "${STUDENT_DOMAIN}" "${STUDENT_DIR}/dist" "$(nginx_ssl_extra "${STUDENT_DOMAIN}")$(nginx_result_redirects)"
       else
         echo "# ---- ${STUDENT_DOMAIN}: student portal (HTTP) ----"
-        nginx_app_server "80" "${STUDENT_DOMAIN}" "${STUDENT_DIR}/dist" ""
+        nginx_app_server "80" "${STUDENT_DOMAIN}" "${STUDENT_DIR}/dist" "$(nginx_result_redirects)"
       fi
       echo
 
@@ -1054,6 +1147,30 @@ EOF
         nginx_app_server "80" "${ADMIN_DOMAIN}" "${ADMIN_DIR}/dist" ""
       fi
       echo
+
+      # ----- Public result portal domain (optional) -------------------------
+      if [[ -n "${RESULT_DOMAIN}" ]]; then
+        local result_ssl=0
+        if (( SSL_ON )) && have_cert "${RESULT_DOMAIN}"; then result_ssl=1; fi
+        if (( result_ssl )); then
+          cat <<EOF
+# ---- ${RESULT_DOMAIN}: HTTP -> HTTPS (ACME stays on HTTP) ----
+server {
+    listen 80;
+    server_name ${RESULT_DOMAIN};
+$(nginx_acme_location)
+    location / { return 301 https://${RESULT_DOMAIN}\$request_uri; }
+}
+
+# ---- ${RESULT_DOMAIN}: public BTEB result portal (HTTPS) ----
+EOF
+          nginx_result_server "443 ssl http2" "${RESULT_DOMAIN}" "$(nginx_ssl_extra "${RESULT_DOMAIN}")"
+        else
+          echo "# ---- ${RESULT_DOMAIN}: public BTEB result portal (HTTP) ----"
+          nginx_result_server "80" "${RESULT_DOMAIN}" ""
+        fi
+        echo
+      fi
 
       # ----- Direct-IP fallbacks -------------------------------------------
       if (( student_ssl )); then
@@ -1175,6 +1292,8 @@ setup_ssl() {
   local got_any=0
   obtain_cert "${STUDENT_DOMAIN}" && got_any=1 || true
   obtain_cert "${ADMIN_DOMAIN}"   && got_any=1 || true
+  # Public result portal subdomain.
+  [[ -n "${RESULT_DOMAIN}" ]] && { obtain_cert "${RESULT_DOMAIN}" && got_any=1 || true; }
   # Optional Mailcow reverse-proxy vhost gets its own certificate.
   [[ -n "${MAIL_DOMAIN}" ]] && { obtain_cert "${MAIL_DOMAIN}" && got_any=1 || true; }
 

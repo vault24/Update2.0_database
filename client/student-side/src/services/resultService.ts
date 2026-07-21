@@ -66,6 +66,15 @@ export interface RollSearchResponse {
   results: StudentResult[];
 }
 
+export interface RecentExam {
+  semester: number;
+  regulationYear: number;
+  program: string;
+  heldIn: string;
+  publicationDate: string | null;
+  resultCount: number;
+}
+
 class ResultService {
   private baseURL = '/results';
 
@@ -79,6 +88,29 @@ class ResultService {
     return await apiClient.get<RollSearchResponse>(
       `${this.baseURL}/public/search/?roll=${encodeURIComponent(roll)}`,
     );
+  }
+
+  /** Recently published examinations (public, cached server-side). */
+  async getRecentExams(): Promise<RecentExam[]> {
+    return await apiClient.get<RecentExam[]>(`${this.baseURL}/public/exams/`);
+  }
+
+  /** Download the clean PDF result card for a roll (public). */
+  async downloadResultPdf(roll: string): Promise<void> {
+    const { API_BASE_URL } = await import('@/config/api');
+    const response = await fetch(
+      `${API_BASE_URL}${this.baseURL}/public/download/?roll=${encodeURIComponent(roll)}`,
+    );
+    if (!response.ok) throw new Error('Download failed');
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `BTEB-Result-${roll}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   }
 }
 
