@@ -1463,6 +1463,17 @@ start_and_verify() {
     [[ "${code}" == "200" ]] && ok "Student SPA served" || warn "Student SPA probe: '${code}'"
     code="$(probe "${ascheme}://${ADMIN_DOMAIN}:${aport}/" "${ADMIN_DOMAIN}" "${aport}")"
     [[ "${code}" == "200" ]] && ok "Admin SPA served" || warn "Admin SPA probe: '${code}'"
+    # Public website (optional). Probed with its Host header so it works even
+    # before public DNS for ac.<domain> propagates.
+    if [[ -n "${WEBSITE_DOMAIN}" && -d "${WEBSITE_DIR}/dist" ]]; then
+      local wport=80 wscheme=http
+      if (( SSL_ON )) && have_cert "${WEBSITE_DOMAIN}"; then wport=443; wscheme=https; fi
+      code="$(probe "${wscheme}://${WEBSITE_DOMAIN}:${wport}/api/website/settings/" "${WEBSITE_DOMAIN}" "${wport}")"
+      [[ "${code}" == "200" ]] && ok "Website API healthy (${wscheme}://${WEBSITE_DOMAIN})" \
+                               || warn "Website API probe: '${code}'"
+      code="$(probe "${wscheme}://${WEBSITE_DOMAIN}:${wport}/" "${WEBSITE_DOMAIN}" "${wport}")"
+      [[ "${code}" == "200" ]] && ok "Website SPA served" || warn "Website SPA probe: '${code}'"
+    fi
   else
     code="$(curl -fsS -o /dev/null -w '%{http_code}' "http://127.0.0.1:${STUDENT_PORT}/" 2>/dev/null || true)"
     [[ "${code}" == "200" ]] && ok "Student SPA served on :${STUDENT_PORT}" || warn "Student SPA probe: '${code}'"
@@ -1485,8 +1496,14 @@ start_and_verify() {
 check_backend_freshness() {
   local started_at newest_py
   started_at="$(date -d "$(systemctl show "${SERVICE_NAME}" -p ActiveEnterTimestamp --value)" +%s 2>/dev/null || echo 0)"
+  # NOTE: `head -1` closes the pipe early, sending SIGPIPE to find/sort. Under
+  # `set -o pipefail` that makes the whole pipeline exit 141, which — combined
+  # with `set -e` — would abort the deploy on this purely-informational probe
+  # (and it gets more likely as the tree grows). The trailing `|| true` inside
+  # the command substitution swallows that status; the value is still captured,
+  # and the empty-guard below covers the genuinely-no-files case.
   newest_py="$(find "${SERVER_DIR}" -name '*.py' -not -path '*/venv/*' -not -path '*/__pycache__/*' \
-                 -printf '%T@\n' 2>/dev/null | sort -rn | head -1 | cut -d. -f1)"
+                 -printf '%T@\n' 2>/dev/null | sort -rn | head -1 | cut -d. -f1 || true)"
 
   if [[ -z "${started_at}" || -z "${newest_py}" || "${started_at}" == "0" ]]; then
     return 0  # can't tell — never fail the deploy over a probe
@@ -1507,6 +1524,7 @@ print_summary() {
   ok "Deployment complete."
   echo -e "   Student portal : ${c_grn}${STUDENT_ORIGIN}${c_reset}"
   echo -e "   Admin portal   : ${c_grn}${ADMIN_ORIGIN}${c_reset}"
+  [[ -n "${WEBSITE_DOMAIN}" ]] && echo -e "   Public website : ${c_grn}${SCHEME}://${WEBSITE_DOMAIN}${c_reset}"
   echo -e "   Django admin   : ${c_grn}${STUDENT_ORIGIN}/admin/${c_reset}"
   if (( DOMAIN_MODE )) && ! (( SSL_ON )); then
     echo -e "   ${c_yel}HTTPS is disabled. Once DNS points at ${PUBLIC_IP}, set ENABLE_SSL=\"true\"${c_reset}"
