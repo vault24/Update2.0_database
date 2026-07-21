@@ -2,9 +2,25 @@
  * API Configuration
  */
 
-// API Base URL - defaults to localhost for development
-// Override with .env file (VITE_API_BASE_URL) for production deployment
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+// API Base URL.
+// - Development: the configured value, else the local backend.
+// - Production: ALWAYS same-origin (`<current origin>/api`). One student build
+//   serves both spisg.gov.bd and result.spisg.gov.bd; deriving the base from
+//   the page's own origin keeps every request first-party — no CORS, and no
+//   CSP `connect-src 'self'` cross-origin block on the result host. On
+//   spisg.gov.bd this resolves to exactly the previous absolute value.
+function resolveApiBase(): string {
+  const configured = import.meta.env.VITE_API_BASE_URL as string | undefined;
+  if (import.meta.env.DEV) {
+    return configured || 'http://localhost:8000/api';
+  }
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin}/api`;
+  }
+  return configured || '/api';
+}
+
+export const API_BASE_URL = resolveApiBase();
 
 // Request timeout in milliseconds
 export const REQUEST_TIMEOUT = 30000; // 30 seconds
