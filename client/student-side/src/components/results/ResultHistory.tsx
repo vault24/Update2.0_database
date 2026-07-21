@@ -87,107 +87,69 @@ function relativeAge(iso: string | null): string {
 
 /* ------------------------ semester derivation ---------------------------- */
 
-interface Attempt {
-  publicationDate: string | null;
-  subjects: ResultSubject[];
-}
-
 interface SemesterView {
   semester: number;
-  status: 'passed' | 'pending' | 'expelled' | 'continuous_fail';
+  status: 'passed' | 'referred' | 'failed' | 'expelled' | 'continuous_fail';
   gpa: string | null;
   publicationDate: string | null;
-  pendingCount: number;
-  attempts: Attempt[];
+  /** Subjects to clear — exactly the codes the board published for THIS
+   *  semester's result (enriched with catalog names), never regrouped. */
+  subjects: ResultSubject[];
   expelledRule: string;
 }
 
-/** Fold the per-exam API results into one card per semester. */
+const PASSING_TYPES = new Set(['passed']);
+
+/**
+ * Fold the per-exam API results into one card per semester, staying FAITHFUL
+ * to what the board published — the same data the admin roll search shows.
+ *
+ * The API already returns one result per semester (newest publication wins),
+ * so each result maps to exactly one semester card. Subjects are shown under
+ * the semester whose result listed them; they are NOT re-bucketed by any
+ * catalog "home" semester, which previously scattered a single semester's
+ * referred subjects across several cards and could surface superseded codes.
+ *
+ * Passed semesters that appear only inside a later result's GPA history
+ * (e.g. sems 1–7 carried in the final-semester transcript) still get a card
+ * so the full history is visible.
+ */
 function deriveSemesters(results: StudentResult[]): SemesterView[] {
-  // Newest exam mentioning a semester wins for its GPA state.
-  const gpaState = new Map<number, { gpa: string | null; isReferred: boolean }>();
+  const cards = new Map<number, SemesterView>();
+
+  // 1. One faithful card per published result (newest first from the API).
+  for (const result of results) {
+    const semester = result.exam.semester;
+    if (cards.has(semester)) continue;
+    const ownGrade = result.gpas.find((g) => g.semester === semester);
+    const passed = PASSING_TYPES.has(result.resultType) || (ownGrade?.gpa != null);
+    cards.set(semester, {
+      semester,
+      status: passed ? 'passed' : (result.resultType as SemesterView['status']),
+      gpa: ownGrade?.gpa ?? null,
+      publicationDate: result.exam.publicationDate,
+      subjects: passed ? [] : result.subjects,
+      expelledRule: result.expelledRule,
+    });
+  }
+
+  // 2. Fill in passed semesters known only from a later GPA history.
   for (const result of results) {
     for (const grade of result.gpas) {
-      if (!gpaState.has(grade.semester)) {
-        gpaState.set(grade.semester, { gpa: grade.gpa, isReferred: grade.isReferred });
-      }
-    }
-  }
-
-  // Publication date: the newest exam OF that semester, else the newest
-  // exam that mentioned it.
-  const pubDate = new Map<number, string | null>();
-  for (const result of results) {
-    if (!pubDate.has(result.exam.semester)) {
-      pubDate.set(result.exam.semester, result.exam.publicationDate);
-    }
-  }
-  for (const result of results) {
-    for (const grade of result.gpas) {
-      if (!pubDate.has(grade.semester)) {
-        pubDate.set(grade.semester, result.exam.publicationDate);
-      }
-    }
-  }
-
-  // Pending-subject attempts, grouped into the subject's own semester via
-  // the catalog (fallback: the exam's semester).
-  const attempts = new Map<number, Attempt[]>();
-  for (const result of results) {
-    const bySemester = new Map<number, ResultSubject[]>();
-    for (const subject of result.subjects) {
-      const semester = subject.info?.semester ?? result.exam.semester;
-      const bucket = bySemester.get(semester) ?? [];
-      bucket.push(subject);
-      bySemester.set(semester, bucket);
-    }
-    for (const [semester, subjects] of bySemester) {
-      const list = attempts.get(semester) ?? [];
-      list.push({ publicationDate: result.exam.publicationDate, subjects });
-      attempts.set(semester, list);
-    }
-    if (!gpaState.has(result.exam.semester)) {
-      // failed/expelled exams publish no GPA history row for themselves
-      gpaState.set(result.exam.semester, { gpa: null, isReferred: true });
-    }
-  }
-
-  // Status override for expelled / continuous-assessment exams.
-  const special = new Map<number, { type: string; rule: string }>();
-  for (const result of results) {
-    if (
-      (result.resultType === 'expelled' || result.resultType === 'continuous_fail')
-      && !special.has(result.exam.semester)
-    ) {
-      special.set(result.exam.semester, {
-        type: result.resultType, rule: result.expelledRule,
+      if (cards.has(grade.semester)) continue;
+      if (grade.gpa == null) continue; // 'ref' history rows aren't a pass
+      cards.set(grade.semester, {
+        semester: grade.semester,
+        status: 'passed',
+        gpa: grade.gpa,
+        publicationDate: result.exam.publicationDate,
+        subjects: [],
+        expelledRule: '',
       });
     }
   }
 
-  const semesters = [...gpaState.keys()].sort((a, b) => b - a);
-  return semesters.map((semester) => {
-    const state = gpaState.get(semester)!;
-    const semesterAttempts = attempts.get(semester) ?? [];
-    const override = special.get(semester);
-    const passed = state.gpa !== null;
-    const status: SemesterView['status'] = passed
-      ? 'passed'
-      : override
-        ? (override.type as SemesterView['status'])
-        : 'pending';
-    return {
-      semester,
-      status,
-      gpa: state.gpa,
-      publicationDate: pubDate.get(semester) ?? null,
-      pendingCount: semesterAttempts[0]
-        ? new Set(semesterAttempts[0].subjects.map((s) => s.subjectCode)).size
-        : 0,
-      attempts: passed ? [] : semesterAttempts,
-      expelledRule: override?.rule ?? '',
-    };
-  });
+  return [...cards.values()].sort((a, b) => b.semester - a.semester);
 }
 
 /* ----------------------------- subrows ----------------------------------- */
@@ -267,8 +229,17 @@ function SubjectRow({ subject }: { subject: ResultSubject }) {
   );
 }
 
+const STATUS_META: Record<string, { label: string; className: string }> = {
+  referred: { label: 'Referred', className: 'text-red-600' },
+  failed: { label: 'Failed', className: 'text-red-600' },
+  expelled: { label: 'Expelled', className: 'text-red-700' },
+  continuous_fail: { label: 'Continuous Assessment Failed', className: 'text-orange-600' },
+};
+
 function SemesterCard({ view }: { view: SemesterView }) {
   const gpaValue = view.gpa !== null ? parseFloat(view.gpa) : null;
+  const status = STATUS_META[view.status];
+  const clearCount = view.subjects.length;
   return (
     <Card className="overflow-hidden">
       <CardContent className="space-y-3 p-4">
@@ -277,72 +248,52 @@ function SemesterCard({ view }: { view: SemesterView }) {
             <GraduationCap className="h-4 w-4 text-emerald-600" aria-hidden />
             {ordinal(view.semester)} Semester
           </p>
-          {view.status === 'passed' && (
+          {view.status === 'passed' ? (
             <span className="flex items-center gap-1 text-sm font-semibold text-emerald-600">
               <CheckCircle2 className="h-4 w-4" aria-hidden /> Passed
             </span>
-          )}
-          {view.status === 'pending' && (
-            <span className="flex items-center gap-1 text-sm font-semibold text-red-600">
+          ) : (
+            <span className={`flex items-center gap-1 text-sm font-semibold ${status?.className ?? 'text-red-600'}`}>
               <XCircle className="h-4 w-4" aria-hidden />
-              {view.pendingCount > 0
-                ? `${view.pendingCount} subject${view.pendingCount === 1 ? '' : 's'} yet to pass`
-                : 'Referred'}
+              {status?.label ?? view.status}
+              {clearCount > 0 && ` · ${clearCount} to clear`}
             </span>
           )}
-          {view.status === 'expelled' && (
-            <span className="text-sm font-semibold text-red-700">Expelled</span>
-          )}
-          {view.status === 'continuous_fail' && (
-            <span className="text-sm font-semibold text-orange-600">
-              Continuous Assessment Failed
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+          <p className="flex items-center gap-1.5 text-muted-foreground">
+            <CalendarDays className="h-3.5 w-3.5" aria-hidden />
+            Published:{' '}
+            <span className="text-sky-600">{formatDate(view.publicationDate)}</span>
+          </p>
+          {relativeAge(view.publicationDate) && (
+            <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+              {relativeAge(view.publicationDate)}
             </span>
           )}
         </div>
 
         {view.status === 'passed' ? (
-          <>
-            <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-              <p className="flex items-center gap-1.5 text-muted-foreground">
-                <CalendarDays className="h-3.5 w-3.5" aria-hidden />
-                Published:{' '}
-                <span className="text-sky-600">{formatDate(view.publicationDate)}</span>
-              </p>
-              {relativeAge(view.publicationDate) && (
-                <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                  {relativeAge(view.publicationDate)}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-3 dark:bg-emerald-950/40">
-              <span className="text-sm text-muted-foreground">GPA</span>
-              <span className="text-2xl font-extrabold text-emerald-600">{view.gpa}</span>
-              <span className="text-sm font-semibold">{gpaValue !== null ? letterGrade(gpaValue) : ''}</span>
-            </div>
-          </>
+          <div className="flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-3 dark:bg-emerald-950/40">
+            <span className="text-sm text-muted-foreground">GPA</span>
+            <span className="text-2xl font-extrabold text-emerald-600">{view.gpa}</span>
+            <span className="text-sm font-semibold">
+              {gpaValue !== null ? letterGrade(gpaValue) : ''}
+            </span>
+          </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-1.5">
             {view.expelledRule && (
               <p className="text-sm text-red-600">Rule: {view.expelledRule}</p>
             )}
-            {view.attempts.map((attempt, index) => (
-              <div key={`${attempt.publicationDate}-${index}`} className="space-y-1.5">
-                <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                  <p className="flex items-center gap-1.5 text-muted-foreground">
-                    <CalendarDays className="h-3.5 w-3.5" aria-hidden />
-                    Published:{' '}
-                    <span className="text-sky-600">{formatDate(attempt.publicationDate)}</span>
-                  </p>
-                  {relativeAge(attempt.publicationDate) && (
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                      {relativeAge(attempt.publicationDate)}
-                    </span>
-                  )}
-                </div>
-                {attempt.subjects.map((subject, subjectIndex) => (
-                  <SubjectRow key={`${subject.subjectCode}-${subjectIndex}`} subject={subject} />
-                ))}
-              </div>
+            {clearCount > 0 && (
+              <p className="text-xs font-medium uppercase text-muted-foreground">
+                Subjects to clear
+              </p>
+            )}
+            {view.subjects.map((subject, index) => (
+              <SubjectRow key={`${subject.subjectCode}-${index}`} subject={subject} />
             ))}
           </div>
         )}
@@ -391,9 +342,9 @@ function CgpaDialog({
                 <span className="font-bold text-emerald-400">Passed: {view.gpa}</span>
               ) : (
                 <span className="font-bold text-red-400">
-                  {view.pendingCount > 0
-                    ? `${view.pendingCount} subject${view.pendingCount === 1 ? '' : 's'} due`
-                    : 'Pending'}
+                  {view.subjects.length > 0
+                    ? `${view.subjects.length} subject${view.subjects.length === 1 ? '' : 's'} due`
+                    : STATUS_META[view.status]?.label ?? 'Pending'}
                 </span>
               )}
             </div>
@@ -455,7 +406,8 @@ export function ResultHistory({
       ...semesters.map((view) =>
         view.status === 'passed'
           ? `${ordinal(view.semester)} Semester — Passed: ${view.gpa}`
-          : `${ordinal(view.semester)} Semester — ${view.pendingCount} subject(s) yet to pass`,
+          : `${ordinal(view.semester)} Semester — ${STATUS_META[view.status]?.label ?? 'Referred'}`
+            + (view.subjects.length ? ` (${view.subjects.map((s) => s.subjectCode).join(', ')})` : ''),
       ),
       window.location.href,
     ].filter(Boolean);

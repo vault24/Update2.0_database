@@ -195,16 +195,24 @@ def _publication_date(raw: str) -> Optional[datetime]:
 
 
 def _persist(record: ResultImport, outcome: ParseOutcome) -> dict:
-    exam, _ = Exam.objects.get_or_create(
+    pub_date = _publication_date(outcome.exam.publication_date)
+    exam, created = Exam.objects.get_or_create(
         semester=outcome.exam.semester,
         regulationYear=outcome.exam.regulation_year,
         program=outcome.exam.program,
         heldIn=outcome.exam.held_in,
         defaults={
-            'publicationDate': _publication_date(outcome.exam.publication_date),
+            'publicationDate': pub_date,
             'memoNo': outcome.exam.memo_no,
         },
     )
+    # A corrected re-publish of the same exam carries a newer date/memo — keep
+    # the exam's metadata current so the "Published" date reflects the latest
+    # notice, not the superseded original.
+    if not created and pub_date and pub_date != exam.publicationDate:
+        exam.publicationDate = pub_date
+        exam.memoNo = outcome.exam.memo_no
+        exam.save(update_fields=['publicationDate', 'memoNo'])
     record.exam = exam
     record.pageCount = outcome.page_count
     record.save(update_fields=['exam', 'pageCount'])

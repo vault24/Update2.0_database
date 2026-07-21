@@ -85,6 +85,47 @@ class PublicPortalApiTests(APITestCase):
         response = self.client.get('/api/results/public/download/?roll=abc')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_republished_correction_supersedes(self):
+        """A corrected re-publish (second exam row, later date) must SUPERSEDE
+        the original for that semester — never merge or appear alongside it."""
+        institute = Institute.objects.create(code='25064', name='Sirajganj Polytechnic')
+        record = ResultImport.objects.create(
+            fileName='4th.pdf', fileSha256='c0ffee' + 'a' * 58, status='completed',
+        )
+        # Original 4th-sem notice: 7 referred subjects (incl. 26843).
+        original = Exam.objects.create(
+            semester=4, regulationYear=2022, program='DIPLOMA IN ENGINEERING',
+            heldIn='2025 held in January-March, 2026', publicationDate='2026-04-28',
+        )
+        old = StudentResult.objects.create(
+            exam=original, institute=institute, importRecord=record,
+            rollNumber='822797', resultType='failed',
+        )
+        for code in ('25841', '25921', '25931', '26741', '26742', '26841', '26843'):
+            ResultSubject.objects.create(result=old, subjectCode=code, hasTheory=True)
+
+        # Corrected re-publish landed as a separate exam row (later date),
+        # with 26843 removed.
+        corrected = Exam.objects.create(
+            semester=4, regulationYear=2022, program='DIPLOMA IN ENGINEERING',
+            heldIn='2025 held in January-March, 2026 ', publicationDate='2026-05-23',
+        )
+        new = StudentResult.objects.create(
+            exam=corrected, institute=institute, importRecord=record,
+            rollNumber='822797', resultType='failed',
+        )
+        for code in ('25841', '25921', '25931', '26741', '26742', '26841'):
+            ResultSubject.objects.create(result=new, subjectCode=code, hasTheory=True)
+
+        data = self.client.get('/api/results/public/search/', {'roll': '822797'}).json()
+        # Exactly one 4th-semester result, and it is the correction.
+        fourth = [r for r in data['results'] if r['exam']['semester'] == 4]
+        self.assertEqual(len(fourth), 1)
+        codes = {s['subjectCode'] for s in fourth[0]['subjects']}
+        self.assertNotIn('26843', codes)
+        self.assertEqual(len(codes), 6)
+        self.assertEqual(fourth[0]['exam']['publicationDate'], '2026-05-23')
+
     def test_search_is_fast(self):
         """Indexed lookup — generous CI bound, real target is <300ms."""
         started = time.monotonic()

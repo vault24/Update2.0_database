@@ -88,14 +88,36 @@ def _attach_subject_info(serialized_results: list) -> None:
 
 
 def _search_payload(roll: str) -> dict:
-    """Full result history for one roll, newest exam first."""
-    results = (
+    """Full result history for one roll, newest exam first.
+
+    De-duplicated to ONE result per semester: when BTEB re-publishes a
+    corrected notice for the same semester it can land as a second exam row
+    (a changed date/memo, or a hair's-difference in the exam-session text),
+    and the correction must SUPERSEDE the original — never be merged or shown
+    alongside it. The most-recently-published result for each semester wins.
+    """
+    from datetime import date
+
+    all_results = list(
         StudentResult.objects
         .filter(rollNumber=roll)
         .select_related('exam', 'institute')
         .prefetch_related('semesterGpas', 'subjects')
-        .order_by('-exam__regulationYear', '-exam__semester')
     )
+    # Newest publication first (undated rows sort last), stable by id.
+    all_results.sort(
+        key=lambda r: (r.exam.publicationDate or date.min, r.id),
+        reverse=True,
+    )
+    seen_semesters: set[int] = set()
+    results = []
+    for result in all_results:
+        if result.exam.semester in seen_semesters:
+            continue
+        seen_semesters.add(result.exam.semester)
+        results.append(result)
+    results.sort(key=lambda r: (r.exam.regulationYear, r.exam.semester), reverse=True)
+
     serialized = StudentResultSerializer(results, many=True).data
     _attach_subject_info(serialized)
     latest_cgpa = next((r.cgpa for r in results if r.cgpa is not None), None)
