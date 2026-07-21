@@ -12,16 +12,16 @@ export function AnnouncementBar() {
 
   const Inner = (
     <div className="mx-auto flex max-w-[1320px] items-center justify-center gap-2 px-5 py-2 text-sm font-medium">
-      <Sparkles className="h-4 w-4 shrink-0 text-accent-foreground" />
+      <Sparkles className="h-4 w-4 shrink-0 text-accent" />
       <span>{text}</span>
       {data.announcement_link && <ArrowRight className="h-4 w-4" />}
     </div>
   );
 
   return (
-    <div className="bg-accent text-accent-foreground">
+    <div className="border-b border-border bg-primary-soft text-primary">
       {data.announcement_link ? (
-        <a href={data.announcement_link} className="block hover:brightness-105" target="_blank" rel="noreferrer">
+        <a href={data.announcement_link} className="block hover:bg-primary-soft/70" target="_blank" rel="noreferrer">
           {Inner}
         </a>
       ) : (

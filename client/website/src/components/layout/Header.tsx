@@ -70,7 +70,7 @@ export function Header({ onOpenSearch }: { onOpenSearch: () => void }) {
             </div>
             <div className="leading-tight">
               <p className="heading-serif text-base font-semibold text-foreground sm:text-xl">{nameLine}</p>
-              <p className="text-[0.7rem] uppercase tracking-[0.15em] text-accent sm:text-xs">
+              <p className="text-[0.7rem] uppercase tracking-[0.15em] text-muted-foreground sm:text-xs">
                 {t("hero.tagline")}
               </p>
             </div>
@@ -103,7 +103,7 @@ export function Header({ onOpenSearch }: { onOpenSearch: () => void }) {
             </a>
             {/* Student login — prominent */}
             <a href={studentUrl} target="_blank" rel="noreferrer" className="hidden sm:block">
-              <Button variant="accent" size="sm">
+              <Button variant="primary" size="sm">
                 <GraduationCap className="h-4 w-4" /> {t("cta.studentLogin")}
               </Button>
             </a>
@@ -183,7 +183,7 @@ export function Header({ onOpenSearch }: { onOpenSearch: () => void }) {
             </div>
             <div className="mt-3 flex gap-2">
               <a href={studentUrl} target="_blank" rel="noreferrer" className="flex-1">
-                <Button variant="accent" size="sm" className="w-full">{t("cta.studentLogin")}</Button>
+                <Button variant="primary" size="sm" className="w-full">{t("cta.studentLogin")}</Button>
               </a>
               <a href={resultUrl} target="_blank" rel="noreferrer" className="flex-1">
                 <Button variant="outline" size="sm" className="w-full">{t("cta.checkResult")}</Button>

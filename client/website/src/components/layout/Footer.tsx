@@ -18,7 +18,7 @@ export function Footer() {
             <div className="h-12 w-12"><Seal src={s?.institute?.logo} /></div>
             <div>
               <p className="heading-serif font-semibold">{locale === "bn" ? SITE.nameBn : name}</p>
-              <p className="text-xs text-accent">{SITE.domain}</p>
+              <p className="text-xs text-white/70">{SITE.domain}</p>
             </div>
           </div>
           <p className="mt-4 text-sm text-primary-foreground/70">{t("footer.builtBy")}</p>
@@ -30,7 +30,7 @@ export function Footer() {
         </div>
 
         <div>
-          <p className="mb-4 text-sm font-semibold uppercase tracking-wider text-accent">{t("footer.quickLinks")}</p>
+          <p className="mb-4 text-sm font-semibold uppercase tracking-wider text-white/70">{t("footer.quickLinks")}</p>
           <ul className="space-y-2 text-sm">
             {PRIMARY_NAV.slice(1, 7).map((item) => (
               <li key={item.to}>
@@ -41,7 +41,7 @@ export function Footer() {
         </div>
 
         <div>
-          <p className="mb-4 text-sm font-semibold uppercase tracking-wider text-accent">{t("footer.portals")}</p>
+          <p className="mb-4 text-sm font-semibold uppercase tracking-wider text-white/70">{t("footer.portals")}</p>
           <ul className="space-y-2 text-sm">
             <li><a href={s?.student_portal_url || SITE.studentPortal} className="text-primary-foreground/75 hover:text-primary-foreground" target="_blank" rel="noreferrer">{t("cta.studentLogin")}</a></li>
             <li><a href={s?.result_portal_url || SITE.resultPortal} className="text-primary-foreground/75 hover:text-primary-foreground" target="_blank" rel="noreferrer">{t("nav.results")}</a></li>
@@ -50,16 +50,16 @@ export function Footer() {
         </div>
 
         <div>
-          <p className="mb-4 text-sm font-semibold uppercase tracking-wider text-accent">{t("footer.contact")}</p>
+          <p className="mb-4 text-sm font-semibold uppercase tracking-wider text-white/70">{t("footer.contact")}</p>
           <ul className="space-y-3 text-sm text-primary-foreground/75">
             {(s?.institute?.address || s?.contact_address_en) && (
-              <li className="flex gap-2"><MapPin className="h-4 w-4 shrink-0 text-accent" /> {s?.institute?.address || s?.contact_address_en}</li>
+              <li className="flex gap-2"><MapPin className="h-4 w-4 shrink-0 text-white/70" /> {s?.institute?.address || s?.contact_address_en}</li>
             )}
             {(s?.institute?.phone || s?.contact_phone) && (
-              <li className="flex gap-2"><Phone className="h-4 w-4 shrink-0 text-accent" /> {s?.institute?.phone || s?.contact_phone}</li>
+              <li className="flex gap-2"><Phone className="h-4 w-4 shrink-0 text-white/70" /> {s?.institute?.phone || s?.contact_phone}</li>
             )}
             {(s?.institute?.email || s?.contact_email) && (
-              <li className="flex gap-2"><Mail className="h-4 w-4 shrink-0 text-accent" /> {s?.institute?.email || s?.contact_email}</li>
+              <li className="flex gap-2"><Mail className="h-4 w-4 shrink-0 text-white/70" /> {s?.institute?.email || s?.contact_email}</li>
             )}
           </ul>
         </div>
@@ -81,7 +81,7 @@ export function Footer() {
 
 function SocialIcon({ href, Icon }: { href: string; Icon: typeof Facebook }) {
   return (
-    <a href={href} target="_blank" rel="noreferrer" className="grid h-9 w-9 place-items-center rounded-full bg-white/10 hover:bg-accent hover:text-accent-foreground">
+    <a href={href} target="_blank" rel="noreferrer" className="grid h-9 w-9 place-items-center rounded-full bg-white/10 transition-colors hover:bg-white/25">
       <Icon className="h-4 w-4" />
     </a>
   );

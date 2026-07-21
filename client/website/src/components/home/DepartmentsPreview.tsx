@@ -8,15 +8,6 @@ import { Button } from "@/components/ui/Button";
 import { Reveal } from "@/components/ui/Reveal";
 import { Skeleton } from "@/components/ui/Skeleton";
 
-const GRADIENTS = [
-  "from-emerald-500/15 to-teal-500/10",
-  "from-amber-500/15 to-orange-500/10",
-  "from-sky-500/15 to-indigo-500/10",
-  "from-rose-500/15 to-pink-500/10",
-  "from-violet-500/15 to-purple-500/10",
-  "from-cyan-500/15 to-blue-500/10",
-];
-
 export function DepartmentsPreview() {
   const { data, isLoading } = useDepartments();
   const { t } = useI18n();
@@ -48,9 +39,9 @@ export function DepartmentsPreview() {
                   to={`/departments/${d.code}`}
                   className="group block h-full overflow-hidden rounded-2xl border border-border bg-card shadow-card transition-all hover:-translate-y-1 hover:shadow-lift"
                 >
-                  <div className={`relative h-28 bg-gradient-to-br ${GRADIENTS[i % GRADIENTS.length]}`}>
+                  <div className="relative h-28 bg-primary-soft">
                     {d.photo && (
-                      <img src={d.photo} alt="" className="h-full w-full object-cover opacity-90" loading="lazy" />
+                      <img src={d.photo} alt="" className="h-full w-full object-cover" loading="lazy" />
                     )}
                     <span className="absolute left-4 top-4 rounded-lg bg-primary/90 px-2.5 py-1 text-xs font-bold text-primary-foreground backdrop-blur">
                       {d.code}
@@ -59,8 +50,8 @@ export function DepartmentsPreview() {
                   <div className="p-5">
                     <h3 className="text-lg font-semibold capitalize text-foreground group-hover:text-primary">{d.name}</h3>
                     <div className="mt-3 flex gap-4 text-sm text-muted-foreground">
-                      <span className="flex items-center gap-1.5"><GraduationCap className="h-4 w-4 text-accent" /> {d.student_count} {t("stats.students")}</span>
-                      <span className="flex items-center gap-1.5"><Users2 className="h-4 w-4 text-accent" /> {d.teacher_count}</span>
+                      <span className="flex items-center gap-1.5"><GraduationCap className="h-4 w-4 text-primary" /> {d.student_count} {t("stats.students")}</span>
+                      <span className="flex items-center gap-1.5"><Users2 className="h-4 w-4 text-primary" /> {d.teacher_count}</span>
                     </div>
                   </div>
                 </Link>

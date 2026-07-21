@@ -91,7 +91,7 @@ export function NoticesEvents() {
                       <span className="text-[0.65rem] uppercase">{d ? d.toLocaleString(locale, { month: "short" }) : ""}</span>
                     </div>
                     <div className="min-w-0 flex-1">
-                      <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[0.65rem] font-semibold uppercase text-accent-foreground/80">{ev.category}</span>
+                      <span className="rounded-full bg-primary-soft px-2 py-0.5 text-[0.65rem] font-semibold uppercase text-primary">{ev.category}</span>
                       <p className="mt-1 truncate font-medium text-foreground group-hover:text-primary">{pick(ev, "title")}</p>
                       <p className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1"><CalendarDays className="h-3 w-3" /> {formatDate(ev.start_at)}</span>

@@ -26,7 +26,7 @@ export function SectionHeading({
       <div className={cn("flex flex-col gap-3", centered ? "items-center" : "items-start")}>
         {eyebrow && (
           <span className="eyebrow">
-            <span className="h-px w-6 bg-accent" /> {eyebrow}
+            <span className="h-px w-6 bg-primary/50" /> {eyebrow}
           </span>
         )}
         <h2 className="heading-serif text-3xl leading-tight text-foreground sm:text-4xl lg:text-[2.75rem] text-balance">
@@ -35,7 +35,7 @@ export function SectionHeading({
         {description && (
           <p className={cn("max-w-2xl text-muted-foreground", centered && "mx-auto")}>{description}</p>
         )}
-        {centered && <span className="mt-1 h-0.5 w-24 rounded-full bg-gradient-to-r from-transparent via-accent to-transparent" />}
+        {centered && <span className="mt-1 h-0.5 w-16 rounded-full bg-primary/30" />}
       </div>
       {action}
     </div>

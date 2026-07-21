@@ -13,23 +13,29 @@ export function AchievementsPreview() {
   if (items.length === 0) return null; // stay hidden until content exists
 
   return (
-    <section className="section bg-primary text-primary-foreground">
+    <section className="section bg-surface">
       <Container>
-        <SectionHeading eyebrow={t("section.achievements")} title={<span className="text-primary-foreground">{t("section.achievements")}</span>} />
+        <SectionHeading eyebrow={t("section.achievements")} title={t("section.achievements")} />
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((a, i) => (
             <Reveal key={a.id} delay={i * 0.06}>
-              <article className="h-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur">
+              <article className="h-full overflow-hidden rounded-2xl border border-border bg-card shadow-card transition-all hover:-translate-y-1 hover:shadow-lift">
                 {a.image ? (
                   <img src={a.image} alt="" className="h-40 w-full object-cover" loading="lazy" />
                 ) : (
-                  <div className="grid h-40 w-full place-items-center bg-white/5"><Award className="h-12 w-12 text-accent/60" /></div>
+                  <div className="grid h-40 w-full place-items-center bg-primary-soft">
+                    <Award className="h-12 w-12 text-primary/50" />
+                  </div>
                 )}
                 <div className="p-5">
-                  <span className="rounded-full bg-accent/20 px-2.5 py-1 text-[0.65rem] font-semibold uppercase text-accent">{a.category}</span>
-                  <h3 className="mt-3 font-semibold">{pick(a, "title")}</h3>
-                  {pick(a, "description") && <p className="mt-2 line-clamp-2 text-sm text-primary-foreground/70">{pick(a, "description")}</p>}
-                  {a.achieved_on && <p className="mt-3 text-xs text-primary-foreground/50">{formatDate(a.achieved_on)}</p>}
+                  <span className="rounded-full bg-primary-soft px-2.5 py-1 text-[0.65rem] font-semibold uppercase text-primary">
+                    {a.category}
+                  </span>
+                  <h3 className="mt-3 font-semibold text-foreground">{pick(a, "title")}</h3>
+                  {pick(a, "description") && (
+                    <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{pick(a, "description")}</p>
+                  )}
+                  {a.achieved_on && <p className="mt-3 text-xs text-muted-foreground">{formatDate(a.achieved_on)}</p>}
                 </div>
               </article>
             </Reveal>

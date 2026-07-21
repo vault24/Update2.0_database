@@ -23,7 +23,7 @@ export function WhyChoose() {
           {FEATURES.map((f, i) => (
             <Reveal key={f.en} delay={i * 0.06}>
               <article className="group h-full rounded-2xl border border-border bg-card p-6 shadow-card transition-all hover:-translate-y-1 hover:shadow-lift">
-                <span className="grid h-12 w-12 place-items-center rounded-xl bg-primary text-primary-foreground transition-colors group-hover:bg-accent group-hover:text-accent-foreground">
+                <span className="grid h-12 w-12 place-items-center rounded-xl bg-primary-soft text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
                   <f.icon className="h-6 w-6" />
                 </span>
                 <h3 className="mt-4 text-lg font-semibold text-foreground">{f.en}</h3>

@@ -24,7 +24,7 @@ export function QuickStats() {
   return (
     <section className="relative -mt-10 z-10">
       <Container>
-        <div className="glass rounded-3xl p-6 shadow-glass sm:p-8">
+        <div className="rounded-3xl border border-border bg-card p-6 shadow-card sm:p-8">
           {isLoading ? (
             <div className="grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-6">
               {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24" />)}

@@ -1,139 +1,119 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Link } from "react-router-dom";
-import { ArrowRight, GraduationCap, Award, Building2 } from "lucide-react";
-import { useHero, useSiteSettings, useAnalytics } from "@/hooks/useApi";
+import { ArrowRight, ChevronDown } from "lucide-react";
+import { useHero, useSiteSettings } from "@/hooks/useApi";
 import { useI18n } from "@/i18n/LanguageProvider";
 import { Container } from "@/components/ui/Container";
 import { Button } from "@/components/ui/Button";
-import { Counter } from "@/components/ui/Counter";
+import { Seal } from "@/components/brand/Seal";
 import { SITE } from "@/config/site";
+
+const FALLBACK_IMAGE = "/cover-image1.jpg";
 
 export function Hero() {
   const { data: slides } = useHero();
   const { data: settings } = useSiteSettings();
-  const { data: analytics } = useAnalytics();
-  const { t, pick, locale } = useI18n();
+  const { t, pick } = useI18n();
   const [idx, setIdx] = useState(0);
 
-  const items = slides ?? [];
+  // Only slides that actually carry an image drive the background rotation;
+  // otherwise the institute campus photo is the single, calm backdrop.
+  const imageSlides = (slides ?? []).filter((s) => s.image);
   useEffect(() => {
-    if (items.length <= 1) return;
-    const id = setInterval(() => setIdx((i) => (i + 1) % items.length), 6000);
+    if (imageSlides.length <= 1) return;
+    const id = setInterval(() => setIdx((i) => (i + 1) % imageSlides.length), 7000);
     return () => clearInterval(id);
-  }, [items.length]);
+  }, [imageSlides.length]);
 
-  const active = items[idx];
-  const headline = active ? pick(active, "headline") : locale === "bn" ? SITE.nameBn : settings?.institute?.name || SITE.name;
-  const subtitle = active
-    ? pick(active, "subtitle")
-    : pick(settings ?? null, "about_short") || t("hero.tagline");
-  const bgImage = active?.image ?? null;
+  const bgImage = imageSlides[idx]?.image ?? FALLBACK_IMAGE;
+  const nameEn = settings?.institute?.name || SITE.name;
+  const nameBn = SITE.nameBn;
+  const activeSlide = imageSlides[idx];
+  const tagline = (activeSlide && pick(activeSlide, "subtitle")) || t("hero.tagline");
   const studentUrl = settings?.student_portal_url || SITE.studentPortal;
 
   return (
-    <section className="relative overflow-hidden bg-primary text-primary-foreground">
-      {/* Background image crossfade */}
+    <section className="relative flex min-h-[88vh] items-center justify-center overflow-hidden text-center text-white">
+      {/* Campus photo */}
       <AnimatePresence mode="wait">
-        {bgImage && (
-          <motion.div
-            key={bgImage}
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${bgImage})` }}
-            initial={{ opacity: 0, scale: 1.06 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 1.2, ease: "easeOut" }}
-          />
-        )}
+        <motion.div
+          key={bgImage}
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: `url(${bgImage})` }}
+          initial={{ opacity: 0, scale: 1.05 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 1.4, ease: "easeOut" }}
+        />
       </AnimatePresence>
-      {/* Overlays */}
-      <div className="absolute inset-0 bg-hero-radial" />
-      <div className="absolute inset-0 bg-gradient-to-t from-primary via-primary/85 to-primary/40" />
-      {/* Decorative grid */}
-      <div
-        className="absolute inset-0 opacity-[0.06]"
-        style={{
-          backgroundImage: "linear-gradient(hsl(0 0% 100%) 1px, transparent 1px), linear-gradient(90deg, hsl(0 0% 100%) 1px, transparent 1px)",
-          backgroundSize: "48px 48px",
-        }}
-      />
+      {/* Single restrained overlay for legibility — photo-forward, not a colour wash */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/35 to-primary/70" />
+      <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-background to-transparent" />
 
-      <Container className="relative py-20 sm:py-24 lg:py-32">
-        <div className="max-w-3xl">
-          <motion.span
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-1.5 text-xs font-medium backdrop-blur"
-          >
-            <span className="h-2 w-3 rounded-sm bg-gradient-to-b from-[#006a4e] to-[#f42a41]" />
-            {t("hero.badge")}
-          </motion.span>
+      <Container className="relative z-10">
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+          className="mx-auto flex max-w-3xl flex-col items-center py-20"
+        >
+          <div className="h-24 w-24 drop-shadow-lg sm:h-28 sm:w-28">
+            <Seal src={settings?.institute?.logo} />
+          </div>
 
-          <AnimatePresence mode="wait">
-            <motion.h1
-              key={headline}
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.5 }}
-              className="heading-serif mt-6 text-4xl leading-[1.08] text-balance sm:text-5xl lg:text-6xl"
-            >
-              {headline}
-            </motion.h1>
-          </AnimatePresence>
+          <h1 className="heading-serif mt-7 text-4xl leading-tight text-balance drop-shadow-md sm:text-5xl lg:text-6xl">
+            {nameBn}
+          </h1>
+          <p className="mt-3 text-lg font-medium text-white/90 sm:text-2xl">{nameEn}</p>
 
-          <p className="mt-5 max-w-2xl text-lg text-primary-foreground/80">{subtitle}</p>
+          {/* Thin gold hairline — the single, restrained accent */}
+          <span className="mt-6 h-px w-20 bg-accent/80" />
 
-          <div className="mt-8 flex flex-wrap gap-3">
+          <p className="mt-5 max-w-xl text-base text-white/80 sm:text-lg">{tagline}</p>
+
+          <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
             <a href={studentUrl} target="_blank" rel="noreferrer">
-              <Button variant="accent" size="lg">
+              <Button variant="primary" size="lg">
                 {t("cta.apply")} <ArrowRight className="h-4 w-4" />
               </Button>
             </a>
             <Link to="/departments">
-              <Button variant="glass" size="lg" className="text-primary-foreground">
+              <Button
+                variant="outline"
+                size="lg"
+                className="border-white/40 bg-white/5 text-white backdrop-blur-sm hover:bg-white/15"
+              >
                 {t("cta.explore")}
               </Button>
             </Link>
           </div>
-
-          {/* Inline quick stats */}
-          {analytics && (
-            <div className="mt-12 grid max-w-lg grid-cols-3 gap-4">
-              <HeroStat icon={GraduationCap} value={analytics.students.total} label={t("stats.students")} />
-              <HeroStat icon={Building2} value={analytics.departments.total} label={t("stats.departments")} />
-              <HeroStat icon={Award} value={analytics.teachers.total} label={t("stats.teachers")} />
-            </div>
-          )}
-        </div>
+        </motion.div>
       </Container>
 
-      {/* Slide dots */}
-      {items.length > 1 && (
-        <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 gap-2">
-          {items.map((_, i) => (
+      {/* Slide dots (only when multiple photo slides exist) */}
+      {imageSlides.length > 1 && (
+        <div className="absolute bottom-24 left-1/2 z-10 flex -translate-x-1/2 gap-2">
+          {imageSlides.map((_, i) => (
             <button
               key={i}
               onClick={() => setIdx(i)}
               aria-label={`Slide ${i + 1}`}
-              className={`h-1.5 rounded-full transition-all ${i === idx ? "w-8 bg-accent" : "w-2 bg-white/40"}`}
+              className={`h-1.5 rounded-full transition-all ${i === idx ? "w-8 bg-white" : "w-2 bg-white/50"}`}
             />
           ))}
         </div>
       )}
-    </section>
-  );
-}
 
-function HeroStat({ icon: Icon, value, label }: { icon: typeof GraduationCap; value: number; label: string }) {
-  return (
-    <div className="rounded-2xl border border-white/15 bg-white/5 p-4 backdrop-blur">
-      <Icon className="h-5 w-5 text-accent" />
-      <p className="mt-2 text-2xl font-bold">
-        <Counter to={value} suffix="+" />
-      </p>
-      <p className="text-xs text-primary-foreground/70">{label}</p>
-    </div>
+      {/* Scroll cue */}
+      <motion.div
+        className="absolute bottom-8 left-1/2 z-10 -translate-x-1/2 text-white/70"
+        animate={{ y: [0, 8, 0] }}
+        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+        aria-hidden
+      >
+        <ChevronDown className="h-6 w-6" />
+      </motion.div>
+    </section>
   );
 }
