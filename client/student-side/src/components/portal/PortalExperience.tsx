@@ -14,10 +14,12 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   CalendarDays,
+  ExternalLink,
   FileText,
   GraduationCap,
   Landmark,
   Loader2,
+  LogIn,
   Search,
   ShieldCheck,
   Zap,
@@ -26,10 +28,39 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ResultHistory } from '@/components/results/ResultHistory';
+import {
+  MotivationSlide,
+  QUOTE_CHANGE,
+  QUOTE_STRIVE,
+} from '@/components/results/MotivationSlide';
 import resultService, {
   RecentExam,
   RollSearchResponse,
 } from '@/services/resultService';
+
+/**
+ * Brand mark. Uses the uploaded BTEB seal at /bteb-logo.png when present,
+ * and falls back to an emerald graduation-cap badge so the header always
+ * renders (drop the file into public/bteb-logo.png to activate the seal).
+ */
+function LogoMark({ className = 'h-9 w-9' }: { className?: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <span className={`flex items-center justify-center rounded-lg bg-emerald-600 ${className}`}>
+        <GraduationCap className="h-[60%] w-[60%] text-white" aria-hidden />
+      </span>
+    );
+  }
+  return (
+    <img
+      src="/bteb-logo.png"
+      alt="Bangladesh Technical Education Board"
+      className={`object-contain ${className}`}
+      onError={() => setFailed(true)}
+    />
+  );
+}
 
 const RECENT_KEY = 'portal.recentSearches';
 const MAX_RECENT = 8;
@@ -295,7 +326,7 @@ export function PortalExperience({ standalone = false }: { standalone?: boolean 
     <div className="portal-root min-h-screen bg-gradient-to-b from-emerald-50 via-background to-background dark:from-emerald-950/30">
       {/* Header */}
       <header className="portal-no-print border-b bg-background/80 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-4 py-3">
           <a
             href={standalone ? '/' : '/results'}
             className="flex items-center gap-2 font-bold"
@@ -304,9 +335,7 @@ export function PortalExperience({ standalone = false }: { standalone?: boolean 
               clearResult();
             }}
           >
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600">
-              <GraduationCap className="h-5 w-5 text-white" aria-hidden />
-            </span>
+            <LogoMark />
             <span>
               BTEB Result
               <span className="ml-1.5 hidden text-xs font-normal text-muted-foreground sm:inline">
@@ -315,11 +344,10 @@ export function PortalExperience({ standalone = false }: { standalone?: boolean 
             </span>
           </a>
           <nav aria-label="Portal">
-            <a
-              href="https://spisg.gov.bd/"
-              className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-            >
-              Student Portal
+            <a href="https://spisg.gov.bd/" className="portal-login-btn group">
+              <span className="portal-login-shine" aria-hidden />
+              <LogIn className="h-4 w-4" aria-hidden />
+              <span>Login to My SGPI</span>
             </a>
           </nav>
         </div>
@@ -387,6 +415,14 @@ export function PortalExperience({ standalone = false }: { standalone?: boolean 
             </p>
           )}
 
+          {/* Motivational verses — shown under the search on the landing,
+              hidden once a result is on screen. */}
+          {showLanding && (
+            <div className="mx-auto mt-6 max-w-2xl">
+              <MotivationSlide quotes={[QUOTE_STRIVE, QUOTE_CHANGE]} />
+            </div>
+          )}
+
           {recent.length > 0 && showLanding && (
             <div className="mx-auto mt-4 flex max-w-2xl flex-wrap items-center justify-center gap-1.5">
               <span className="text-xs text-muted-foreground">Recent:</span>
@@ -438,19 +474,79 @@ export function PortalExperience({ standalone = false }: { standalone?: boolean 
         )}
       </main>
 
-      <footer className="portal-no-print border-t py-6">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-4 text-xs text-muted-foreground">
-          <p className="flex items-center gap-1.5">
-            <FileText className="h-3.5 w-3.5" aria-hidden />
-            Results from officially published BTEB notices. For corrections,
-            contact your institute.
-          </p>
-          <p>
-            © {new Date().getFullYear()}{' '}
-            <a href="https://spisg.gov.bd/" className="hover:text-foreground">
-              Sirajganj Polytechnic Institute
-            </a>
-          </p>
+      <footer className="portal-no-print border-t bg-emerald-50/50 dark:bg-emerald-950/20">
+        <div className="mx-auto max-w-5xl px-4 py-10">
+          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="sm:col-span-2 lg:col-span-1">
+              <div className="mb-2 flex items-center gap-2 font-bold">
+                <LogoMark className="h-8 w-8" />
+                BTEB Result
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Search Bangladesh Technical Education Board diploma &amp;
+                polytechnic semester results by roll number — free, fast, and
+                taken straight from the official BTEB result notices.
+              </p>
+            </div>
+
+            <nav aria-label="Quick links">
+              <h3 className="mb-3 text-sm font-semibold">Quick Links</h3>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li>
+                  <a href={standalone ? '/' : '/results'} className="transition-colors hover:text-emerald-600">
+                    Result Search
+                  </a>
+                </li>
+                <li>
+                  <a href="https://spisg.gov.bd/" className="inline-flex items-center gap-1 transition-colors hover:text-emerald-600">
+                    Login to My SGPI <ExternalLink className="h-3 w-3" aria-hidden />
+                  </a>
+                </li>
+                <li>
+                  <a href="https://spisg.gov.bd/" className="inline-flex items-center gap-1 transition-colors hover:text-emerald-600">
+                    Institute Website <ExternalLink className="h-3 w-3" aria-hidden />
+                  </a>
+                </li>
+              </ul>
+            </nav>
+
+            <nav aria-label="Resources">
+              <h3 className="mb-3 text-sm font-semibold">Resources</h3>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li>
+                  <a href="http://www.bteb.gov.bd/" className="inline-flex items-center gap-1 transition-colors hover:text-emerald-600">
+                    BTEB Official <ExternalLink className="h-3 w-3" aria-hidden />
+                  </a>
+                </li>
+                <li>How to check your result</li>
+                <li>Understanding referred subjects</li>
+              </ul>
+            </nav>
+
+            <div>
+              <h3 className="mb-3 text-sm font-semibold">Institute</h3>
+              <p className="flex items-start gap-1.5 text-sm text-muted-foreground">
+                <Landmark className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
+                Sirajganj Polytechnic Institute,
+                <br />
+                Sirajganj, Bangladesh
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-8 flex flex-col gap-2 border-t border-emerald-100 pt-5 text-xs text-muted-foreground dark:border-emerald-900/40 sm:flex-row sm:items-center sm:justify-between">
+            <p className="flex items-center gap-1.5">
+              <FileText className="h-3.5 w-3.5" aria-hidden />
+              Results from officially published BTEB notices. Not affiliated
+              with BTEB — for corrections, contact your institute.
+            </p>
+            <p>
+              © {new Date().getFullYear()}{' '}
+              <a href="https://spisg.gov.bd/" className="font-medium hover:text-emerald-600">
+                Sirajganj Polytechnic Institute
+              </a>
+            </p>
+          </div>
         </div>
       </footer>
 
@@ -461,6 +557,49 @@ export function PortalExperience({ standalone = false }: { standalone?: boolean 
         browser flow exactly the printed content — nothing else.
       */}
       <style>{`
+        /* Animated "Login to My SGPI" button */
+        .portal-login-btn {
+          position: relative;
+          display: inline-flex;
+          align-items: center;
+          gap: 0.4rem;
+          overflow: hidden;
+          border-radius: 9999px;
+          padding: 0.5rem 1.1rem;
+          font-size: 0.875rem;
+          font-weight: 600;
+          color: #fff;
+          background: linear-gradient(110deg, #059669 0%, #0d9488 50%, #10b981 100%);
+          background-size: 200% 100%;
+          box-shadow: 0 6px 18px -6px rgba(5, 150, 105, 0.55);
+          transition: transform 0.2s ease, box-shadow 0.2s ease, background-position 0.6s ease;
+          animation: portal-login-glow 3s ease-in-out infinite;
+          white-space: nowrap;
+        }
+        .portal-login-btn:hover {
+          transform: translateY(-1px) scale(1.04);
+          background-position: 100% 0;
+          box-shadow: 0 10px 24px -6px rgba(5, 150, 105, 0.7);
+        }
+        .portal-login-btn:active { transform: translateY(0) scale(0.99); }
+        .portal-login-shine {
+          position: absolute;
+          inset: 0;
+          transform: translateX(-120%);
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.45), transparent);
+        }
+        .portal-login-btn:hover .portal-login-shine {
+          transition: transform 0.7s ease;
+          transform: translateX(120%);
+        }
+        @keyframes portal-login-glow {
+          0%, 100% { box-shadow: 0 6px 18px -6px rgba(5, 150, 105, 0.45); }
+          50% { box-shadow: 0 8px 22px -4px rgba(16, 185, 129, 0.75); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .portal-login-btn { animation: none; }
+        }
+
         @media print {
           @page { margin: 14mm; }
           html, body { background: #fff !important; }
