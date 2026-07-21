@@ -8,7 +8,16 @@ from .models import (
     ResultSubject,
     SemesterGPA,
     StudentResult,
+    Subject,
 )
+
+
+@admin.register(Subject)
+class SubjectAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'semester', 'credit', 'totalMarks',
+                    'technology', 'regulationYear')
+    list_filter = ('semester', 'regulationYear', 'technology')
+    search_fields = ('code', 'name')
 
 
 @admin.register(Exam)

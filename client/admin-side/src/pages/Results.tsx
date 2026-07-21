@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  BookOpen,
   CalendarDays,
   CheckCircle2,
   Download,
@@ -78,6 +79,7 @@ import resultService, {
   RollSearchResponse,
   SemesterOption,
   StudentResult,
+  SubjectStats,
 } from '@/services/resultService';
 import departmentService, { Department } from '@/services/departmentService';
 
@@ -772,6 +774,117 @@ function DownloadTab({ departments }: { departments: Department[] }) {
 }
 
 // ---------------------------------------------------------------------------
+/**
+ * Subject-catalog import: BTEB Probidhan course-structure PDFs (one per
+ * technology). Each import upserts subject code → name / credit / marks
+ * distribution, which the result views use to show subject names beside
+ * referred codes.
+ */
+function SubjectImportCard() {
+  const [stats, setStats] = useState<SubjectStats | null>(null);
+  const [queue, setQueue] = useState<{ done: number; total: number } | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  const refresh = useCallback(async () => {
+    try {
+      setStats(await resultService.getSubjectStats());
+    } catch {
+      // stats are informational — leave the card usable
+    }
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const uploadFiles = async (files: File[]) => {
+    const pdfs = files.filter((file) => file.name.toLowerCase().endsWith('.pdf'));
+    if (pdfs.length === 0) {
+      toast.error('Only PDF files are accepted');
+      return;
+    }
+    setQueue({ done: 0, total: pdfs.length });
+    for (let index = 0; index < pdfs.length; index += 1) {
+      try {
+        const result = await resultService.importSubjectPdf(pdfs[index]);
+        toast.success(
+          `${result.technology || pdfs[index].name}: ` +
+          `${result.created + result.updated} subjects imported`,
+        );
+      } catch (error: unknown) {
+        const detail = error instanceof Error ? error.message : '';
+        toast.error(detail || `${pdfs[index].name}: import failed`);
+      }
+      setQueue({ done: index + 1, total: pdfs.length });
+    }
+    setQueue(null);
+    if (fileInput.current) fileInput.current.value = '';
+    refresh();
+  };
+
+  return (
+    <Card>
+      <CardContent className="space-y-3 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="font-medium">Subject database (course structure)</p>
+            <p className="text-sm text-muted-foreground">
+              Upload BTEB Probidhan course-structure PDFs (one per technology).
+              Referred subject codes then show their name, credit and marks
+              distribution on every result view.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              ref={fileInput}
+              type="file"
+              accept="application/pdf"
+              multiple
+              className="hidden"
+              onChange={(event) => {
+                const files = Array.from(event.target.files ?? []);
+                if (files.length) uploadFiles(files);
+              }}
+            />
+            <Button
+              variant="outline"
+              onClick={() => fileInput.current?.click()}
+              disabled={queue !== null}
+            >
+              {queue ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="ml-1.5">Importing {queue.done}/{queue.total}</span>
+                </>
+              ) : (
+                <>
+                  <BookOpen className="h-4 w-4" />
+                  <span className="ml-1.5">Import subjects</span>
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+        {stats && stats.totalSubjects > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+            <Badge variant="outline">{stats.totalSubjects} subjects</Badge>
+            {stats.technologies.map((tech) => (
+              <Badge
+                key={`${tech.techCode}-${tech.regulationYear}`}
+                variant="outline"
+                className="border-indigo-200 text-indigo-700"
+              >
+                {tech.technology || tech.techCode}
+                {tech.regulationYear && ` (${tech.regulationYear})`} · {tech.subjects}
+              </Badge>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // Imports tab (multi-file upload + day-grouped history)
 // ---------------------------------------------------------------------------
 
@@ -944,6 +1057,8 @@ function ImportsTab() {
           </div>
         </CardContent>
       </Card>
+
+      <SubjectImportCard />
 
       {loading ? (
         <div className="py-8 text-center text-muted-foreground">Loading…</div>

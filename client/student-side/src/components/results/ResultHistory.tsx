@@ -1,253 +1,440 @@
 /**
- * Board-result history renderer — shared by the student "Board Results"
- * dashboard page (own results + friends) and the public roll-search page.
+ * Board-result renderer — the per-semester view used by the public portal,
+ * the student dashboard and the friends tab.
  *
- * Cards are interactive: the newest exam is expanded, older ones collapse to
- * a summary row. GPA tiles show a progress bar (out of 4.00), a trend arrow
- * vs the previous semester, and a star on the best semester.
+ * Layout (modelled on the institute's approved design):
+ *   - "# <roll>" header with program / regulation / institute meta and an
+ *     action row (CGPA card · Save · Copy · Download · Share)
+ *   - one card per SEMESTER (newest first): GPA banner with a letter grade
+ *     for passed semesters; for pending semesters, "N subjects yet to pass"
+ *     with every publication attempt listed — each subject shows its code,
+ *     catalog name, credit and Theory/Practical chip, expandable to the full
+ *     marks distribution (continuous / final / total / grand total)
+ *
+ * Subjects are grouped into their own semester using the imported subject
+ * catalog (subject.info.semester); codes missing from the catalog fall back
+ * to the exam's semester.
  */
-import { useState } from 'react';
-import { ChevronDown, Minus, Star, TrendingDown, TrendingUp } from 'lucide-react';
+import { ReactNode, useMemo, useState } from 'react';
+import {
+  BookOpen,
+  Building2,
+  CalendarDays,
+  CheckCircle2,
+  ChevronDown,
+  Copy,
+  Download,
+  GraduationCap,
+  Heart,
+  Loader2,
+  Calculator,
+  Share2,
+  XCircle,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import type { RollSearchResponse, SemesterGpa, StudentResult } from '@/services/resultService';
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import type {
+  ResultSubject,
+  RollSearchResponse,
+  StudentResult,
+} from '@/services/resultService';
 
-const RESULT_TYPE_META: Record<string, { label: string; className: string }> = {
-  passed: {
-    label: 'Passed',
-    className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
-  },
-  referred: {
-    label: 'Referred',
-    className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
-  },
-  failed: {
-    label: 'Failed',
-    className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
-  },
-  expelled: {
-    label: 'Expelled',
-    className: 'bg-red-200 text-red-800 dark:bg-red-900/60 dark:text-red-200',
-  },
-  continuous_fail: {
-    label: 'CA Failed',
-    className: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
-  },
-};
+/* ----------------------------- helpers ---------------------------------- */
 
-function formatSubject(subject: StudentResult['subjects'][number]): string {
-  const parts = [
-    subject.hasTheory ? 'T' : null,
-    subject.hasPractical ? 'P' : null,
-  ].filter(Boolean);
-  return parts.length ? `${subject.subjectCode}(${parts.join(',')})` : subject.subjectCode;
+const ORDINALS: Record<number, string> = { 1: '1st', 2: '2nd', 3: '3rd' };
+const ordinal = (n: number) => `${ORDINALS[n] ?? `${n}th`}`;
+
+/** BTEB letter grade for a GPA. */
+export function letterGrade(gpa: number): string {
+  if (gpa >= 4.0) return 'A+';
+  if (gpa >= 3.75) return 'A';
+  if (gpa >= 3.5) return 'A-';
+  if (gpa >= 3.25) return 'B+';
+  if (gpa >= 3.0) return 'B';
+  if (gpa >= 2.75) return 'B-';
+  if (gpa >= 2.5) return 'C+';
+  if (gpa >= 2.25) return 'C';
+  if (gpa >= 2.0) return 'D';
+  return 'F';
 }
 
-/** One semester tile: GPA, progress bar to 4.00, trend arrow, best star. */
-function GpaTile({
-  gpa,
-  previous,
-  isBest,
-}: {
-  gpa: SemesterGpa;
-  previous: SemesterGpa | undefined;
-  isBest: boolean;
-}) {
-  const value = gpa.gpa !== null ? parseFloat(gpa.gpa) : null;
-  const previousValue =
-    previous && previous.gpa !== null ? parseFloat(previous.gpa) : null;
-  const trend =
-    value !== null && previousValue !== null
-      ? value > previousValue
-        ? 'up'
-        : value < previousValue
-          ? 'down'
-          : 'flat'
-      : null;
+function formatDate(iso: string | null): string {
+  if (!iso) return '—';
+  const date = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleDateString('en-GB', {
+    day: '2-digit', month: 'long', year: 'numeric',
+  });
+}
+
+function relativeAge(iso: string | null): string {
+  if (!iso) return '';
+  const then = new Date(`${iso}T00:00:00`).getTime();
+  if (Number.isNaN(then)) return '';
+  const days = Math.floor((Date.now() - then) / 86_400_000);
+  if (days < 30) return days <= 1 ? 'today' : `${days} days ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months} month${months === 1 ? '' : 's'} ago`;
+  const years = Math.floor(days / 365);
+  return `${years} year${years === 1 ? '' : 's'} ago`;
+}
+
+/* ------------------------ semester derivation ---------------------------- */
+
+interface Attempt {
+  publicationDate: string | null;
+  subjects: ResultSubject[];
+}
+
+interface SemesterView {
+  semester: number;
+  status: 'passed' | 'pending' | 'expelled' | 'continuous_fail';
+  gpa: string | null;
+  publicationDate: string | null;
+  pendingCount: number;
+  attempts: Attempt[];
+  expelledRule: string;
+}
+
+/** Fold the per-exam API results into one card per semester. */
+function deriveSemesters(results: StudentResult[]): SemesterView[] {
+  // Newest exam mentioning a semester wins for its GPA state.
+  const gpaState = new Map<number, { gpa: string | null; isReferred: boolean }>();
+  for (const result of results) {
+    for (const grade of result.gpas) {
+      if (!gpaState.has(grade.semester)) {
+        gpaState.set(grade.semester, { gpa: grade.gpa, isReferred: grade.isReferred });
+      }
+    }
+  }
+
+  // Publication date: the newest exam OF that semester, else the newest
+  // exam that mentioned it.
+  const pubDate = new Map<number, string | null>();
+  for (const result of results) {
+    if (!pubDate.has(result.exam.semester)) {
+      pubDate.set(result.exam.semester, result.exam.publicationDate);
+    }
+  }
+  for (const result of results) {
+    for (const grade of result.gpas) {
+      if (!pubDate.has(grade.semester)) {
+        pubDate.set(grade.semester, result.exam.publicationDate);
+      }
+    }
+  }
+
+  // Pending-subject attempts, grouped into the subject's own semester via
+  // the catalog (fallback: the exam's semester).
+  const attempts = new Map<number, Attempt[]>();
+  for (const result of results) {
+    const bySemester = new Map<number, ResultSubject[]>();
+    for (const subject of result.subjects) {
+      const semester = subject.info?.semester ?? result.exam.semester;
+      const bucket = bySemester.get(semester) ?? [];
+      bucket.push(subject);
+      bySemester.set(semester, bucket);
+    }
+    for (const [semester, subjects] of bySemester) {
+      const list = attempts.get(semester) ?? [];
+      list.push({ publicationDate: result.exam.publicationDate, subjects });
+      attempts.set(semester, list);
+    }
+    if (!gpaState.has(result.exam.semester)) {
+      // failed/expelled exams publish no GPA history row for themselves
+      gpaState.set(result.exam.semester, { gpa: null, isReferred: true });
+    }
+  }
+
+  // Status override for expelled / continuous-assessment exams.
+  const special = new Map<number, { type: string; rule: string }>();
+  for (const result of results) {
+    if (
+      (result.resultType === 'expelled' || result.resultType === 'continuous_fail')
+      && !special.has(result.exam.semester)
+    ) {
+      special.set(result.exam.semester, {
+        type: result.resultType, rule: result.expelledRule,
+      });
+    }
+  }
+
+  const semesters = [...gpaState.keys()].sort((a, b) => b - a);
+  return semesters.map((semester) => {
+    const state = gpaState.get(semester)!;
+    const semesterAttempts = attempts.get(semester) ?? [];
+    const override = special.get(semester);
+    const passed = state.gpa !== null;
+    const status: SemesterView['status'] = passed
+      ? 'passed'
+      : override
+        ? (override.type as SemesterView['status'])
+        : 'pending';
+    return {
+      semester,
+      status,
+      gpa: state.gpa,
+      publicationDate: pubDate.get(semester) ?? null,
+      pendingCount: semesterAttempts[0]
+        ? new Set(semesterAttempts[0].subjects.map((s) => s.subjectCode)).size
+        : 0,
+      attempts: passed ? [] : semesterAttempts,
+      expelledRule: override?.rule ?? '',
+    };
+  });
+}
+
+/* ----------------------------- subrows ----------------------------------- */
+
+function SubjectRow({ subject }: { subject: ResultSubject }) {
+  const [open, setOpen] = useState(false);
+  const info = subject.info;
+  const parts = [
+    subject.hasTheory ? 'Theory' : null,
+    subject.hasPractical ? 'Practical' : null,
+  ].filter(Boolean) as string[];
 
   return (
-    <div
-      className={`relative rounded-xl border px-2 py-2 text-center transition-colors ${
-        gpa.isReferred
-          ? 'border-red-200 bg-red-50/70 dark:border-red-900/50 dark:bg-red-950/30'
-          : isBest
-            ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40'
-            : 'border-border bg-muted/40'
-      }`}
-      title={
-        gpa.isReferred
-          ? `Semester ${gpa.semester}: referred`
-          : `Semester ${gpa.semester}: GPA ${gpa.gpa}`
-      }
-    >
-      {isBest && (
-        <Star className="absolute -right-1.5 -top-1.5 h-4 w-4 fill-amber-400 text-amber-500" />
-      )}
-      <div className="text-[11px] uppercase text-muted-foreground">Sem {gpa.semester}</div>
-      <div className="flex items-center justify-center gap-0.5">
-        <span
-          className={`text-sm font-semibold ${
-            gpa.isReferred ? 'text-red-600 dark:text-red-400' : ''
-          }`}
-        >
-          {gpa.isReferred ? 'ref' : gpa.gpa}
+    <div className="rounded-lg border border-red-100 bg-red-50/40 dark:border-red-900/40 dark:bg-red-950/20">
+      <button
+        type="button"
+        onClick={() => info && setOpen((current) => !current)}
+        className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 text-left"
+        aria-expanded={open}
+      >
+        <span className="font-mono text-sm font-semibold text-red-600 dark:text-red-400">
+          {subject.subjectCode}
         </span>
-        {trend === 'up' && <TrendingUp className="h-3 w-3 text-emerald-600" />}
-        {trend === 'down' && <TrendingDown className="h-3 w-3 text-red-500" />}
-        {trend === 'flat' && <Minus className="h-3 w-3 text-muted-foreground" />}
-      </div>
-      <div className="mt-1 h-1 overflow-hidden rounded-full bg-border">
-        <div
-          className={`h-full rounded-full ${
-            gpa.isReferred ? 'bg-red-400' : 'bg-emerald-500'
-          }`}
-          style={{ width: value !== null ? `${(value / 4) * 100}%` : '100%' }}
-        />
-      </div>
+        <span className="text-sm font-medium text-red-700 dark:text-red-300">
+          {info?.name ?? 'Unknown subject'}
+        </span>
+        {parts.map((part) => (
+          <Badge key={part} variant="outline" className="border-slate-300 text-[11px] text-muted-foreground">
+            {part}
+          </Badge>
+        ))}
+        {info?.credit != null && (
+          <Badge variant="outline" className="border-slate-300 text-[11px] text-muted-foreground">
+            {info.credit} credit{info.credit === 1 ? '' : 's'}
+          </Badge>
+        )}
+        {info && (
+          <ChevronDown
+            className={`ml-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`}
+            aria-hidden
+          />
+        )}
+      </button>
+      {open && info && (
+        <div className="border-t border-red-100 px-3 py-2 dark:border-red-900/40">
+          <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+            <div>
+              <p className="font-semibold uppercase text-muted-foreground">Theory</p>
+              <p>Continuous: {info.theoryContinuous ?? '—'}</p>
+              <p>Final: {info.theoryFinal ?? '—'}</p>
+              <p>Total: {info.theoryTotal ?? '—'}</p>
+            </div>
+            <div>
+              <p className="font-semibold uppercase text-muted-foreground">Practical</p>
+              <p>Continuous: {info.practicalContinuous ?? '—'}</p>
+              <p>Final: {info.practicalFinal ?? '—'}</p>
+              <p>Total: {info.practicalTotal ?? '—'}</p>
+            </div>
+            <div>
+              <p className="font-semibold uppercase text-muted-foreground">Credit</p>
+              <p>{info.credit ?? '—'}</p>
+            </div>
+            <div>
+              <p className="font-semibold uppercase text-muted-foreground">Grand Total</p>
+              <p className="text-sm font-bold">{info.totalMarks ?? '—'}</p>
+            </div>
+          </div>
+          {info.technology && (
+            <p className="mt-1.5 text-[11px] text-muted-foreground">
+              {info.technology}
+              {info.regulationYear && ` · Probidhan ${info.regulationYear}`}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
-export function ResultCard({
-  result,
-  defaultOpen = true,
-}: {
-  result: StudentResult;
-  defaultOpen?: boolean;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  const meta = RESULT_TYPE_META[result.resultType] ?? {
-    label: result.resultType,
-    className: 'bg-muted text-muted-foreground',
-  };
-
-  const gpas = [...result.gpas].sort((a, b) => a.semester - b.semester);
-  const numeric = gpas.filter((g) => g.gpa !== null);
-  const best = numeric.length
-    ? Math.max(...numeric.map((g) => parseFloat(g.gpa as string)))
-    : null;
-  const average = numeric.length
-    ? (
-        numeric.reduce((sum, g) => sum + parseFloat(g.gpa as string), 0) / numeric.length
-      ).toFixed(2)
-    : null;
-  const ownGpa = gpas.find((g) => g.semester === result.exam.semester);
-
+function SemesterCard({ view }: { view: SemesterView }) {
+  const gpaValue = view.gpa !== null ? parseFloat(view.gpa) : null;
   return (
     <Card className="overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen((current) => !current)}
-        className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left transition-colors hover:bg-muted/40 sm:px-5"
-        aria-expanded={open}
-      >
-        <div className="min-w-0">
-          <p className="font-semibold">
-            Semester {result.exam.semester}
-            <span className="ml-2 text-sm font-normal text-muted-foreground">
-              {result.exam.regulationYear} Regulation
+      <CardContent className="space-y-3 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="flex items-center gap-1.5 font-semibold">
+            <GraduationCap className="h-4 w-4 text-emerald-600" aria-hidden />
+            {ordinal(view.semester)} Semester
+          </p>
+          {view.status === 'passed' && (
+            <span className="flex items-center gap-1 text-sm font-semibold text-emerald-600">
+              <CheckCircle2 className="h-4 w-4" aria-hidden /> Passed
             </span>
-          </p>
-          <p className="truncate text-xs text-muted-foreground">
-            {result.exam.program}
-            {result.exam.publicationDate && ` · published ${result.exam.publicationDate}`}
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {!open && ownGpa && !ownGpa.isReferred && (
-            <span className="text-sm font-semibold">{ownGpa.gpa}</span>
           )}
-          {result.cgpa && (
-            <Badge
-              variant="outline"
-              className="border-emerald-300 text-emerald-700 dark:text-emerald-300"
-            >
-              CGPA {result.cgpa}
-            </Badge>
+          {view.status === 'pending' && (
+            <span className="flex items-center gap-1 text-sm font-semibold text-red-600">
+              <XCircle className="h-4 w-4" aria-hidden />
+              {view.pendingCount > 0
+                ? `${view.pendingCount} subject${view.pendingCount === 1 ? '' : 's'} yet to pass`
+                : 'Referred'}
+            </span>
           )}
-          <Badge className={`${meta.className} hover:${meta.className}`}>{meta.label}</Badge>
-          <ChevronDown
-            className={`h-4 w-4 text-muted-foreground transition-transform ${
-              open ? 'rotate-180' : ''
-            }`}
-          />
+          {view.status === 'expelled' && (
+            <span className="text-sm font-semibold text-red-700">Expelled</span>
+          )}
+          {view.status === 'continuous_fail' && (
+            <span className="text-sm font-semibold text-orange-600">
+              Continuous Assessment Failed
+            </span>
+          )}
         </div>
-      </button>
 
-      {open && (
-        <CardContent className="space-y-3 border-t pt-4">
-          {gpas.length > 0 && (
-            <>
-              <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
-                {gpas.map((gpa, index) => (
-                  <GpaTile
-                    key={gpa.semester}
-                    gpa={gpa}
-                    previous={index > 0 ? gpas[index - 1] : undefined}
-                    isBest={
-                      best !== null &&
-                      gpa.gpa !== null &&
-                      parseFloat(gpa.gpa) === best
-                    }
-                  />
-                ))}
-              </div>
-              {average && (
-                <p className="text-xs text-muted-foreground">
-                  Average GPA <span className="font-semibold">{average}</span>
-                  {best !== null && (
-                    <>
-                      {' '}· best semester{' '}
-                      <span className="font-semibold">{best.toFixed(2)}</span>
-                    </>
-                  )}
-                </p>
-              )}
-            </>
-          )}
-          {result.expelledRule && (
-            <p className="text-sm text-red-600 dark:text-red-400">
-              Expelled under: {result.expelledRule}
-            </p>
-          )}
-          {result.subjects.length > 0 && (
-            <div>
-              <p className="mb-1 text-xs font-medium uppercase text-muted-foreground">
-                Subjects to clear ({result.subjects.length})
+        {view.status === 'passed' ? (
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+              <p className="flex items-center gap-1.5 text-muted-foreground">
+                <CalendarDays className="h-3.5 w-3.5" aria-hidden />
+                Published:{' '}
+                <span className="text-sky-600">{formatDate(view.publicationDate)}</span>
               </p>
-              <div className="flex flex-wrap gap-1.5">
-                {result.subjects.map((subject, index) => (
-                  <Badge
-                    key={`${subject.subjectCode}-${index}`}
-                    variant="outline"
-                    className={
-                      subject.role === 'referred'
-                        ? 'border-red-300 bg-red-50/60 text-red-700 dark:bg-red-950/30 dark:text-red-300'
-                        : 'border-red-400 bg-red-100/60 text-red-800 dark:bg-red-950/50 dark:text-red-200'
-                    }
-                  >
-                    {formatSubject(subject)}
-                    {subject.role !== 'referred' &&
-                      ` · ${RESULT_TYPE_META[subject.role]?.label ?? subject.role}`}
-                  </Badge>
+              {relativeAge(view.publicationDate) && (
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                  {relativeAge(view.publicationDate)}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-3 dark:bg-emerald-950/40">
+              <span className="text-sm text-muted-foreground">GPA</span>
+              <span className="text-2xl font-extrabold text-emerald-600">{view.gpa}</span>
+              <span className="text-sm font-semibold">{gpaValue !== null ? letterGrade(gpaValue) : ''}</span>
+            </div>
+          </>
+        ) : (
+          <div className="space-y-3">
+            {view.expelledRule && (
+              <p className="text-sm text-red-600">Rule: {view.expelledRule}</p>
+            )}
+            {view.attempts.map((attempt, index) => (
+              <div key={`${attempt.publicationDate}-${index}`} className="space-y-1.5">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                  <p className="flex items-center gap-1.5 text-muted-foreground">
+                    <CalendarDays className="h-3.5 w-3.5" aria-hidden />
+                    Published:{' '}
+                    <span className="text-sky-600">{formatDate(attempt.publicationDate)}</span>
+                  </p>
+                  {relativeAge(attempt.publicationDate) && (
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                      {relativeAge(attempt.publicationDate)}
+                    </span>
+                  )}
+                </div>
+                {attempt.subjects.map((subject, subjectIndex) => (
+                  <SubjectRow key={`${subject.subjectCode}-${subjectIndex}`} subject={subject} />
                 ))}
               </div>
-            </div>
-          )}
-        </CardContent>
-      )}
+            ))}
+          </div>
+        )}
+      </CardContent>
     </Card>
   );
+}
+
+/* --------------------------- CGPA summary card ---------------------------- */
+
+function CgpaDialog({
+  data,
+  semesters,
+  open,
+  onOpenChange,
+}: {
+  data: RollSearchResponse;
+  semesters: SemesterView[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md border-none bg-gradient-to-b from-slate-900 to-slate-950 p-6 text-white">
+        <DialogTitle className="sr-only">CGPA summary</DialogTitle>
+        <div className="text-center">
+          {data.studentName && (
+            <p className="text-xl font-bold text-amber-400">{data.studentName}</p>
+          )}
+          <p className="mt-1 text-lg font-semibold">Roll: {data.roll}</p>
+          {data.institute && (
+            <p className="text-sm text-slate-300">{data.institute.name}</p>
+          )}
+          <p className="mt-3 border-y border-slate-700 py-2 text-2xl font-extrabold text-amber-400">
+            {data.finalCgpa ? `CGPA: ${data.finalCgpa}` : 'CGPA pending'}
+          </p>
+        </div>
+        <div className="mt-2 space-y-2">
+          {semesters.map((view) => (
+            <div
+              key={view.semester}
+              className="flex items-center justify-between rounded-lg border border-slate-700 px-4 py-2.5"
+            >
+              <span className="font-semibold">{ordinal(view.semester)} Semester</span>
+              {view.status === 'passed' ? (
+                <span className="font-bold text-emerald-400">Passed: {view.gpa}</span>
+              ) : (
+                <span className="font-bold text-red-400">
+                  {view.pendingCount > 0
+                    ? `${view.pendingCount} subject${view.pendingCount === 1 ? '' : 's'} due`
+                    : 'Pending'}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+        <p className="mt-3 text-center text-xs text-slate-400">
+          Generated from{' '}
+          <span className="font-semibold text-amber-400">result.spisg.gov.bd</span>
+          {' · '}last updated {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+        </p>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ------------------------------ main view --------------------------------- */
+
+export interface ResultHistoryActions {
+  onDownload?: () => void;
+  downloading?: boolean;
+  onShare?: () => void;
+  shareLabel?: string;
+  onSave?: () => void;
+  saved?: boolean;
 }
 
 export function ResultHistory({
   data,
   showHeader = true,
+  actions,
 }: {
   data: RollSearchResponse;
-  /** Hide the roll/CGPA header when the page renders its own hero. */
+  /** Hide the roll header when the page renders its own hero. */
   showHeader?: boolean;
+  actions?: ResultHistoryActions;
 }) {
+  const [cgpaOpen, setCgpaOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const semesters = useMemo(() => deriveSemesters(data.results), [data.results]);
+  const latest = data.results[0];
+
   if (!data.found) {
     return (
       <Card>
@@ -258,26 +445,111 @@ export function ResultHistory({
       </Card>
     );
   }
+
+  const copySummary = async () => {
+    const lines = [
+      `BTEB Result — Roll ${data.roll}`,
+      data.studentName && `Name: ${data.studentName}`,
+      data.institute && `${data.institute.name}`,
+      data.finalCgpa && `CGPA: ${data.finalCgpa}`,
+      ...semesters.map((view) =>
+        view.status === 'passed'
+          ? `${ordinal(view.semester)} Semester — Passed: ${view.gpa}`
+          : `${ordinal(view.semester)} Semester — ${view.pendingCount} subject(s) yet to pass`,
+      ),
+      window.location.href,
+    ].filter(Boolean);
+    try {
+      await navigator.clipboard.writeText(lines.join('\n'));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // clipboard unavailable — nothing to do
+    }
+  };
+
+  const program = latest?.exam.program
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+
   return (
     <div className="space-y-4">
-      {showHeader && (
-        <div className="flex flex-wrap items-center gap-3">
-          <h2 className="text-lg font-semibold">Roll {data.roll}</h2>
-          {data.finalCgpa && (
-            <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">
-              Final CGPA {data.finalCgpa}
-            </Badge>
+      {showHeader && latest && (
+        <header className="space-y-2 text-center">
+          <h2 className="text-3xl font-extrabold tracking-tight"># {data.roll}</h2>
+          {data.studentName && (
+            <p className="text-lg font-semibold">{data.studentName}</p>
           )}
-        </div>
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <BookOpen className="h-3.5 w-3.5" aria-hidden /> {program}
+            </span>
+            <span className="flex items-center gap-1">
+              <CalendarDays className="h-3.5 w-3.5" aria-hidden />
+              Regulation {latest.exam.regulationYear}
+            </span>
+            {data.institute && (
+              <span className="flex items-center gap-1">
+                <Building2 className="h-3.5 w-3.5" aria-hidden /> {data.institute.name}
+              </span>
+            )}
+          </div>
+          <div className="portal-no-print flex flex-wrap items-center justify-center gap-2 pt-1">
+            <Button variant="outline" size="sm" onClick={() => setCgpaOpen(true)}>
+              <Calculator className="mr-1.5 h-4 w-4" aria-hidden /> CGPA
+            </Button>
+            {actions?.onSave && (
+              <Button variant="outline" size="sm" onClick={actions.onSave}>
+                <Heart
+                  className={`mr-1.5 h-4 w-4 ${actions.saved ? 'fill-red-500 text-red-500' : ''}`}
+                  aria-hidden
+                />
+                {actions.saved ? 'Saved' : 'Save'}
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={copySummary}>
+              {copied ? (
+                <CheckCircle2 className="mr-1.5 h-4 w-4 text-emerald-600" aria-hidden />
+              ) : (
+                <Copy className="mr-1.5 h-4 w-4" aria-hidden />
+              )}
+              {copied ? 'Copied' : 'Copy'}
+            </Button>
+            {actions?.onDownload && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={actions.onDownload}
+                disabled={actions.downloading}
+              >
+                {actions.downloading ? (
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden />
+                ) : (
+                  <Download className="mr-1.5 h-4 w-4" aria-hidden />
+                )}
+                Download
+              </Button>
+            )}
+            {actions?.onShare && (
+              <Button variant="outline" size="sm" onClick={actions.onShare}>
+                <Share2 className="mr-1.5 h-4 w-4" aria-hidden />
+                {actions.shareLabel ?? 'Share'}
+              </Button>
+            )}
+          </div>
+        </header>
       )}
-      {data.institute && (
-        <p className="text-sm text-muted-foreground">
-          {data.institute.code} — {data.institute.name}
-        </p>
-      )}
-      {data.results.map((result, index) => (
-        <ResultCard key={result.id} result={result} defaultOpen={index === 0} />
+
+      {semesters.map((view) => (
+        <SemesterCard key={view.semester} view={view} />
       ))}
+
+      <CgpaDialog
+        data={data}
+        semesters={semesters}
+        open={cgpaOpen}
+        onOpenChange={setCgpaOpen}
+      />
     </div>
   );
 }

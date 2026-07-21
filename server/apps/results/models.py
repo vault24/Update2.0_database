@@ -220,6 +220,55 @@ class ResultSubject(models.Model):
         return f"{self.result.rollNumber} {self.subjectCode}{suffix} [{self.role}]"
 
 
+class Subject(models.Model):
+    """One subject from a BTEB Probidhan course-structure PDF.
+
+    Imported from the official per-technology "Course Structure" documents
+    (code, name, credit and the marks distribution). Referred subject codes
+    on results resolve against this table so the portal can show the subject
+    name, its semester and the full marks breakdown instead of a bare code.
+
+    Codes are shared across technologies for common subjects (25911
+    Mathematics-I appears in every technology with identical data), so the
+    code is unique per regulation and the latest import wins.
+    """
+
+    code = models.CharField(max_length=10)
+    name = models.CharField(max_length=255)
+    semester = models.IntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(12)]
+    )
+    regulationYear = models.IntegerField(null=True, blank=True)
+    # e.g. "Computer Science & Technology" / its BTEB code "85".
+    technology = models.CharField(max_length=255, blank=True)
+    techCode = models.CharField(max_length=10, blank=True)
+
+    credit = models.IntegerField(null=True, blank=True)
+    theoryPeriods = models.IntegerField(null=True, blank=True)
+    practicalPeriods = models.IntegerField(null=True, blank=True)
+
+    # Marks distribution. "Continuous" = continuous assessment, "Final" =
+    # final exam; totalMarks is the printed Grand Total.
+    theoryContinuous = models.IntegerField(null=True, blank=True)
+    theoryFinal = models.IntegerField(null=True, blank=True)
+    theoryTotal = models.IntegerField(null=True, blank=True)
+    practicalContinuous = models.IntegerField(null=True, blank=True)
+    practicalFinal = models.IntegerField(null=True, blank=True)
+    practicalTotal = models.IntegerField(null=True, blank=True)
+    totalMarks = models.IntegerField(null=True, blank=True)
+
+    updatedAt = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'result_subject_catalog'
+        unique_together = [('code', 'regulationYear')]
+        ordering = ['semester', 'code']
+        indexes = [models.Index(fields=['code'])]
+
+    def __str__(self):
+        return f"{self.code} {self.name} (sem {self.semester})"
+
+
 class ParserIssue(models.Model):
     """A diagnostic raised while parsing or validating an import.
 

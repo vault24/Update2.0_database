@@ -1078,11 +1078,21 @@ EOF
 
 # 301s on the STUDENT domain: /result, /results and /bteb-result all lead to
 # the canonical portal URL (query string preserved, so shared ?roll= links
-# keep working). Emitted only when the result domain is enabled.
+# keep working).
+#
+# Emitted ONLY when the result domain can actually serve the scheme browsers
+# will use. The student domain sends HSTS with includeSubDomains, so browsers
+# force HTTPS on ${RESULT_DOMAIN}; if we redirected before its certificate
+# exists, TLS SNI would fall through to the default vhost (the student
+# portal's login page). Until `deploy.sh --ssl` issues the cert, the aliases
+# keep serving the same portal from the student SPA instead of redirecting.
 nginx_result_redirects() {
   [[ -n "${RESULT_DOMAIN}" ]] || return 0
   local scheme="http"
-  if (( SSL_ON )) && have_cert "${RESULT_DOMAIN}"; then scheme="https"; fi
+  if (( SSL_ON )); then
+    have_cert "${RESULT_DOMAIN}" || return 0
+    scheme="https"
+  fi
   cat <<EOF
 
     # Public result portal aliases -> canonical ${RESULT_DOMAIN}

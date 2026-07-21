@@ -149,6 +149,28 @@ export interface AnalyticsSummary {
 
 export type DownloadFormat = 'pdf' | 'excel';
 
+export interface SubjectImportStats {
+  fileName: string;
+  technology: string;
+  techCode: string;
+  regulationYear: number | null;
+  semesters: number[];
+  created: number;
+  updated: number;
+  issues: { severity: string; code: string; message: string }[];
+}
+
+export interface SubjectStats {
+  totalSubjects: number;
+  technologies: {
+    technology: string;
+    techCode: string;
+    regulationYear: number | null;
+    subjects: number;
+    lastUpdated: string;
+  }[];
+}
+
 class ResultService {
   private baseURL = '/results';
 
@@ -185,6 +207,17 @@ class ResultService {
   }
 
   /** Semester numbers (1–8…) that have results for our enrolled students. */
+  /** Upload one BTEB Probidhan course-structure PDF (subject catalog). */
+  async importSubjectPdf(file: File): Promise<SubjectImportStats> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return await apiClient.post(`${this.baseURL}/subjects/import/`, formData);
+  }
+
+  async getSubjectStats(): Promise<SubjectStats> {
+    return await apiClient.get<SubjectStats>(`${this.baseURL}/subjects/stats/`);
+  }
+
   async getAnalyticsSemesters(): Promise<SemesterOption[]> {
     return await apiClient.get<SemesterOption[]>(`${this.baseURL}/analytics/semesters/`);
   }

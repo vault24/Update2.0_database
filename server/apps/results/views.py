@@ -47,6 +47,46 @@ logger = logging.getLogger(__name__)
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 
 
+def _attach_subject_info(serialized_results: list) -> None:
+    """Enrich each referred/failed subject with the catalog entry (name,
+    semester, credit and the full marks distribution) in one query."""
+    from .models import Subject
+
+    codes = {
+        subject['subjectCode']
+        for result in serialized_results
+        for subject in result.get('subjects', [])
+    }
+    if not codes:
+        return
+    catalog: dict[str, Subject] = {}
+    for entry in Subject.objects.filter(code__in=codes):
+        # Newer regulation wins when a code exists in more than one.
+        existing = catalog.get(entry.code)
+        if existing is None or (entry.regulationYear or 0) > (existing.regulationYear or 0):
+            catalog[entry.code] = entry
+    for result in serialized_results:
+        for subject in result.get('subjects', []):
+            entry = catalog.get(subject['subjectCode'])
+            if entry is None:
+                subject['info'] = None
+                continue
+            subject['info'] = {
+                'name': entry.name,
+                'semester': entry.semester,
+                'credit': entry.credit,
+                'technology': entry.technology,
+                'regulationYear': entry.regulationYear,
+                'theoryContinuous': entry.theoryContinuous,
+                'theoryFinal': entry.theoryFinal,
+                'theoryTotal': entry.theoryTotal,
+                'practicalContinuous': entry.practicalContinuous,
+                'practicalFinal': entry.practicalFinal,
+                'practicalTotal': entry.practicalTotal,
+                'totalMarks': entry.totalMarks,
+            }
+
+
 def _search_payload(roll: str) -> dict:
     """Full result history for one roll, newest exam first."""
     results = (
@@ -57,10 +97,24 @@ def _search_payload(roll: str) -> dict:
         .order_by('-exam__regulationYear', '-exam__semester')
     )
     serialized = StudentResultSerializer(results, many=True).data
+    _attach_subject_info(serialized)
     latest_cgpa = next((r.cgpa for r in results if r.cgpa is not None), None)
+
+    # Student name for our institute's enrolled students (public result
+    # sheets in Bangladesh customarily show the name; BTEB notices don't
+    # carry names, so this is only available for rolls we know).
+    student_name = ''
+    if serialized:
+        student_name = (
+            Student.objects.filter(currentRollNumber=roll)
+            .values_list('fullNameEnglish', flat=True)
+            .first()
+            or ''
+        )
     return {
         'roll': roll,
         'found': bool(serialized),
+        'studentName': student_name,
         'institute': serialized[0]['institute'] if serialized else None,
         # String to match how serializer decimal fields render.
         'finalCgpa': str(latest_cgpa) if latest_cgpa is not None else None,
@@ -215,6 +269,62 @@ class PublicRollSearchView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         return Response(_search_payload(roll))
+
+
+class SubjectImportView(APIView):
+    """Upload a BTEB Probidhan course-structure PDF (subject catalog).
+
+    Parsed synchronously (a handful of pages) and upserted by
+    (code, regulation) — re-importing an updated document just refreshes the
+    rows. The front-end sends multiple technology PDFs one request at a time,
+    like result imports.
+    """
+
+    permission_classes = [IsAdminRole]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        from .importer import UnparsablePdfError, import_subject_pdf
+
+        upload = request.FILES.get('file')
+        if upload is None:
+            return Response(
+                {'error': 'Attach the course-structure PDF as "file".'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not upload.name.lower().endswith('.pdf'):
+            return Response(
+                {'error': 'Only PDF files are accepted.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            stats = import_subject_pdf(
+                file_bytes=upload.read(), file_name=upload.name,
+            )
+        except UnparsablePdfError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(stats)
+
+
+class SubjectStatsView(APIView):
+    """Subject-catalog overview for the admin Imports screen."""
+
+    permission_classes = [IsAdminRole]
+
+    def get(self, request):
+        from django.db.models import Count, Max
+
+        from .models import Subject
+
+        technologies = list(
+            Subject.objects.values('technology', 'techCode', 'regulationYear')
+            .annotate(subjects=Count('id'), lastUpdated=Max('updatedAt'))
+            .order_by('technology', 'regulationYear')
+        )
+        return Response({
+            'totalSubjects': Subject.objects.count(),
+            'technologies': technologies,
+        })
 
 
 class PublicRecentExamsView(APIView):

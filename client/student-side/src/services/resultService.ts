@@ -32,11 +32,28 @@ export interface SemesterGpa {
   isReferred: boolean;
 }
 
+export interface SubjectInfo {
+  name: string;
+  semester: number;
+  credit: number | null;
+  technology: string;
+  regulationYear: number | null;
+  theoryContinuous: number | null;
+  theoryFinal: number | null;
+  theoryTotal: number | null;
+  practicalContinuous: number | null;
+  practicalFinal: number | null;
+  practicalTotal: number | null;
+  totalMarks: number | null;
+}
+
 export interface ResultSubject {
   subjectCode: string;
   role: 'referred' | 'expelled' | 'continuous_fail';
   hasTheory: boolean;
   hasPractical: boolean;
+  /** Catalog entry (name/credit/marks) — null when the code isn't imported. */
+  info?: SubjectInfo | null;
 }
 
 export type ResultType =
@@ -61,6 +78,8 @@ export interface StudentResult {
 export interface RollSearchResponse {
   roll: string;
   found: boolean;
+  /** Known only for this institute's enrolled students. */
+  studentName?: string;
   institute: ResultInstitute | null;
   finalCgpa: string | null;
   results: StudentResult[];

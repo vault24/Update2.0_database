@@ -127,6 +127,66 @@ def import_result_pdf(
         raise
 
 
+def import_subject_pdf(*, file_bytes: bytes, file_name: str) -> dict:
+    """Parse a BTEB Probidhan course-structure PDF and upsert the subject
+    catalog. Synchronous (these PDFs are a handful of pages).
+
+    Returns stats for the admin UI; raises UnparsablePdfError when the file
+    is not a course-structure document.
+    """
+    from .models import Subject
+    from .parsing.subjects import parse_subject_pdf
+
+    outcome = parse_subject_pdf(file_bytes)
+    if not outcome.subjects:
+        detail = outcome.issues[0].message if outcome.issues else 'no subjects found'
+        raise UnparsablePdfError(
+            f'{file_name}: could not read the course structure — {detail}'
+        )
+
+    created = updated = 0
+    with transaction.atomic():
+        for parsed in outcome.subjects:
+            _, was_created = Subject.objects.update_or_create(
+                code=parsed.code,
+                regulationYear=parsed.regulation_year,
+                defaults={
+                    'name': parsed.name,
+                    'semester': parsed.semester,
+                    'technology': parsed.technology,
+                    'techCode': parsed.tech_code,
+                    'credit': parsed.credit,
+                    'theoryPeriods': parsed.theory_periods,
+                    'practicalPeriods': parsed.practical_periods,
+                    'theoryContinuous': parsed.theory_continuous,
+                    'theoryFinal': parsed.theory_final,
+                    'theoryTotal': parsed.theory_total,
+                    'practicalContinuous': parsed.practical_continuous,
+                    'practicalFinal': parsed.practical_final,
+                    'practicalTotal': parsed.practical_total,
+                    'totalMarks': parsed.total_marks,
+                },
+            )
+            if was_created:
+                created += 1
+            else:
+                updated += 1
+
+    return {
+        'fileName': file_name,
+        'technology': outcome.technology,
+        'techCode': outcome.tech_code,
+        'regulationYear': outcome.regulation_year,
+        'semesters': outcome.semesters,
+        'created': created,
+        'updated': updated,
+        'issues': [
+            {'severity': i.severity, 'code': i.code, 'message': i.message}
+            for i in outcome.issues
+        ],
+    }
+
+
 def _publication_date(raw: str) -> Optional[datetime]:
     try:
         return datetime.strptime(raw, '%d-%m-%Y').date()

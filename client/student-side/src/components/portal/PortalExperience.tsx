@@ -14,12 +14,9 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   CalendarDays,
-  CheckCircle2,
-  Download,
   FileText,
   GraduationCap,
   Landmark,
-  Link2,
   Loader2,
   Printer,
   Search,
@@ -36,8 +33,18 @@ import resultService, {
 } from '@/services/resultService';
 
 const RECENT_KEY = 'portal.recentSearches';
+const SAVED_KEY = 'portal.savedRolls';
 const MAX_RECENT = 8;
 const ROLL_PATTERN = /^\d{4,10}$/;
+
+function loadSaved(): string[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(SAVED_KEY) ?? '[]');
+    return Array.isArray(parsed) ? parsed.filter((r) => typeof r === 'string') : [];
+  } catch {
+    return [];
+  }
+}
 
 function loadRecent(): string[] {
   try {
@@ -207,7 +214,21 @@ export function PortalExperience({ standalone = false }: { standalone?: boolean 
   const [exams, setExams] = useState<RecentExam[]>([]);
   const [downloading, setDownloading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [savedRolls, setSavedRolls] = useState<string[]>(loadSaved);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const toggleSave = () => {
+    if (!result) return;
+    const next = savedRolls.includes(result.roll)
+      ? savedRolls.filter((r) => r !== result.roll)
+      : [...savedRolls, result.roll];
+    setSavedRolls(next);
+    try {
+      localStorage.setItem(SAVED_KEY, JSON.stringify(next));
+    } catch {
+      // private mode — the saved list just won't persist
+    }
+  };
 
   const runSearch = useCallback(async (target: string, updateUrl = true) => {
     const trimmed = target.trim();
@@ -419,32 +440,24 @@ export function PortalExperience({ standalone = false }: { standalone?: boolean 
                 New search
               </Button>
               {result.found && (
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" onClick={() => window.print()}>
-                    <Printer className="mr-1.5 h-4 w-4" aria-hidden />
-                    Print
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={download} disabled={downloading}>
-                    {downloading ? (
-                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden />
-                    ) : (
-                      <Download className="mr-1.5 h-4 w-4" aria-hidden />
-                    )}
-                    Download PDF
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={share}>
-                    {copied ? (
-                      <CheckCircle2 className="mr-1.5 h-4 w-4 text-emerald-600" aria-hidden />
-                    ) : (
-                      <Link2 className="mr-1.5 h-4 w-4" aria-hidden />
-                    )}
-                    {copied ? 'Link copied' : 'Share'}
-                  </Button>
-                </div>
+                <Button variant="ghost" size="sm" onClick={() => window.print()}>
+                  <Printer className="mr-1.5 h-4 w-4" aria-hidden />
+                  Print
+                </Button>
               )}
             </div>
             <div className="portal-print-area">
-              <ResultHistory data={result} />
+              <ResultHistory
+                data={result}
+                actions={{
+                  onDownload: download,
+                  downloading,
+                  onShare: share,
+                  shareLabel: copied ? 'Link copied' : 'Share',
+                  onSave: toggleSave,
+                  saved: savedRolls.includes(result.roll),
+                }}
+              />
             </div>
           </section>
         )}
