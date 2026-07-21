@@ -10,7 +10,7 @@
   "start_url": "/?source=pwa",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],
-  "orientation": "any",
+  "orientation": "portrait",
   "theme_color": "#059669",
   "background_color": "#ffffff",
   "prefer_related_applications": false,

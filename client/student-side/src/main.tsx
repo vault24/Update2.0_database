@@ -19,6 +19,27 @@ window.addEventListener("vite:preloadError", (event) => {
   }
 });
 
+// Keep the app upright. A PWA whose manifest permits any orientation can rotate
+// to landscape even when the phone's auto-rotate is OFF. Manifest
+// `orientation: portrait` fixes new installs; this locks the already-running
+// app immediately where the platform allows it (standalone PWAs on Android).
+// It's a no-op where locking isn't permitted (e.g. a normal browser tab, which
+// requires fullscreen) — the call is guarded so it never throws.
+(function lockPortrait() {
+  try {
+    const orientation = window.screen?.orientation as
+      | (ScreenOrientation & { lock?: (o: string) => Promise<void> })
+      | undefined;
+    if (orientation?.lock) {
+      orientation.lock("portrait").catch(() => {
+        /* rejected (unsupported / not standalone) — ignore */
+      });
+    }
+  } catch {
+    /* unsupported — no-op */
+  }
+})();
+
 // Public result portal by HOST. `result.spisg.gov.bd` shares this student
 // build; the dedicated result.html entry is the ideal path, but if the origin
 // falls back to serving index.html (e.g. before the result vhost / cert is
