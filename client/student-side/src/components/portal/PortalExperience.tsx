@@ -18,7 +18,6 @@ import {
   GraduationCap,
   Landmark,
   Loader2,
-  Printer,
   Search,
   ShieldCheck,
   Zap,
@@ -33,18 +32,8 @@ import resultService, {
 } from '@/services/resultService';
 
 const RECENT_KEY = 'portal.recentSearches';
-const SAVED_KEY = 'portal.savedRolls';
 const MAX_RECENT = 8;
 const ROLL_PATTERN = /^\d{4,10}$/;
-
-function loadSaved(): string[] {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(SAVED_KEY) ?? '[]');
-    return Array.isArray(parsed) ? parsed.filter((r) => typeof r === 'string') : [];
-  } catch {
-    return [];
-  }
-}
 
 function loadRecent(): string[] {
   try {
@@ -214,21 +203,7 @@ export function PortalExperience({ standalone = false }: { standalone?: boolean 
   const [exams, setExams] = useState<RecentExam[]>([]);
   const [downloading, setDownloading] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [savedRolls, setSavedRolls] = useState<string[]>(loadSaved);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  const toggleSave = () => {
-    if (!result) return;
-    const next = savedRolls.includes(result.roll)
-      ? savedRolls.filter((r) => r !== result.roll)
-      : [...savedRolls, result.roll];
-    setSavedRolls(next);
-    try {
-      localStorage.setItem(SAVED_KEY, JSON.stringify(next));
-    } catch {
-      // private mode — the saved list just won't persist
-    }
-  };
 
   const runSearch = useCallback(async (target: string, updateUrl = true) => {
     const trimmed = target.trim();
@@ -317,7 +292,7 @@ export function PortalExperience({ standalone = false }: { standalone?: boolean 
   const showLanding = result === null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-50 via-background to-background dark:from-emerald-950/30">
+    <div className="portal-root min-h-screen bg-gradient-to-b from-emerald-50 via-background to-background dark:from-emerald-950/30">
       {/* Header */}
       <header className="portal-no-print border-b bg-background/80 backdrop-blur-sm">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
@@ -434,17 +409,11 @@ export function PortalExperience({ standalone = false }: { standalone?: boolean 
         {/* Result view */}
         {result && (
           <section aria-label="Search result" className="mt-8">
-            <div className="portal-no-print mb-4 flex flex-wrap items-center justify-between gap-2">
+            <div className="portal-no-print mb-4">
               <Button variant="ghost" size="sm" onClick={clearResult}>
                 <ArrowLeft className="mr-1.5 h-4 w-4" aria-hidden />
                 New search
               </Button>
-              {result.found && (
-                <Button variant="ghost" size="sm" onClick={() => window.print()}>
-                  <Printer className="mr-1.5 h-4 w-4" aria-hidden />
-                  Print
-                </Button>
-              )}
             </div>
             <div className="portal-print-area">
               <ResultHistory
@@ -454,8 +423,7 @@ export function PortalExperience({ standalone = false }: { standalone?: boolean 
                   downloading,
                   onShare: share,
                   shareLabel: copied ? 'Link copied' : 'Share',
-                  onSave: toggleSave,
-                  saved: savedRolls.includes(result.roll),
+                  onPrint: () => window.print(),
                 }}
               />
             </div>
@@ -486,12 +454,37 @@ export function PortalExperience({ standalone = false }: { standalone?: boolean 
         </div>
       </footer>
 
-      {/* Print: only the result card, clean margins. */}
+      {/*
+        Print: only the result cards, on clean white paper with no wasted
+        space or blank trailing pages. We neutralise the full-height gradient
+        wrapper, drop shadows, keep each semester card whole, and let the
+        browser flow exactly the printed content — nothing else.
+      */}
       <style>{`
         @media print {
+          @page { margin: 14mm; }
+          html, body { background: #fff !important; }
+          /* Collapse the app chrome so only the result cards remain. */
           .portal-no-print { display: none !important; }
-          .portal-print-area { margin: 0; }
-          body { background: white !important; }
+          .portal-root {
+            min-height: 0 !important;
+            background: none !important;
+          }
+          .portal-root main { padding: 0 !important; max-width: none !important; }
+          .portal-print-area { margin: 0 !important; }
+          .portal-print-area > div { gap: 8px !important; }
+          /* Result header + cards: flat, ink-friendly, page-break aware. */
+          .result-card {
+            break-inside: avoid;
+            box-shadow: none !important;
+            border: 1px solid #cbd5e1 !important;
+          }
+          .result-card * { color: #0f172a !important; }
+          .result-card .text-emerald-600,
+          .result-card .text-emerald-600 * { color: #047857 !important; }
+          .result-card .text-red-600,
+          .result-card .text-red-500,
+          .result-card .text-red-700 { color: #b91c1c !important; }
         }
       `}</style>
     </div>

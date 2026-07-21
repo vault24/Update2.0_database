@@ -15,20 +15,20 @@
  * catalog (subject.info.semester); codes missing from the catalog fall back
  * to the exam's semester.
  */
-import { ReactNode, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   BookOpen,
   Building2,
+  Calculator,
   CalendarDays,
   CheckCircle2,
   ChevronDown,
-  Copy,
   Download,
   GraduationCap,
-  Heart,
   Loader2,
-  Calculator,
+  Printer,
   Share2,
+  Trophy,
   XCircle,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -241,7 +241,7 @@ function SemesterCard({ view }: { view: SemesterView }) {
   const status = STATUS_META[view.status];
   const clearCount = view.subjects.length;
   return (
-    <Card className="overflow-hidden">
+    <Card className="result-card overflow-hidden transition-shadow hover:shadow-md">
       <CardContent className="space-y-3 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="flex items-center gap-1.5 font-semibold">
@@ -315,45 +315,68 @@ function CgpaDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const passedCount = semesters.filter((view) => view.status === 'passed').length;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md border-none bg-gradient-to-b from-slate-900 to-slate-950 p-6 text-white">
+      <DialogContent className="max-w-md overflow-hidden border border-white/50 bg-white/70 p-0 shadow-2xl backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/60">
         <DialogTitle className="sr-only">CGPA summary</DialogTitle>
-        <div className="text-center">
+
+        {/* Gradient header with the headline CGPA */}
+        <div className="relative overflow-hidden bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-700 px-6 py-5 text-center text-white">
+          <GraduationCap
+            className="pointer-events-none absolute -left-3 -top-3 h-20 w-20 rotate-12 text-white/10"
+            aria-hidden
+          />
+          <Trophy
+            className="pointer-events-none absolute -bottom-4 -right-3 h-20 w-20 -rotate-12 text-white/10"
+            aria-hidden
+          />
           {data.studentName && (
-            <p className="text-xl font-bold text-amber-400">{data.studentName}</p>
+            <p className="text-lg font-bold">{data.studentName}</p>
           )}
-          <p className="mt-1 text-lg font-semibold">Roll: {data.roll}</p>
+          <p className="text-sm text-emerald-50">Roll {data.roll}</p>
           {data.institute && (
-            <p className="text-sm text-slate-300">{data.institute.name}</p>
+            <p className="mt-0.5 text-xs text-emerald-100/90">{data.institute.name}</p>
           )}
-          <p className="mt-3 border-y border-slate-700 py-2 text-2xl font-extrabold text-amber-400">
-            {data.finalCgpa ? `CGPA: ${data.finalCgpa}` : 'CGPA pending'}
-          </p>
+          <div className="mt-3 inline-flex items-baseline gap-2 rounded-2xl bg-white/15 px-5 py-2 backdrop-blur-sm ring-1 ring-white/25">
+            <span className="text-xs font-medium uppercase tracking-wider text-emerald-50">
+              CGPA
+            </span>
+            <span className="text-3xl font-extrabold tracking-tight text-amber-300">
+              {data.finalCgpa ?? '—'}
+            </span>
+          </div>
         </div>
-        <div className="mt-2 space-y-2">
+
+        {/* Frosted semester list */}
+        <div className="space-y-2 px-5 py-4">
           {semesters.map((view) => (
             <div
               key={view.semester}
-              className="flex items-center justify-between rounded-lg border border-slate-700 px-4 py-2.5"
+              className="flex items-center justify-between rounded-xl border border-black/5 bg-white/60 px-4 py-2.5 backdrop-blur-sm dark:border-white/10 dark:bg-white/5"
             >
               <span className="font-semibold">{ordinal(view.semester)} Semester</span>
               {view.status === 'passed' ? (
-                <span className="font-bold text-emerald-400">Passed: {view.gpa}</span>
+                <span className="flex items-center gap-1.5 font-bold text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="h-4 w-4" aria-hidden />
+                  {view.gpa}
+                </span>
               ) : (
-                <span className="font-bold text-red-400">
+                <span className="font-semibold text-red-500">
                   {view.subjects.length > 0
-                    ? `${view.subjects.length} subject${view.subjects.length === 1 ? '' : 's'} due`
+                    ? `${view.subjects.length} to clear`
                     : STATUS_META[view.status]?.label ?? 'Pending'}
                 </span>
               )}
             </div>
           ))}
         </div>
-        <p className="mt-3 text-center text-xs text-slate-400">
-          Generated from{' '}
-          <span className="font-semibold text-amber-400">result.spisg.gov.bd</span>
-          {' · '}last updated {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+
+        <p className="px-5 pb-4 text-center text-[11px] text-muted-foreground">
+          {passedCount} of {semesters.length} semesters passed · generated from{' '}
+          <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+            result.spisg.gov.bd
+          </span>
         </p>
       </DialogContent>
     </Dialog>
@@ -367,8 +390,7 @@ export interface ResultHistoryActions {
   downloading?: boolean;
   onShare?: () => void;
   shareLabel?: string;
-  onSave?: () => void;
-  saved?: boolean;
+  onPrint?: () => void;
 }
 
 export function ResultHistory({
@@ -382,7 +404,6 @@ export function ResultHistory({
   actions?: ResultHistoryActions;
 }) {
   const [cgpaOpen, setCgpaOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
   const semesters = useMemo(() => deriveSemesters(data.results), [data.results]);
   const latest = data.results[0];
 
@@ -396,29 +417,6 @@ export function ResultHistory({
       </Card>
     );
   }
-
-  const copySummary = async () => {
-    const lines = [
-      `BTEB Result — Roll ${data.roll}`,
-      data.studentName && `Name: ${data.studentName}`,
-      data.institute && `${data.institute.name}`,
-      data.finalCgpa && `CGPA: ${data.finalCgpa}`,
-      ...semesters.map((view) =>
-        view.status === 'passed'
-          ? `${ordinal(view.semester)} Semester — Passed: ${view.gpa}`
-          : `${ordinal(view.semester)} Semester — ${STATUS_META[view.status]?.label ?? 'Referred'}`
-            + (view.subjects.length ? ` (${view.subjects.map((s) => s.subjectCode).join(', ')})` : ''),
-      ),
-      window.location.href,
-    ].filter(Boolean);
-    try {
-      await navigator.clipboard.writeText(lines.join('\n'));
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // clipboard unavailable — nothing to do
-    }
-  };
 
   const program = latest?.exam.program
     .toLowerCase()
@@ -447,45 +445,49 @@ export function ResultHistory({
             )}
           </div>
           <div className="portal-no-print flex flex-wrap items-center justify-center gap-2 pt-1">
-            <Button variant="outline" size="sm" onClick={() => setCgpaOpen(true)}>
-              <Calculator className="mr-1.5 h-4 w-4" aria-hidden /> CGPA
-            </Button>
-            {actions?.onSave && (
-              <Button variant="outline" size="sm" onClick={actions.onSave}>
-                <Heart
-                  className={`mr-1.5 h-4 w-4 ${actions.saved ? 'fill-red-500 text-red-500' : ''}`}
-                  aria-hidden
-                />
-                {actions.saved ? 'Saved' : 'Save'}
-              </Button>
-            )}
-            <Button variant="outline" size="sm" onClick={copySummary}>
-              {copied ? (
-                <CheckCircle2 className="mr-1.5 h-4 w-4 text-emerald-600" aria-hidden />
-              ) : (
-                <Copy className="mr-1.5 h-4 w-4" aria-hidden />
-              )}
-              {copied ? 'Copied' : 'Copy'}
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-full border-emerald-200 hover:bg-emerald-50 dark:border-emerald-900 dark:hover:bg-emerald-950/40"
+              onClick={() => setCgpaOpen(true)}
+            >
+              <Calculator className="mr-1.5 h-4 w-4 text-emerald-600" aria-hidden /> CGPA
             </Button>
             {actions?.onDownload && (
               <Button
                 variant="outline"
                 size="sm"
+                className="rounded-full border-emerald-200 hover:bg-emerald-50 dark:border-emerald-900 dark:hover:bg-emerald-950/40"
                 onClick={actions.onDownload}
                 disabled={actions.downloading}
               >
                 {actions.downloading ? (
                   <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden />
                 ) : (
-                  <Download className="mr-1.5 h-4 w-4" aria-hidden />
+                  <Download className="mr-1.5 h-4 w-4 text-emerald-600" aria-hidden />
                 )}
                 Download
               </Button>
             )}
             {actions?.onShare && (
-              <Button variant="outline" size="sm" onClick={actions.onShare}>
-                <Share2 className="mr-1.5 h-4 w-4" aria-hidden />
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full border-emerald-200 hover:bg-emerald-50 dark:border-emerald-900 dark:hover:bg-emerald-950/40"
+                onClick={actions.onShare}
+              >
+                <Share2 className="mr-1.5 h-4 w-4 text-emerald-600" aria-hidden />
                 {actions.shareLabel ?? 'Share'}
+              </Button>
+            )}
+            {actions?.onPrint && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full border-emerald-200 hover:bg-emerald-50 dark:border-emerald-900 dark:hover:bg-emerald-950/40"
+                onClick={actions.onPrint}
+              >
+                <Printer className="mr-1.5 h-4 w-4 text-emerald-600" aria-hidden /> Print
               </Button>
             )}
           </div>
