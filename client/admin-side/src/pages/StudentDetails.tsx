@@ -1230,7 +1230,6 @@ export default function StudentDetails() {
           studentId={student.id}
           studentName={student.fullNameEnglish}
           studentEmail={student.email}
-          onDeleted={() => navigate('/students')}
         />
       </motion.div>
 

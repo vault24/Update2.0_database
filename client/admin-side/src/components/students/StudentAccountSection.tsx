@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import {
   ShieldCheck, KeyRound, Mail, UserPlus, Power, Loader2, AlertCircle,
-  Eye, EyeOff, Lock, CheckCircle2, ShieldAlert, Trash2,
+  Eye, EyeOff, Lock, CheckCircle2, ShieldAlert, Trash2, CalendarClock, RotateCcw,
 } from 'lucide-react';
 import studentAccountService, { StudentAccount, accountErrorMessage } from '@/services/studentAccountService';
 
@@ -404,17 +404,18 @@ function DeleteAccountDialog({
 }
 
 export function StudentAccountSection({
-  studentId, studentEmail, onDeleted,
+  studentId, studentName, studentEmail,
 }: {
   studentId: string;
   studentName?: string;
   studentEmail?: string;
-  onDeleted?: () => void;
 }) {
+  const { toast } = useToast();
   const [account, setAccount] = useState<StudentAccount | null>(null);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<ActionMode | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -427,6 +428,22 @@ export function StudentAccountSection({
 
   const hasAccount = !!account?.has_account;
   const isActive = !!account?.is_active;
+  const pending = account?.pending_deletion;
+  const isPendingDeletion = !!pending?.scheduled;
+  const purgeDate = pending?.purge_at ? new Date(pending.purge_at) : null;
+
+  const handleCancelDeletion = async () => {
+    setCancelling(true);
+    try {
+      await studentAccountService.cancelDelete(studentId);
+      toast({ title: 'Deletion cancelled', description: 'The account has been restored.' });
+      await load();
+    } catch (e: any) {
+      toast({ title: 'Could not cancel', description: accountErrorMessage(e), variant: 'destructive' });
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   return (
     <Card className="glass-card">
@@ -436,10 +453,18 @@ export function StudentAccountSection({
             <ShieldCheck className="h-4 w-4 text-primary" />
             Student Portal Account
           </div>
-          {!loading && hasAccount && (
-            <Badge variant={isActive ? 'default' : 'secondary'} className={isActive ? 'bg-success/15 text-success border-0' : ''}>
-              {isActive ? 'Active' : 'Inactive'}
-            </Badge>
+          {!loading && hasAccount && !isPendingDeletion && (
+            <div className="flex items-center gap-1.5">
+              {account?.account_type && (
+                <Badge variant="outline" className="font-normal">{account.account_type}</Badge>
+              )}
+              <Badge variant={isActive ? 'default' : 'secondary'} className={isActive ? 'bg-success/15 text-success border-0' : ''}>
+                {isActive ? 'Active' : 'Inactive'}
+              </Badge>
+            </div>
+          )}
+          {!loading && isPendingDeletion && (
+            <Badge variant="destructive" className="gap-1"><CalendarClock className="h-3 w-3" /> Pending deletion</Badge>
           )}
         </CardTitle>
       </CardHeader>
@@ -448,82 +473,123 @@ export function StudentAccountSection({
           <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" /> Checking account…
           </div>
-        ) : !hasAccount ? (
-          <div className="space-y-4">
-            <div className="flex items-start gap-3 rounded-xl border border-dashed border-border bg-muted/30 p-4">
-              <UserPlus className="mt-0.5 h-5 w-5 flex-shrink-0 text-muted-foreground" />
-              <div className="text-sm">
-                <p className="font-medium text-foreground">No portal account yet</p>
-                <p className="text-muted-foreground">
-                  This student was added manually and cannot sign in to the Student Portal.
-                  Create an account to give them access.
-                </p>
-              </div>
-            </div>
-            <Button className="gradient-primary text-primary-foreground gap-2" onClick={() => setMode('create')}>
-              <UserPlus className="h-4 w-4" /> Create Account
-            </Button>
-          </div>
         ) : (
           <div className="space-y-4">
-            <div className="space-y-2 rounded-xl bg-muted/30 p-3 text-sm">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-muted-foreground">Login Email</span>
-                <span className="truncate font-medium">{account?.email || '—'}</span>
+            {/* ── Pending-deletion banner (shown for both linked + manual students) ── */}
+            {isPendingDeletion && (
+              <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 space-y-3">
+                <div className="flex items-start gap-3">
+                  <CalendarClock className="mt-0.5 h-5 w-5 flex-shrink-0 text-destructive" />
+                  <div className="text-sm">
+                    <p className="font-semibold text-destructive">Scheduled for permanent deletion</p>
+                    <p className="text-muted-foreground">
+                      {purgeDate
+                        ? <>This student and all related records will be permanently removed on{' '}
+                            <span className="font-medium text-foreground">{purgeDate.toLocaleDateString(undefined, { dateStyle: 'medium' })}</span>.</>
+                        : 'This student is scheduled for permanent deletion.'}
+                      {' '}The student can cancel it themselves simply by logging into their portal.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={handleCancelDeletion}
+                  disabled={cancelling}
+                >
+                  {cancelling ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                  Cancel deletion
+                </Button>
               </div>
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-muted-foreground">Student ID</span>
-                <span className="font-mono font-medium">{account?.student_id || '—'}</span>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-muted-foreground">Status</span>
-                <span className={`flex items-center gap-1 font-medium ${isActive ? 'text-success' : 'text-muted-foreground'}`}>
-                  {isActive ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
-                  {isActive ? 'Active' : 'Inactive'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-muted-foreground">Last Login</span>
-                <span className="font-medium">
-                  {account?.last_login ? new Date(account.last_login).toLocaleString() : 'Never'}
-                </span>
-              </div>
-            </div>
+            )}
 
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setMode('email')}>
-                <Mail className="h-4 w-4" /> Change Email
-              </Button>
-              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setMode('password')}>
-                <KeyRound className="h-4 w-4" /> Reset Password
-              </Button>
-              <Button
-                variant="outline" size="sm"
-                className={`gap-1.5 ${isActive ? 'text-destructive hover:text-destructive' : 'text-success hover:text-success'}`}
-                onClick={() => setMode('toggle')}
-              >
-                <Power className="h-4 w-4" /> {isActive ? 'Deactivate' : 'Activate'}
-              </Button>
-              <Button
-                variant="outline" size="sm"
-                className="gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
-                onClick={() => setShowDeleteDialog(true)}
-              >
-                <Trash2 className="h-4 w-4" /> Delete Account
-              </Button>
-            </div>
+            {/* ── No portal account (and not pending deletion) ── */}
+            {!hasAccount && !isPendingDeletion && (
+              <>
+                <div className="flex items-start gap-3 rounded-xl border border-dashed border-border bg-muted/30 p-4">
+                  <UserPlus className="mt-0.5 h-5 w-5 flex-shrink-0 text-muted-foreground" />
+                  <div className="text-sm">
+                    <p className="font-medium text-foreground">No portal account yet</p>
+                    <p className="text-muted-foreground">
+                      This student has no Student-Portal login of any type (Student, Alumni or
+                      Captain). Create an account to give them access.
+                    </p>
+                  </div>
+                </div>
+                <Button className="gradient-primary text-primary-foreground gap-2" onClick={() => setMode('create')}>
+                  <UserPlus className="h-4 w-4" /> Create Account
+                </Button>
+              </>
+            )}
 
-            {/* ── Delete Account — placed at the very bottom ── */}
-            <div className="mt-2 border-t border-border/50 pt-4">
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 w-full text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
-                onClick={() => setShowDeleteDialog(true)}
-              >
-                <Trash2 className="h-4 w-4" /> Delete Portal Account
-              </Button>
-            </div>
+            {/* ── Account details + management actions ── */}
+            {hasAccount && (
+              <>
+                <div className="space-y-2 rounded-xl bg-muted/30 p-3 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Account Type</span>
+                    <span className="font-medium">{account?.account_type || 'Student'}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Login Email</span>
+                    <span className="truncate font-medium">{account?.email || '—'}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Student ID</span>
+                    <span className="font-mono font-medium">{account?.student_id || '—'}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Status</span>
+                    <span className={`flex items-center gap-1 font-medium ${isActive ? 'text-success' : 'text-muted-foreground'}`}>
+                      {isActive ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
+                      {isActive ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Last Login</span>
+                    <span className="font-medium">
+                      {account?.last_login ? new Date(account.last_login).toLocaleString() : 'Never'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Management actions (hidden while pending deletion — cancel first) */}
+                {!isPendingDeletion && (
+                  <>
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setMode('email')}>
+                        <Mail className="h-4 w-4" /> Change Email
+                      </Button>
+                      <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setMode('password')}>
+                        <KeyRound className="h-4 w-4" /> Reset Password
+                      </Button>
+                      <Button
+                        variant="outline" size="sm"
+                        className={`gap-1.5 ${isActive ? 'text-destructive hover:text-destructive' : 'text-success hover:text-success'}`}
+                        onClick={() => setMode('toggle')}
+                      >
+                        <Power className="h-4 w-4" /> {isActive ? 'Deactivate' : 'Activate'}
+                      </Button>
+                    </div>
+
+                    {/* ── Single Delete Account action (danger zone) ── */}
+                    <div className="mt-2 border-t border-border/50 pt-4">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 w-full text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => setShowDeleteDialog(true)}
+                      >
+                        <Trash2 className="h-4 w-4" /> Delete Account
+                      </Button>
+                      <p className="mt-2 text-xs text-muted-foreground text-center">
+                        Removes the portal account and all related records after a 7-day recovery period.
+                      </p>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
           </div>
         )}
       </CardContent>
@@ -542,8 +608,9 @@ export function StudentAccountSection({
       {showDeleteDialog && (
         <DeleteAccountDialog
           studentId={studentId}
+          studentName={studentName}
           onClose={() => setShowDeleteDialog(false)}
-          onDone={() => { setShowDeleteDialog(false); onDeleted?.(); }}
+          onScheduled={() => { setShowDeleteDialog(false); load(); }}
         />
       )}
     </Card>
