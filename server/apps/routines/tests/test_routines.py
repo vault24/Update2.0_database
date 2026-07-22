@@ -174,6 +174,63 @@ class RoutineGenerationTests(APITestCase):
         self.assertFalse(payload['available'])
         self.assertEqual(payload['reason'], 'no-routine')
 
+    def test_shared_subject_uses_own_technology_semester(self):
+        """A common subject (e.g. Accounting) that also belongs to another
+        technology at a different semester must still appear for THIS
+        technology's semester — the per-technology catalog row is used."""
+        # 28551 is a CS sem-5 subject; also register it (same code) under
+        # another technology at sem 3. The CS-5 student must still get it.
+        Subject.objects.create(
+            code='28551', name='Application Development Using Java', semester=3,
+            regulationYear=2022, technology='Some Other Technology', techCode='99',
+        )
+        payload = generate_for_student(self._student(semester=5), 'final')
+        codes = [e['subjectCode'] for e in payload['exams']]
+        self.assertIn('28551', codes)  # not lost to the other-tech row
+
+
+class PublicRoutineApiTests(APITestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.dept = Department.objects.create(name='Computer Science & Technology', code='CST')
+        Subject.objects.create(
+            code='28551', name='Application Development Using Java', semester=5,
+            regulationYear=2022, technology='Computer Science & Technology', techCode='85',
+        )
+        cls.routine = RoutineImport.objects.create(
+            fileName='r.pdf', fileSha256='c' * 64, status='completed',
+            examType='final', regulationYear=2022, isActive=True,
+        )
+        s = RoutineSession.objects.create(
+            routine=cls.routine, section='theory', examDate=date(2026, 8, 6),
+            weekday=date(2026, 8, 6).weekday(), slot='morning', startTime=time(10, 0),
+            durationMinutes=180, regulationYear=2022,
+        )
+        RoutineSubject.objects.create(session=s, subjectCode='28551', serial=1)
+        cls.student = Student.objects.create(
+            fullNameEnglish='Enrolled', currentRollNumber='700300',
+            currentRegistrationNumber='REG-700300', semester=5, department=cls.dept,
+        )
+
+    def test_public_routine_enrolled(self):
+        response = self.client.get('/api/routines/public/my/?roll=700300')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertTrue(data['available'])
+        self.assertEqual(data['source'], 'enrolled')
+        self.assertEqual([e['subjectCode'] for e in data['exams']], ['28551'])
+
+    def test_public_routine_rejects_bad_roll(self):
+        self.assertEqual(
+            self.client.get('/api/routines/public/my/?roll=abc').status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+    def test_public_routine_unknown_roll(self):
+        response = self.client.get('/api/routines/public/my/?roll=999999')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.json()['available'])
+
 
 class RoutineApiTests(APITestCase):
     @classmethod

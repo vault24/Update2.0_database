@@ -28,6 +28,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ResultHistory } from '@/components/results/ResultHistory';
+import { RoutineDialog } from '@/components/results/RoutineDialog';
 import {
   MotivationSlide,
   QUOTE_CHANGE,
@@ -295,6 +296,7 @@ export function PortalExperience({ standalone = false }: { standalone?: boolean 
   const [exams, setExams] = useState<RecentExam[]>([]);
   const [downloading, setDownloading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [routineOpen, setRoutineOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const runSearch = useCallback(async (target: string, updateUrl = true) => {
@@ -551,10 +553,15 @@ export function PortalExperience({ standalone = false }: { standalone?: boolean 
                   onShare: share,
                   shareLabel: copied ? 'Link copied' : 'Share',
                   onPrint: () => window.print(),
+                  onRoutine: result.found ? () => setRoutineOpen(true) : undefined,
                 }}
               />
             </div>
           </section>
+        )}
+
+        {result?.found && (
+          <RoutineDialog roll={result.roll} open={routineOpen} onOpenChange={setRoutineOpen} />
         )}
 
         {showLanding && (

@@ -18,8 +18,9 @@ import threading
 from django.db import close_old_connections
 from rest_framework import status
 from rest_framework.parsers import FormParser, MultiPartParser
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from apps.authentication.permissions import IsAdminRole
@@ -124,6 +125,33 @@ class RoutineImportIssuesView(APIView):
         if severity:
             issues = issues.filter(severity=severity)
         return Response(RoutineParserIssueSerializer(issues[:500], many=True).data)
+
+
+class PublicRoutineView(APIView):
+    """Public personalized routine by roll (no login) — for the result portal.
+
+    Exact for enrolled students; best-effort (inferred technology/semester
+    from result history) for other rolls, flagged so the UI can caveat it.
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'result_search'
+
+    def get(self, request):
+        from .generation import generate_for_roll
+
+        roll = (request.query_params.get('roll') or '').strip()
+        if not roll.isdigit() or not 4 <= len(roll) <= 10:
+            return Response(
+                {'error': 'Provide a numeric roll number, e.g. ?roll=612120.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        exam_type = (request.query_params.get('type') or 'final').lower()
+        if exam_type not in ('final', 'mid'):
+            exam_type = 'final'
+        return Response(generate_for_roll(roll, exam_type))
 
 
 class MyRoutineView(APIView):

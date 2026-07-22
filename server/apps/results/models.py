@@ -228,9 +228,12 @@ class Subject(models.Model):
     on results resolve against this table so the portal can show the subject
     name, its semester and the full marks breakdown instead of a bare code.
 
-    Codes are shared across technologies for common subjects (25911
-    Mathematics-I appears in every technology with identical data), so the
-    code is unique per regulation and the latest import wins.
+    A subject code is shared across technologies for common subjects, but its
+    SEMESTER is technology-specific (e.g. Accounting 25841 sits in a different
+    pobo for different technologies). So the catalog stores ONE row per
+    (code, technology, regulation) — never collapsing a shared code into a
+    single row, which would lose every technology's own semester mapping but
+    the last import's.
     """
 
     code = models.CharField(max_length=10)
@@ -261,9 +264,14 @@ class Subject(models.Model):
 
     class Meta:
         db_table = 'result_subject_catalog'
-        unique_together = [('code', 'regulationYear')]
+        # One row per technology's curriculum entry — the same code can sit in
+        # a different semester in a different technology.
+        unique_together = [('code', 'techCode', 'regulationYear')]
         ordering = ['semester', 'code']
-        indexes = [models.Index(fields=['code'])]
+        indexes = [
+            models.Index(fields=['code']),
+            models.Index(fields=['techCode', 'semester']),
+        ]
 
     def __str__(self):
         return f"{self.code} {self.name} (sem {self.semester})"

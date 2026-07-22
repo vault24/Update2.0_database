@@ -149,12 +149,12 @@ def import_subject_pdf(*, file_bytes: bytes, file_name: str) -> dict:
         for parsed in outcome.subjects:
             _, was_created = Subject.objects.update_or_create(
                 code=parsed.code,
+                techCode=parsed.tech_code,
                 regulationYear=parsed.regulation_year,
                 defaults={
                     'name': parsed.name,
                     'semester': parsed.semester,
                     'technology': parsed.technology,
-                    'techCode': parsed.tech_code,
                     'credit': parsed.credit,
                     'theoryPeriods': parsed.theory_periods,
                     'practicalPeriods': parsed.practical_periods,

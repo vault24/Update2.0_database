@@ -45,6 +45,10 @@ export interface MyExamRoutineResponse {
   referredCount?: number;
   totalExams?: number;
   exams?: RoutineExam[];
+  /** 'enrolled' (exact) | 'inferred' (best-effort from result history). */
+  source?: 'enrolled' | 'inferred';
+  roll?: string;
+  inferredSemester?: number | null;
   student?: {
     name: string;
     roll: string;
@@ -60,6 +64,16 @@ class ExamRoutineService {
   async getMyRoutine(examType: 'final' | 'mid' = 'final'): Promise<MyExamRoutineResponse> {
     return await apiClient.get<MyExamRoutineResponse>(
       `${this.baseURL}/my/?type=${examType}`,
+    );
+  }
+
+  /** Public personalized routine by roll (no login) — for the result portal. */
+  async getPublicRoutine(
+    roll: string,
+    examType: 'final' | 'mid' = 'final',
+  ): Promise<MyExamRoutineResponse> {
+    return await apiClient.get<MyExamRoutineResponse>(
+      `${this.baseURL}/public/my/?roll=${encodeURIComponent(roll)}&type=${examType}`,
     );
   }
 }

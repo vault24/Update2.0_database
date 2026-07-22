@@ -20,6 +20,7 @@ import {
   BookOpen,
   Building2,
   Calculator,
+  CalendarClock,
   CalendarDays,
   CheckCircle2,
   ChevronDown,
@@ -485,6 +486,7 @@ export interface ResultHistoryActions {
   onShare?: () => void;
   shareLabel?: string;
   onPrint?: () => void;
+  onRoutine?: () => void;
 }
 
 export function ResultHistory({
@@ -560,6 +562,17 @@ export function ResultHistory({
             >
               <Calculator className="mr-1.5 h-4 w-4 text-emerald-600" aria-hidden /> CGPA
             </Button>
+            {actions?.onRoutine && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full border-emerald-200 hover:bg-emerald-50 dark:border-emerald-900 dark:hover:bg-emerald-950/40"
+                onClick={actions.onRoutine}
+              >
+                <CalendarClock className="mr-1.5 h-4 w-4 text-emerald-600" aria-hidden />
+                Exam Routine
+              </Button>
+            )}
             {actions?.onDownload && (
               <Button
                 variant="outline"

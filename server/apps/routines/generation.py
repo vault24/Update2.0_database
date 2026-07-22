@@ -178,6 +178,133 @@ def generate_for_student(student: Student, exam_type: str = 'final') -> dict:
     }
 
 
+def generate_for_roll(roll: str, exam_type: str = 'final') -> dict:
+    """Public personalized routine for a roll (no login).
+
+    - Roll belongs to one of OUR enrolled students → exact generation via
+      their profile (semester + department), same as the dashboard.
+    - Otherwise → best-effort from the result database alone: their referred
+      subjects are exact (they must sit those exams); regular subjects are
+      added only when the technology can be confidently inferred from their
+      tech-specific referred codes, and the payload is marked ``inferred`` so
+      the UI can caveat it.
+    """
+    student = Student.objects.select_related('department').filter(
+        currentRollNumber=roll,
+    ).first()
+    if student is not None:
+        payload = generate_for_student(student, exam_type)
+        payload['source'] = 'enrolled'
+        payload['roll'] = roll
+        return payload
+
+    routine = active_routine(exam_type)
+    if routine is None:
+        return {'available': False, 'reason': 'no-routine', 'examType': exam_type,
+                'roll': roll}
+
+    results = list(
+        StudentResult.objects.filter(rollNumber=roll).select_related('exam')
+    )
+    if not results:
+        return {'available': False, 'reason': 'no-data', 'examType': exam_type,
+                'roll': roll}
+
+    referred_codes = referred_codes_for_roll(roll)
+
+    # Infer current semester: one past the latest published semester.
+    latest_sem = max(r.exam.semester for r in results)
+    semester = min(latest_sem + 1, 8)
+
+    # Infer technology by majority vote over DISCRIMINATIVE referred codes
+    # (codes the catalog offers under exactly one technology).
+    votes: dict[str, int] = {}
+    if referred_codes:
+        code_techs: dict[str, set] = {}
+        for code, tech in Subject.objects.filter(
+            code__in=referred_codes,
+        ).values_list('code', 'techCode'):
+            code_techs.setdefault(code, set()).add(tech)
+        for techs in code_techs.values():
+            if len(techs) == 1:
+                tech = next(iter(techs))
+                votes[tech] = votes.get(tech, 0) + 1
+    tech_code = max(votes, key=votes.get) if votes else None
+
+    regular_codes: set[str] = set()
+    if tech_code:
+        regular_qs = Subject.objects.filter(techCode=tech_code, semester=semester)
+        if routine.regulationYear is not None:
+            regular_qs = regular_qs.filter(regulationYear=routine.regulationYear)
+        regular_codes = set(regular_qs.values_list('code', flat=True))
+
+    all_codes = regular_codes | referred_codes
+    if not all_codes:
+        return {
+            'available': True, 'examType': exam_type, 'roll': roll,
+            'routine': _routine_meta(routine), 'source': 'inferred',
+            'technologyResolved': False, 'exams': [], 'totalExams': 0,
+            'note': 'no-subjects-resolved',
+        }
+
+    payload = _match_codes(routine, all_codes, referred_codes, regular_codes)
+    payload.update({
+        'available': True, 'examType': exam_type, 'roll': roll,
+        'routine': _routine_meta(routine), 'source': 'inferred',
+        'technologyResolved': bool(tech_code),
+        'inferredSemester': semester if tech_code else None,
+    })
+    return payload
+
+
+def _match_codes(routine: RoutineImport, all_codes: set[str],
+                 referred_codes: set[str], regular_codes: set[str]) -> dict:
+    """Match subject codes against the routine → enriched, sorted exam list."""
+    subject_names: dict[str, dict] = {}
+    for subj in Subject.objects.filter(code__in=all_codes):
+        existing = subject_names.get(subj.code)
+        if existing is None or (subj.regulationYear or 0) >= (existing['reg'] or 0):
+            subject_names[subj.code] = {
+                'name': subj.name, 'semester': subj.semester,
+                'credit': subj.credit, 'reg': subj.regulationYear,
+            }
+
+    matched = (
+        RoutineSubject.objects
+        .filter(session__routine=routine, subjectCode__in=all_codes)
+        .select_related('session')
+    )
+    exams = []
+    for row in matched:
+        session = row.session
+        info = subject_names.get(row.subjectCode)
+        is_referred = row.subjectCode in referred_codes and row.subjectCode not in regular_codes
+        end_minutes = (session.startTime.hour * 60 + session.startTime.minute
+                       + session.durationMinutes)
+        exams.append({
+            'subjectCode': row.subjectCode,
+            'subjectName': info['name'] if info else row.rawName,
+            'credit': info['credit'] if info else None,
+            'subjectSemester': info['semester'] if info else None,
+            'date': session.examDate.isoformat(),
+            'weekday': _WEEKDAYS[session.weekday],
+            'startTime': session.startTime.strftime('%H:%M'),
+            'endTime': f'{(end_minutes // 60) % 24:02d}:{end_minutes % 60:02d}',
+            'durationMinutes': session.durationMinutes,
+            'slot': session.slot,
+            'section': session.section,
+            'examKind': 'Theory',
+            'isReferred': is_referred,
+        })
+    exams.sort(key=lambda e: (e['date'], e['startTime']))
+    return {
+        'regularCount': sum(1 for e in exams if not e['isReferred']),
+        'referredCount': sum(1 for e in exams if e['isReferred']),
+        'totalExams': len(exams),
+        'exams': exams,
+    }
+
+
 def _routine_meta(routine: RoutineImport) -> dict:
     return {
         'examType': routine.examType,
