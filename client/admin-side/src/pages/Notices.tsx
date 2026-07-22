@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import {
   Plus, Search, Edit, Trash2, Eye, TrendingUp, TrendingDown, Megaphone,
   Paperclip, FileText, Image as ImageIcon, X, Mail, Bell, Loader2, AlertTriangle,
-  Users, ChevronsUpDown, Check, FilterX, Target,
+  Users, ChevronsUpDown, ChevronDown, Check, FilterX, Target,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,7 +52,8 @@ const EMPTY_TARGETING: NoticeTargeting = {
 
 const ordinal = (n: number) => (n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : `${n}th`);
 
-/** Which filter dimensions apply to the selected audience. */
+/** Which filter dimensions apply to the selected audience.
+ * (Sessions are still supported by the API but no longer exposed in this UI.) */
 const filtersFor = (audience: NoticeAudience) => ({
   departments: true,
   semesters: audience !== 'teachers' && audience !== 'alumni',
@@ -190,9 +191,13 @@ function NoticeFormDialog({ open, onOpenChange, mode, notice, onSaved }: NoticeF
   const [removeIds, setRemoveIds] = useState<number[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  // Targeting starts collapsed — the default (Active Students + Teachers)
+  // covers most notices, so the options only unfold on demand.
+  const [targetingOpen, setTargetingOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
+    setTargetingOpen(false);
     if (mode === 'edit' && notice) {
       setForm({ title: notice.title, content: notice.content, priority: notice.priority, is_published: notice.is_published });
       setTargeting({
@@ -339,98 +344,125 @@ function NoticeFormDialog({ open, onOpenChange, mode, notice, onSaved }: NoticeF
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Target audience + optional narrowing filters */}
-          <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3.5">
-            <div className="flex items-center justify-between gap-2">
-              <Label className="flex items-center gap-1.5">
-                <Target className="w-4 h-4 text-primary" /> Target audience
-              </Label>
-              {activeFilterCount > 0 && (
-                <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={clearFilters}>
-                  <FilterX className="w-3.5 h-3.5 mr-1" /> Clear filters ({activeFilterCount})
-                </Button>
-              )}
-            </div>
+          {/* Target audience — collapsed by default; the header always shows a
+              live summary so the current reach is visible at a glance. */}
+          <div className="rounded-lg border border-border bg-muted/30 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setTargetingOpen((o) => !o)}
+              aria-expanded={targetingOpen}
+              className="w-full flex items-center justify-between gap-3 px-3.5 py-3 text-left transition-colors hover:bg-muted/60"
+            >
+              <span className="flex items-center gap-2.5 min-w-0">
+                <span className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary shrink-0">
+                  <Target className="w-4 h-4" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-foreground">Target audience</span>
+                  <span className="block text-xs text-muted-foreground truncate">
+                    {AUDIENCE_OPTIONS.find((o) => o.value === targeting.audience)?.label}
+                    {activeFilterCount > 0 && ` · ${activeFilterCount} filter${activeFilterCount === 1 ? '' : 's'}`}
+                  </span>
+                </span>
+              </span>
+              <span className="flex items-center gap-2 shrink-0">
+                {previewLoading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+                ) : preview ? (
+                  <Badge variant="secondary" className="gap-1 font-normal tabular-nums">
+                    <Users className="w-3 h-3" /> {preview.total.toLocaleString()}
+                  </Badge>
+                ) : null}
+                <ChevronDown className={cn('w-4 h-4 text-muted-foreground transition-transform duration-200', targetingOpen && 'rotate-180')} />
+              </span>
+            </button>
 
-            <Select value={targeting.audience} onValueChange={(v: NoticeAudience) => setAudience(v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {AUDIENCE_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    <span className="flex flex-col items-start">
-                      <span>{opt.label}</span>
-                      <span className="text-xs text-muted-foreground">{opt.hint}</span>
+            {targetingOpen && (
+              <div className="border-t border-border px-3.5 py-3.5 space-y-3.5">
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="text-xs text-muted-foreground font-normal">
+                    Who should receive this notice?
+                  </Label>
+                  {activeFilterCount > 0 && (
+                    <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={clearFilters}>
+                      <FilterX className="w-3.5 h-3.5 mr-1" /> Clear filters ({activeFilterCount})
+                    </Button>
+                  )}
+                </div>
+
+                <Select value={targeting.audience} onValueChange={(v: NoticeAudience) => setAudience(v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {AUDIENCE_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        <span className="flex flex-col items-start">
+                          <span>{opt.label}</span>
+                          <span className="text-xs text-muted-foreground">{opt.hint}</span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {meta && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {applicable.departments && (
+                      <MultiSelect
+                        label="Department"
+                        placeholder="All departments"
+                        searchable={false}
+                        options={meta.departments.map((d) => ({ value: d.id, label: d.name }))}
+                        selected={targeting.departments}
+                        onChange={(departments) => setTargeting((t) => ({ ...t, departments }))}
+                      />
+                    )}
+                    {applicable.semesters && (
+                      <MultiSelect
+                        label="Semester"
+                        placeholder="All semesters"
+                        searchable={false}
+                        options={meta.semesters.map((s) => ({ value: String(s), label: `${ordinal(s)} Semester` }))}
+                        selected={targeting.semesters.map(String)}
+                        onChange={(values) => setTargeting((t) => ({ ...t, semesters: values.map(Number) }))}
+                      />
+                    )}
+                    {applicable.shifts && (
+                      <MultiSelect
+                        label="Shift"
+                        placeholder="Both shifts"
+                        searchable={false}
+                        options={meta.shifts.map((s) => ({ value: s, label: SHIFT_LABEL[s] || s }))}
+                        selected={targeting.shifts}
+                        onChange={(shifts) => setTargeting((t) => ({ ...t, shifts }))}
+                      />
+                    )}
+                  </div>
+                )}
+
+                <p className="text-xs text-muted-foreground">
+                  Filters are optional — leave them empty to reach everyone in the selected audience.
+                  {targeting.audience === 'teachers' && ' Teachers are filtered by department only.'}
+                  {targeting.audience === 'alumni' && ' Alumni have no semester filter.'}
+                </p>
+
+                {/* Live recipient estimate */}
+                <div className="flex items-center gap-2 rounded-md border border-primary/20 bg-[hsl(var(--primary-muted,var(--muted)))] px-3 py-2 text-sm">
+                  {previewLoading
+                    ? <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />
+                    : <Users className="w-4 h-4 text-primary shrink-0" />}
+                  {preview && !previewLoading ? (
+                    <span className="text-foreground">
+                      Estimated recipients: <span className="font-semibold">{previewText}</span>
+                      {preview.total_users !== preview.total && (
+                        <span className="text-muted-foreground"> · {preview.total_users.toLocaleString()} portal account{preview.total_users === 1 ? '' : 's'}</span>
+                      )}
                     </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {meta && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {applicable.departments && (
-                  <MultiSelect
-                    label="Department"
-                    placeholder="All departments"
-                    options={meta.departments.map((d) => ({ value: d.id, label: d.name }))}
-                    selected={targeting.departments}
-                    onChange={(departments) => setTargeting((t) => ({ ...t, departments }))}
-                  />
-                )}
-                {applicable.semesters && (
-                  <MultiSelect
-                    label="Semester"
-                    placeholder="All semesters"
-                    searchable={false}
-                    options={meta.semesters.map((s) => ({ value: String(s), label: `${ordinal(s)} Semester` }))}
-                    selected={targeting.semesters.map(String)}
-                    onChange={(values) => setTargeting((t) => ({ ...t, semesters: values.map(Number) }))}
-                  />
-                )}
-                {applicable.shifts && (
-                  <MultiSelect
-                    label="Shift"
-                    placeholder="Both shifts"
-                    searchable={false}
-                    options={meta.shifts.map((s) => ({ value: s, label: SHIFT_LABEL[s] || s }))}
-                    selected={targeting.shifts}
-                    onChange={(shifts) => setTargeting((t) => ({ ...t, shifts }))}
-                  />
-                )}
-                {applicable.sessions && meta.sessions.length > 0 && (
-                  <MultiSelect
-                    label="Session"
-                    placeholder="All sessions"
-                    options={meta.sessions.map((s) => ({ value: s, label: s }))}
-                    selected={targeting.sessions}
-                    onChange={(sessions) => setTargeting((t) => ({ ...t, sessions }))}
-                  />
-                )}
+                  ) : (
+                    <span className="text-muted-foreground">{previewLoading ? 'Counting recipients…' : 'Recipient estimate unavailable.'}</span>
+                  )}
+                </div>
               </div>
             )}
-
-            <p className="text-xs text-muted-foreground">
-              Filters are optional — leave them empty to reach everyone in the selected audience.
-              {targeting.audience === 'teachers' && ' Teachers are filtered by department only.'}
-              {targeting.audience === 'alumni' && ' Alumni have no semester filter.'}
-            </p>
-
-            {/* Live recipient estimate */}
-            <div className="flex items-center gap-2 rounded-md border border-primary/20 bg-[hsl(var(--primary-muted,var(--muted)))] px-3 py-2 text-sm">
-              {previewLoading
-                ? <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />
-                : <Users className="w-4 h-4 text-primary shrink-0" />}
-              {preview && !previewLoading ? (
-                <span className="text-foreground">
-                  Estimated recipients: <span className="font-semibold">{previewText}</span>
-                  {preview.total_users !== preview.total && (
-                    <span className="text-muted-foreground"> · {preview.total_users.toLocaleString()} portal account{preview.total_users === 1 ? '' : 's'}</span>
-                  )}
-                </span>
-              ) : (
-                <span className="text-muted-foreground">{previewLoading ? 'Counting recipients…' : 'Recipient estimate unavailable.'}</span>
-              )}
-            </div>
           </div>
 
           <div className="space-y-1.5">

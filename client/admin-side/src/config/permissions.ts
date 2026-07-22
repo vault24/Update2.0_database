@@ -105,6 +105,7 @@ export const MENU_GROUPS: MenuGroup[] = [
       { feature: 'class_routine', label: 'Class Routine', path: '/class-routine', icon: Calendar },
       { feature: 'attendance_marks', label: 'Attendance & Marks', path: '/attendance-marks', icon: ClipboardCheck },
       { feature: 'board_results', label: 'Board Results', path: '/results', icon: FileSearch },
+      { feature: 'notices', label: 'Notices', path: '/notices', icon: Bell },
     ],
   },
   {
@@ -128,7 +129,6 @@ export const MENU_GROUPS: MenuGroup[] = [
   {
     label: 'System',
     items: [
-      { feature: 'notices', label: 'Notices', path: '/notices', icon: Bell },
       { feature: 'analytics', label: 'System Reports', path: '/analytics', icon: BarChart3 },
       { feature: 'motivation', label: 'Motivation', path: '/motivation-management', icon: Heart },
     ],
