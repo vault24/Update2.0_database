@@ -34,6 +34,7 @@ import {
   Heart,
   MessageSquareWarning,
   FileSearch,
+  Globe,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -61,7 +62,8 @@ export type FeatureId =
   | 'complaints'
   | 'notices'
   | 'analytics'
-  | 'motivation';
+  | 'motivation'
+  | 'website_manager';
 
 /** "all" means every feature (used by the Principal in Advanced mode). */
 type FeatureSet = FeatureId[] | 'all';
@@ -131,6 +133,14 @@ export const MENU_GROUPS: MenuGroup[] = [
       { feature: 'motivation', label: 'Motivation', path: '/motivation-management', icon: Heart },
     ],
   },
+  {
+    // Public-website content management. Advanced-mode only (no role lists it
+    // in `simple`), and limited to Principal / Department Head / superusers.
+    label: 'Website',
+    items: [
+      { feature: 'website_manager', label: 'Website Manager', path: '/website-manager', icon: Globe },
+    ],
+  },
 ];
 
 /** Map each feature to the route prefix(es) that belong to it. */
@@ -156,6 +166,7 @@ const FEATURE_ROUTES: Record<FeatureId, string[]> = {
   notices: ['/notices'],
   analytics: ['/analytics'],
   motivation: ['/motivation-management'],
+  website_manager: ['/website-manager'],
 };
 
 /** Routes that any authenticated admin may open regardless of role. */
@@ -195,6 +206,7 @@ export const ROLE_PERMISSIONS: Record<AdminRole, RolePermission> = {
       'correction_requests',
       'complaints',
       'notices',
+      'website_manager',
     ],
   },
 

@@ -43,6 +43,7 @@ const PasswordReset = lazy(() => import("./pages/PasswordReset"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Complaints = lazy(() => import("./pages/Complaints"));
 const MotivationManagement = lazy(() => import("./pages/MotivationManagement"));
+const WebsiteManager = lazy(() => import("./pages/WebsiteManager"));
 const TeacherProfile = lazy(() => import("./pages/TeacherProfile"));
 
 const queryClient = new QueryClient();
@@ -100,6 +101,7 @@ const App = () => (
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/activity-logs" element={<Navigate to="/analytics" replace />} />
                   <Route path="/motivation-management" element={<MotivationManagement />} />
+                  <Route path="/website-manager" element={<WebsiteManager />} />
                   </Route>
                 </Route>
               </Route>

@@ -46,6 +46,15 @@
     scroll-behavior: smooth;
   }
 
+  /* Never allow horizontal overflow to widen the page (it lets mobile users
+     pinch-zoom out past the layout). `clip` (not `hidden`) keeps position:sticky
+     working for the site header. */
+  html,
+  body {
+    overflow-x: clip;
+    max-width: 100%;
+  }
+
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-feature-settings: "cv11", "ss01";

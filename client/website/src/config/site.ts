@@ -2,7 +2,7 @@ import type { DictKey } from "@/i18n/dict";
 
 /** Static fallbacks used before /settings/ loads (or if a field is blank). */
 export const SITE = {
-  name: "Sirajganj Government Polytechnic Institute",
+  name: "Sirajganj Govt. Polytechnic Institute",
   shortName: "SGPI",
   nameBn: "সিরাজগঞ্জ সরকারি পলিটেকনিক ইনস্টিটিউট",
   domain: "ac.spisg.gov.bd",

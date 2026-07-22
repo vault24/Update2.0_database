@@ -58,10 +58,12 @@ export function Header({ overlay, onOpenSearch }: { overlay: boolean; onOpenSear
       ? "text-white/90 hover:bg-white/10 hover:text-white"
       : "text-foreground/80 hover:bg-muted hover:text-primary",
   );
+  // Over the photo the icon buttons sit on a dark glass chip so they stay
+  // visible whatever the image behind them looks like.
   const iconBtnCls = cn(
     "grid h-10 w-10 place-items-center rounded-full transition-colors",
     transparent
-      ? "text-white/90 hover:bg-white/10 hover:text-white"
+      ? "bg-black/30 text-white backdrop-blur-sm hover:bg-black/45"
       : "border border-border text-muted-foreground hover:bg-muted",
   );
 
@@ -156,7 +158,7 @@ export function Header({ overlay, onOpenSearch }: { overlay: boolean; onOpenSear
               className={cn(
                 "h-10 rounded-full px-3 text-sm font-semibold transition-colors",
                 transparent
-                  ? "text-white/90 hover:bg-white/10 hover:text-white"
+                  ? "bg-black/30 text-white backdrop-blur-sm hover:bg-black/45"
                   : "border border-border text-muted-foreground hover:bg-muted",
               )}
               aria-label="Switch language"

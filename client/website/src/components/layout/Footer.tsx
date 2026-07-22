@@ -11,7 +11,7 @@ export function Footer() {
   const name = s?.institute?.name || SITE.name;
 
   return (
-    <footer className="mt-8 border-t border-border bg-primary text-primary-foreground">
+    <footer className="relative z-10 mt-8 border-t border-border bg-primary text-primary-foreground">
       <div className="mx-auto grid max-w-[1320px] gap-10 px-5 py-14 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <div className="flex items-center gap-3">
