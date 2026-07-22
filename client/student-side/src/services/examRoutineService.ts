@@ -45,8 +45,8 @@ export interface MyExamRoutineResponse {
   referredCount?: number;
   totalExams?: number;
   exams?: RoutineExam[];
-  /** 'enrolled' (exact) | 'inferred' (best-effort from result history). */
-  source?: 'enrolled' | 'inferred';
+  /** 'enrolled' (exact) | 'selected' (tech+semester picker) | 'inferred' (best-effort). */
+  source?: 'enrolled' | 'selected' | 'inferred';
   roll?: string;
   inferredSemester?: number | null;
   student?: {
@@ -67,14 +67,27 @@ class ExamRoutineService {
     );
   }
 
-  /** Public personalized routine by roll (no login) — for the result portal. */
+  /** Public personalized routine by roll (no login) — for the result portal.
+   *  Optional tech + semester force an exact routine for that curriculum. */
   async getPublicRoutine(
     roll: string,
-    examType: 'final' | 'mid' = 'final',
+    opts: { examType?: 'final' | 'mid'; tech?: string; semester?: number } = {},
   ): Promise<MyExamRoutineResponse> {
+    const params = new URLSearchParams({ roll, type: opts.examType ?? 'final' });
+    if (opts.tech) params.set('tech', opts.tech);
+    if (opts.semester) params.set('semester', String(opts.semester));
     return await apiClient.get<MyExamRoutineResponse>(
-      `${this.baseURL}/public/my/?roll=${encodeURIComponent(roll)}&type=${examType}`,
+      `${this.baseURL}/public/my/?${params.toString()}`,
     );
+  }
+
+  /** Technologies + semesters for the routine picker (public). */
+  async getTechnologies(): Promise<{
+    regulationYear: number | null;
+    technologies: { techCode: string; name: string }[];
+    semesters: number[];
+  }> {
+    return await apiClient.get(`${this.baseURL}/public/technologies/`);
   }
 }
 

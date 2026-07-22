@@ -13,11 +13,14 @@ import re
 from datetime import date, datetime, time
 from typing import Optional
 
-from .text import _TIME_WORDS
 from .types import ParsedRoutineSubject, RoutineIssue, RoutineSessionData
 
 _DATE = re.compile(r'\b(\d{2})-(\d{2})-(\d{4})\b')
-_TIME = re.compile(r'(সকাল|দুপুর|বিকাল|রাত)\s*(\d{1,2})[:.](\d{2})')
+# Session time as a bare HH:MM. BTEB fonts mangle the Bengali time WORD
+# (বিকাল → "মবকাল"), so we never rely on it: the numeric value is
+# authoritative. BTEB runs exactly two slots — morning 10:00 and afternoon
+# 2:00 — so an hour of 1–7 is the afternoon slot (→ +12h).
+_TIME = re.compile(r'(?<!\d)(\d{1,2})[:.](\d{2})(?!\d)')
 # A subject row: line starting with a small serial then a 5-digit code.
 _ROW = re.compile(r'(?m)^\s*(\d{1,3})\s+(\d{5})\b(.*)$')
 _POBO = re.compile(r'([০-৯\d][^\n]*?পব[ােো ]*[^\n]*?\((\d{4})\s*প্র[^\)]*\))')
@@ -53,18 +56,22 @@ def parse_theory_section(
             ))
             continue
 
+        # The session time is the first HH:MM in the chunk (subject rows carry
+        # no colons; the memo lives in the preamble, not here).
         tmatch = _TIME.search(chunk)
         if tmatch:
-            slot, base = _TIME_WORDS.get(tmatch.group(1), ('other', 0))
-            hour = int(tmatch.group(2))
-            minute = int(tmatch.group(3))
-            # "বিকাল 2:00" → 14:00 (add 12 unless already 12/afternoon-stated).
-            if base == 12 and hour < 12:
+            hour = int(tmatch.group(1))
+            minute = int(tmatch.group(2))
+            if 1 <= hour <= 7:          # afternoon slot (e.g. 2:00 → 14:00)
                 hour += 12
+                slot = 'afternoon'
+            else:
+                slot = 'morning'
             try:
                 start_time = time(hour, minute)
             except ValueError:
                 start_time = time(10, 0)
+                slot = 'morning'
                 issues.append(RoutineIssue(
                     'warning', 'parse', 'bad-time',
                     f'Unparsable time {tmatch.group(0)!r}; defaulted to 10:00',

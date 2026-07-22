@@ -13,13 +13,24 @@ import {
   Clock,
   Info,
   Loader2,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import examRoutineService, {
   MyExamRoutineResponse,
   RoutineExam,
 } from '@/services/examRoutineService';
+
+const ORDINALS = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
 
 function daysUntil(iso: string): number {
   const target = new Date(`${iso}T00:00:00`).getTime();
@@ -94,25 +105,45 @@ export function RoutineDialog({
   const [data, setData] = useState<MyExamRoutineResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [technologies, setTechnologies] = useState<{ techCode: string; name: string }[]>([]);
+  const [tech, setTech] = useState('');
+  const [semester, setSemester] = useState('');
+  const [pickerOpen, setPickerOpen] = useState(false);
 
-  useEffect(() => {
-    if (!open || !roll) return;
+  const load = (opts: { tech?: string; semester?: number } = {}) => {
     let cancelled = false;
     setLoading(true);
     setError('');
     setData(null);
     examRoutineService
-      .getPublicRoutine(roll)
+      .getPublicRoutine(roll, opts)
       .then((res) => !cancelled && setData(res))
       .catch(() => !cancelled && setError('Could not load the exam routine. Please try again.'))
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
+  };
+
+  // Initial load + technology list for the picker.
+  useEffect(() => {
+    if (!open || !roll) return;
+    const cleanup = load();
+    examRoutineService.getTechnologies().then((r) => setTechnologies(r.technologies)).catch(() => {});
+    return cleanup;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, roll]);
+
+  const applyPicker = () => {
+    if (!tech || !semester) return;
+    setPickerOpen(false);
+    load({ tech, semester: Number(semester) });
+  };
 
   const exams = data?.exams ?? [];
   const remaining = exams.filter((e) => daysUntil(e.date) >= 0).length;
+  const notExact = data?.available && data.source !== 'enrolled' && data.source !== 'selected';
+  const showPicker = pickerOpen || (!loading && (notExact || (data?.available && exams.length === 0)));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -121,6 +152,45 @@ export function RoutineDialog({
           <CalendarClock className="h-5 w-5 text-emerald-600" aria-hidden />
           Exam Routine — Roll {roll}
         </DialogTitle>
+
+        {/* Technology + Semester picker (exact routine for any roll). */}
+        {(showPicker || pickerOpen) && (
+          <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+            <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
+              Choose your department &amp; semester for an exact routine
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Select value={tech} onValueChange={setTech}>
+                <SelectTrigger className="min-w-[190px] flex-1">
+                  <SelectValue placeholder="Department / Technology" />
+                </SelectTrigger>
+                <SelectContent>
+                  {technologies.map((t) => (
+                    <SelectItem key={t.techCode} value={t.techCode}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={semester} onValueChange={setSemester}>
+                <SelectTrigger className="w-[130px]">
+                  <SelectValue placeholder="Semester" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ORDINALS.map((label, i) => (
+                    <SelectItem key={label} value={String(i + 1)}>
+                      {label} Semester
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button onClick={applyPicker} disabled={!tech || !semester} className="bg-emerald-600 hover:bg-emerald-700">
+                Show
+              </Button>
+            </div>
+          </div>
+        )}
 
         {loading && (
           <div className="flex items-center justify-center py-12 text-muted-foreground">
@@ -134,40 +204,51 @@ export function RoutineDialog({
         )}
 
         {!loading && !error && data && !data.available && (
-          <p className="py-10 text-center text-sm text-muted-foreground">
+          <p className="py-8 text-center text-sm text-muted-foreground">
             {data.reason === 'no-routine'
               ? 'No exam routine has been published yet.'
-              : 'Not enough data to build a routine for this roll.'}
+              : 'Pick your department and semester above to see the routine.'}
           </p>
         )}
 
         {!loading && !error && data?.available && (
           <div className="space-y-3">
-            {data.source === 'inferred' && (
+            {notExact && exams.length > 0 && (
               <p className="flex items-start gap-1.5 rounded-lg bg-amber-50 p-2 text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
                 <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-                This roll isn't a registered student here, so the routine is
-                estimated from published results. Referred subjects are exact.
+                Estimated from published results — pick your department &amp;
+                semester above for the exact routine. Referred subjects are exact.
               </p>
             )}
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              {data.routine?.regulationYear && (
-                <Badge variant="outline">{data.routine.regulationYear} Regulation</Badge>
-              )}
-              <Badge variant="outline" className="border-emerald-300 text-emerald-700 dark:text-emerald-300">
-                {remaining} upcoming
-              </Badge>
-              {(data.referredCount ?? 0) > 0 && (
-                <Badge variant="outline" className="border-red-300 text-red-700 dark:text-red-300">
-                  {data.referredCount} referred
+            {exams.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                {data.routine?.regulationYear && (
+                  <Badge variant="outline">{data.routine.regulationYear} Regulation</Badge>
+                )}
+                <Badge variant="outline" className="border-emerald-300 text-emerald-700 dark:text-emerald-300">
+                  {remaining} upcoming
                 </Badge>
-              )}
-            </div>
+                {(data.referredCount ?? 0) > 0 && (
+                  <Badge variant="outline" className="border-red-300 text-red-700 dark:text-red-300">
+                    {data.referredCount} referred
+                  </Badge>
+                )}
+                {(data.source === 'enrolled' || data.source === 'selected') && (
+                  <button
+                    type="button"
+                    onClick={() => setPickerOpen(true)}
+                    className="text-emerald-600 underline-offset-2 hover:underline"
+                  >
+                    Change
+                  </button>
+                )}
+              </div>
+            )}
 
             {exams.length === 0 ? (
-              <p className="flex items-center gap-1.5 py-8 text-center text-sm text-muted-foreground">
+              <p className="flex items-center justify-center gap-1.5 py-6 text-center text-sm text-muted-foreground">
                 <AlertTriangle className="h-4 w-4" aria-hidden />
-                No exams from the published routine match this roll's subjects.
+                No matching exams — choose your department &amp; semester above.
               </p>
             ) : (
               exams.map((exam) => (

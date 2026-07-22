@@ -41,6 +41,42 @@ def _normalize_tech(name: str) -> str:
     return re.sub(r'[^a-z]', '', name.lower())
 
 
+def clean_technology_name(name: str) -> str:
+    """Human-readable technology name from the catalog's noisy strings.
+
+    The course-structure PDFs sometimes emit "Technology Name: Chemical
+    Technology Chemical Technology" — strip the label prefixes and collapse
+    the duplicated words.
+    """
+    name = re.sub(r'(name of technology|technology name)\s*:?\s*', '', name, flags=re.I)
+    words = name.split()
+    deduped = []
+    for w in words:
+        if not deduped or deduped[-len(w.split()):] != [w]:
+            deduped.append(w)
+    # Collapse an exact "X Y X Y" repetition into "X Y".
+    joined = ' '.join(deduped)
+    half = len(deduped) // 2
+    if half and deduped[:half] == deduped[half:]:
+        joined = ' '.join(deduped[:half])
+    return joined.strip() or name.strip()
+
+
+def available_technologies(regulation: Optional[int] = None) -> list[dict]:
+    """Distinct technologies in the Subject catalog (for the routine picker)."""
+    qs = Subject.objects.exclude(techCode='')
+    if regulation is not None:
+        qs = qs.filter(regulationYear=regulation)
+    seen: dict[str, str] = {}
+    for tech_code, technology in qs.values_list('techCode', 'technology').distinct():
+        if tech_code not in seen:
+            seen[tech_code] = clean_technology_name(technology)
+    return sorted(
+        ({'techCode': code, 'name': name} for code, name in seen.items()),
+        key=lambda t: t['name'],
+    )
+
+
 def resolve_tech_code(department) -> Optional[str]:
     """Map a Department to a BTEB techCode via the Subject catalog.
 
@@ -178,17 +214,41 @@ def generate_for_student(student: Student, exam_type: str = 'final') -> dict:
     }
 
 
-def generate_for_roll(roll: str, exam_type: str = 'final') -> dict:
+def generate_for_roll(
+    roll: str, exam_type: str = 'final',
+    tech_code: Optional[str] = None, semester: Optional[int] = None,
+) -> dict:
     """Public personalized routine for a roll (no login).
 
-    - Roll belongs to one of OUR enrolled students → exact generation via
-      their profile (semester + department), same as the dashboard.
-    - Otherwise → best-effort from the result database alone: their referred
-      subjects are exact (they must sit those exams); regular subjects are
-      added only when the technology can be confidently inferred from their
-      tech-specific referred codes, and the payload is marked ``inferred`` so
-      the UI can caveat it.
+    - Explicit ``tech_code`` + ``semester`` (the portal's Technology/Semester
+      picker) → exact routine for that curriculum, plus the roll's referred
+      subjects. This is the reliable path for any roll.
+    - Else roll is an enrolled student → exact via their profile.
+    - Else → best-effort inferred from result history, flagged so the UI can
+      offer the picker.
     """
+    routine = active_routine(exam_type)
+    if routine is None:
+        return {'available': False, 'reason': 'no-routine', 'examType': exam_type,
+                'roll': roll}
+
+    # Explicit Technology + Semester selection (works for any roll).
+    if tech_code and semester:
+        referred_codes = referred_codes_for_roll(roll)
+        regular_qs = Subject.objects.filter(techCode=tech_code, semester=semester)
+        if routine.regulationYear is not None:
+            regular_qs = regular_qs.filter(regulationYear=routine.regulationYear)
+        regular_codes = set(regular_qs.values_list('code', flat=True))
+        all_codes = regular_codes | referred_codes
+        payload = _match_codes(routine, all_codes, referred_codes, regular_codes)
+        payload.update({
+            'available': True, 'examType': exam_type, 'roll': roll,
+            'routine': _routine_meta(routine), 'source': 'selected',
+            'technologyResolved': bool(regular_codes),
+            'selectedTech': tech_code, 'selectedSemester': semester,
+        })
+        return payload
+
     student = Student.objects.select_related('department').filter(
         currentRollNumber=roll,
     ).first()
@@ -197,11 +257,6 @@ def generate_for_roll(roll: str, exam_type: str = 'final') -> dict:
         payload['source'] = 'enrolled'
         payload['roll'] = roll
         return payload
-
-    routine = active_routine(exam_type)
-    if routine is None:
-        return {'available': False, 'reason': 'no-routine', 'examType': exam_type,
-                'roll': roll}
 
     results = list(
         StudentResult.objects.filter(rollNumber=roll).select_related('exam')

@@ -151,7 +151,33 @@ class PublicRoutineView(APIView):
         exam_type = (request.query_params.get('type') or 'final').lower()
         if exam_type not in ('final', 'mid'):
             exam_type = 'final'
-        return Response(generate_for_roll(roll, exam_type))
+        tech_code = (request.query_params.get('tech') or '').strip() or None
+        semester = request.query_params.get('semester')
+        try:
+            semester = int(semester) if semester else None
+        except ValueError:
+            semester = None
+        return Response(generate_for_roll(roll, exam_type, tech_code, semester))
+
+
+class PublicTechnologiesView(APIView):
+    """Technologies + semesters for the result-portal routine picker."""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'result_search'
+
+    def get(self, request):
+        from .generation import active_routine, available_technologies
+
+        routine = active_routine('final')
+        regulation = routine.regulationYear if routine else None
+        return Response({
+            'regulationYear': regulation,
+            'technologies': available_technologies(regulation),
+            'semesters': list(range(1, 9)),
+        })
 
 
 class MyRoutineView(APIView):

@@ -76,6 +76,16 @@ class RoutineParserTests(APITestCase):
         self.assertEqual(len(codes), len(set(codes)))  # globally unique
         self.assertFalse([i for i in outcome.issues if i.severity == 'error'])
 
+    def test_afternoon_time_is_word_independent(self):
+        """The Bengali time word is font-mangled in real PDFs (বিকাল →
+        'মবকাল'), so the slot must come from the numeric value alone: an
+        hour of 1–7 is the afternoon slot (→ +12h)."""
+        text = ROUTINE_TEXT.replace('বিকাল 2:00', 'মবকাল 2:00')
+        outcome = parse_routine_pdf(b'', extractor=FakeExtractor([text]))
+        second = outcome.sessions[1]
+        self.assertEqual(second.start_time, time(14, 0))
+        self.assertEqual(second.slot, 'afternoon')
+
 
 class RoutineGenerationTests(APITestCase):
     @classmethod
@@ -230,6 +240,27 @@ class PublicRoutineApiTests(APITestCase):
         response = self.client.get('/api/routines/public/my/?roll=999999')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertFalse(response.json()['available'])
+
+    def test_public_routine_selected_tech_semester(self):
+        """The department + semester picker builds an exact routine for ANY
+        roll (enrolled or not) from the per-technology Subject catalog."""
+        response = self.client.get(
+            '/api/routines/public/my/?roll=999999&tech=85&semester=5',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertTrue(data['available'])
+        self.assertEqual(data['source'], 'selected')
+        self.assertEqual([e['subjectCode'] for e in data['exams']], ['28551'])
+
+    def test_public_technologies_list(self):
+        response = self.client.get('/api/routines/public/technologies/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertEqual(data['regulationYear'], 2022)
+        self.assertEqual(data['semesters'], list(range(1, 9)))
+        codes = {t['techCode'] for t in data['technologies']}
+        self.assertIn('85', codes)
 
 
 class RoutineApiTests(APITestCase):
