@@ -27,7 +27,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { ResultHistory, letterGrade } from '@/components/results/ResultHistory';
+import {
+  ResultHistory,
+  ResultSummaryDialog,
+  letterGrade,
+} from '@/components/results/ResultHistory';
 import {
   MotivationSlide,
   QUOTE_CHANGE,
@@ -304,8 +308,14 @@ function RollSearchView() {
   );
 }
 
-/** One classmate's compact latest-result card. */
-function FriendCard({ friend }: { friend: ClassmatesResponse['friends'][number] }) {
+/** One classmate's compact current-semester card. Tap to see full history. */
+function FriendCard({
+  friend,
+  onOpen,
+}: {
+  friend: ClassmatesResponse['friends'][number];
+  onOpen: (friend: ClassmatesResponse['friends'][number]) => void;
+}) {
   const initials = friend.name
     .split(/\s+/)
     .filter(Boolean)
@@ -315,7 +325,13 @@ function FriendCard({ friend }: { friend: ClassmatesResponse['friends'][number] 
   const gpaValue = friend.gpa != null ? parseFloat(friend.gpa) : null;
 
   return (
-    <Card className="overflow-hidden transition-shadow hover:shadow-md">
+    <Card
+      className="cursor-pointer overflow-hidden transition-shadow hover:shadow-md"
+      role="button"
+      tabIndex={0}
+      onClick={() => onOpen(friend)}
+      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onOpen(friend)}
+    >
       <CardContent className="flex items-center gap-3 p-3.5">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 text-sm font-bold text-white">
           {initials || '?'}
@@ -369,6 +385,28 @@ function FriendsTab() {
   const [data, setData] = useState<ClassmatesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  // Full-history popup for a tapped friend.
+  const [detail, setDetail] = useState<RollSearchResponse | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  const openFriend = async (friend: ClassmatesResponse['friends'][number]) => {
+    if (!friend.resultType) {
+      toast.info(`${friend.name} has no published result yet.`);
+      return;
+    }
+    setDetailOpen(true);
+    setDetail(null);
+    setDetailLoading(true);
+    try {
+      setDetail(await resultService.searchRoll(friend.roll));
+    } catch {
+      toast.error('Could not load the full result.');
+      setDetailOpen(false);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -446,9 +484,19 @@ function FriendsTab() {
       {!loading && !error && data && data.friends.length > 0 && (
         <div className="grid gap-3 sm:grid-cols-2">
           {data.friends.map((friend) => (
-            <FriendCard key={friend.roll} friend={friend} />
+            <FriendCard key={friend.roll} friend={friend} onOpen={openFriend} />
           ))}
         </div>
+      )}
+
+      {/* Full previous + current results for the tapped friend. */}
+      {detailLoading && detailOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <Loader2 className="h-6 w-6 animate-spin text-white" aria-hidden />
+        </div>
+      )}
+      {detail && (
+        <ResultSummaryDialog data={detail} open={detailOpen} onOpenChange={setDetailOpen} />
       )}
     </div>
   );

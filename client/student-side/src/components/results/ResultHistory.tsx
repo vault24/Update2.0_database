@@ -377,6 +377,27 @@ function SemesterCard({ view, dense = false }: { view: SemesterView; dense?: boo
 
 /* --------------------------- CGPA summary card ---------------------------- */
 
+/**
+ * Full-history summary popup (gradient header + CGPA + every semester's
+ * status/GPA). Reused by the portal CGPA button and the Friends tab (tap a
+ * friend to see their complete previous + current results). Derives the
+ * per-semester view from the roll's results itself.
+ */
+export function ResultSummaryDialog({
+  data,
+  open,
+  onOpenChange,
+}: {
+  data: RollSearchResponse;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const semesters = useMemo(() => deriveSemesters(data.results), [data.results]);
+  return (
+    <CgpaDialog data={data} semesters={semesters} open={open} onOpenChange={onOpenChange} />
+  );
+}
+
 function CgpaDialog({
   data,
   semesters,
