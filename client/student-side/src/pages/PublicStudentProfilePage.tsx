@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { 
-  GraduationCap, Mail, Phone, MapPin, Building, Award, 
+import {
+  GraduationCap, Mail, Phone, MapPin, Building, Award,
   BookOpen, Copy, Check, Share2, FileText, Clock, Target,
-  TrendingUp, User, BarChart3, Loader2, AlertCircle
+  TrendingUp, User, BarChart3, Loader2, AlertCircle, Lock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,12 +17,43 @@ import { studentService } from '@/services/studentService';
 import { settingsService, SystemSettings } from '@/services/settingsService';
 import { getErrorMessage } from '@/lib/api';
 
+/** Generic female avatar silhouette — shown instead of a photo on female
+ * students' public profiles (their photo is never published; server rule). */
+function FemaleAvatar({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 64 64" role="img" aria-label="Student avatar" className={className}>
+      <defs>
+        <linearGradient id="femaleAvatarBg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#f472b6" />
+          <stop offset="100%" stopColor="#db2777" />
+        </linearGradient>
+      </defs>
+      <circle cx="32" cy="32" r="32" fill="url(#femaleAvatarBg)" />
+      {/* hair */}
+      <path
+        d="M32 9c-11.5 0-19 8.5-19 19.5 0 7 2.2 11.5 4.6 13.8l3.4-2.3c-1.4-3.2-2-6.4-2-9.5 0-1.9.3-3.7.9-5.3C22.6 27.9 27 30 32 30s9.4-2.1 12.1-4.8c.6 1.6.9 3.4.9 5.3 0 3.1-.6 6.3-2 9.5l3.4 2.3C48.8 40 51 35.5 51 28.5 51 17.5 43.5 9 32 9z"
+        fill="#fff"
+        opacity="0.95"
+      />
+      {/* face */}
+      <circle cx="32" cy="26.5" r="8.5" fill="#fff" opacity="0.95" />
+      {/* shoulders */}
+      <path
+        d="M32 38.5c-9.2 0-16.4 5-18.4 12.2C18.4 56.6 24.8 60 32 60s13.6-3.4 18.4-9.3C48.4 43.5 41.2 38.5 32 38.5z"
+        fill="#fff"
+        opacity="0.95"
+      />
+    </svg>
+  );
+}
+
 export default function PublicStudentProfilePage() {
   const { studentId } = useParams();
   const [copied, setCopied] = useState(false);
   const [student, setStudent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isPrivate, setIsPrivate] = useState(false);
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
   const [instituteSettings, setInstituteSettings] = useState<SystemSettings | null>(null);
 
@@ -65,6 +96,7 @@ export default function PublicStudentProfilePage() {
     try {
       setLoading(true);
       setError(null);
+      setIsPrivate(false);
 
       // Fetch both student data and institute settings in parallel
       const [studentData, settings] = await Promise.all([
@@ -93,7 +125,12 @@ export default function PublicStudentProfilePage() {
       }
     } catch (err: any) {
       console.error('Failed to load student profile:', err);
-      setError(getErrorMessage(err));
+      // The owner turned their public profile off (or it is off by default).
+      if (err?.private === true) {
+        setIsPrivate(true);
+      } else {
+        setError(getErrorMessage(err));
+      }
     } finally {
       setLoading(false);
     }
@@ -112,6 +149,25 @@ export default function PublicStudentProfilePage() {
         <div className="text-center space-y-4">
           <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
           <p className="text-muted-foreground">Loading student profile...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isPrivate) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4 max-w-md px-6">
+          <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto">
+            <Lock className="w-7 h-7 text-muted-foreground" />
+          </div>
+          <h3 className="text-lg font-semibold">This Profile is Private</h3>
+          <p className="text-muted-foreground text-sm">
+            The student has chosen not to share their profile publicly.
+          </p>
+          <Button onClick={() => window.location.href = '/'}>
+            Go Home
+          </Button>
         </div>
       </div>
     );
@@ -224,6 +280,11 @@ export default function PublicStudentProfilePage() {
     semester: student.semester || 1,
     session: student.session || '2024-25',
     rollNumber: displayRollNumber,
+    // Strict privacy rule: female students never show a photo on the public
+    // page. The public serializer sends avatarVariant; for authorised viewers
+    // (full record, no avatarVariant) derive it from gender so the page
+    // previews exactly what outsiders see.
+    avatarVariant: student.avatarVariant || (student.gender === 'Female' ? 'female' : 'default'),
     email: student.email || 'N/A',
     phone: student.mobileStudent || 'N/A',
     location: student.presentAddress ? 
@@ -291,9 +352,12 @@ This is a public profile showcasing academic information and achievements.`,
         <div className="px-4 md:px-6 pb-6">
           {/* Avatar - positioned to overlap banner with proper spacing */}
           <div className="-mt-16 sm:-mt-20 md:-mt-24 mb-4 relative z-10">
-            {profilePicture ? (
-              <img 
-                src={profilePicture} 
+            {transformedStudent.avatarVariant === 'female' ? (
+              /* Female students never show a photo publicly — generic avatar only. */
+              <FemaleAvatar className="w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40 rounded-full border-4 border-card shadow-xl" />
+            ) : profilePicture ? (
+              <img
+                src={profilePicture}
                 alt={transformedStudent.name}
                 className="w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40 rounded-full object-cover border-4 border-card shadow-xl bg-card"
               />

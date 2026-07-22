@@ -152,3 +152,120 @@ class PublicStudentProfileTests(APITestCase):
     def test_student_detail_route_is_still_closed_to_anonymous(self):
         response = self.client.get(f'/api/students/{self.student.id}/')
         self.assertIn(response.status_code, (401, 403))
+
+
+def _make_student(dept, roll, *, gender, photo='photos/x.jpg', enabled=None):
+    return Student.objects.create(
+        fullNameEnglish=f'Student {roll}',
+        currentRollNumber=roll,
+        currentRegistrationNumber=f'REG-{roll}',
+        semester=4,
+        department=dept,
+        gender=gender,
+        profilePhoto=photo,
+        publicProfileEnabled=enabled,
+        status='active',
+    )
+
+
+class PublicProfileVisibilityTests(APITestCase):
+    """The visibility toggle + the strict female photo-privacy rules."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.dept = Department.objects.create(name='Computer', code='CMT')
+        cls.male = _make_student(cls.dept, 'M1', gender='Male')
+        cls.female = _make_student(cls.dept, 'F1', gender='Female')
+        cls.female_opted_in = _make_student(cls.dept, 'F2', gender='Female', enabled=True)
+        cls.male_opted_out = _make_student(cls.dept, 'M2', gender='Male', enabled=False)
+
+    def get_public(self, roll):
+        return self.client.get(f'/api/students/by-identifier/{roll}/')
+
+    def test_male_default_is_public(self):
+        res = self.get_public('M1')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['currentRollNumber'], 'M1')
+
+    def test_female_default_is_private(self):
+        res = self.get_public('F1')
+        self.assertEqual(res.status_code, 403)
+        self.assertTrue(res.data.get('private'))
+
+    def test_male_can_opt_out(self):
+        self.assertEqual(self.get_public('M2').status_code, 403)
+
+    def test_female_opt_in_shows_profile_but_never_photo(self):
+        res = self.get_public('F2')
+        self.assertEqual(res.status_code, 200)
+        self.assertIsNone(res.data['profilePhoto'])
+        self.assertEqual(res.data['avatarVariant'], 'female')
+
+    def test_male_public_profile_keeps_photo(self):
+        res = self.get_public('M1')
+        self.assertIsNotNone(res.data['profilePhoto'])
+        self.assertEqual(res.data['avatarVariant'], 'default')
+
+    def test_owner_sees_own_private_profile(self):
+        user = User.objects.create_user(
+            username='f1', email='f1@test.com', password='pass12345',
+            role='student', related_profile_id=self.female.id,
+        )
+        self.client.force_authenticate(user)
+        self.assertEqual(self.get_public('F1').status_code, 200)
+
+
+class PublicProfileSettingEndpointTests(APITestCase):
+    """GET/PATCH /api/students/public-profile-setting/ (own record only)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.dept = Department.objects.create(name='Computer', code='CMT')
+        cls.female = _make_student(cls.dept, 'F1', gender='Female')
+        cls.user = User.objects.create_user(
+            username='f1', email='f1@test.com', password='pass12345',
+            role='student', related_profile_id=cls.female.id,
+        )
+
+    def test_get_reports_gender_default(self):
+        self.client.force_authenticate(self.user)
+        res = self.client.get('/api/students/public-profile-setting/')
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(res.data['enabled'])
+        self.assertIsNone(res.data['explicit'])
+        self.assertFalse(res.data['default_enabled'])
+        self.assertTrue(res.data['photo_hidden'])
+
+    def test_patch_enables_profile(self):
+        self.client.force_authenticate(self.user)
+        res = self.client.patch(
+            '/api/students/public-profile-setting/', {'enabled': True}, format='json'
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.data['enabled'])
+        self.female.refresh_from_db()
+        self.assertTrue(self.female.publicProfileEnabled)
+        # ...and the public page becomes reachable anonymously.
+        self.client.force_authenticate(None)
+        self.assertEqual(
+            self.client.get('/api/students/by-identifier/F1/').status_code, 200
+        )
+
+    def test_patch_requires_boolean(self):
+        self.client.force_authenticate(self.user)
+        res = self.client.patch(
+            '/api/students/public-profile-setting/', {'enabled': 'yes'}, format='json'
+        )
+        self.assertEqual(res.status_code, 400)
+
+    def test_anonymous_denied(self):
+        res = self.client.get('/api/students/public-profile-setting/')
+        self.assertIn(res.status_code, (401, 403))
+
+    def test_teacher_denied(self):
+        teacher = User.objects.create_user(
+            username='t1', email='t1@test.com', password='pass12345', role='teacher',
+        )
+        self.client.force_authenticate(teacher)
+        res = self.client.get('/api/students/public-profile-setting/')
+        self.assertEqual(res.status_code, 403)

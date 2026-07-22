@@ -3,7 +3,7 @@ Student Views
 """
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
-from rest_framework.permissions import AllowAny, BasePermission, SAFE_METHODS
+from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated, SAFE_METHODS
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q
@@ -143,9 +143,16 @@ class StudentViewSet(viewsets.ModelViewSet):
     # restricted lookup.
     PUBLIC_ACTIONS = ('by_identifier',)
 
+    # Self-service actions: any authenticated portal user acts on their OWN
+    # record only, so the admin-only write gate in StudentRecordPermission
+    # must not apply (the action itself verifies ownership).
+    SELF_ACTIONS = ('public_profile_setting',)
+
     def get_permissions(self):
         if getattr(self, 'action', None) in self.PUBLIC_ACTIONS:
             return [AllowAny()]
+        if getattr(self, 'action', None) in self.SELF_ACTIONS:
+            return [IsAuthenticated()]
         return super().get_permissions()
 
     def get_queryset(self):
@@ -339,8 +346,69 @@ class StudentViewSet(viewsets.ModelViewSet):
         may_see_full = scope_students_queryset(
             Student.objects.filter(pk=student.pk), request.user
         ).exists()
+
+        # Public visibility gate: outside viewers only see the profile when
+        # the student has it enabled (default ON, except female students who
+        # default OFF — see Student.public_profile_visible). Authorised
+        # viewers (admin/teacher/the student themselves) are unaffected.
+        if not may_see_full and not student.public_profile_visible:
+            return Response(
+                {'error': 'This profile is private.', 'private': True},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
         serializer_class = StudentDetailSerializer if may_see_full else StudentPublicProfileSerializer
         return Response(serializer_class(student, context={'request': request}).data)
+
+    @action(detail=False, methods=['get', 'patch'], url_path='public-profile-setting')
+    def public_profile_setting(self, request):
+        """
+        The logged-in student's own public-profile visibility.
+
+        GET   -> current effective setting (+ the gender-based default)
+        PATCH -> {"enabled": true|false} stores an explicit choice
+
+        Defaults when no explicit choice was made: ON for everyone except
+        female students, who default to OFF. Note the photo rule is separate
+        and absolute: a female student's photo is never shown publicly even
+        when she enables her profile.
+        """
+        if getattr(request.user, 'role', None) not in ('student', 'captain'):
+            return Response(
+                {'error': 'Only student accounts have a public profile.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        student = None
+        pid = getattr(request.user, 'related_profile_id', None)
+        if pid:
+            student = Student.objects.filter(id=pid).first()
+        if student is None and request.user.email:
+            # Any-type portal detection fallback: some older accounts are
+            # linked by email only.
+            student = Student.objects.filter(email=request.user.email).first()
+        if student is None:
+            return Response(
+                {'error': 'No student profile is linked to this account.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if request.method == 'PATCH':
+            enabled = request.data.get('enabled')
+            if not isinstance(enabled, bool):
+                return Response(
+                    {'error': '"enabled" must be true or false.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            student.publicProfileEnabled = enabled
+            student.save(update_fields=['publicProfileEnabled', 'updatedAt'])
+
+        return Response({
+            'enabled': student.public_profile_visible,
+            'explicit': student.publicProfileEnabled,
+            'default_enabled': student.gender != 'Female',
+            'photo_hidden': student.gender == 'Female',
+        })
 
     def _resolve_student_by_identifier(self, identifier):
         """Find a student by UUID, college roll or application ID (or None)."""

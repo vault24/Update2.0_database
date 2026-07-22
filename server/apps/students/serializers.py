@@ -108,6 +108,7 @@ class StudentPublicProfileSerializer(serializers.ModelSerializer):
     departmentName = serializers.CharField(source='department.name', read_only=True, default='')
     profilePhoto = serializers.SerializerMethodField()
     presentAddress = serializers.SerializerMethodField()
+    avatarVariant = serializers.SerializerMethodField()
 
     class Meta:
         model = Student
@@ -123,6 +124,7 @@ class StudentPublicProfileSerializer(serializers.ModelSerializer):
             'shift',
             'status',
             'profilePhoto',
+            'avatarVariant',
             # Academic record
             'finalCgpa',
             'semesterResults',
@@ -135,7 +137,16 @@ class StudentPublicProfileSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_profilePhoto(self, obj):
+        # STRICT privacy rule: a female student's photo is NEVER published on
+        # the public profile, regardless of any visibility toggle. The page
+        # renders a generic female avatar instead (see avatarVariant).
+        if obj.gender == 'Female':
+            return None
         return build_profile_photo_url(obj, self.context.get('request'))
+
+    def get_avatarVariant(self, obj):
+        """Which placeholder avatar the public page should render."""
+        return 'female' if obj.gender == 'Female' else 'default'
 
     def get_presentAddress(self, obj):
         """Coarse location only — never the street-level address."""

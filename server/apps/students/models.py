@@ -113,6 +113,17 @@ class Student(models.Model):
     
     # Media (stores relative path to client/assets/images/)
     profilePhoto = models.CharField(max_length=500, blank=True)
+
+    # Public profile visibility — controls the shareable /student/<roll> page.
+    # NULL means "no explicit choice": the effective default is ON for
+    # everyone EXCEPT female students, who default to OFF (privacy policy).
+    # See `public_profile_visible` for the resolved value.
+    publicProfileEnabled = models.BooleanField(
+        null=True,
+        blank=True,
+        help_text='Explicit public-profile choice; NULL = gender-based default '
+                  '(off for female students, on otherwise)',
+    )
     
     # Timestamps
     createdAt = models.DateTimeField(auto_now_add=True)
@@ -132,7 +143,18 @@ class Student(models.Model):
     
     def __str__(self):
         return f"{self.fullNameEnglish} ({self.currentRollNumber})"
-    
+
+    @property
+    def public_profile_visible(self):
+        """Effective public-profile visibility for /student/<roll>.
+
+        An explicit choice (publicProfileEnabled) always wins; otherwise the
+        default is ON, except for female students where the default is OFF.
+        """
+        if self.publicProfileEnabled is not None:
+            return bool(self.publicProfileEnabled)
+        return self.gender != 'Female'
+
     def has_completed_eighth_semester(self):
         """Check if student has completed 8th semester"""
         if not self.semesterResults:

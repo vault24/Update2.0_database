@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { settingsService } from '@/services/settingsService';
+import { settingsService, PublicProfileSetting } from '@/services/settingsService';
 import api, { getErrorMessage } from '@/lib/api';
 import { 
   Settings, Bell, Lock, Palette, Globe, Monitor, Moon, Sun,
@@ -98,6 +98,11 @@ export default function SettingsPage() {
     showAttendance: false,
     showMarks: false
   });
+
+  // Server-enforced public-profile visibility (/student/<roll> page).
+  // null until loaded; stays null for accounts without a student profile.
+  const [publicProfile, setPublicProfile] = useState<PublicProfileSetting | null>(null);
+  const [savingPublicProfile, setSavingPublicProfile] = useState(false);
 
   // Language
   const [language, setLanguage] = useState('en');
@@ -198,6 +203,14 @@ export default function SettingsPage() {
           // Non-critical: fall back to the locally stored preference.
         }
         
+        // Public-profile visibility is a real server setting (student
+        // accounts only) — non-student accounts simply don't show the toggle.
+        try {
+          setPublicProfile(await settingsService.getPublicProfileSetting());
+        } catch {
+          setPublicProfile(null);
+        }
+
         const links = await settingsService.getSocialLinks();
         // Add icons to loaded links
         const linksWithIcons = links.map(link => {
@@ -362,6 +375,27 @@ export default function SettingsPage() {
       toast.success('Notifications disabled on this device');
     } finally {
       setPushBusy(false);
+    }
+  };
+
+  const handlePublicProfileToggle = async () => {
+    if (!publicProfile || savingPublicProfile) return;
+    const next = !publicProfile.enabled;
+    setSavingPublicProfile(true);
+    setPublicProfile({ ...publicProfile, enabled: next, explicit: next });
+    try {
+      const saved = await settingsService.updatePublicProfileSetting(next);
+      setPublicProfile(saved);
+      toast.success(
+        saved.enabled
+          ? 'Your public profile is now visible to anyone with the link.'
+          : 'Your public profile is now hidden.'
+      );
+    } catch {
+      setPublicProfile(publicProfile); // revert
+      toast.error('Failed to update public profile setting');
+    } finally {
+      setSavingPublicProfile(false);
     }
   };
 
@@ -1180,16 +1214,49 @@ export default function SettingsPage() {
           <Separator className="my-4" />
 
           <div className="space-y-3">
-            <div className="flex items-center justify-between py-2">
-              <div>
-                <p className="font-medium">Show Profile to Others</p>
-                <p className="text-sm text-muted-foreground">Allow classmates to view your profile</p>
+            {/* Public profile — real, server-enforced visibility of the
+                shareable /student/<roll> page. Shown only when the account
+                has a linked student profile. */}
+            {publicProfile && (
+              <div className="flex items-center justify-between gap-3 py-2">
+                <div className="min-w-0">
+                  <p className="font-medium flex items-center gap-2">
+                    Public Profile
+                    {savingPublicProfile && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Anyone with your link can view your public profile page.
+                    {!publicProfile.default_enabled && ' Off by default for your account.'}
+                  </p>
+                  {publicProfile.photo_hidden && (
+                    <p className="text-xs text-muted-foreground mt-1 flex items-start gap-1.5">
+                      <Shield className="w-3.5 h-3.5 mt-0.5 shrink-0 text-primary" />
+                      For your privacy, your photo is never shown on the public page —
+                      a generic avatar is displayed instead, even when the profile is on.
+                    </p>
+                  )}
+                </div>
+                <Switch
+                  checked={publicProfile.enabled}
+                  onCheckedChange={handlePublicProfileToggle}
+                  disabled={savingPublicProfile}
+                />
               </div>
-              <Switch 
-                checked={privacy.showProfile} 
-                onCheckedChange={() => handlePrivacyChange('showProfile')}
-              />
-            </div>
+            )}
+
+            {/* Local-only preference for teachers (no public student page). */}
+            {!publicProfile && (
+              <div className="flex items-center justify-between py-2">
+                <div>
+                  <p className="font-medium">Show Profile to Others</p>
+                  <p className="text-sm text-muted-foreground">Allow classmates to view your profile</p>
+                </div>
+                <Switch
+                  checked={privacy.showProfile}
+                  onCheckedChange={() => handlePrivacyChange('showProfile')}
+                />
+              </div>
+            )}
 
             {user?.role !== 'teacher' && (
               <>

@@ -40,6 +40,17 @@ export interface SocialLink {
   icon?: React.ElementType;
 }
 
+export interface PublicProfileSetting {
+  /** Effective visibility of the /student/<roll> public page. */
+  enabled: boolean;
+  /** The stored explicit choice; null = using the gender-based default. */
+  explicit: boolean | null;
+  /** What the default is for this account (off for female students). */
+  default_enabled: boolean;
+  /** True for female accounts — photo is never shown publicly. */
+  photo_hidden: boolean;
+}
+
 export interface ChangePasswordData {
   old_password: string;
   new_password: string;
@@ -59,6 +70,21 @@ class SettingsService {
   async getSystemSettings(): Promise<SystemSettings> {
     const response = await api.get<SystemSettings>('/settings/');
     return response;
+  }
+
+  /**
+   * The logged-in student's public-profile visibility (server-enforced).
+   * `enabled` is the effective value; `explicit` is null until the student
+   * makes a choice (defaults: on, except female accounts which default off).
+   * `photo_hidden` is true for female accounts — their photo is never shown
+   * publicly regardless of this toggle.
+   */
+  async getPublicProfileSetting(): Promise<PublicProfileSetting> {
+    return await api.get<PublicProfileSetting>('/students/public-profile-setting/');
+  }
+
+  async updatePublicProfileSetting(enabled: boolean): Promise<PublicProfileSetting> {
+    return await api.patch<PublicProfileSetting>('/students/public-profile-setting/', { enabled });
   }
 
   /**
