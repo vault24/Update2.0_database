@@ -5,8 +5,7 @@ import type { RoutineExam } from '@/services/examRoutineService';
 const PAGE_WIDTH = 150;
 const PAGE_HEIGHT = 188;
 const MARGIN = 9;
-const NAVY: [number, number, number] = [30, 25, 59];
-const NAVY_LIGHT: [number, number, number] = [48, 40, 85];
+const NAVY: [number, number, number] = [4, 112, 83];
 const GREEN: [number, number, number] = [5, 150, 105];
 const CREAM: [number, number, number] = [255, 251, 242];
 const INK: [number, number, number] = [31, 41, 55];
@@ -68,8 +67,9 @@ function buildRoutineDoc(info: RoutineSheetInfo, exams: RoutineExam[]): jsPDF {
   doc.circle(-4, 8, 23, 'F');
   doc.circle(PAGE_WIDTH + 6, PAGE_HEIGHT - 4, 26, 'F');
 
+  // A single green information panel keeps the routine details together.
   doc.setFillColor(...NAVY);
-  doc.roundedRect(MARGIN, 9, innerWidth, 29, 4, 4, 'F');
+  doc.roundedRect(MARGIN, 9, innerWidth, 69, 4, 4, 'F');
   doc.setFillColor(...GREEN);
   doc.circle(MARGIN + 13, 23.5, 9, 'F');
   doc.setFont('helvetica', 'bold');
@@ -97,11 +97,11 @@ function buildRoutineDoc(info: RoutineSheetInfo, exams: RoutineExam[]): jsPDF {
 
   const gap = 3;
   const half = (innerWidth - gap) / 2;
-  chip(doc, 'STUDENT', info.studentName || 'Student', MARGIN, half, 43);
-  chip(doc, 'ROLL NO.', info.roll, MARGIN + half + gap, half, 43);
-  chip(doc, 'TECHNOLOGY', info.department || 'Not specified', MARGIN, half, 62);
+  chip(doc, 'STUDENT', info.studentName || 'Student', MARGIN + 3, half - 3, 40);
+  chip(doc, 'ROLL NO.', info.roll, MARGIN + half + gap, half - 3, 40);
+  chip(doc, 'TECHNOLOGY', info.department || 'Not specified', MARGIN + 3, half - 3, 59);
   const semester = [info.semesterLabel, info.regulationYear ? `${info.regulationYear} Regulation` : ''].filter(Boolean).join(' · ') || 'Not specified';
-  chip(doc, 'SEMESTER', semester, MARGIN + half + gap, half, 62);
+  chip(doc, 'SEMESTER', semester, MARGIN + half + gap, half - 3, 59);
 
   const tableTop = 85;
   const footerTop = PAGE_HEIGHT - 19;
