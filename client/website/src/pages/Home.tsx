@@ -1,4 +1,5 @@
 import { Hero } from "@/components/home/Hero";
+import { NoticeTicker } from "@/components/layout/NoticeTicker";
 import { QuickStats } from "@/components/home/QuickStats";
 import { WhyChoose } from "@/components/home/WhyChoose";
 import { DepartmentsPreview } from "@/components/home/DepartmentsPreview";
@@ -13,15 +14,19 @@ export default function Home() {
   return (
     <>
       <Hero />
-      <QuickStats />
-      <WhyChoose />
-      <DepartmentsPreview />
-      <PrincipalMessage />
-      <NoticesEvents />
-      <TeachersPreview />
-      <AchievementsPreview />
-      <GalleryPreview />
-      <CtaStrip />
+      {/* Opaque sheet that scrolls OVER the pinned hero (see Hero.tsx). */}
+      <div className="relative z-10 bg-background">
+        <NoticeTicker />
+        <QuickStats />
+        <WhyChoose />
+        <DepartmentsPreview />
+        <PrincipalMessage />
+        <NoticesEvents />
+        <TeachersPreview />
+        <AchievementsPreview />
+        <GalleryPreview />
+        <CtaStrip />
+      </div>
     </>
   );
 }

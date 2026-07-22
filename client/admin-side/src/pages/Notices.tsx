@@ -1,14 +1,19 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import {
   Plus, Search, Edit, Trash2, Eye, TrendingUp, TrendingDown, Megaphone,
   Paperclip, FileText, Image as ImageIcon, X, Mail, Bell, Loader2, AlertTriangle,
+  Users, ChevronsUpDown, Check, FilterX, Target,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
+} from '@/components/ui/command';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -16,9 +21,116 @@ import { useToast } from '@/hooks/use-toast';
 import { LoadingState } from '@/components/LoadingState';
 import { ErrorState } from '@/components/ErrorState';
 import { cn } from '@/lib/utils';
-import { noticeService, Notice, NoticeCreateUpdate, NoticeAttachment } from '@/services/noticeService';
+import {
+  noticeService, Notice, NoticeCreateUpdate, NoticeAttachment,
+  NoticeAudience, NoticeTargeting, TargetingMeta, RecipientPreview,
+} from '@/services/noticeService';
 
 type Priority = 'low' | 'normal' | 'high';
+
+const AUDIENCE_OPTIONS: Array<{ value: NoticeAudience; label: string; hint: string }> = [
+  { value: 'students_teachers', label: 'Active Students + Teachers', hint: 'Default — same reach as before' },
+  { value: 'everyone', label: 'Everyone', hint: 'Students + Teachers + Alumni' },
+  { value: 'students', label: 'Active Students Only', hint: 'No teachers or alumni' },
+  { value: 'teachers', label: 'Teachers Only', hint: 'Active teachers' },
+  { value: 'alumni', label: 'Alumni Only', hint: 'Approved alumni accounts' },
+];
+
+const SHIFT_LABEL: Record<string, string> = {
+  Morning: 'Morning (1st Shift)',
+  Day: 'Day (2nd Shift)',
+  Evening: 'Evening',
+};
+
+const EMPTY_TARGETING: NoticeTargeting = {
+  audience: 'students_teachers',
+  departments: [],
+  semesters: [],
+  shifts: [],
+  sessions: [],
+};
+
+const ordinal = (n: number) => (n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : `${n}th`);
+
+/** Which filter dimensions apply to the selected audience. */
+const filtersFor = (audience: NoticeAudience) => ({
+  departments: true,
+  semesters: audience !== 'teachers' && audience !== 'alumni',
+  shifts: audience !== 'teachers',
+  sessions: audience !== 'teachers',
+});
+
+/** Searchable multi-select built on Popover + Command. */
+function MultiSelect({
+  label, placeholder, options, selected, onChange, searchable = true,
+}: {
+  label: string;
+  placeholder: string;
+  options: Array<{ value: string; label: string }>;
+  selected: string[];
+  onChange: (values: string[]) => void;
+  searchable?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const toggle = (value: string) =>
+    onChange(selected.includes(value) ? selected.filter((v) => v !== value) : [...selected, value]);
+
+  const summary = selected.length === 0
+    ? placeholder
+    : options.filter((o) => selected.includes(o.value)).map((o) => o.label).join(', ');
+
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs">{label}</Label>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className={cn(
+              'w-full justify-between font-normal h-9',
+              selected.length === 0 && 'text-muted-foreground'
+            )}
+          >
+            <span className="truncate text-left">{summary}</span>
+            <span className="flex items-center gap-1.5 shrink-0 ml-2">
+              {selected.length > 0 && (
+                <Badge variant="secondary" className="h-5 px-1.5 text-[11px] tabular-nums">{selected.length}</Badge>
+              )}
+              <ChevronsUpDown className="h-3.5 w-3.5 opacity-50" />
+            </span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+          <Command>
+            {searchable && <CommandInput placeholder={`Search ${label.toLowerCase()}…`} />}
+            <CommandList className="max-h-52">
+              <CommandEmpty>No results.</CommandEmpty>
+              <CommandGroup>
+                {options.map((opt) => {
+                  const active = selected.includes(opt.value);
+                  return (
+                    <CommandItem key={opt.value} value={opt.label} onSelect={() => toggle(opt.value)}>
+                      <span className={cn(
+                        'mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary',
+                        active ? 'bg-primary text-primary-foreground' : 'opacity-40 [&_svg]:invisible'
+                      )}>
+                        <Check className="h-3 w-3" />
+                      </span>
+                      <span className="truncate">{opt.label}</span>
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
 
 const PRIORITY_BADGE: Record<Priority, string> = {
   high: 'bg-destructive/10 text-destructive border-destructive/20',
@@ -28,6 +140,16 @@ const PRIORITY_BADGE: Record<Priority, string> = {
 const PRIORITY_LABEL: Record<Priority, string> = { high: 'High', normal: 'Normal', low: 'Low' };
 
 const isImage = (name: string) => /\.(png|jpe?g|webp|gif)$/i.test(name);
+
+/** Compact "Computer, Electrical · 4th Sem · Morning" filter summary for a card. */
+function targetingSummary(notice: Notice): string | null {
+  const parts: string[] = [];
+  if (notice.target_departments?.length) parts.push(notice.target_departments.map((d) => d.name).join(', '));
+  if (notice.target_semesters?.length) parts.push(notice.target_semesters.map((s) => `${ordinal(s)} Sem`).join(', '));
+  if (notice.target_shifts?.length) parts.push(notice.target_shifts.join(', '));
+  if (notice.target_sessions?.length) parts.push(notice.target_sessions.join(', '));
+  return parts.length ? parts.join(' · ') : null;
+}
 
 function AttachmentChip({ att }: { att: NoticeAttachment }) {
   const Icon = isImage(att.name) ? ImageIcon : FileText;
@@ -53,10 +175,17 @@ interface NoticeFormDialogProps {
   onSaved: () => void;
 }
 
+// Module-level cache — the meta rarely changes, no need to refetch per dialog open.
+let targetingMetaCache: TargetingMeta | null = null;
+
 function NoticeFormDialog({ open, onOpenChange, mode, notice, onSaved }: NoticeFormDialogProps) {
   const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState<NoticeCreateUpdate>({ title: '', content: '', priority: 'normal', is_published: true });
+  const [targeting, setTargeting] = useState<NoticeTargeting>(EMPTY_TARGETING);
+  const [meta, setMeta] = useState<TargetingMeta | null>(targetingMetaCache);
+  const [preview, setPreview] = useState<RecipientPreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const [removeIds, setRemoveIds] = useState<number[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -66,12 +195,79 @@ function NoticeFormDialog({ open, onOpenChange, mode, notice, onSaved }: NoticeF
     if (!open) return;
     if (mode === 'edit' && notice) {
       setForm({ title: notice.title, content: notice.content, priority: notice.priority, is_published: notice.is_published });
+      setTargeting({
+        audience: notice.audience || 'students_teachers',
+        departments: (notice.target_departments || []).map((d) => d.id),
+        semesters: notice.target_semesters || [],
+        shifts: notice.target_shifts || [],
+        sessions: notice.target_sessions || [],
+      });
     } else {
       setForm({ title: '', content: '', priority: 'normal', is_published: true });
+      setTargeting(EMPTY_TARGETING);
     }
     setNewFiles([]);
     setRemoveIds([]);
+    setPreview(null);
   }, [open, mode, notice]);
+
+  // Load targeting options once (cached across dialog opens).
+  useEffect(() => {
+    if (!open || meta) return;
+    noticeService.getTargetingMeta()
+      .then((m) => { targetingMetaCache = m; setMeta(m); })
+      .catch(() => { /* Filters degrade gracefully; audience select still works. */ });
+  }, [open, meta]);
+
+  // Live "Estimated Recipients" preview, debounced while the admin adjusts targeting.
+  useEffect(() => {
+    if (!open) return;
+    setPreviewLoading(true);
+    const timer = setTimeout(() => {
+      noticeService.previewRecipients(targeting)
+        .then(setPreview)
+        .catch(() => setPreview(null))
+        .finally(() => setPreviewLoading(false));
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [open, targeting]);
+
+  const applicable = filtersFor(targeting.audience);
+  const activeFilterCount =
+    (applicable.departments ? targeting.departments.length : 0) +
+    (applicable.semesters ? targeting.semesters.length : 0) +
+    (applicable.shifts ? targeting.shifts.length : 0) +
+    (applicable.sessions ? targeting.sessions.length : 0);
+
+  const setAudience = (audience: NoticeAudience) => {
+    // Drop filters that don't apply to the newly selected audience.
+    const keep = filtersFor(audience);
+    setTargeting((t) => ({
+      audience,
+      departments: keep.departments ? t.departments : [],
+      semesters: keep.semesters ? t.semesters : [],
+      shifts: keep.shifts ? t.shifts : [],
+      sessions: keep.sessions ? t.sessions : [],
+    }));
+  };
+
+  const clearFilters = () =>
+    setTargeting((t) => ({ ...t, departments: [], semesters: [], shifts: [], sessions: [] }));
+
+  const previewText = useMemo(() => {
+    if (!preview) return null;
+    const parts: string[] = [];
+    if (preview.students > 0 || ['everyone', 'students_teachers', 'students'].includes(targeting.audience)) {
+      parts.push(`${preview.students.toLocaleString()} student${preview.students === 1 ? '' : 's'}`);
+    }
+    if (preview.teachers > 0 || ['everyone', 'students_teachers', 'teachers'].includes(targeting.audience)) {
+      parts.push(`${preview.teachers.toLocaleString()} teacher${preview.teachers === 1 ? '' : 's'}`);
+    }
+    if (preview.alumni > 0 || ['everyone', 'alumni'].includes(targeting.audience)) {
+      parts.push(`${preview.alumni.toLocaleString()} alumni`);
+    }
+    return parts.join(' + ');
+  }, [preview, targeting.audience]);
 
   const existingAttachments = (notice?.attachments || []).filter((a) => !removeIds.includes(a.id));
   const isHigh = form.priority === 'high';
@@ -108,17 +304,19 @@ function NoticeFormDialog({ open, onOpenChange, mode, notice, onSaved }: NoticeF
     }
     try {
       setSubmitting(true);
+      const payload: NoticeCreateUpdate = { ...form, targeting };
       if (mode === 'create') {
-        await noticeService.createNotice(form, newFiles);
+        await noticeService.createNotice(payload, newFiles);
       } else if (notice) {
-        await noticeService.updateNotice(notice.id, form, newFiles, removeIds);
+        await noticeService.updateNotice(notice.id, payload, newFiles, removeIds);
       }
+      const reach = preview ? ` (~${preview.total.toLocaleString()} recipients)` : '';
       toast({
         title: mode === 'create' ? 'Notice published' : 'Notice updated',
         description: form.is_published && isHigh
-          ? 'All active students were emailed and notified.'
+          ? `Targeted recipients were emailed and notified${reach}.`
           : form.is_published
-            ? 'An in-app notification was sent to recipients.'
+            ? `An in-app notification was sent to the targeted audience${reach}.`
             : 'Saved as a draft (unpublished).',
       });
       onOpenChange(false);
@@ -141,6 +339,100 @@ function NoticeFormDialog({ open, onOpenChange, mode, notice, onSaved }: NoticeF
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Target audience + optional narrowing filters */}
+          <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3.5">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="flex items-center gap-1.5">
+                <Target className="w-4 h-4 text-primary" /> Target audience
+              </Label>
+              {activeFilterCount > 0 && (
+                <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={clearFilters}>
+                  <FilterX className="w-3.5 h-3.5 mr-1" /> Clear filters ({activeFilterCount})
+                </Button>
+              )}
+            </div>
+
+            <Select value={targeting.audience} onValueChange={(v: NoticeAudience) => setAudience(v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {AUDIENCE_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    <span className="flex flex-col items-start">
+                      <span>{opt.label}</span>
+                      <span className="text-xs text-muted-foreground">{opt.hint}</span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {meta && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {applicable.departments && (
+                  <MultiSelect
+                    label="Department"
+                    placeholder="All departments"
+                    options={meta.departments.map((d) => ({ value: d.id, label: d.name }))}
+                    selected={targeting.departments}
+                    onChange={(departments) => setTargeting((t) => ({ ...t, departments }))}
+                  />
+                )}
+                {applicable.semesters && (
+                  <MultiSelect
+                    label="Semester"
+                    placeholder="All semesters"
+                    searchable={false}
+                    options={meta.semesters.map((s) => ({ value: String(s), label: `${ordinal(s)} Semester` }))}
+                    selected={targeting.semesters.map(String)}
+                    onChange={(values) => setTargeting((t) => ({ ...t, semesters: values.map(Number) }))}
+                  />
+                )}
+                {applicable.shifts && (
+                  <MultiSelect
+                    label="Shift"
+                    placeholder="Both shifts"
+                    searchable={false}
+                    options={meta.shifts.map((s) => ({ value: s, label: SHIFT_LABEL[s] || s }))}
+                    selected={targeting.shifts}
+                    onChange={(shifts) => setTargeting((t) => ({ ...t, shifts }))}
+                  />
+                )}
+                {applicable.sessions && meta.sessions.length > 0 && (
+                  <MultiSelect
+                    label="Session"
+                    placeholder="All sessions"
+                    options={meta.sessions.map((s) => ({ value: s, label: s }))}
+                    selected={targeting.sessions}
+                    onChange={(sessions) => setTargeting((t) => ({ ...t, sessions }))}
+                  />
+                )}
+              </div>
+            )}
+
+            <p className="text-xs text-muted-foreground">
+              Filters are optional — leave them empty to reach everyone in the selected audience.
+              {targeting.audience === 'teachers' && ' Teachers are filtered by department only.'}
+              {targeting.audience === 'alumni' && ' Alumni have no semester filter.'}
+            </p>
+
+            {/* Live recipient estimate */}
+            <div className="flex items-center gap-2 rounded-md border border-primary/20 bg-[hsl(var(--primary-muted,var(--muted)))] px-3 py-2 text-sm">
+              {previewLoading
+                ? <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />
+                : <Users className="w-4 h-4 text-primary shrink-0" />}
+              {preview && !previewLoading ? (
+                <span className="text-foreground">
+                  Estimated recipients: <span className="font-semibold">{previewText}</span>
+                  {preview.total_users !== preview.total && (
+                    <span className="text-muted-foreground"> · {preview.total_users.toLocaleString()} portal account{preview.total_users === 1 ? '' : 's'}</span>
+                  )}
+                </span>
+              ) : (
+                <span className="text-muted-foreground">{previewLoading ? 'Counting recipients…' : 'Recipient estimate unavailable.'}</span>
+              )}
+            </div>
+          </div>
+
           <div className="space-y-1.5">
             <Label htmlFor="title">Title</Label>
             <Input id="title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Enter notice title" />
@@ -247,8 +539,8 @@ function NoticeFormDialog({ open, onOpenChange, mode, notice, onSaved }: NoticeF
             {isHigh ? <Mail className="w-4 h-4 mt-0.5 text-destructive shrink-0" /> : <Bell className="w-4 h-4 mt-0.5 shrink-0" />}
             <p>
               {isHigh
-                ? <>This <span className="font-medium text-foreground">high-priority</span> notice will <span className="font-medium text-foreground">email every active student</span> (attachments included) and send an in-app notification.</>
-                : <>Low and Normal notices send an <span className="font-medium text-foreground">in-app notification</span> only — no email.</>}
+                ? <>This <span className="font-medium text-foreground">high-priority</span> notice will <span className="font-medium text-foreground">email the targeted recipients</span> (attachments included) and send an in-app notification.</>
+                : <>Low and Normal notices send an <span className="font-medium text-foreground">in-app notification</span> to the targeted audience only — no email.</>}
               {!form.is_published && ' Notifications are only sent once the notice is published.'}
             </p>
           </div>
@@ -444,6 +736,13 @@ export default function Notices() {
                   </div>
                   <p className="text-xs text-muted-foreground">
                     By {notice.created_by_name} • {new Date(notice.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                  </p>
+                  <p className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1.5">
+                    <Target className="w-3 h-3 shrink-0" />
+                    <span className="truncate">
+                      {notice.audience_display || 'Active Students + Teachers'}
+                      {targetingSummary(notice) && <span className="text-muted-foreground/80"> — {targetingSummary(notice)}</span>}
+                    </span>
                   </p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">

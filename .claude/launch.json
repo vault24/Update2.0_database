@@ -4,36 +4,102 @@
     {
       "name": "backend-dev",
       "runtimeExecutable": "server/venv/Scripts/python.exe",
-      "runtimeArgs": ["server/manage.py", "runserver", "8000", "--noreload"],
+      "runtimeArgs": [
+        "server/manage.py",
+        "runserver",
+        "8000",
+        "--noreload"
+      ],
       "port": 8000,
       "autoPort": false
     },
     {
       "name": "student-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "client/student-side", "run", "dev", "--", "--port", "5199", "--strictPort"],
+      "runtimeArgs": [
+        "--prefix",
+        "client/student-side",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5199",
+        "--strictPort"
+      ],
       "port": 5199,
       "autoPort": false
     },
     {
       "name": "admin-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "client/admin-side", "run", "dev", "--", "--port", "5198", "--strictPort"],
+      "runtimeArgs": [
+        "--prefix",
+        "client/admin-side",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5198",
+        "--strictPort"
+      ],
       "port": 5198,
       "autoPort": false
     },
     {
       "name": "website-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "client/website", "run", "dev", "--", "--port", "5200", "--strictPort"],
+      "runtimeArgs": [
+        "--prefix",
+        "client/website",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5200",
+        "--strictPort"
+      ],
       "port": 5200,
       "autoPort": false
     },
     {
       "name": "email-preview",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "4173", "--directory", "C:/Users/Mahadi/AppData/Local/Temp/claude/F--Collage-project-Update2-0-database/a82f2825-c397-4908-9a7e-8f6f9d1c7b60/scratchpad"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "4173",
+        "--directory",
+        "C:/Users/Mahadi/AppData/Local/Temp/claude/F--Collage-project-Update2-0-database/a82f2825-c397-4908-9a7e-8f6f9d1c7b60/scratchpad"
+      ],
       "port": 4173
+    },
+    {
+      "name": "backend-dev-alt",
+      "runtimeExecutable": "server/venv/Scripts/python.exe",
+      "runtimeArgs": [
+        "server/manage.py",
+        "runserver",
+        "8001",
+        "--noreload"
+      ],
+      "port": 8001,
+      "autoPort": false
+    },
+    {
+      "name": "admin-dev-alt",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "client/admin-side",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5197",
+        "--strictPort"
+      ],
+      "port": 5197,
+      "autoPort": false
     }
   ]
 }

@@ -6,13 +6,31 @@ from django.core.validators import MinLengthValidator
 
 class Notice(models.Model):
     """Model for storing notices and announcements"""
-    
+
     PRIORITY_CHOICES = [
         ('low', 'Low'),
         ('normal', 'Normal'),
         ('high', 'High'),
     ]
-    
+
+    # --- Audience targeting -------------------------------------------------
+    # The audience picks the BASE recipient groups; the optional target_*
+    # filters below only narrow that base. Filters that do not apply to a
+    # group (e.g. semester for teachers/alumni) never restrict that group.
+    AUDIENCE_EVERYONE = 'everyone'
+    AUDIENCE_STUDENTS_TEACHERS = 'students_teachers'
+    AUDIENCE_STUDENTS = 'students'
+    AUDIENCE_TEACHERS = 'teachers'
+    AUDIENCE_ALUMNI = 'alumni'
+
+    AUDIENCE_CHOICES = [
+        (AUDIENCE_EVERYONE, 'Everyone (Students + Teachers + Alumni)'),
+        (AUDIENCE_STUDENTS_TEACHERS, 'Active Students + Teachers'),
+        (AUDIENCE_STUDENTS, 'Active Students Only'),
+        (AUDIENCE_TEACHERS, 'Teachers Only'),
+        (AUDIENCE_ALUMNI, 'Alumni Only'),
+    ]
+
     title = models.CharField(
         max_length=255,
         validators=[MinLengthValidator(1)],
@@ -46,7 +64,48 @@ class Notice(models.Model):
         related_name='created_notices',
         help_text="Admin user who created the notice"
     )
-    
+
+    # Base audience for the notice. Default matches the historical behavior of
+    # notifying active students + teachers.
+    audience = models.CharField(
+        max_length=20,
+        choices=AUDIENCE_CHOICES,
+        default=AUDIENCE_STUDENTS_TEACHERS,
+        help_text="Base recipient groups for this notice"
+    )
+    # Optional narrowing filters. Empty means "no restriction" for that
+    # dimension. Departments are a real M2M (no data duplication); the small
+    # value filters are JSON lists (e.g. [4, 5], ["Morning"], ["22-23"]).
+    target_departments = models.ManyToManyField(
+        'departments.Department',
+        blank=True,
+        related_name='targeted_notices',
+        help_text="Restrict to these departments (empty = all departments)"
+    )
+    target_semesters = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Restrict students to these semesters (empty = all)"
+    )
+    target_shifts = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Restrict students/alumni to these shifts (empty = all)"
+    )
+    target_sessions = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Restrict students/alumni to these sessions (empty = all)"
+    )
+    # Snapshot of how many users this notice targeted when it was last saved.
+    # Used as the engagement denominator so a 30-recipient notice is not
+    # measured against the whole institute.
+    recipient_count = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Recipient count computed when the notice was last saved"
+    )
+
     class Meta:
         ordering = ['-created_at']
         indexes = [
@@ -54,6 +113,7 @@ class Notice(models.Model):
             models.Index(fields=['is_published', '-created_at']),
             models.Index(fields=['priority', '-created_at']),
             models.Index(fields=['created_by']),
+            models.Index(fields=['audience']),
         ]
         verbose_name = 'Notice'
         verbose_name_plural = 'Notices'
@@ -68,7 +128,14 @@ class Notice(models.Model):
     
     @property
     def total_students(self):
-        """Get the total number of students in the system"""
+        """Engagement denominator for this notice.
+
+        Targeted notices use the recipient-count snapshot taken at save time;
+        legacy notices (no snapshot) fall back to the historical global
+        student count so old stats keep reading the same.
+        """
+        if self.recipient_count is not None:
+            return self.recipient_count
         from apps.authentication.models import User
         return User.objects.filter(role='student').count()
     

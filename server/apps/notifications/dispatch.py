@@ -400,18 +400,25 @@ def _notice_attachment_payload(notice, request=None):
     return links, files
 
 
-def notify_new_notice(notice, request=None):
+def notify_new_notice(notice, request=None, recipients=None):
     """
     A notice was published.
 
+    `recipients` is the audience-targeted user queryset/list resolved by
+    apps.notices.targeting. When omitted (legacy callers) it falls back to
+    the historical default: every active student, captain and teacher.
+
     Priority routing:
-      - high          -> in-app notification for everyone + email to all ACTIVE students.
+      - high          -> in-app notification for recipients + email. For the
+                         default students+teachers audience only students are
+                         emailed (historical behavior); for every other
+                         audience all targeted recipients are emailed.
       - low / normal  -> in-app (push) notification only, no email.
 
     Notice emails include the uploaded PDF/image attachments (attached to the
     email when small enough, and always as download links).
     """
-    recipients = get_notice_recipients()
+    recipients = list(recipients) if recipients is not None else list(get_notice_recipients())
     title = getattr(notice, "title", "New Notice")
     body = getattr(notice, "content", "") or getattr(notice, "description", "")
     snippet = (body[:300] + "…") if len(body) > 300 else body
@@ -446,10 +453,16 @@ def notify_new_notice(notice, request=None):
         send_email=False,
     )
 
-    # 2. High priority only -> email every active student, with attachments.
+    # 2. High priority only -> email the targeted recipients, with attachments.
+    # For the default students+teachers audience, keep the historical
+    # behavior of emailing students only.
     if is_high:
-        students = get_active_students()
-        emails = [s.email for s in students if getattr(s, "email", None)]
+        audience = str(getattr(notice, "audience", "") or "students_teachers")
+        if audience == "students_teachers":
+            email_users = [u for u in recipients if getattr(u, "role", "") in ("student", "captain")]
+        else:
+            email_users = recipients
+        emails = [u.email for u in email_users if getattr(u, "email", None)]
         if emails:
             send_branded_email(
                 f"Important Notice: {title}",

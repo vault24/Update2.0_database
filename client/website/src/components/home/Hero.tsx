@@ -34,7 +34,10 @@ export function Hero() {
   const studentUrl = settings?.student_portal_url || SITE.studentPortal;
 
   return (
-    <section className="relative flex min-h-[88vh] items-center justify-center overflow-hidden text-center text-white">
+    // Sticky + z-0: the hero stays pinned while the page content (z-10, opaque)
+    // slides over it — the modern "fixed hero" effect without the mobile bugs
+    // of background-attachment: fixed.
+    <section className="sticky top-0 z-0 flex h-svh min-h-[560px] items-center justify-center overflow-hidden text-center text-white">
       {/* Campus photo */}
       <AnimatePresence mode="wait">
         <motion.div
@@ -49,7 +52,6 @@ export function Hero() {
       </AnimatePresence>
       {/* Single restrained overlay for legibility — photo-forward, not a colour wash */}
       <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/35 to-primary/70" />
-      <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-background to-transparent" />
 
       <Container className="relative z-10">
         <motion.div

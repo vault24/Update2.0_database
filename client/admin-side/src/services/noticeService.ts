@@ -7,6 +7,45 @@ export interface NoticeAttachment {
   uploaded_at: string;
 }
 
+export type NoticeAudience =
+  | 'everyone'
+  | 'students_teachers'
+  | 'students'
+  | 'teachers'
+  | 'alumni';
+
+export interface TargetDepartment {
+  id: string;
+  name: string;
+  code: string;
+}
+
+/** Audience + optional narrowing filters. Empty arrays = no restriction. */
+export interface NoticeTargeting {
+  audience: NoticeAudience;
+  departments: string[];
+  semesters: number[];
+  shifts: string[];
+  sessions: string[];
+}
+
+export interface TargetingMeta {
+  audiences: Array<{ value: NoticeAudience; label: string }>;
+  departments: TargetDepartment[];
+  semesters: number[];
+  shifts: string[];
+  sessions: string[];
+}
+
+export interface RecipientPreview {
+  students: number;
+  teachers: number;
+  alumni: number;
+  total: number;
+  total_users: number;
+  audience: NoticeAudience;
+}
+
 export interface Notice {
   id: number;
   title: string;
@@ -22,6 +61,13 @@ export interface Notice {
   read_percentage: number;
   is_low_engagement: boolean;
   attachments?: NoticeAttachment[];
+  audience: NoticeAudience;
+  audience_display: string;
+  target_departments: TargetDepartment[];
+  target_semesters: number[];
+  target_shifts: string[];
+  target_sessions: string[];
+  recipient_count: number | null;
 }
 
 export interface NoticeCreateUpdate {
@@ -29,6 +75,7 @@ export interface NoticeCreateUpdate {
   content: string;
   priority: 'low' | 'normal' | 'high';
   is_published: boolean;
+  targeting?: NoticeTargeting;
 }
 
 export interface NoticeStats {
@@ -82,6 +129,9 @@ class NoticeService {
     fd.append('content', notice.content);
     fd.append('priority', notice.priority);
     fd.append('is_published', String(notice.is_published));
+    // Audience targeting travels as a single JSON blob so multipart and JSON
+    // requests share one server-side parsing path.
+    if (notice.targeting) fd.append('targeting', JSON.stringify(notice.targeting));
     (files || []).forEach((f) => fd.append('attachments', f));
     (removeIds || []).forEach((id) => fd.append('remove_attachments', String(id)));
     return fd;
@@ -103,6 +153,16 @@ class NoticeService {
 
   async deleteNotice(id: number): Promise<void> {
     await api.delete<void>(`${this.baseUrl}/${id}/`);
+  }
+
+  /** Options for the targeting UI (departments, semesters, shifts, sessions). */
+  async getTargetingMeta(): Promise<TargetingMeta> {
+    return await api.get<TargetingMeta>(`${this.baseUrl}/targeting-meta/`);
+  }
+
+  /** Live "Estimated Recipients" preview for the current targeting selection. */
+  async previewRecipients(targeting: NoticeTargeting): Promise<RecipientPreview> {
+    return await api.post<RecipientPreview>(`${this.baseUrl}/recipient-preview/`, targeting);
   }
 
   async getNoticeStats(params?: {

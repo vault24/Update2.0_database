@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Facebook, Youtube, Linkedin, MapPin, Phone, Mail } from "lucide-react";
-import { PRIMARY_NAV, SITE } from "@/config/site";
+import { FOOTER_LINKS, SITE } from "@/config/site";
 import { useI18n } from "@/i18n/LanguageProvider";
 import { useSiteSettings } from "@/hooks/useApi";
 import { Seal } from "@/components/brand/Seal";
@@ -32,7 +32,7 @@ export function Footer() {
         <div>
           <p className="mb-4 text-sm font-semibold uppercase tracking-wider text-white/70">{t("footer.quickLinks")}</p>
           <ul className="space-y-2 text-sm">
-            {PRIMARY_NAV.slice(1, 7).map((item) => (
+            {FOOTER_LINKS.map((item) => (
               <li key={item.to}>
                 <Link to={item.to} className="text-primary-foreground/75 hover:text-primary-foreground">{t(item.key)}</Link>
               </li>

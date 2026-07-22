@@ -38,51 +38,6 @@
     --glass-alpha: 0.72;
   }
 
-  .dark {
-    --background: 172 44% 6%;
-    --foreground: 150 24% 92%;
-    --surface: 172 40% 8%;
-
-    --card: 172 38% 10%;
-    --card-foreground: 150 24% 92%;
-
-    --primary: 160 62% 44%;        /* brighter green reads on dark */
-    --primary-foreground: 172 44% 6%;
-    --primary-soft: 168 40% 16%;
-
-    --accent: 41 90% 56%;
-    --accent-foreground: 172 44% 8%;
-
-    --muted: 172 26% 15%;
-    --muted-foreground: 150 14% 66%;
-
-    --destructive: 0 62% 52%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 172 24% 18%;
-    --input: 172 24% 18%;
-    --ring: 160 62% 50%;
-
-    --glass-bg: 172 40% 12%;
-    --glass-alpha: 0.55;
-  }
-
-  /* High-contrast accessibility mode (toggled via [data-contrast="high"]). */
-  :root[data-contrast="high"] {
-    --primary: 168 100% 15%;
-    --accent: 41 100% 38%;
-    --foreground: 0 0% 0%;
-    --muted-foreground: 0 0% 20%;
-    --border: 0 0% 25%;
-  }
-  .dark[data-contrast="high"] {
-    --foreground: 0 0% 100%;
-    --muted-foreground: 0 0% 90%;
-    --border: 0 0% 85%;
-    --primary: 160 90% 60%;
-    --accent: 41 100% 66%;
-  }
-
   * {
     @apply border-border;
   }

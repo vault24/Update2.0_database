@@ -8,7 +8,7 @@ interface LanguageContextValue {
   /** Translate a UI key (falls back to English, then the key itself). */
   t: (key: DictKey) => string;
   /** Pick the locale-appropriate value from a paired `*_en` / `*_bn` object. */
-  pick: <T extends Record<string, unknown>>(obj: T | null | undefined, base: string) => string;
+  pick: (obj: object | null | undefined, base: string) => string;
 }
 
 const LanguageContext = createContext<LanguageContextValue | undefined>(undefined);
@@ -37,10 +37,11 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   );
 
   const pick = useCallback(
-    (obj: Record<string, unknown> | null | undefined, base: string): string => {
+    (obj: object | null | undefined, base: string): string => {
       if (!obj) return "";
-      const bn = obj[`${base}_bn`];
-      const en = obj[`${base}_en`];
+      const rec = obj as Record<string, unknown>;
+      const bn = rec[`${base}_bn`];
+      const en = rec[`${base}_en`];
       if (locale === "bn" && typeof bn === "string" && bn.trim()) return bn;
       return typeof en === "string" ? en : typeof bn === "string" ? bn : "";
     },

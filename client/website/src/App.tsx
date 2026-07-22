@@ -1,7 +1,6 @@
 import { Suspense } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ThemeProvider } from "@/contexts/ThemeProvider";
 import { LanguageProvider } from "@/i18n/LanguageProvider";
 import { Layout } from "@/components/layout/Layout";
 import Home from "@/pages/Home";
@@ -18,6 +17,13 @@ const queryClient = new QueryClient({
 // so the navigation IA is complete and no link 404s.
 const STUB_ROUTES: { path: string; title: string }[] = [
   { path: "/about", title: "About the Institute" },
+  { path: "/principal", title: "Principal's Message" },
+  { path: "/campus", title: "Campus" },
+  { path: "/clubs", title: "Clubs" },
+  { path: "/sports", title: "Sports" },
+  { path: "/library", title: "Library" },
+  { path: "/news", title: "News" },
+  { path: "/research", title: "Research & Projects" },
   { path: "/departments", title: "Departments" },
   { path: "/departments/:code", title: "Department" },
   { path: "/teachers", title: "Faculty" },
@@ -40,7 +46,6 @@ const STUB_ROUTES: { path: string; title: string }[] = [
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
         <LanguageProvider>
           <BrowserRouter>
             <Suspense fallback={null}>
@@ -56,7 +61,6 @@ export default function App() {
             </Suspense>
           </BrowserRouter>
         </LanguageProvider>
-      </ThemeProvider>
     </QueryClientProvider>
   );
 }

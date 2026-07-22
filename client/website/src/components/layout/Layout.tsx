@@ -1,11 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
-import { useEffect } from "react";
 import { Header } from "./Header";
 import { Footer } from "./Footer";
-import { AnnouncementBar } from "./AnnouncementBar";
-import { EmergencyBanner } from "./EmergencyBanner";
-import { NoticeTicker } from "./NoticeTicker";
 import { ScrollProgress } from "./ScrollProgress";
 import { BackToTop } from "./BackToTop";
 import { SearchDialog } from "@/components/SearchDialog";
@@ -13,6 +9,9 @@ import { SearchDialog } from "@/components/SearchDialog";
 export function Layout() {
   const [searchOpen, setSearchOpen] = useState(false);
   const { pathname } = useLocation();
+  // Home gets the transparent header floating over the full-screen hero;
+  // every other page gets a sticky solid header in normal flow.
+  const isHome = pathname === "/";
 
   // Scroll to top on route change.
   useEffect(() => {
@@ -28,10 +27,7 @@ export function Layout() {
       >
         Skip to content
       </a>
-      <EmergencyBanner />
-      <AnnouncementBar />
-      <Header onOpenSearch={() => setSearchOpen(true)} />
-      <NoticeTicker />
+      <Header overlay={isHome} onOpenSearch={() => setSearchOpen(true)} />
       <main id="main" className="flex-1">
         <Outlet />
       </main>

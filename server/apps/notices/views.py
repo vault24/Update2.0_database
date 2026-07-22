@@ -19,8 +19,11 @@ from .serializers import (
     StudentNoticeSerializer,
     NoticeReadStatusSerializer,
     NoticeStatsSerializer,
-    MarkAsReadSerializer
+    MarkAsReadSerializer,
+    TargetDepartmentSerializer,
+    clean_targeting_payload,
 )
+from . import targeting
 
 User = get_user_model()
 
@@ -85,7 +88,9 @@ class AdminNoticeListCreateView(generics.ListCreateAPIView):
         if not self.request.user.is_admin():
             return Notice.objects.none()
         
-        queryset = Notice.objects.select_related('created_by').prefetch_related('read_statuses', 'attachments')
+        queryset = Notice.objects.select_related('created_by').prefetch_related(
+            'read_statuses', 'attachments', 'target_departments'
+        )
 
         # Filter by publication status if specified
         is_published = self.request.query_params.get('is_published')
@@ -112,6 +117,12 @@ class AdminNoticeListCreateView(generics.ListCreateAPIView):
         # Persist any uploaded attachments (images / PDFs).
         _save_notice_attachments(notice, self.request.FILES.getlist('attachments'))
 
+        # Resolve the targeted recipients once — used for the engagement
+        # denominator snapshot and for notification dispatch below.
+        recipients = list(targeting.get_notice_recipient_users(notice))
+        notice.recipient_count = len(recipients)
+        notice.save(update_fields=['recipient_count'])
+
         # Invalidate all user unread count caches when a new notice is created
         User = get_user_model()
         user_ids = User.objects.filter(role__in=['student', 'captain', 'teacher']).values_list('id', flat=True)
@@ -119,12 +130,12 @@ class AdminNoticeListCreateView(generics.ListCreateAPIView):
             cache_key = f'user_unread_count_{user_id}'
             cache.delete(cache_key)
 
-        # Notify recipients. Priority routing lives in notify_new_notice:
-        # high -> email all active students + in-app; low/normal -> in-app only.
+        # Notify the targeted recipients. Priority routing lives in
+        # notify_new_notice: high -> email + in-app; low/normal -> in-app only.
         try:
             if getattr(notice, 'is_published', True):
                 from apps.notifications.dispatch import notify_new_notice
-                notify_new_notice(notice, request=self.request)
+                notify_new_notice(notice, request=self.request, recipients=recipients)
         except Exception as notify_err:
             import logging
             logging.getLogger(__name__).error("Notice notification failed: %s", notify_err)
@@ -150,7 +161,9 @@ class AdminNoticeDetailView(generics.RetrieveUpdateDestroyAPIView):
         """Get notices for admin users only"""
         if not self.request.user.is_admin():
             return Notice.objects.none()
-        return Notice.objects.select_related('created_by').prefetch_related('read_statuses', 'attachments')
+        return Notice.objects.select_related('created_by').prefetch_related(
+            'read_statuses', 'attachments', 'target_departments'
+        )
 
     def get_serializer_class(self):
         """Use different serializers for different actions"""
@@ -174,6 +187,10 @@ class AdminNoticeDetailView(generics.RetrieveUpdateDestroyAPIView):
         # Append any newly uploaded attachments.
         _save_notice_attachments(notice, self.request.FILES.getlist('attachments'))
 
+        # Targeting may have changed — refresh the recipient snapshot.
+        notice.recipient_count = targeting.get_notice_recipient_users(notice).count()
+        notice.save(update_fields=['recipient_count'])
+
 
 @method_decorator(vary_on_headers('Authorization'), name='dispatch')
 class StudentNoticeListView(generics.ListAPIView):
@@ -189,9 +206,12 @@ class StudentNoticeListView(generics.ListAPIView):
         """Get published notices for authenticated users with optimized queries"""
         if not self.request.user.role in ['student', 'captain', 'teacher']:
             return Notice.objects.none()
-        
+
         # Use select_related and prefetch_related for performance
         queryset = Notice.objects.filter(is_published=True).select_related('created_by').prefetch_related('attachments')
+
+        # Only notices whose audience targeting includes this user.
+        queryset = targeting.filter_notices_for_user(queryset, self.request.user)
         
         # Filter by priority if specified
         priority = self.request.query_params.get('priority')
@@ -237,7 +257,8 @@ class StudentNoticeDetailView(generics.RetrieveAPIView):
         """Get published notices for authenticated users only"""
         if not self.request.user.role in ['student', 'captain', 'teacher']:
             return Notice.objects.none()
-        return Notice.objects.filter(is_published=True).select_related('created_by')
+        queryset = Notice.objects.filter(is_published=True).select_related('created_by')
+        return targeting.filter_notices_for_user(queryset, self.request.user)
 
 
 @api_view(['POST'])
@@ -294,12 +315,18 @@ def student_unread_count(request):
     if cached_result is not None:
         return Response(cached_result)
     
-    # Get all published notices
-    total_notices = Notice.objects.filter(is_published=True).count()
-    
-    # Get read notices for this user
-    read_count = NoticeReadStatus.objects.filter(student=request.user).count()
-    
+    # Only notices this user is targeted by count toward their unread badge.
+    visible = targeting.filter_notices_for_user(
+        Notice.objects.filter(is_published=True), request.user
+    )
+    total_notices = visible.count()
+
+    # Reads of notices that are no longer visible to the user are ignored so
+    # the unread count can never go negative or drift.
+    read_count = NoticeReadStatus.objects.filter(
+        student=request.user, notice__in=visible.values('id')
+    ).count()
+
     unread_count = total_notices - read_count
     
     result = {
@@ -485,6 +512,69 @@ def notice_engagement_summary(request):
             {'error': 'Failed to calculate engagement summary', 'details': str(e) if settings.DEBUG else None},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def notice_recipient_preview(request):
+    """
+    Live "Estimated Recipients" preview for the notice editor.
+    POST body: {audience, departments, semesters, shifts, sessions}
+    Returns per-group profile counts + the number of portal accounts that
+    would actually be notified. (admin only)
+    """
+    if not request.user.is_admin():
+        return Response(
+            {'error': 'Only admins can preview notice recipients'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    payload = clean_targeting_payload(request.data)
+    filters = targeting.TargetingFilters(
+        departments=payload['departments'],
+        semesters=payload['semesters'],
+        shifts=payload['shifts'],
+        sessions=payload['sessions'],
+    )
+    counts = targeting.count_recipients(payload['audience'], filters)
+    counts['audience'] = payload['audience']
+    return Response(counts)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def notice_targeting_meta(request):
+    """
+    Options for the notice targeting UI: departments, semesters, shifts and
+    the sessions that actually exist on student records. (admin only)
+    """
+    if not request.user.is_admin():
+        return Response(
+            {'error': 'Only admins can view targeting options'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    from apps.departments.models import Department
+    from apps.students.models import Student
+
+    sessions = list(
+        Student.objects.exclude(session='')
+        .values_list('session', flat=True)
+        .distinct()
+        .order_by('-session')
+    )
+    return Response({
+        'audiences': [
+            {'value': value, 'label': label}
+            for value, label in Notice.AUDIENCE_CHOICES
+        ],
+        'departments': TargetDepartmentSerializer(
+            Department.objects.all().order_by('name'), many=True
+        ).data,
+        'semesters': list(range(1, 9)),
+        'shifts': [value for value, _ in Student.SHIFT_CHOICES],
+        'sessions': sessions,
+    })
 
 
 @api_view(['POST'])

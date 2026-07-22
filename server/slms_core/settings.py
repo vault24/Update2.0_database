@@ -315,6 +315,7 @@ _DEV_ADMIN_ORIGINS = [
     "http://localhost:3000", "http://localhost:5173",
     "http://127.0.0.1:3000", "http://127.0.0.1:5173",
     "http://localhost:5198", "http://127.0.0.1:5198",  # .claude/launch.json admin-dev
+    "http://localhost:5197", "http://127.0.0.1:5197",  # .claude/launch.json admin-dev-alt
 ]
 
 

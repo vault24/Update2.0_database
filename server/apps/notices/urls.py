@@ -10,6 +10,8 @@ urlpatterns = [
     path('admin/notices/stats/', views.notice_stats, name='notice-stats'),
     path('admin/notices/<int:notice_id>/stats/', views.notice_detail_stats, name='notice-detail-stats'),
     path('admin/notices/engagement-summary/', views.notice_engagement_summary, name='notice-engagement-summary'),
+    path('admin/notices/recipient-preview/', views.notice_recipient_preview, name='notice-recipient-preview'),
+    path('admin/notices/targeting-meta/', views.notice_targeting_meta, name='notice-targeting-meta'),
     
     # Student endpoints (legacy - kept for backward compatibility)
     path('student/notices/', views.StudentNoticeListView.as_view(), name='student-notice-list'),
