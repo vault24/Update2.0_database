@@ -53,6 +53,8 @@ ROLE_API_POLICY = {
             '/api/marks/',
             # Board result imports + roll search (apps.results).
             '/api/results/',
+            # Exam routine imports (apps.routines).
+            '/api/routines/',
         ),
         'read_only': (),
     },
@@ -81,6 +83,7 @@ ROLE_API_POLICY = {
             '/api/attendance/',
             '/api/marks/',
             '/api/results/',
+            '/api/routines/',
         ),
     },
 }

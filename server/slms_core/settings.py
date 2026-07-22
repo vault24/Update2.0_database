@@ -69,6 +69,7 @@ INSTALLED_APPS = [
     'apps.complaints',
     'apps.system_reports',
     'apps.results',
+    'apps.routines',
     'apps.website',
 ]
 

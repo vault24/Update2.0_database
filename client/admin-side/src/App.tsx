@@ -19,6 +19,7 @@ const AdmissionDetails = lazy(() => import("./pages/AdmissionDetails"));
 const ClassRoutine = lazy(() => import("./pages/ClassRoutine"));
 const AttendanceMarks = lazy(() => import("./pages/AttendanceMarks"));
 const Results = lazy(() => import("./pages/Results"));
+const ExamRoutine = lazy(() => import("./pages/ExamRoutine"));
 
 const StudentDetails = lazy(() => import("./pages/StudentDetails"));
 const EditStudent = lazy(() => import("./pages/EditStudent"));
@@ -87,6 +88,7 @@ const App = () => (
                   <Route path="/class-routine" element={<ClassRoutine />} />
                   <Route path="/attendance-marks" element={<AttendanceMarks />} />
                   <Route path="/results" element={<Results />} />
+                  <Route path="/exam-routine" element={<ExamRoutine />} />
 
                   <Route path="/alumni" element={<AlumniDirectory />} />
                   <Route path="/alumni-requests" element={<AlumniRequests />} />

@@ -48,6 +48,7 @@ urlpatterns = [
     path('api/complaints/', include('apps.complaints.urls')),
     path('api/system-reports/', include('apps.system_reports.urls')),
     path('api/results/', include('apps.results.urls')),
+    path('api/routines/', include('apps.routines.urls')),
     path('api/website/', include('apps.website.urls')),
 
     # Secure file serving

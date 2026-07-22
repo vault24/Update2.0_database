@@ -26,6 +26,7 @@ const LiveClassesPage = lazy(() => import("./pages/LiveClassesPage"));
 const AttendancePage = lazy(() => import("./pages/AttendancePage"));
 const MarksPage = lazy(() => import("./pages/MarksPage"));
 const BoardResultsPage = lazy(() => import("./pages/BoardResultsPage"));
+const ExamRoutinePage = lazy(() => import("./pages/ExamRoutinePage"));
 const PublicResultSearchPage = lazy(() => import("./pages/PublicResultSearchPage"));
 const DocumentsPage = lazy(() => import("./pages/DocumentsPage"));
 const ComplaintsPage = lazy(() => import("./pages/ComplaintsPage"));
@@ -215,6 +216,7 @@ const App = () => {
         <Route path="attendance" element={<AttendancePage />} />
         <Route path="marks" element={<MarksPage />} />
         <Route path="board-results" element={<BoardResultsPage />} />
+        <Route path="exam-routine" element={<ExamRoutinePage />} />
         <Route path="documents" element={<DocumentsPage />} />
         <Route path="applications" element={<ApplicationsPage />} />
         

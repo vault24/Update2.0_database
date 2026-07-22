@@ -21,6 +21,7 @@ import {
   UserX,
   GraduationCap,
   Calendar,
+  CalendarClock,
   ClipboardCheck,
   Award,
   FileText,
@@ -52,6 +53,7 @@ export type FeatureId =
   | 'class_routine'
   | 'attendance_marks'
   | 'board_results'
+  | 'exam_routine'
   | 'discontinued_students'
   | 'alumni'
   | 'alumni_requests'
@@ -105,6 +107,7 @@ export const MENU_GROUPS: MenuGroup[] = [
       { feature: 'class_routine', label: 'Class Routine', path: '/class-routine', icon: Calendar },
       { feature: 'attendance_marks', label: 'Attendance & Marks', path: '/attendance-marks', icon: ClipboardCheck },
       { feature: 'board_results', label: 'Board Results', path: '/results', icon: FileSearch },
+      { feature: 'exam_routine', label: 'Exam Routine', path: '/exam-routine', icon: CalendarClock },
       { feature: 'notices', label: 'Notices', path: '/notices', icon: Bell },
     ],
   },
@@ -155,6 +158,7 @@ const FEATURE_ROUTES: Record<FeatureId, string[]> = {
   class_routine: ['/class-routine'],
   attendance_marks: ['/attendance-marks'],
   board_results: ['/results'],
+  exam_routine: ['/exam-routine'],
   discontinued_students: ['/discontinued-students'],
   alumni: ['/alumni'],
   alumni_requests: ['/alumni-requests'],
@@ -199,6 +203,7 @@ export const ROLE_PERMISSIONS: Record<AdminRole, RolePermission> = {
       'teachers',
       'class_routine',
       'board_results',
+      'exam_routine',
       'discontinued_students',
       'alumni',
       'alumni_requests',
@@ -220,6 +225,7 @@ export const ROLE_PERMISSIONS: Record<AdminRole, RolePermission> = {
       'admissions',
       'notices',
       'board_results',
+      'exam_routine',
       'discontinued_students',
       'alumni',
       'alumni_requests',
