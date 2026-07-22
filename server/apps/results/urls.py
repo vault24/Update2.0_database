@@ -16,4 +16,5 @@ urlpatterns = [
     path('public/exams/', views.PublicRecentExamsView.as_view(), name='result-public-exams'),
     path('public/download/', views.PublicResultPdfView.as_view(), name='result-public-download'),
     path('my/', views.MyResultsView.as_view(), name='result-my'),
+    path('classmates/', views.ClassmateResultsView.as_view(), name='result-classmates'),
 ]

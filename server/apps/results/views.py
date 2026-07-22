@@ -562,6 +562,108 @@ class AnalyticsDownloadView(APIView):
         return response
 
 
+class ClassmateResultsView(APIView):
+    """The logged-in student's class friends and their latest board results.
+
+    "Class" = same department + semester + shift. Compact payload for the
+    Friends tab: name, roll and the newest published result (GPA for passed;
+    bare subject CODES for pending — no catalog detail, by design).
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from datetime import date
+
+        from apps.students.models import exclude_unapproved_alumni
+
+        user = request.user
+        if not getattr(user, 'can_access_student_portal', lambda: False)():
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        me = Student.objects.filter(id=user.related_profile_id).first()
+        if me is None:
+            return Response(
+                {'error': 'No student profile linked to this account.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        classmates = exclude_unapproved_alumni(
+            Student.objects.filter(
+                department=me.department,
+                semester=me.semester,
+                shift=me.shift,
+                status='active',
+            )
+            .exclude(id=me.id)
+            .exclude(currentRollNumber='')
+        ).order_by('currentRollNumber')
+
+        by_roll = {c.currentRollNumber: c for c in classmates}
+        results = (
+            StudentResult.objects
+            .filter(rollNumber__in=list(by_roll))
+            .select_related('exam')
+            .prefetch_related('semesterGpas', 'subjects')
+        )
+        # Latest published result per roll (corrections supersede — same
+        # ordering rule as the roll search).
+        latest: dict[str, StudentResult] = {}
+        for row in sorted(
+            results,
+            key=lambda r: (r.exam.publicationDate or date.min, r.id),
+        ):
+            latest[row.rollNumber] = row
+
+        friends = []
+        for roll, mate in by_roll.items():
+            row = latest.get(roll)
+            entry = {
+                'roll': roll,
+                'name': mate.fullNameEnglish,
+                'photo': mate.profilePhoto or '',
+                'semester': None,
+                'resultType': None,
+                'gpa': None,
+                'cgpa': None,
+                'subjectCodes': [],
+            }
+            if row is not None:
+                own = next(
+                    (g.gpa for g in row.semesterGpas.all()
+                     if g.semester == row.exam.semester),
+                    None,
+                )
+                entry.update({
+                    'semester': row.exam.semester,
+                    'resultType': row.resultType,
+                    'gpa': str(own) if own is not None else None,
+                    'cgpa': str(row.cgpa) if row.cgpa is not None else None,
+                    'subjectCodes': sorted({
+                        s.subjectCode for s in row.subjects.all()
+                    }) if row.resultType != 'passed' else [],
+                })
+            friends.append(entry)
+
+        # Passed first (highest GPA on top), then pending, then no-result.
+        def sort_key(f):
+            if f['gpa'] is not None:
+                return (0, -float(f['gpa']))
+            if f['resultType'] is not None:
+                return (1, 0)
+            return (2, 0)
+
+        friends.sort(key=sort_key)
+        return Response({
+            'classInfo': {
+                'department': me.department.name,
+                'semester': me.semester,
+                'shift': me.shift,
+                'count': len(friends),
+            },
+            'friends': friends,
+        })
+
+
 class MyResultsView(APIView):
     """The logged-in student's own result history (student portal)."""
 

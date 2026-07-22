@@ -9,6 +9,8 @@ from django.core.cache import cache
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from apps.authentication.models import User
+from apps.departments.models import Department
 from apps.results.models import (
     Exam,
     Institute,
@@ -17,6 +19,7 @@ from apps.results.models import (
     SemesterGPA,
     StudentResult,
 )
+from apps.students.models import Student
 
 
 class PublicPortalApiTests(APITestCase):
@@ -160,3 +163,91 @@ class PublicPortalApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.json()['found'])
         self.assertLess(elapsed, 1.0, f'search took {elapsed:.3f}s')
+
+
+class ClassmateResultsTests(APITestCase):
+    """Friends tab: classmates = same department + semester + shift."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.dept = Department.objects.create(name='Computer', code='CST')
+        other_dept = Department.objects.create(name='Electrical', code='EET')
+        cls.exam = Exam.objects.create(
+            semester=4, regulationYear=2022, program='DIPLOMA IN ENGINEERING',
+            heldIn='2025 held in January-March, 2026', publicationDate='2026-04-28',
+        )
+        institute = Institute.objects.create(code='57057', name='Sirajganj Poly')
+        record = ResultImport.objects.create(
+            fileName='4th.pdf', fileSha256='22' * 32, status='completed',
+        )
+
+        def student(roll, name, dept=None, shift='Morning', semester=4):
+            return Student.objects.create(
+                fullNameEnglish=name, currentRollNumber=roll,
+                currentRegistrationNumber=f'REG-{roll}', semester=semester,
+                department=dept or cls.dept, shift=shift, status='active',
+            )
+
+        def result(roll, rtype, gpa=None, subjects=()):
+            row = StudentResult.objects.create(
+                exam=cls.exam, institute=institute, importRecord=record,
+                rollNumber=roll, resultType=rtype,
+            )
+            if gpa is not None:
+                SemesterGPA.objects.create(
+                    result=row, semester=4, gpa=Decimal(gpa),
+                )
+            for code in subjects:
+                ResultSubject.objects.create(
+                    result=row, subjectCode=code, hasTheory=True,
+                )
+
+        # Results first; the create-signal sync then PROMOTES students with a
+        # sem-4 result to semester 5 (the real post-import state).
+        result('800001', 'passed', gpa='3.90')
+        result('800002', 'referred', subjects=['25931', '28531'])
+        result('800004', 'passed', gpa='3.10')
+
+        cls.me = student('800001', 'Me Myself')
+        student('800002', 'Referred Friend')
+        # No result → no promotion; created at 5 directly so they sit in the
+        # same (promoted) class as everyone else.
+        student('800003', 'No Result Friend', semester=5)
+        student('800004', 'Lower Gpa Friend')
+        student('800005', 'Other Shift', shift='Day')
+        student('800006', 'Other Dept', dept=other_dept)
+
+        cls.user = User.objects.create_user(
+            username='classmate-me', email='cm@x.com', password='pw',
+            role='student', related_profile_id=cls.me.id, account_status='active',
+        )
+
+    def test_classmates_list(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.get('/api/results/classmates/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+
+        self.assertEqual(data['classInfo']['department'], 'Computer')
+        # Auto-sync promoted the sem-4 passers to semester 5.
+        self.assertEqual(data['classInfo']['semester'], 5)
+        self.assertEqual(data['classInfo']['shift'], 'Morning')
+
+        rolls = [f['roll'] for f in data['friends']]
+        # Self, other-shift and other-dept are excluded.
+        self.assertNotIn('800001', rolls)
+        self.assertNotIn('800005', rolls)
+        self.assertNotIn('800006', rolls)
+        # Sorted: passed by GPA desc, then pending, then no-result.
+        self.assertEqual(rolls, ['800004', '800002', '800003'])
+
+        by_roll = {f['roll']: f for f in data['friends']}
+        self.assertEqual(by_roll['800004']['gpa'], '3.10')
+        self.assertEqual(by_roll['800002']['resultType'], 'referred')
+        # Codes only — no catalog names in this compact payload.
+        self.assertEqual(by_roll['800002']['subjectCodes'], ['25931', '28531'])
+        self.assertIsNone(by_roll['800003']['resultType'])
+
+    def test_requires_student_account(self):
+        response = self.client.get('/api/results/classmates/')
+        self.assertIn(response.status_code, (401, 403))

@@ -97,12 +97,40 @@ export interface RecentExam {
   resultCount: number;
 }
 
+export interface ClassmateResult {
+  roll: string;
+  name: string;
+  photo: string;
+  semester: number | null;
+  resultType: ResultType | null;
+  gpa: string | null;
+  cgpa: string | null;
+  /** Bare subject codes for pending results (no catalog detail by design). */
+  subjectCodes: string[];
+}
+
+export interface ClassmatesResponse {
+  classInfo: {
+    department: string;
+    semester: number;
+    shift: string;
+    count: number;
+  };
+  friends: ClassmateResult[];
+}
+
 class ResultService {
   private baseURL = '/results';
 
   /** The logged-in student's own imported result history. */
   async getMyResults(): Promise<RollSearchResponse> {
     return await apiClient.get<RollSearchResponse>(`${this.baseURL}/my/`);
+  }
+
+  /** Class friends (same department + semester + shift) with their latest
+   *  board results — powers the Friends tab. */
+  async getClassmates(): Promise<ClassmatesResponse> {
+    return await apiClient.get<ClassmatesResponse>(`${this.baseURL}/classmates/`);
   }
 
   /** Public search — works without authentication. */

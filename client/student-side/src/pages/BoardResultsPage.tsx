@@ -1,21 +1,25 @@
 /**
- * Board Results — the student's own BTEB result history plus a "Friends"
- * section for looking up classmates' results by roll.
+ * Board Results.
  *
- * - "My Results": hero card (final CGPA / latest status) + per-exam history,
- *   fed automatically whenever the institute imports a new BTEB PDF.
- * - "Friends": roll search (public endpoint) with a locally-saved friends
- *   list (localStorage) for one-tap re-checks after each publication.
+ * - "My Results": hero card (final CGPA / latest status) + per-semester
+ *   history, fed automatically whenever the institute imports a BTEB PDF.
+ * - "Friends": the whole class's latest results (same department + semester
+ *   + shift), auto-populated — no roll typing. A button links to the public
+ *   portal for searching any other roll.
+ * - Teachers get a roll-search view instead (no personal result, no class).
  */
 import { useEffect, useMemo, useState } from 'react';
 import {
   BookmarkPlus,
+  CheckCircle2,
+  ExternalLink,
   GraduationCap,
   Loader2,
   Search,
   Sparkles,
   Users,
   X,
+  XCircle,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,13 +27,16 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { ResultHistory } from '@/components/results/ResultHistory';
+import { ResultHistory, letterGrade } from '@/components/results/ResultHistory';
 import {
   MotivationSlide,
   QUOTE_CHANGE,
   QUOTE_STRIVE,
 } from '@/components/results/MotivationSlide';
-import resultService, { RollSearchResponse } from '@/services/resultService';
+import resultService, {
+  ClassmatesResponse,
+  RollSearchResponse,
+} from '@/services/resultService';
 import { useAuth } from '@/contexts/AuthContext';
 
 const FRIENDS_KEY = 'boardResults.savedFriends';
@@ -168,15 +175,15 @@ function MyResultsTab() {
   );
 }
 
-/** searchOnly: teacher context — "students" wording instead of "friends". */
-function FriendsTab({ searchOnly = false }: { searchOnly?: boolean }) {
+/** Teacher view: search any student's result by roll, with a saved list. */
+function RollSearchView() {
   const [friends, setFriends] = useState<SavedFriend[]>(loadFriends);
   const [roll, setRoll] = useState('');
   const [searching, setSearching] = useState(false);
   const [result, setResult] = useState<RollSearchResponse | null>(null);
 
-  const noun = searchOnly ? 'student' : 'friend';
-  const savedLabel = searchOnly ? 'Saved rolls' : 'Saved friends';
+  const noun = 'student';
+  const savedLabel = 'Saved rolls';
 
   const isSaved = useMemo(
     () => result !== null && friends.some((f) => f.roll === result.roll),
@@ -224,7 +231,7 @@ function FriendsTab({ searchOnly = false }: { searchOnly?: boolean }) {
               value={roll}
               onChange={(event) => setRoll(event.target.value)}
               onKeyDown={(event) => event.key === 'Enter' && search()}
-              placeholder={`${searchOnly ? 'Student' : "Friend"}'s board roll number`}
+              placeholder="Student's board roll number"
               inputMode="numeric"
               aria-label={`${noun}'s board roll number`}
             />
@@ -297,6 +304,156 @@ function FriendsTab({ searchOnly = false }: { searchOnly?: boolean }) {
   );
 }
 
+/** One classmate's compact latest-result card. */
+function FriendCard({ friend }: { friend: ClassmatesResponse['friends'][number] }) {
+  const initials = friend.name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase())
+    .join('');
+  const gpaValue = friend.gpa != null ? parseFloat(friend.gpa) : null;
+
+  return (
+    <Card className="overflow-hidden transition-shadow hover:shadow-md">
+      <CardContent className="flex items-center gap-3 p-3.5">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 text-sm font-bold text-white">
+          {initials || '?'}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-semibold">{friend.name}</p>
+          <p className="text-xs text-muted-foreground">Roll : {friend.roll}</p>
+          {friend.resultType && friend.resultType !== 'passed' && friend.subjectCodes.length > 0 && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {friend.subjectCodes.map((code) => (
+                <span
+                  key={code}
+                  className="rounded bg-red-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-red-600 dark:bg-red-950/40 dark:text-red-400"
+                >
+                  {code}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="shrink-0 text-right">
+          {gpaValue != null ? (
+            <>
+              <p className="flex items-center justify-end gap-1 text-lg font-extrabold text-emerald-600">
+                <CheckCircle2 className="h-4 w-4" aria-hidden />
+                {friend.gpa}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {letterGrade(gpaValue)}
+                {friend.semester && ` · ${friend.semester} sem`}
+              </p>
+            </>
+          ) : friend.resultType ? (
+            <p className="flex items-center gap-1 text-sm font-semibold text-red-600">
+              <XCircle className="h-4 w-4" aria-hidden />
+              {friend.resultType === 'referred' || friend.resultType === 'failed'
+                ? `${friend.subjectCodes.length} due`
+                : 'Pending'}
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground">No result yet</p>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Students' Friends tab: the whole class's latest results, auto-populated. */
+function FriendsTab() {
+  const [data, setData] = useState<ClassmatesResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    resultService
+      .getClassmates()
+      .then((response) => {
+        if (!cancelled) setData(response);
+      })
+      .catch(() => {
+        if (!cancelled) setError('Could not load your class friends. Please try again later.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <div className="space-y-4">
+      {/* Class banner + portal-search button (search itself lives on the
+          public portal — /bteb-result 301s to result.spisg.gov.bd). */}
+      <Card className="border-emerald-100 bg-emerald-50/50 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+          <div>
+            <p className="flex items-center gap-1.5 font-semibold">
+              <Users className="h-4 w-4 text-emerald-600" aria-hidden />
+              Class friends
+              {data && (
+                <Badge variant="outline" className="border-emerald-300 text-emerald-700 dark:text-emerald-300">
+                  {data.classInfo.count}
+                </Badge>
+              )}
+            </p>
+            {data && (
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {data.classInfo.department} · {data.classInfo.semester} semester
+                {data.classInfo.shift && ` · ${data.classInfo.shift} shift`}
+              </p>
+            )}
+          </div>
+          <Button asChild variant="outline" size="sm" className="rounded-full border-emerald-300 hover:bg-emerald-100 dark:border-emerald-800 dark:hover:bg-emerald-900/40">
+            <a href="/bteb-result" target="_blank" rel="noopener">
+              <Search className="mr-1.5 h-4 w-4 text-emerald-600" aria-hidden />
+              Search any roll
+              <ExternalLink className="ml-1.5 h-3 w-3 text-muted-foreground" aria-hidden />
+            </a>
+          </Button>
+        </CardContent>
+      </Card>
+
+      {loading && (
+        <div className="flex items-center justify-center py-12 text-muted-foreground">
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" aria-hidden />
+          Loading class results…
+        </div>
+      )}
+
+      {!loading && error && (
+        <Card>
+          <CardContent className="py-10 text-center text-muted-foreground">{error}</CardContent>
+        </Card>
+      )}
+
+      {!loading && !error && data && data.friends.length === 0 && (
+        <Card>
+          <CardContent className="py-10 text-center text-muted-foreground">
+            <Users className="mx-auto mb-2 h-8 w-8 opacity-40" aria-hidden />
+            No other students found in your class yet.
+          </CardContent>
+        </Card>
+      )}
+
+      {!loading && !error && data && data.friends.length > 0 && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {data.friends.map((friend) => (
+            <FriendCard key={friend.roll} friend={friend} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function BoardResultsPage() {
   const { user } = useAuth();
   // Teachers have no personal board roll, so they get the search view only
@@ -320,7 +477,7 @@ export default function BoardResultsPage() {
       </div>
 
       {isTeacher ? (
-        <FriendsTab searchOnly />
+        <RollSearchView />
       ) : (
         <Tabs defaultValue="mine">
           <TabsList>
