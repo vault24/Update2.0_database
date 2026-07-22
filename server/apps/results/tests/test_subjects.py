@@ -78,6 +78,50 @@ class SubjectParserTests(APITestCase):
         self.assertEqual(outcome.subjects, [])
         self.assertEqual(outcome.issues[0].code, 'no-subject-sections')
 
+    def test_wide_layout_with_extra_columns(self):
+        """The newer 7-semester technologies print a variable number of
+        extra columns AFTER the Grand Total ('… 150 - - - - 3') and fuse
+        tokens during extraction ('27372AI…', '…Sensing2 3 3 …'). Names
+        must come out clean and marks aligned by their arithmetic."""
+        page = (
+            'Course Structure of Diploma in Engineering Probidhan-2022\n'
+            'Land Resource Survey & Environment Technology (74) 4th Semester\n'
+            '5 27441 Environmental Surveying and Monitoring 2 3 3 40 60 100'
+            ' 25 25 50 150 - - - - 3\n'
+            '6 27564 Topographical Map Project 6 2 - - - 50 50 100 100 - - - 2\n'
+            '3 27371 Photogramtery & Remote Sensing Project - 6 2 - - - 50 50'
+            ' 100 100 - - - - 2\n'
+            '4 27372AI for Photogrammetry & Remote Sensing2 3 3 40 60 100'
+            ' 25 25 50 150 - - - 3\n'
+        )
+        outcome = parse_subject_pdf(b'', extractor=FakeExtractor([page]))
+        by_code = {s.code: s for s in outcome.subjects}
+        self.assertEqual(len(by_code), 4)
+
+        env = by_code['27441']
+        self.assertEqual(env.name, 'Environmental Surveying and Monitoring')
+        self.assertEqual((env.theory_periods, env.practical_periods, env.credit),
+                         (2, 3, 3))
+        self.assertEqual((env.theory_total, env.practical_total, env.total_marks),
+                         (100, 50, 150))
+
+        # Omitted theory-periods token + trailing extras.
+        topo = by_code['27564']
+        self.assertEqual(topo.name, 'Topographical Map Project')
+        self.assertEqual(topo.credit, 2)
+        self.assertEqual((topo.practical_total, topo.total_marks), (100, 100))
+
+        # Practical-only project ("- 6 2" head).
+        proj = by_code['27371']
+        self.assertEqual(proj.name, 'Photogramtery & Remote Sensing Project')
+        self.assertEqual(proj.credit, 2)
+        self.assertEqual((proj.practical_total, proj.total_marks), (100, 100))
+
+        # Fused code+name and name+digit.
+        ai = by_code['27372']
+        self.assertEqual(ai.name, 'AI for Photogrammetry & Remote Sensing')
+        self.assertEqual((ai.theory_total, ai.total_marks), (100, 150))
+
 
 class SubjectApiTests(APITestCase):
     @classmethod

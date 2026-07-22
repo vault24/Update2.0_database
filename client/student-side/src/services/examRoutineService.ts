@@ -49,6 +49,11 @@ export interface MyExamRoutineResponse {
   source?: 'enrolled' | 'selected' | 'inferred';
   roll?: string;
   inferredSemester?: number | null;
+  selectedTech?: string;
+  selectedSemester?: number;
+  studentName?: string;
+  department?: string;
+  semesterNumber?: number;
   student?: {
     name: string;
     roll: string;

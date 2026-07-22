@@ -564,13 +564,16 @@ export function ResultHistory({
             </Button>
             {actions?.onRoutine && (
               <Button
-                variant="outline"
                 size="sm"
-                className="rounded-full border-emerald-200 hover:bg-emerald-50 dark:border-emerald-900 dark:hover:bg-emerald-950/40"
+                className="relative rounded-full bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
                 onClick={actions.onRoutine}
               >
-                <CalendarClock className="mr-1.5 h-4 w-4 text-emerald-600" aria-hidden />
+                <CalendarClock className="mr-1.5 h-4 w-4" aria-hidden />
                 Exam Routine
+                <span className="absolute -right-0.5 -top-0.5 flex h-2.5 w-2.5" aria-hidden>
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />
+                </span>
               </Button>
             )}
             {actions?.onDownload && (

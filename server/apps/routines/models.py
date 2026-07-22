@@ -134,6 +134,45 @@ class RoutineSubject(models.Model):
         return f"{self.subjectCode} @ {self.session_id}"
 
 
+class ExamReminderLog(models.Model):
+    """One reminder actually sent to one student — the dedupe ledger.
+
+    Kinds:
+      countdown  — every 3 days while the first exam is <= 30 days away
+      day_before — the day before each exam (preparation checklist)
+      exam_day   — ~3 hours before an exam starts (get-ready ping)
+    """
+
+    KIND_CHOICES = [
+        ('countdown', 'Countdown'),
+        ('day_before', 'Day Before'),
+        ('exam_day', 'Exam Day'),
+    ]
+
+    student = models.ForeignKey(
+        'students.Student', on_delete=models.CASCADE,
+        related_name='examReminders',
+    )
+    routine = models.ForeignKey(
+        RoutineImport, on_delete=models.CASCADE, related_name='remindersSent',
+    )
+    kind = models.CharField(max_length=12, choices=KIND_CHOICES)
+    # Exam-specific kinds anchor to the exam; countdown rows leave these empty.
+    subjectCode = models.CharField(max_length=10, blank=True, default='')
+    examDate = models.DateField(null=True, blank=True)
+    sentAt = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'routine_reminder_log'
+        indexes = [
+            models.Index(fields=['student', 'kind', 'sentAt']),
+            models.Index(fields=['kind', 'examDate']),
+        ]
+
+    def __str__(self):
+        return f"{self.kind} → {self.student_id} ({self.subjectCode or 'all'})"
+
+
 class RoutineParserIssue(models.Model):
     """Diagnostics raised while parsing/validating a routine import."""
 

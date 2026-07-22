@@ -8,13 +8,18 @@ Engineering Probidhan-YYYY" PDF. Each semester is a table:
     Code  Name  Theory Practical  Continuous Final Total  Continuous Final Total  [Grand Total]
     3 25931 Mathematics-III 3 3 4 60 90 150 25 25 50 200
 
-Hazards handled (all observed on the real document):
+Hazards handled (all observed on the real documents):
 - subject names wrap across lines ("Computer Architecture &\\nMicroprocessor")
 - missing values print as "-" — and are sometimes omitted entirely
   ("Principles of Marketing 2  2 40 60 100 - - - 100" has no practical
-  periods token at all), so the numeric tail is aligned from the END:
-  the last 7 tokens are the marks columns, whatever remains in front is
-  periods + credit (credit last)
+  periods token at all)
+- the newer 7-semester technologies (73/74/75 …) print EXTRA columns after
+  the Grand Total ("… 150 - - - - 3"), a variable number per row, so
+  neither pure front- nor end-alignment works; the 7 marks columns are
+  located by their arithmetic invariants instead (thC+thF=thT,
+  prC+prF=prT, thT+prT=GT)
+- glued tokens from extraction: a code fused to the next word ("27372AI…")
+  and a name fused to its first numeric column ("…Remote Sensing2 3 3 …")
 - per-semester totals rows ("13 21 20 260 …") have no 5-digit code in the
   second position, so the row anchor skips them, as it does the "38.2%" rows
 
@@ -71,8 +76,10 @@ _SECTION = re.compile(
 _PROBIDHAN = re.compile(r'Probidhan[\s-]*(?P<year>\d{4})', re.I)
 
 #: Row anchor: serial + 5-digit subject code. The totals rows fail this
-#: (their second token is not a 5-digit code).
-_ROW = re.compile(r'^\s*\d{1,2}\s+(?P<code>\d{5})\s', re.M)
+#: (their second token is not a 5-digit code). The lookahead (instead of
+#: consuming whitespace) also anchors rows whose code fused to the name
+#: during extraction ("4 27372AI for Photogrammetry …").
+_ROW = re.compile(r'^\s*\d{1,2}\s+(?P<code>\d{5})(?=\s|[A-Za-z])', re.M)
 
 #: A value token in the numeric tail: an integer or the "-" placeholder.
 _VALUE = re.compile(r'^(?:\d{1,4}|-+)$')
@@ -82,12 +89,44 @@ def _to_int(token: str) -> Optional[int]:
     return int(token) if token.isdigit() else None
 
 
+def _marks_window(tail: list[str]) -> int:
+    """Find where the 7 marks columns start inside the numeric tail.
+
+    Layouts vary: the classic 10-column rows end with the marks (start =
+    len-7); the newer technologies append a variable number of extra
+    columns after the Grand Total, and occasionally omit a periods token.
+    At most 3 tokens (theory periods, practical periods, credit) can sit
+    before the marks, so try starts 0..3 and score each window by the
+    printed arithmetic: thC+thF=thT, prC+prF=prT, thT+prT=GT.
+    """
+    best_start, best_score = 0, None
+    for start in range(0, min(3, len(tail) - 7) + 1):
+        thC, thF, thT, prC, prF, prT, gt = (
+            _to_int(t) for t in tail[start:start + 7]
+        )
+        score = 0
+        for a, b, c in ((thC, thF, thT), (prC, prF, prT)):
+            if a is not None and b is not None and c is not None:
+                score += 2 if a + b == c else -2
+        if gt is not None:
+            score += 1 if (thT or 0) + (prT or 0) == gt else -1
+        else:
+            score -= 1
+        # Ties go to the later start (more head tokens = classic layout).
+        if best_score is None or score >= best_score:
+            best_start, best_score = start, score
+    return best_start
+
+
 def _parse_row(code: str, body: str, semester: int, issues: list[ParseIssue]) -> Optional[dict]:
     """Split one row body (after the code) into name + numeric columns."""
+    # Un-glue a name fused to its first numeric column ("…Sensing2 3 3 …").
+    body = re.sub(r'(?<=[A-Za-z])(?=\d)', ' ', body)
     tokens = body.split()
-    # Walk back from the end collecting the numeric tail.
+    # Walk back from the end collecting the whole numeric tail (up to 20:
+    # 3 periods/credit + 7 marks + extra columns on the newer layouts).
     tail: list[str] = []
-    while tokens and _VALUE.match(tokens[-1]) and len(tail) < 10:
+    while tokens and _VALUE.match(tokens[-1]) and len(tail) < 20:
         tail.insert(0, tokens.pop())
     name = ' '.join(tokens).strip()
 
@@ -100,11 +139,13 @@ def _parse_row(code: str, body: str, semester: int, issues: list[ParseIssue]) ->
         ))
         return None
 
-    # Last 7 = TheoryCont, TheoryFinal, TheoryTotal, PracCont, PracFinal,
-    # PracTotal, GrandTotal. Whatever precedes them (1–3 tokens) is
-    # periods + credit, credit last.
-    marks = tail[-7:]
-    head = tail[:-7]
+    # Locate the 7 marks columns (TheoryCont, TheoryFinal, TheoryTotal,
+    # PracCont, PracFinal, PracTotal, GrandTotal); what precedes them
+    # (0–3 tokens) is periods + credit, credit last. Tokens after the
+    # marks are the newer layouts' extra columns — ignored.
+    start = _marks_window(tail)
+    marks = tail[start:start + 7]
+    head = tail[:start]
     credit = _to_int(head[-1]) if head else None
     theory_periods = _to_int(head[0]) if len(head) >= 2 else None
     practical_periods = _to_int(head[1]) if len(head) >= 3 else None

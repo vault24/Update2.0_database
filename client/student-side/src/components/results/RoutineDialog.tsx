@@ -11,8 +11,10 @@ import {
   CalendarClock,
   CalendarDays,
   Clock,
+  Download,
   Info,
   Loader2,
+  Printer,
   SlidersHorizontal,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -29,6 +31,7 @@ import examRoutineService, {
   MyExamRoutineResponse,
   RoutineExam,
 } from '@/services/examRoutineService';
+import type { RoutineSheetInfo } from '@/lib/examRoutinePdf';
 
 const ORDINALS = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
 
@@ -145,11 +148,33 @@ export function RoutineDialog({
   const notExact = data?.available && data.source !== 'enrolled' && data.source !== 'selected';
   const showPicker = pickerOpen || (!loading && (notExact || (data?.available && exams.length === 0)));
 
+  const sheetInfo = (): RoutineSheetInfo => {
+    const selSem = data?.selectedSemester ?? data?.semesterNumber ?? data?.inferredSemester;
+    return {
+      roll,
+      studentName: data?.studentName,
+      department:
+        data?.department ||
+        technologies.find((t) => t.techCode === (data?.selectedTech ?? tech))?.name,
+      semesterLabel: selSem ? `${ORDINALS[selSem - 1]} Semester` : undefined,
+      regulationYear: data?.routine?.regulationYear,
+      examSession: data?.routine?.examSession,
+      examType: data?.examType,
+      source: data?.source,
+    };
+  };
+
+  const exportSheet = async (mode: 'download' | 'print') => {
+    // jsPDF is heavy — load it only when someone actually exports.
+    const { downloadRoutinePdf, printRoutinePdf } = await import('@/lib/examRoutinePdf');
+    (mode === 'download' ? downloadRoutinePdf : printRoutinePdf)(sheetInfo(), exams);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
-        <DialogTitle className="flex items-center gap-2">
-          <CalendarClock className="h-5 w-5 text-emerald-600" aria-hidden />
+      <DialogContent className="max-h-[88vh] w-[calc(100vw-1.25rem)] max-w-lg gap-3 overflow-y-auto rounded-2xl p-4 sm:gap-4 sm:p-6">
+        <DialogTitle className="flex items-center gap-2 pr-8 text-base sm:text-lg">
+          <CalendarClock className="h-5 w-5 shrink-0 text-emerald-600" aria-hidden />
           Exam Routine — Roll {roll}
         </DialogTitle>
 
@@ -160,9 +185,9 @@ export function RoutineDialog({
               <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
               Choose your department &amp; semester for an exact routine
             </p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               <Select value={tech} onValueChange={setTech}>
-                <SelectTrigger className="min-w-[190px] flex-1">
+                <SelectTrigger className="w-full sm:min-w-[190px] sm:flex-1">
                   <SelectValue placeholder="Department / Technology" />
                 </SelectTrigger>
                 <SelectContent>
@@ -173,21 +198,23 @@ export function RoutineDialog({
                   ))}
                 </SelectContent>
               </Select>
-              <Select value={semester} onValueChange={setSemester}>
-                <SelectTrigger className="w-[130px]">
-                  <SelectValue placeholder="Semester" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ORDINALS.map((label, i) => (
-                    <SelectItem key={label} value={String(i + 1)}>
-                      {label} Semester
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button onClick={applyPicker} disabled={!tech || !semester} className="bg-emerald-600 hover:bg-emerald-700">
-                Show
-              </Button>
+              <div className="flex gap-2">
+                <Select value={semester} onValueChange={setSemester}>
+                  <SelectTrigger className="flex-1 sm:w-[130px] sm:flex-none">
+                    <SelectValue placeholder="Semester" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ORDINALS.map((label, i) => (
+                      <SelectItem key={label} value={String(i + 1)}>
+                        {label} Semester
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button onClick={applyPicker} disabled={!tech || !semester} className="bg-emerald-600 hover:bg-emerald-700">
+                  Show
+                </Button>
+              </div>
             </div>
           </div>
         )}
@@ -212,7 +239,7 @@ export function RoutineDialog({
         )}
 
         {!loading && !error && data?.available && (
-          <div className="space-y-3">
+          <div className="min-w-0 space-y-3">
             {notExact && exams.length > 0 && (
               <p className="flex items-start gap-1.5 rounded-lg bg-amber-50 p-2 text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
                 <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -254,6 +281,29 @@ export function RoutineDialog({
               exams.map((exam) => (
                 <ExamRow key={`${exam.subjectCode}-${exam.date}`} exam={exam} />
               ))
+            )}
+
+            {exams.length > 0 && (
+              <div className="space-y-2 border-t pt-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    className="bg-emerald-600 hover:bg-emerald-700"
+                    onClick={() => exportSheet('download')}
+                  >
+                    <Download className="mr-1.5 h-4 w-4" aria-hidden /> Download
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => exportSheet('print')}
+                  >
+                    <Printer className="mr-1.5 h-4 w-4" aria-hidden /> Print
+                  </Button>
+                </div>
+                <p className="text-center text-[11px] leading-snug text-muted-foreground">
+                  System-generated routine — always double-check dates &amp; times
+                  against the official BTEB notice.
+                </p>
+              </div>
             )}
           </div>
         )}

@@ -14,19 +14,24 @@ import {
   CalendarClock,
   CalendarDays,
   Clock,
+  Download,
   Hourglass,
   Loader2,
   BookMarked,
   CheckCircle2,
   Info,
+  Printer,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import examRoutineService, {
   MyExamRoutineResponse,
   RoutineExam,
 } from '@/services/examRoutineService';
+
+const ORDINALS = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
 
 function formatDate(iso: string): string {
   const d = new Date(`${iso}T00:00:00`);
@@ -151,6 +156,25 @@ function FinalRoutineTab() {
   );
   const remaining = exams.filter((e) => daysUntil(e.date) >= 0).length;
 
+  const exportSheet = async (mode: 'download' | 'print') => {
+    if (!data?.student) return;
+    // jsPDF is heavy — load it only when the student actually exports.
+    const { downloadRoutinePdf, printRoutinePdf } = await import('@/lib/examRoutinePdf');
+    const info = {
+      roll: data.student.roll,
+      studentName: data.student.name,
+      department: data.student.department,
+      semesterLabel: data.student.semester
+        ? `${ORDINALS[data.student.semester - 1]} Semester`
+        : undefined,
+      regulationYear: data.routine?.regulationYear,
+      examSession: data.routine?.examSession,
+      examType: data.examType,
+      source: 'enrolled',
+    };
+    (mode === 'download' ? downloadRoutinePdf : printRoutinePdf)(info, exams);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16 text-muted-foreground">
@@ -222,6 +246,23 @@ function FinalRoutineTab() {
               </Badge>
             )}
           </div>
+          <div className="flex w-full gap-2 sm:w-auto">
+            <Button
+              size="sm"
+              className="flex-1 bg-emerald-600 hover:bg-emerald-700 sm:flex-none"
+              onClick={() => exportSheet('download')}
+            >
+              <Download className="mr-1.5 h-4 w-4" aria-hidden /> Download
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1 sm:flex-none"
+              onClick={() => exportSheet('print')}
+            >
+              <Printer className="mr-1.5 h-4 w-4" aria-hidden /> Print
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -232,6 +273,11 @@ function FinalRoutineTab() {
           highlight={index === upcomingIndex}
         />
       ))}
+
+      <p className="text-center text-xs text-muted-foreground">
+        System-generated routine — always double-check dates &amp; times against
+        the official BTEB notice.
+      </p>
     </div>
   );
 }

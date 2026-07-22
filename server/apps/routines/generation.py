@@ -256,6 +256,11 @@ def generate_for_roll(
         payload = generate_for_student(student, exam_type)
         payload['source'] = 'enrolled'
         payload['roll'] = roll
+        # For the downloadable routine sheet (name is already public on the
+        # result page for this roll).
+        payload['studentName'] = student.fullNameEnglish
+        payload['department'] = student.department.name if student.department_id else ''
+        payload['semesterNumber'] = student.semester
         return payload
 
     results = list(
