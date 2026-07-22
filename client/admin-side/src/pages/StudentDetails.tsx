@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -785,7 +786,10 @@ export default function StudentDetails() {
 
               {/* Names & Info */}
               <div className="flex-1 text-center lg:text-left">
-                <h2 className="text-2xl font-semibold text-foreground tracking-tight">{student.fullNameEnglish}</h2>
+                <h2 className="text-2xl font-semibold text-foreground tracking-tight">
+                  {student.fullNameEnglish}
+                  <VerifiedBadge roll={student.currentRollNumber} size={18} className="ml-1.5 -mt-0.5" />
+                </h2>
                 <p className="text-lg text-muted-foreground font-medium">{student.fullNameBangla}</p>
                 <p className="text-sm text-muted-foreground mt-1">
                   {typeof student.department === 'string' ? student.department : student.department.name}

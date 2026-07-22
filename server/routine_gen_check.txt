@@ -1,0 +1,23 @@
+{
+ "available": true,
+ "examType": "final",
+ "routine": {
+  "examType": "final",
+  "regulationYear": 2022,
+  "examSession": "",
+  "publicationDate": "2026-08-06",
+  "examStartDate": "2026-08-06",
+  "examEndDate": "2026-09-07"
+ },
+ "technologyResolved": true,
+ "regularCount": 5,
+ "referredCount": 0,
+ "totalExams": 5
+}
+
+EXAMS (5):
+2026-08-06 Thu 10:00-13:00 | 28551 Application Development Using Java | regular
+2026-08-13 Thu 10:00-13:00 | 28552 Web Design & Development-II        | regular
+2026-08-18 Tue 10:00-13:00 | 28553 Computer Architecture & Microproce | regular
+2026-08-23 Sun 10:00-13:00 | 28554 Data Communication                 | regular
+2026-09-02 Wed 10:00-13:00 | 28555 Operating System                   | regular

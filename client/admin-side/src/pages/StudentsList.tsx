@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { cn } from '@/lib/utils';
 import { studentService, Student, StudentFilters } from '@/services/studentService';
 import { alumniService } from '@/services/alumniService';
@@ -479,7 +480,10 @@ export default function StudentsList() {
                     </div>
                   </td>
                   <td className="p-4">
-                    <p className="font-medium text-foreground">{student.name}</p>
+                    <p className="font-medium text-foreground">
+                      {student.name}
+                      <VerifiedBadge roll={student.roll} size={14} className="ml-1" />
+                    </p>
                   </td>
                   <td className="p-4">
                     <p className="text-muted-foreground font-mono text-sm">{student.roll}</p>

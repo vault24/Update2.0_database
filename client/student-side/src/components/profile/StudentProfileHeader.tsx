@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useProfilePicture } from '@/hooks/useProfilePicture';
+import { VerifiedBadge } from '@/components/VerifiedBadge';
 
 interface StudentProfileHeaderProps {
   name: string;
@@ -144,6 +145,7 @@ export function StudentProfileHeader({
               <div className="flex flex-wrap items-start gap-2 mb-1">
                 <h1 className="text-xl md:text-2xl lg:text-3xl font-display font-bold">
                   {name}
+                  <VerifiedBadge roll={rollNumber} size={20} className="ml-1.5 -mt-0.5" />
                 </h1>
                 <Badge className="bg-white/20 text-white border-white/30 text-[10px] md:text-xs">
                   {status === 'active' ? '● Active' : '○ Inactive'}

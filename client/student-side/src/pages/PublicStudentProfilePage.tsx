@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
+import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { studentService } from '@/services/studentService';
 import { settingsService, SystemSettings } from '@/services/settingsService';
 import { getErrorMessage } from '@/lib/api';
@@ -306,7 +307,10 @@ This is a public profile showcasing academic information and achievements.`,
           {/* Name and Info - separated from avatar to prevent cutoff */}
           <div className="space-y-3">
             <div>
-              <h1 className="text-lg sm:text-xl md:text-2xl font-bold break-words">{transformedStudent.name}</h1>
+              <h1 className="text-lg sm:text-xl md:text-2xl font-bold break-words">
+                {transformedStudent.name}
+                <VerifiedBadge roll={transformedStudent.rollNumber} size={18} className="ml-1.5 -mt-0.5" />
+              </h1>
               <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 line-clamp-2">{transformedStudent.headline}</p>
             </div>
             

@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { toast } from 'sonner';
 import { studentService, Student } from '@/services/studentService';
 import { getErrorMessage } from '@/lib/api';
@@ -304,7 +305,10 @@ export default function StudentDetailsPage() {
 
               {/* Names & Info */}
               <div className="flex-1 text-center lg:text-left">
-                <h2 className="text-2xl font-bold text-foreground">{student.fullNameEnglish}</h2>
+                <h2 className="text-2xl font-bold text-foreground">
+                  {student.fullNameEnglish}
+                  <VerifiedBadge roll={student.currentRollNumber} size={18} className="ml-1.5 -mt-0.5" />
+                </h2>
                 <p className="text-lg text-muted-foreground font-medium">{student.fullNameBangla}</p>
                 <p className="text-sm text-muted-foreground mt-1">
                   {typeof student.department === 'string' ? student.department : student.department.name}

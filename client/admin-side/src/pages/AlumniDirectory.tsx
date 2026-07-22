@@ -11,6 +11,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
@@ -595,6 +596,7 @@ function AlumniGridCard({ alumni, index, onOpen }: { alumni: DisplayAlumni; inde
             <div className="flex-1 min-w-0">
               <h3 className="font-bold text-sm text-foreground truncate group-hover:text-primary transition-colors">
                 {alumni.name}
+                <VerifiedBadge roll={alumni.roll} size={13} className="ml-1" />
               </h3>
               <p className="text-[11px] text-muted-foreground font-mono truncate">{alumni.roll}</p>
               <div className="mt-1"><VerifiedBadge verified={alumni.isVerified} /></div>
@@ -651,7 +653,10 @@ function AlumniListRow({ alumni, index, onOpen }: { alumni: DisplayAlumni; index
 
       {/* Name + roll */}
       <div className="w-[200px] min-w-0 shrink-0">
-        <p className="font-semibold text-sm text-foreground truncate group-hover:text-primary transition-colors">{alumni.name}</p>
+        <p className="font-semibold text-sm text-foreground truncate group-hover:text-primary transition-colors">
+          {alumni.name}
+          <VerifiedBadge roll={alumni.roll} size={13} className="ml-1" />
+        </p>
         <p className="text-[11px] text-muted-foreground font-mono truncate">{alumni.roll}</p>
       </div>
 

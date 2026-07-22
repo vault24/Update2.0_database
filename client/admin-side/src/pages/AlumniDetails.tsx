@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
+import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { formatFinalCgpa } from '@/lib/academics';
 
 interface CareerEntry {
@@ -1325,7 +1326,10 @@ export default function AlumniDetails() {
 
               {/* Names & Info */}
               <div className="flex-1 text-center lg:text-left">
-                <h2 className="text-3xl font-bold text-foreground mb-1">{alumni.name}</h2>
+                <h2 className="text-3xl font-bold text-foreground mb-1">
+                  {alumni.name}
+                  <VerifiedBadge roll={alumni.roll} size={20} className="ml-1.5 -mt-0.5" />
+                </h2>
                 <p className="text-lg text-muted-foreground font-medium mb-2">{alumni.currentJob} at {alumni.company}</p>
                 <p className="text-sm text-muted-foreground mb-4">{alumni.department} • Class of {alumni.graduationYear} • Roll: {alumni.roll}</p>
                 

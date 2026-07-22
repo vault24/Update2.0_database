@@ -26,6 +26,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { toast } from 'sonner';
 import {
   ResultHistory,
@@ -337,7 +338,10 @@ function FriendCard({
           {initials || '?'}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate font-semibold">{friend.name}</p>
+          <p className="truncate font-semibold">
+            {friend.name}
+            <VerifiedBadge roll={friend.roll} size={14} className="ml-1" />
+          </p>
           <p className="text-xs text-muted-foreground">Roll : {friend.roll}</p>
           {friend.resultType && friend.resultType !== 'passed' && friend.subjectCodes.length > 0 && (
             <div className="mt-1 flex flex-wrap gap-1">

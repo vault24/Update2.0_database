@@ -311,6 +311,7 @@ _DEV_STUDENT_ORIGINS = [
     "http://localhost:8080", "http://localhost:8081", "http://localhost:8082",
     "http://127.0.0.1:8080", "http://127.0.0.1:8082",
     "http://localhost:5199", "http://127.0.0.1:5199",  # .claude/launch.json student-dev
+    "http://localhost:5196", "http://127.0.0.1:5196",  # .claude/launch.json student-dev-alt
 ]
 _DEV_ADMIN_ORIGINS = [
     "http://localhost:3000", "http://localhost:5173",

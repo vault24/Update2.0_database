@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { studentService, type Student, type StudentFilters } from '@/services/studentService';
 import { departmentService, type Department } from '@/services/departmentService';
 import { getErrorMessage } from '@/lib/api';
@@ -290,7 +291,10 @@ export default function StudentListPage() {
                           )}
                         </div>
                         <div className="min-w-0">
-                          <p className="font-medium truncate max-w-[160px] md:max-w-[240px]">{student.fullNameEnglish || 'N/A'}</p>
+                          <p className="font-medium truncate max-w-[160px] md:max-w-[240px]">
+                            {student.fullNameEnglish || 'N/A'}
+                            <VerifiedBadge roll={student.currentRollNumber} size={14} className="ml-1" />
+                          </p>
                           <p className="text-xs text-muted-foreground truncate max-w-[160px] md:max-w-[240px]">{student.email || '—'}</p>
                         </div>
                       </div>
