@@ -44,14 +44,14 @@ function fitText(doc: jsPDF, text: string, width: number): string {
 
 function chip(doc: jsPDF, label: string, value: string, x: number, width: number, y: number) {
   doc.setFillColor(255, 255, 255);
-  doc.roundedRect(x, y, width, 16, 2.5, 2.5, 'F');
+  doc.roundedRect(x, y, width, 12, 2.2, 2.2, 'F');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(5.2);
   doc.setTextColor(...MUTED);
-  doc.text(label, x + 3.5, y + 5.5);
+  doc.text(label, x + 3, y + 4.2);
   doc.setFontSize(7.1);
   doc.setTextColor(...INK);
-  doc.text(fitText(doc, value, width - 7), x + 3.5, y + 11.5);
+  doc.text(fitText(doc, value, width - 6), x + 3, y + 8.8);
 }
 
 function buildRoutineDoc(info: RoutineSheetInfo, exams: RoutineExam[]): jsPDF {
@@ -69,7 +69,7 @@ function buildRoutineDoc(info: RoutineSheetInfo, exams: RoutineExam[]): jsPDF {
 
   // A single green information panel keeps the routine details together.
   doc.setFillColor(...NAVY);
-  doc.roundedRect(MARGIN, 9, innerWidth, 69, 4, 4, 'F');
+  doc.roundedRect(MARGIN, 9, innerWidth, 54, 4, 4, 'F');
   doc.setFillColor(...GREEN);
   doc.circle(MARGIN + 13, 23.5, 9, 'F');
   doc.setFont('helvetica', 'bold');
@@ -97,13 +97,13 @@ function buildRoutineDoc(info: RoutineSheetInfo, exams: RoutineExam[]): jsPDF {
 
   const gap = 3;
   const half = (innerWidth - gap) / 2;
-  chip(doc, 'STUDENT', info.studentName || 'Student', MARGIN + 3, half - 3, 40);
-  chip(doc, 'ROLL NO.', info.roll, MARGIN + half + gap, half - 3, 40);
-  chip(doc, 'TECHNOLOGY', info.department || 'Not specified', MARGIN + 3, half - 3, 59);
+  chip(doc, 'STUDENT', info.studentName || 'Student', MARGIN + 3, half - 3, 34);
+  chip(doc, 'ROLL NO.', info.roll, MARGIN + half + gap, half - 3, 34);
+  chip(doc, 'TECHNOLOGY', info.department || 'Not specified', MARGIN + 3, half - 3, 48);
   const semester = [info.semesterLabel, info.regulationYear ? `${info.regulationYear} Regulation` : ''].filter(Boolean).join(' · ') || 'Not specified';
-  chip(doc, 'SEMESTER', semester, MARGIN + half + gap, half - 3, 59);
+  chip(doc, 'SEMESTER', semester, MARGIN + half + gap, half - 3, 48);
 
-  const tableTop = 85;
+  const tableTop = 70;
   const footerTop = PAGE_HEIGHT - 19;
   const headerHeight = 9;
   // Reserve space for the verification note as well as the footer.
