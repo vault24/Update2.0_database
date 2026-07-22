@@ -1,24 +1,17 @@
-/**
- * Exam-routine sheet (PDF) — a properly designed, printable routine.
- *
- * One layout serves both actions: `downloadRoutinePdf` saves the file,
- * `printRoutinePdf` opens the same sheet with the print dialog ready.
- * The sheet is system-generated from the imported BTEB routine, so it
- * always carries a "verify against the official notice" warning.
- */
+/** A compact, phone-friendly poster PDF for a student's exam routine. */
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import type { RoutineExam } from '@/services/examRoutineService';
 
-const INSTITUTE_NAME = 'Sirajganj Government Polytechnic Institute';
-const INSTITUTE_SUB = 'Sirajganj, Bangladesh · spisg.gov.bd';
-
-const EMERALD: [number, number, number] = [5, 150, 105];
-const EMERALD_DARK: [number, number, number] = [4, 120, 87];
-const AMBER_BG: [number, number, number] = [255, 251, 235];
-const AMBER_BORDER: [number, number, number] = [217, 119, 6];
+const PAGE_WIDTH = 108;
+const PAGE_HEIGHT = 192;
+const MARGIN = 7;
+const INK: [number, number, number] = [22, 29, 46];
+const MUTED: [number, number, number] = [100, 116, 139];
+const GREEN: [number, number, number] = [5, 150, 105];
+const GREEN_DARK: [number, number, number] = [4, 120, 87];
+const PALE_GREEN: [number, number, number] = [236, 253, 245];
 const RED: [number, number, number] = [220, 38, 38];
-const SLATE: [number, number, number] = [71, 85, 105];
+const PALE_RED: [number, number, number] = [254, 242, 242];
 
 export interface RoutineSheetInfo {
   roll: string;
@@ -28,7 +21,7 @@ export interface RoutineSheetInfo {
   regulationYear?: number | null;
   examSession?: string;
   examType?: string;
-  /** 'enrolled' | 'selected' | 'inferred' — inferred adds an extra caveat. */
+  /** 'enrolled' | 'selected' | 'inferred' - inferred adds an extra caveat. */
   source?: string;
 }
 
@@ -44,158 +37,159 @@ function to12h(hhmm: string): string {
   return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${period}`;
 }
 
-function buildRoutineDoc(info: RoutineSheetInfo, exams: RoutineExam[]): jsPDF {
-  const doc = new jsPDF({ orientation: 'portrait', format: 'a4' });
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 14;
+function ellipsis(doc: jsPDF, text: string, maxWidth: number): string {
+  if (doc.getTextWidth(text) <= maxWidth) return text;
+  let result = text;
+  while (result.length > 1 && doc.getTextWidth(`${result}...`) > maxWidth) result = result.slice(0, -1);
+  return `${result}...`;
+}
 
-  // ---- Header band ---------------------------------------------------
-  doc.setFillColor(...EMERALD);
-  doc.rect(0, 0, pageWidth, 30, 'F');
-  doc.setFillColor(...EMERALD_DARK);
-  doc.rect(0, 30, pageWidth, 1.4, 'F');
+function footer(doc: jsPDF, page: number, total: number) {
+  doc.setDrawColor(226, 232, 240);
+  doc.line(MARGIN, PAGE_HEIGHT - 15, PAGE_WIDTH - MARGIN, PAGE_HEIGHT - 15);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(5.8);
+  doc.setTextColor(...MUTED);
+  doc.text(
+    `Powered by Sirajganj Government Polytechnic Institute, Sirajganj, Bangladesh · result.spisg.gov.bd`,
+    PAGE_WIDTH / 2,
+    PAGE_HEIGHT - 9,
+    { align: 'center', maxWidth: PAGE_WIDTH - MARGIN * 2 },
+  );
+  doc.text(`Page ${page} of ${total}`, PAGE_WIDTH / 2, PAGE_HEIGHT - 5, { align: 'center' });
+}
 
+function addHeader(doc: jsPDF, info: RoutineSheetInfo, continuation = false) {
+  doc.setFillColor(...GREEN);
+  doc.roundedRect(MARGIN, 7, PAGE_WIDTH - MARGIN * 2, continuation ? 25 : 35, 4, 4, 'F');
+  doc.setFillColor(...GREEN_DARK);
+  doc.circle(PAGE_WIDTH - 10, 11, 15, 'F');
+  doc.circle(PAGE_WIDTH - 1, 24, 10, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(15);
-  doc.text(INSTITUTE_NAME, pageWidth / 2, 12, { align: 'center' });
+  doc.setFontSize(continuation ? 13 : 16);
+  doc.text(continuation ? 'EXAM ROUTINE (CONT.)' : 'EXAM ROUTINE', MARGIN + 6, continuation ? 18 : 19);
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.text(INSTITUTE_SUB, pageWidth / 2, 17.5, { align: 'center' });
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  const examTypeLabel = (info.examType || 'final') === 'mid' ? 'Mid-Term' : 'Semester Final';
-  doc.text(`BTEB ${examTypeLabel} Examination — Exam Routine`, pageWidth / 2, 25, {
-    align: 'center',
-  });
+  doc.setFontSize(7);
+  const type = (info.examType || 'final') === 'mid' ? 'MID-TERM EXAMINATION' : 'SEMESTER FINAL EXAMINATION';
+  doc.text(type, MARGIN + 6, continuation ? 23 : 25);
+  if (!continuation && info.examSession) {
+    doc.setFontSize(6.6);
+    doc.text(ellipsis(doc, info.examSession.toUpperCase(), PAGE_WIDTH - 30), MARGIN + 6, 31);
+  }
+}
 
-  // ---- Info panel ----------------------------------------------------
-  const infoPairs: Array<[string, string]> = [['Roll No', info.roll]];
-  if (info.studentName) infoPairs.push(['Name', info.studentName]);
-  if (info.department) infoPairs.push(['Technology', info.department]);
-  if (info.semesterLabel) infoPairs.push(['Semester', info.semesterLabel]);
-  if (info.regulationYear) infoPairs.push(['Regulation', `${info.regulationYear} Probidhan`]);
-  if (info.examSession) infoPairs.push(['Exam Session', info.examSession]);
-
-  let y = 38;
-  doc.setFontSize(9);
-  const colWidth = (pageWidth - margin * 2) / 2;
-  infoPairs.forEach(([label, value], i) => {
-    const x = margin + (i % 2) * colWidth;
-    if (i % 2 === 0 && i > 0) y += 6;
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...SLATE);
-    doc.text(`${label}:`, x, y);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(20, 20, 20);
-    doc.text(value, x + 26, y, { maxWidth: colWidth - 30 });
-  });
-  y += 8;
-
-  // ---- Exam table ----------------------------------------------------
-  const referredCount = exams.filter((e) => e.isReferred).length;
-  autoTable(doc, {
-    startY: y,
-    head: [['#', 'Date', 'Day', 'Time', 'Subject', 'Code', 'Type']],
-    body: exams.map((e, i) => [
-      String(i + 1),
-      fmtDate(e.date),
-      e.weekday,
-      `${to12h(e.startTime)} – ${to12h(e.endTime)}`,
-      e.subjectName,
-      e.subjectCode,
-      e.isReferred ? 'Referred' : 'Regular',
-    ]),
-    styles: { fontSize: 9, cellPadding: 2.6, valign: 'middle' },
-    headStyles: { fillColor: EMERALD, textColor: 255, fontStyle: 'bold' },
-    alternateRowStyles: { fillColor: [240, 253, 244] },
-    columnStyles: {
-      0: { halign: 'center', cellWidth: 8 },
-      1: { cellWidth: 26 },
-      2: { cellWidth: 24 },
-      3: { cellWidth: 36 },
-      5: { halign: 'center', cellWidth: 16 },
-      6: { halign: 'center', cellWidth: 20 },
-    },
-    didParseCell: (data) => {
-      if (data.section === 'body' && data.column.index === 6
-          && data.cell.raw === 'Referred') {
-        data.cell.styles.textColor = RED;
-        data.cell.styles.fontStyle = 'bold';
-      }
-    },
-    margin: { left: margin, right: margin },
-  });
-
-  let afterTable = ((doc as unknown as { lastAutoTable?: { finalY: number } })
-    .lastAutoTable?.finalY ?? y) + 6;
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(...SLATE);
-  doc.text(
-    `Total exams: ${exams.length}` +
-      (referredCount ? `  ·  Referred: ${referredCount}` : ''),
-    margin, afterTable,
-  );
-  afterTable += 6;
-
-  // ---- Warning box ---------------------------------------------------
-  const warningLines = [
-    'This routine is SYSTEM-GENERATED from the published BTEB exam routine and your',
-    'subject records. Always double-check the date, time and subject codes against the',
-    'official BTEB notice / your institute notice board before each exam.',
+function addStudentCard(doc: jsPDF, info: RoutineSheetInfo): number {
+  const top = 47;
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(MARGIN, top, PAGE_WIDTH - MARGIN * 2, 30, 3, 3, 'FD');
+  const fields = [
+    ['STUDENT', info.studentName || 'Student'],
+    ['ROLL NO.', info.roll],
+    ['TECHNOLOGY', info.department || 'Not specified'],
+    ['SEMESTER', [info.semesterLabel, info.regulationYear ? `${info.regulationYear} Regulation` : ''].filter(Boolean).join(' · ') || 'Not specified'],
   ];
-  if (info.source === 'inferred') {
-    warningLines.push(
-      'This roll is not a registered student of this institute — the subject list is',
-      'estimated from published results and may be incomplete.',
-    );
-  }
-  const boxHeight = 8 + warningLines.length * 4.4;
-  if (afterTable + boxHeight > pageHeight - 20) {
-    doc.addPage();
-    afterTable = 16;
-  }
-  doc.setFillColor(...AMBER_BG);
-  doc.setDrawColor(...AMBER_BORDER);
-  doc.setLineWidth(0.4);
-  doc.roundedRect(margin, afterTable, pageWidth - margin * 2, boxHeight, 2, 2, 'FD');
+  fields.forEach(([label, value], index) => {
+    const column = index % 2;
+    const row = Math.floor(index / 2);
+    const x = MARGIN + 5 + column * 47;
+    const y = top + 8 + row * 13;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(5.5);
+    doc.setTextColor(...MUTED);
+    doc.text(label, x, y);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(...INK);
+    doc.text(ellipsis(doc, value, 40), x, y + 4.5);
+  });
+  return top + 37;
+}
+
+function examCard(doc: jsPDF, exam: RoutineExam, index: number, top: number) {
+  const height = 20;
+  const bg = exam.isReferred ? PALE_RED : PALE_GREEN;
+  doc.setFillColor(...bg);
+  doc.setDrawColor(...(exam.isReferred ? RED : GREEN));
+  doc.setLineWidth(0.25);
+  doc.roundedRect(MARGIN, top, PAGE_WIDTH - MARGIN * 2, height, 3, 3, 'FD');
+  doc.setFillColor(...(exam.isReferred ? RED : GREEN));
+  doc.roundedRect(MARGIN, top, 19, height, 3, 3, 'F');
+  doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(...AMBER_BORDER);
-  doc.text('IMPORTANT — PLEASE VERIFY', margin + 4, afterTable + 5.5);
+  doc.setFontSize(13);
+  doc.text(exam.date.slice(8, 10), MARGIN + 9.5, top + 8.5, { align: 'center' });
+  doc.setFontSize(5.6);
+  doc.text(new Date(`${exam.date}T00:00:00`).toLocaleDateString('en-GB', { month: 'short' }).toUpperCase(), MARGIN + 9.5, top + 13, { align: 'center' });
+  doc.setFontSize(5);
+  doc.text(`#${index + 1}`, MARGIN + 9.5, top + 16.5, { align: 'center' });
+
+  const contentX = MARGIN + 23;
+  doc.setTextColor(...INK);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.4);
+  doc.text(ellipsis(doc, exam.subjectName, 68), contentX, top + 6.5);
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(120, 70, 10);
-  warningLines.forEach((line, i) => {
-    doc.text(line, margin + 4, afterTable + 10.5 + i * 4.4);
+  doc.setFontSize(6.2);
+  doc.setTextColor(...MUTED);
+  doc.text(`${exam.subjectCode}  ·  ${exam.weekday}`, contentX, top + 10.6);
+  doc.setFontSize(6.7);
+  doc.setTextColor(...INK);
+  doc.text(`${fmtDate(exam.date)}  |  ${to12h(exam.startTime)} - ${to12h(exam.endTime)}`, contentX, top + 15.8);
+  if (exam.isReferred) {
+    doc.setTextColor(...RED);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(5.5);
+    doc.text('REFERRED', PAGE_WIDTH - MARGIN - 3, top + 5, { align: 'right' });
+  }
+  return height;
+}
+
+function buildRoutineDoc(info: RoutineSheetInfo, exams: RoutineExam[]): jsPDF {
+  // 9:16 poster proportions, designed to read naturally on a phone instead of A4.
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [PAGE_WIDTH, PAGE_HEIGHT] });
+  let y = addHeader(doc, info);
+  y = addStudentCard(doc, info);
+  let page = 1;
+  const pageBreakAt = PAGE_HEIGHT - 22;
+
+  exams.forEach((exam, index) => {
+    if (y + 23 > pageBreakAt) {
+      doc.addPage([PAGE_WIDTH, PAGE_HEIGHT], 'portrait');
+      page += 1;
+      addHeader(doc, info, true);
+      y = 39;
+    }
+    examCard(doc, exam, index, y);
+    y += 23;
   });
 
-  // ---- Footer (every page) -------------------------------------------
-  const pageCount = doc.getNumberOfPages();
-  for (let p = 1; p <= pageCount; p += 1) {
-    doc.setPage(p);
-    doc.setFontSize(7.5);
-    doc.setTextColor(130, 130, 130);
-    doc.text(
-      `Generated ${new Date().toLocaleString('en-GB')} · result.spisg.gov.bd · Page ${p} of ${pageCount}`,
-      pageWidth / 2, pageHeight - 7, { align: 'center' },
-    );
+  if (y + 17 <= pageBreakAt) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6);
+    doc.setTextColor(...MUTED);
+    doc.text(`${exams.length} exam${exams.length === 1 ? '' : 's'} listed · Verify each date and time with the official BTEB notice.`, MARGIN, y + 3, { maxWidth: PAGE_WIDTH - MARGIN * 2 });
+    if (info.source === 'inferred') {
+      doc.setTextColor(...RED);
+      doc.text('Subject matching is estimated and may be incomplete.', MARGIN, y + 8);
+    }
   }
-  doc.setTextColor(0, 0, 0);
+
+  const pages = doc.getNumberOfPages();
+  for (let current = 1; current <= pages; current += 1) {
+    doc.setPage(current);
+    footer(doc, current, pages);
+  }
   return doc;
 }
 
 export function downloadRoutinePdf(info: RoutineSheetInfo, exams: RoutineExam[]) {
-  const doc = buildRoutineDoc(info, exams);
-  doc.save(`exam-routine-${info.roll}-${new Date().toISOString().slice(0, 10)}.pdf`);
+  buildRoutineDoc(info, exams).save(`exam-routine-${info.roll}-${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
 export function printRoutinePdf(info: RoutineSheetInfo, exams: RoutineExam[]) {
   const doc = buildRoutineDoc(info, exams);
   doc.autoPrint();
-  const url = doc.output('bloburl');
-  window.open(url, '_blank');
+  window.open(doc.output('bloburl'), '_blank');
 }
