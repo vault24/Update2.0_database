@@ -494,6 +494,31 @@ export default function ClassRoutinePage() {
 
   const hasData = useMemo(() => routine.length > 0 && timeSlots.length > 0, [routine.length, timeSlots.length]);
   const weeklySchedule = schedule;
+  const timeline = useMemo(() => {
+    const shift = routine[0]?.shift;
+    const defaultBounds: Record<string, { start: number; end: number }> = {
+      Morning: { start: 8 * 60, end: 13 * 60 + 30 },
+      Day: { start: 12 * 60, end: 19 * 60 },
+      Evening: { start: 18 * 60, end: 21 * 60 + 30 },
+    };
+    const fallback = defaultBounds[shift || 'Day'] || defaultBounds.Day;
+    const classStarts = routine.map(item => timeToMinutes(formatTime(item.start_time))).filter(Boolean);
+    const classEnds = routine.map(item => timeToMinutes(formatTime(item.end_time))).filter(Boolean);
+    const start = Math.min(fallback.start, ...(classStarts.length ? classStarts : [fallback.start]));
+    const end = Math.max(fallback.end, ...(classEnds.length ? classEnds : [fallback.end]));
+    const duration = end - start;
+    const ticks: number[] = [];
+    for (let minute = start; minute <= end; minute += 30) ticks.push(minute);
+    if (ticks[ticks.length - 1] !== end) ticks.push(end);
+    return { start, end, duration, ticks };
+  }, [routine]);
+
+  const formatTimelineTime = (minutes: number) => {
+    const hour24 = Math.floor(minutes / 60);
+    const minute = minutes % 60;
+    const period = hour24 >= 12 ? 'PM' : 'AM';
+    return `${hour24 % 12 || 12}:${String(minute).padStart(2, '0')} ${period}`;
+  };
 
   const now = currentTime;
   const dayIndex = now.getDay();
@@ -713,7 +738,7 @@ export default function ClassRoutinePage() {
         </motion.div>
       )}
 
-      {/* Table View */}
+      {/* Proportional timeline view */}
       {viewMode === 'table' && (
         <motion.div
           initial={false}
@@ -722,6 +747,46 @@ export default function ClassRoutinePage() {
           className="bg-card rounded-xl md:rounded-2xl border border-border overflow-hidden"
         >
           <div className="overflow-x-auto">
+            <div className="min-w-[780px]">
+              <div className="grid grid-cols-[105px_minmax(0,1fr)] border-b border-border bg-muted/30">
+                <div className="p-3 text-sm font-semibold text-muted-foreground"><Clock className="w-4 h-4 inline mr-1.5" />Time</div>
+                <div className="relative h-12">
+                  {timeline.ticks.map((minute) => {
+                    const left = ((minute - timeline.start) / timeline.duration) * 100;
+                    return <span key={minute} className="absolute top-3 -translate-x-1/2 text-[10px] md:text-xs font-medium text-muted-foreground whitespace-nowrap" style={{ left: `${left}%` }}>{formatTimelineTime(minute)}</span>;
+                  })}
+                </div>
+              </div>
+              {days.map((day) => {
+                const periods = (weeklySchedule[day] || []).filter((period): period is DisplayClassPeriod => Boolean(period))
+                  .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+                return (
+                  <div key={day} className={cn("grid grid-cols-[105px_minmax(0,1fr)] border-b border-border/50 last:border-0", !isWeekend && day === currentDay && "bg-primary/[0.03]")}>
+                    <div className={cn("flex items-center p-3 text-sm font-semibold", !isWeekend && day === currentDay ? "text-primary bg-primary/5" : "text-muted-foreground bg-muted/20")}>
+                      <div>{day}{!isWeekend && day === currentDay && <span className="block text-[10px] font-normal text-primary/70">Today</span>}</div>
+                    </div>
+                    <div className="relative h-28 overflow-hidden" style={{ backgroundImage: `repeating-linear-gradient(to right, transparent 0, transparent calc(${100 / (timeline.duration / 30)}% - 1px), hsl(var(--border) / 0.45) calc(${100 / (timeline.duration / 30)}% - 1px), hsl(var(--border) / 0.45) ${100 / (timeline.duration / 30)}%)` }}>
+                      {periods.map((period) => {
+                        const start = timeToMinutes(period.startTime);
+                        const end = timeToMinutes(period.endTime);
+                        const left = Math.max(0, ((start - timeline.start) / timeline.duration) * 100);
+                        const width = Math.min(100 - left, ((end - start) / timeline.duration) * 100);
+                        const Icon = getSubjectIcon(period.subject, period.classType);
+                        const isRunning = runningClass?.id === period.id;
+                        return (
+                          <button type="button" key={period.id} className={cn("absolute top-2 bottom-2 rounded-lg border p-2 text-left bg-gradient-to-br shadow-sm transition-shadow hover:shadow-md", subjectColorFor(period.subjectCode || period.subject), isRunning && "ring-2 ring-primary ring-offset-1 ring-offset-card")} style={{ left: `${left}%`, width: `${width}%` }} onClick={() => { setSelectedPeriod(period); setDetailOpen(true); }} title={`${period.subject} · ${formatTimelineTime(start)}–${formatTimelineTime(end)}`}>
+                            {isRunning && <PlayCircle className="absolute top-1 right-1 w-3 h-3 animate-pulse" />}
+                            <div className="flex items-start gap-1.5 min-w-0 h-full"><Icon className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 opacity-80" /><div className="min-w-0 flex-1"><p className="text-xs font-semibold truncate leading-tight">{period.subject}</p><p className="text-[10px] opacity-70 truncate">{formatTimelineTime(start)}–{formatTimelineTime(end)}</p><p className="text-[10px] opacity-70 truncate">{period.room} · {user?.role === 'teacher' ? period.departmentName : period.teacher}</p></div></div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {/* Legacy fixed-cell table retained below was replaced by the timeline. */}
+            {/*
             <table className="w-full min-w-[600px] lg:min-w-[800px]">
               <thead>
                 <tr className="border-b border-border bg-muted/30">
@@ -809,6 +874,7 @@ export default function ClassRoutinePage() {
                 ))}
               </tbody>
             </table>
+            */}
           </div>
         </motion.div>
       )}

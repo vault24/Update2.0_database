@@ -39,15 +39,6 @@ const SHIFT_BOUNDS: Record<Shift, { min: string; max: string; defaultStart: stri
   Evening: { min: '18:00', max: '21:30', defaultStart: '18:30' },
 };
 
-// Base 24h slots shown ONLY when a routine is completely empty, so the admin
-// has a starting grid to click into. Once any class exists, the grid's columns
-// are derived purely from the actual class time-ranges (any duration allowed).
-const baseSlotsByShift: Record<Shift, string[]> = {
-  Morning: ['08:00-08:45', '08:45-09:30', '09:30-10:15', '10:15-11:00', '11:00-11:45', '11:45-12:30', '12:30-13:15'],
-  Day: ['13:30-14:15', '14:15-15:00', '15:00-15:45', '15:45-16:30', '16:30-17:15', '17:15-18:00', '18:00-18:45'],
-  Evening: [],
-};
-
 // ── Time helpers (all times are 24h "HH:MM") ──────────────────────────────────
 const timeToMin = (t: string): number => {
   const [h, m] = (t || '').split(':').map(Number);
@@ -68,6 +59,10 @@ const formatRangeLabel = (key: string): string => {
   const [s, e] = key.split('-');
   return `${to12h(s)} - ${to12h(e)}`;
 };
+
+/** True when two time ranges share any time, rather than merely having equal keys. */
+const rangesOverlap = (startA: string, endA: string, startB: string, endB: string): boolean =>
+  timeToMin(startA) < timeToMin(endB) && timeToMin(endA) > timeToMin(startB);
 
 // Empty grid — no fixed columns; columns are derived from the data at render.
 const buildEmptyGrid = (): RoutineGridData => {
@@ -141,20 +136,18 @@ export default function ClassRoutine() {
   const [subjectLookup, setSubjectLookup] = useState<'idle' | 'loading' | 'found' | 'notfound'>('idle');
   const { toast } = useToast();
 
-  // Grid columns are the union of every class time-range currently in the grid,
-  // sorted by start time. When the routine is empty we fall back to the shift's
-  // base slots so there's a grid to click into. This is what lets a class span
-  // any duration and lets several periods be combined into one wide column.
-  const timeSlots = useMemo(() => {
-    const set = new Set<string>();
-    days.forEach(day => {
-      Object.entries(routineGrid[day] || {}).forEach(([key, cell]) => {
-        if (cell) set.add(key);
-      });
-    });
-    if (set.size === 0) return baseSlotsByShift[shift] || [];
-    return Array.from(set).sort((a, b) => timeToMin(a.split('-')[0]) - timeToMin(b.split('-')[0]));
-  }, [routineGrid, shift]);
+  // The timeline is one continuous, proportional track. A class's left edge
+  // comes from its start time and its width comes from its duration.
+  const timeline = useMemo(() => {
+    const bounds = SHIFT_BOUNDS[shift];
+    const start = timeToMin(bounds.min);
+    const end = timeToMin(bounds.max);
+    const duration = end - start;
+    const ticks: number[] = [];
+    for (let minute = start; minute <= end; minute += 30) ticks.push(minute);
+    if (ticks[ticks.length - 1] !== end) ticks.push(end);
+    return { start, end, duration, ticks };
+  }, [shift]);
 
   // Teachers available for the selected shift. A teacher with no explicitly
   // assigned shifts is treated as available for every shift (otherwise newly
@@ -421,8 +414,10 @@ export default function ClassRoutine() {
   };
 
   /** Open the dialog to add a brand-new class with day + start/end pickers. */
-  const handleAddClass = () => {
-    const start = SHIFT_BOUNDS[shift].defaultStart;
+  const handleAddClass = (day: DayOfWeek = 'Sunday', suggestedStart?: string) => {
+    const bounds = SHIFT_BOUNDS[shift];
+    const requestedStart = suggestedStart ? timeToMin(suggestedStart) : timeToMin(bounds.defaultStart);
+    const start = minToTime(Math.max(timeToMin(bounds.min), Math.min(requestedStart, timeToMin(bounds.max) - 15)));
     const end = minToTime(Math.min(timeToMin(start) + 45, timeToMin(SHIFT_BOUNDS[shift].max)));
     const selectedTeacherData = teachers.find(t => t.id === selectedTeacher);
     setIsNewSlot(true);
@@ -437,7 +432,7 @@ export default function ClassRoutine() {
       room: '',
       department: department || (departments.length > 0 ? departments[0].id : ''),
       semester: semester || 4,
-      day: 'Sunday',
+      day,
       startTime: start,
       endTime: end,
     });
@@ -624,10 +619,16 @@ export default function ClassRoutine() {
 
     // Guard: don't silently overwrite a different existing class in the target
     // range (unless it's the same slot being edited in place).
-    const occupant = routineGrid[day]?.[newKey];
-    if (occupant && newKey !== oldTime) {
-      setSlotFormErrors(prev => ({ ...prev, time: `That time overlaps ${occupant.subject} on ${day}. Pick a different time.` }));
-      toast({ title: 'Time already used', description: `${day} already has a class at ${formatRangeLabel(newKey)}.`, variant: 'destructive' });
+    const overlappingEntry = Object.entries(routineGrid[day] || {}).find(([time, classInfo]) => {
+      if (!classInfo || time === oldTime) return false;
+      const existingStart = classInfo.startTime || time.split('-')[0];
+      const existingEnd = classInfo.endTime || time.split('-')[1];
+      return rangesOverlap(slotForm.startTime, slotForm.endTime, existingStart, existingEnd);
+    });
+    if (overlappingEntry) {
+      const [, occupant] = overlappingEntry;
+      setSlotFormErrors(prev => ({ ...prev, time: `That time overlaps ${occupant?.subject} on ${day}. Pick a different time.` }));
+      toast({ title: 'Time already used', description: `${day} already has a class during ${formatRangeLabel(newKey)}.`, variant: 'destructive' });
       return;
     }
 
@@ -1207,69 +1208,87 @@ export default function ClassRoutine() {
         )}
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px]">
-              <thead>
-                <tr className="border-b border-border bg-muted/50">
-                  <th className="p-3 text-left text-sm font-semibold text-muted-foreground w-24">
-                    Day / Time
-                  </th>
-                  {timeSlots.map(slot => (
-                    <th key={slot} className="p-3 text-center text-xs font-semibold text-muted-foreground whitespace-nowrap">
-                      {formatRangeLabel(slot)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {days.map((day, dayIndex) => (
-                  <motion.tr
+            <div className="min-w-[900px]">
+              <div className="grid grid-cols-[120px_minmax(0,1fr)] border-b border-border bg-muted/50">
+                <div className="p-3 text-sm font-semibold text-muted-foreground">Day / Time</div>
+                <div className="relative h-12">
+                  {timeline.ticks.map(minute => {
+                    const position = ((minute - timeline.start) / timeline.duration) * 100;
+                    return (
+                      <span
+                        key={minute}
+                        className="absolute top-3 -translate-x-1/2 text-xs font-semibold text-muted-foreground whitespace-nowrap"
+                        style={{ left: `${position}%` }}
+                      >
+                        {to12h(minToTime(minute))}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+              {days.map((day, dayIndex) => {
+                const isEditable = (viewMode === 'student' && isEditMode) || (viewMode === 'teacher' && isTeacherEditMode);
+                const dayClasses = Object.entries(routineGrid[day] || {})
+                  .filter((entry): entry is [string, NonNullable<typeof entry[1]>] => Boolean(entry[1]))
+                  .sort(([a], [b]) => timeToMin(a.split('-')[0]) - timeToMin(b.split('-')[0]));
+
+                return (
+                  <motion.div
                     key={day}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: dayIndex * 0.05 }}
-                    className="border-b border-border last:border-0"
+                    className="grid grid-cols-[120px_minmax(0,1fr)] border-b border-border last:border-0"
                   >
-                    <td className="p-3 font-medium text-foreground bg-muted/30">
-                      {day}
-                    </td>
-                    {timeSlots.map(slot => {
-                      const classInfo = routineGrid[day]?.[slot];
-                      const isEditableSlot = (viewMode === 'student' && isEditMode) || (viewMode === 'teacher' && isTeacherEditMode);
-                      if (!classInfo) {
-                          return (
-                          <td key={slot} className="p-2 text-center">
-                            <div 
-                              onClick={() => !saving && handleSlotClick(day, slot)}
-                              className={`h-16 rounded-lg bg-muted/20 border border-dashed border-border/50 flex items-center justify-center ${isEditableSlot && !saving ? 'cursor-pointer hover:bg-muted/40 hover:border-primary/50' : ''} ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            >
-                              {isEditableSlot ? (
-                                <Plus className="w-4 h-4 text-muted-foreground" />
-                              ) : (
-                                <span className="text-xs text-muted-foreground">-</span>
-                              )}
-                            </div>
-                          </td>
-                        );
-                      }
-                      const isEditableCell = (viewMode === 'student' && isEditMode) || (viewMode === 'teacher' && isTeacherEditMode);
-                      return (
-                        <td key={slot} className="p-2">
-                          <motion.div
-                            whileHover={{ scale: isEditableCell && !saving ? 1.02 : 1 }}
-                            onClick={() => !saving && handleSlotClick(day, slot)}
-                            className={`h-16 rounded-lg border p-2 transition-all ${subjectColors[classInfo.subject] || 'bg-muted/50'} ${isEditableCell && !saving ? 'cursor-pointer hover:ring-2 hover:ring-primary/50' : ''} ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    <div className="flex items-center p-3 font-medium text-foreground bg-muted/30">{day}</div>
+                    <div
+                      className={`relative h-24 overflow-hidden ${isEditable && !saving ? 'cursor-crosshair hover:bg-muted/20' : ''}`}
+                      style={{
+                        backgroundImage: `repeating-linear-gradient(to right, transparent 0, transparent calc(${100 / (timeline.duration / 30)}% - 1px), hsl(var(--border) / 0.55) calc(${100 / (timeline.duration / 30)}% - 1px), hsl(var(--border) / 0.55) ${100 / (timeline.duration / 30)}%)`,
+                      }}
+                      onClick={(event) => {
+                        if (!isEditable || saving) return;
+                        const rect = event.currentTarget.getBoundingClientRect();
+                        const offset = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
+                        const minute = timeline.start + (offset / rect.width) * timeline.duration;
+                        const snapped = Math.round(minute / 15) * 15;
+                        handleAddClass(day, minToTime(snapped));
+                      }}
+                    >
+                      {dayClasses.map(([key, classInfo]) => {
+                        const start = timeToMin(classInfo.startTime || key.split('-')[0]);
+                        const end = timeToMin(classInfo.endTime || key.split('-')[1]);
+                        const left = Math.max(0, ((start - timeline.start) / timeline.duration) * 100);
+                        const width = Math.min(100 - left, ((end - start) / timeline.duration) * 100);
+                        return (
+                          <motion.button
+                            type="button"
+                            key={key}
+                            whileHover={{ scale: isEditable && !saving ? 1.015 : 1 }}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              if (!saving) handleSlotClick(day, key);
+                            }}
+                            className={`absolute top-2 bottom-2 rounded-lg border p-2 text-left shadow-sm transition-all ${subjectColors[classInfo.subject] || 'bg-muted/50'} ${isEditable && !saving ? 'cursor-pointer hover:ring-2 hover:ring-primary/50' : 'cursor-default'} ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            style={{ left: `${left}%`, width: `${width}%` }}
+                            title={`${classInfo.subject} · ${to12h(minToTime(start))}–${to12h(minToTime(end))}`}
                           >
                             <p className="font-medium text-xs truncate">{classInfo.subject}</p>
                             <p className="text-[10px] opacity-80 truncate">{classInfo.teacher}</p>
-                            <p className="text-[10px] opacity-60">{classInfo.room}</p>
-                          </motion.div>
-                        </td>
-                      );
-                    })}
-                  </motion.tr>
-                ))}
-              </tbody>
-            </table>
+                            <p className="text-[10px] opacity-60 truncate">{to12h(minToTime(start))}–{to12h(minToTime(end))}{classInfo.room ? ` · ${classInfo.room}` : ''}</p>
+                          </motion.button>
+                        );
+                      })}
+                      {isEditable && dayClasses.length === 0 && (
+                        <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
+                          Click anywhere on the timeline to add a class
+                        </span>
+                      )}
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
           </div>
         </CardContent>
       </Card>
