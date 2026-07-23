@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
   GraduationCap, ArrowLeft, Loader2, FileText, User,
   Phone, BookOpen, Briefcase, AlertCircle, CheckCircle2,
+  Search, XCircle,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,8 +19,9 @@ import {
   alumniService, AlumniDocumentCategory, AlumniDocumentUpload,
 } from '@/services/alumniService';
 import departmentService, { Department } from '@/services/departmentService';
+import resultService from '@/services/resultService';
 import {
-  religionOptions, sscGroups, getSessionsRange, getYearsRange, districtsByDivision,
+  religionOptions, getSessionsRange, getYearsRange, districtsByDivision,
 } from '@/components/add-student/config';
 import { AlumniDocumentUpload as AlumniDocumentUploadCards, type AlumniDoc } from '@/components/alumni/AlumniDocumentUpload';
 
@@ -67,7 +69,6 @@ const initialForm = {
   department: '',
   session: '',
   shift: '',
-  group: '',
   diplomaBoardRoll: '',
   finalCgpa: '',
   rollNumber: '',
@@ -119,6 +120,58 @@ export default function AddAlumni() {
   const setField = (key: keyof typeof initialForm, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
+  // ── Auto-fill semester results from the BTEB board-result database ────────
+  // Typing a Diploma Board Roll looks the roll up (debounced) and fills every
+  // published semester GPA + the final CGPA. When nothing is found the fields
+  // stay editable so the admin can enter results manually.
+  const [rollLookup, setRollLookup] = useState<'idle' | 'loading' | 'found' | 'notfound'>('idle');
+  const lastLookedUpRoll = useRef('');
+
+  useEffect(() => {
+    const roll = form.diplomaBoardRoll.trim();
+    if (!/^\d{4,10}$/.test(roll)) {
+      setRollLookup('idle');
+      lastLookedUpRoll.current = '';
+      return;
+    }
+    if (roll === lastLookedUpRoll.current) return;
+
+    const timer = setTimeout(async () => {
+      lastLookedUpRoll.current = roll;
+      setRollLookup('loading');
+      try {
+        const res = await resultService.searchRoll(roll);
+        if (!res.found || !res.results.length) {
+          setRollLookup('notfound');
+          return;
+        }
+        // Collect one GPA per semester. Results come newest-publication-first
+        // and each sheet lists the GPAs of all semesters it covers, so the
+        // first value seen for a semester is the most current one.
+        const gpaMap: Record<number, string> = {};
+        for (const r of res.results) {
+          for (const g of r.gpas || []) {
+            if (g.gpa != null && gpaMap[g.semester] === undefined) {
+              gpaMap[g.semester] = String(g.gpa);
+            }
+          }
+        }
+        setSemesterGpas((prev) => ({ ...prev, ...gpaMap }));
+        if (res.finalCgpa != null) setField('finalCgpa', String(res.finalCgpa));
+        setRollLookup('found');
+        toast({
+          title: 'Board results found',
+          description: `Semester GPAs${res.finalCgpa != null ? ' and final CGPA' : ''} were filled in automatically for roll ${roll}.`,
+        });
+      } catch {
+        // Lookup is best-effort — manual entry always remains possible.
+        setRollLookup('notfound');
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.diplomaBoardRoll]);
+
   const buildPayload = () => {
     const semesterResults = Object.entries(semesterGpas)
       .filter(([, gpa]) => gpa !== '' && gpa != null)
@@ -163,7 +216,6 @@ export default function AddAlumni() {
       department: form.department,
       session: form.session,
       shift: form.shift,
-      group: form.group,
       // Diploma (BTEB) board roll becomes the student's institute roll number.
       currentRollNumber: form.diplomaBoardRoll,
       rollNumber: form.rollNumber,
@@ -194,6 +246,10 @@ export default function AddAlumni() {
     }
     if (!form.department) {
       toast({ title: 'Please select a department', variant: 'destructive' });
+      return;
+    }
+    if (!form.diplomaBoardRoll.trim()) {
+      toast({ title: 'Diploma Board Roll is required', variant: 'destructive' });
       return;
     }
 
@@ -266,9 +322,10 @@ export default function AddAlumni() {
         <CardContent className="p-4 flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-primary mt-0.5 shrink-0" />
           <p className="text-sm text-muted-foreground">
-            Only <span className="font-semibold text-foreground">Full Name (English)</span> and{' '}
-            <span className="font-semibold text-foreground">Department</span> are required. Everything else is
-            optional — fill in whatever information is available. The graduate is registered as a student in the
+            Only <span className="font-semibold text-foreground">Full Name (English)</span>,{' '}
+            <span className="font-semibold text-foreground">Department</span> and{' '}
+            <span className="font-semibold text-foreground">Diploma Board Roll</span> are required. Everything else
+            is optional — fill in whatever information is available. The graduate is registered as a student in the
             background and immediately moved to the alumni network.
           </p>
         </CardContent>
@@ -351,8 +408,31 @@ export default function AddAlumni() {
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Diploma Board Roll">
-            <Input value={form.diplomaBoardRoll} onChange={(e) => setField('diplomaBoardRoll', e.target.value)} placeholder="BTEB board roll" />
+          <Field label="Diploma Board Roll" required>
+            <div className="relative">
+              <Input
+                value={form.diplomaBoardRoll}
+                onChange={(e) => setField('diplomaBoardRoll', e.target.value)}
+                placeholder="BTEB board roll"
+                className="pr-9"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2">
+                {rollLookup === 'loading' && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+                {rollLookup === 'found' && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                {rollLookup === 'notfound' && <XCircle className="w-4 h-4 text-amber-500" />}
+                {rollLookup === 'idle' && <Search className="w-4 h-4 text-muted-foreground/50" />}
+              </span>
+            </div>
+            {rollLookup === 'found' && (
+              <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                Board results found — semester GPAs and CGPA filled in below.
+              </p>
+            )}
+            {rollLookup === 'notfound' && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                No board results found for this roll — enter the results manually below.
+              </p>
+            )}
           </Field>
           <Field label="Final CGPA">
             <Input type="number" step="0.01" min="0" max="4" value={form.finalCgpa} onChange={(e) => setField('finalCgpa', e.target.value)} placeholder="e.g. 3.75" />
@@ -369,12 +449,6 @@ export default function AddAlumni() {
               <SelectContent>{SHIFTS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
             </Select>
           </Field>
-          <Field label="Group">
-            <Select value={form.group} onValueChange={(v) => setField('group', v)}>
-              <SelectTrigger><SelectValue placeholder="Select group" /></SelectTrigger>
-              <SelectContent>{sscGroups.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}</SelectContent>
-            </Select>
-          </Field>
           <Field label="SSC Roll">
             <Input value={form.rollNumber} onChange={(e) => setField('rollNumber', e.target.value)} />
           </Field>
@@ -387,10 +461,13 @@ export default function AddAlumni() {
         </FieldGrid>
       </SectionCard>
 
-      {/* Semester Results (optional) */}
-      <SectionCard icon={GraduationCap} title="Semester Results (optional)">
+      {/* Semester Results — auto-filled from the board-result database when the
+          Diploma Board Roll matches; editable either way. */}
+      <SectionCard icon={GraduationCap} title="Semester Results">
         <p className="text-sm text-muted-foreground mb-4">
-          Add GPA for any semester you have a record for. Leave the rest blank.
+          Filled in automatically from the board-result database when the Diploma
+          Board Roll above matches a published result. If nothing was found, add
+          the GPA for any semester you have a record for and leave the rest blank.
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
