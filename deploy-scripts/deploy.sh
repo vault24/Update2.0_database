@@ -670,6 +670,23 @@ EOF
   ok "systemd unit installed: ${SERVICE_NAME}.service"
 }
 
+# Maintenance timers the app depends on. Each script is idempotent (it
+# rewrites its unit files and re-enables the timer), so re-running the
+# deploy always leaves them installed and current.
+setup_timers() {
+  section "maintenance timers"
+
+  # Hourly exam reminders (countdown / day-before / exam-day).
+  RUN_AS_USER="${RUN_AS_USER}" bash "${SCRIPT_DIR}/exam-reminder-timer.sh" \
+    && ok "exam-reminder timer installed (sipi-exam-reminders.timer)" \
+    || warn "exam-reminder timer install failed — run deploy-scripts/exam-reminder-timer.sh manually"
+
+  # Daily purge of students past their 7-day deletion recovery window.
+  RUN_AS_USER="${RUN_AS_USER}" bash "${SCRIPT_DIR}/purge-timer.sh" \
+    && ok "deletion-purge timer installed (sipi-purge.timer)" \
+    || warn "purge timer install failed — run deploy-scripts/purge-timer.sh manually"
+}
+
 # ===========================================================================
 # 6. NGINX  (generated from config.env; SSL-aware; safe rollback)
 # ===========================================================================
@@ -1577,6 +1594,7 @@ main() {
   setup_backend
   setup_frontends
   setup_systemd
+  setup_timers
   setup_nginx
   setup_ssl
   fix_permissions

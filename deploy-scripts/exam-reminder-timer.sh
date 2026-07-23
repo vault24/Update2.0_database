@@ -10,7 +10,9 @@
 # The command is idempotent (every send is recorded in routine_reminder_log),
 # so an hourly cadence never double-sends — it just catches each window.
 #
-# Usage (on the server, as root):
+# deploy.sh runs this automatically (setup_timers step), so a normal
+# `sudo ./deploy.sh` already installs it. Run it directly only for a
+# one-off install/uninstall without a full deploy:
 #   sudo ./exam-reminder-timer.sh                 # install + enable
 #   sudo ./exam-reminder-timer.sh --uninstall     # remove the timer
 #
