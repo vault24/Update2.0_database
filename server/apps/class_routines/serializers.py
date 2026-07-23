@@ -1,12 +1,23 @@
 """
 Class Routine Serializers
 """
+from datetime import time as dt_time
+
 from rest_framework import serializers
 from django.db.models import Q
 from django.core.exceptions import ValidationError as DjangoValidationError
 from .models import ClassRoutine
 from apps.departments.serializers import DepartmentSerializer
 from apps.teachers.serializers import TeacherListSerializer
+
+
+# Allowed daily time window per shift. Class start/end must fall inside these
+# bounds so routines stay within institute hours. Keep in sync with the admin
+# routine builder's time pickers (SHIFT_BOUNDS in ClassRoutine.tsx).
+SHIFT_TIME_BOUNDS = {
+    'Morning': (dt_time(8, 0), dt_time(13, 30)),   # 8:00 AM – 1:30 PM
+    'Day': (dt_time(12, 0), dt_time(19, 0)),       # 12:00 PM – 7:00 PM
+}
 
 
 class ValidationErrorCodes:
@@ -474,6 +485,26 @@ class ClassRoutineCreateSerializer(serializers.ModelSerializer):
                         'message': 'Invalid time format provided',
                         'code': ValidationErrorCodes.INVALID_TIME_RANGE,
                         'error_details': str(e)
+                    }
+
+            # Enforce the shift's allowed daily window (Morning 8:00–1:30,
+            # Day 12:00–7:00). Only applied when both the shift and times are
+            # present and the basic order check above passed.
+            shift = data.get('shift')
+            bounds = SHIFT_TIME_BOUNDS.get(shift)
+            if bounds and 'end_time' not in errors and 'time_validation' not in errors:
+                window_start, window_end = bounds
+                fmt = lambda t: t.strftime('%I:%M %p').lstrip('0')
+                if start_time < window_start or end_time > window_end:
+                    errors['time_bounds'] = {
+                        'message': (
+                            f'{shift} shift classes must be between '
+                            f'{fmt(window_start)} and {fmt(window_end)}.'
+                        ),
+                        'code': ValidationErrorCodes.INVALID_TIME_RANGE,
+                        'field': 'start_time',
+                        'shift': shift,
+                        'window': f'{window_start} - {window_end}',
                     }
 
         # Validate class type and lab name

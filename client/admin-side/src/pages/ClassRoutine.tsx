@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Calendar, Filter, Download, Clock, Plus, Edit, Trash2, Save, X, Loader2, AlertCircle, Users, GraduationCap, Check } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,37 +31,48 @@ type RoutineViewMode = 'student' | 'teacher';
 const semesters = [1, 2, 3, 4, 5, 6, 7, 8];
 const shifts: Shift[] = ['Morning', 'Day'];
 const days: DayOfWeek[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
-const timeSlotsByShift: Record<Shift, string[]> = {
-  Morning: [
-    '8:00-8:45',
-    '8:45-9:30',
-    '9:30-10:15',
-    '10:15-11:00',
-    '11:00-11:45',
-    '11:45-12:30',
-    '12:30-1:15',
-  ],
-  Day: [
-    '1:30-2:15',
-    '2:15-3:00',
-    '3:00-3:45',
-    '3:45-4:30',
-    '4:30-5:15',
-    '5:15-6:00',
-    '6:00-6:45',
-  ],
+// Allowed daily window + default new-class start per shift (24h). Kept in sync
+// with SHIFT_TIME_BOUNDS in the backend serializer.
+const SHIFT_BOUNDS: Record<Shift, { min: string; max: string; defaultStart: string }> = {
+  Morning: { min: '08:00', max: '13:30', defaultStart: '08:00' },
+  Day: { min: '12:00', max: '19:00', defaultStart: '13:30' },
+  Evening: { min: '18:00', max: '21:30', defaultStart: '18:30' },
+};
+
+// Base 24h slots shown ONLY when a routine is completely empty, so the admin
+// has a starting grid to click into. Once any class exists, the grid's columns
+// are derived purely from the actual class time-ranges (any duration allowed).
+const baseSlotsByShift: Record<Shift, string[]> = {
+  Morning: ['08:00-08:45', '08:45-09:30', '09:30-10:15', '10:15-11:00', '11:00-11:45', '11:45-12:30', '12:30-13:15'],
+  Day: ['13:30-14:15', '14:15-15:00', '15:00-15:45', '15:45-16:30', '16:30-17:15', '17:15-18:00', '18:00-18:45'],
   Evening: [],
 };
 
-// Helper function to convert time to slot format
-const buildEmptyGrid = (slots: string[]): RoutineGridData => {
+// ── Time helpers (all times are 24h "HH:MM") ──────────────────────────────────
+const timeToMin = (t: string): number => {
+  const [h, m] = (t || '').split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+};
+const minToTime = (mins: number): string => {
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+};
+const to12h = (t: string): string => {
+  let [h, m] = (t || '').split(':').map(Number);
+  const ap = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${String(m || 0).padStart(2, '0')} ${ap}`;
+};
+/** Friendly header label for a 24h "HH:MM-HH:MM" column key. */
+const formatRangeLabel = (key: string): string => {
+  const [s, e] = key.split('-');
+  return `${to12h(s)} - ${to12h(e)}`;
+};
+
+// Empty grid — no fixed columns; columns are derived from the data at render.
+const buildEmptyGrid = (): RoutineGridData => {
   const grid: RoutineGridData = {};
-  days.forEach(day => {
-    grid[day] = {};
-    slots.forEach(slot => {
-      grid[day][slot] = null;
-    });
-  });
+  days.forEach(day => { grid[day] = {}; });
   return grid;
 };
 
@@ -97,7 +108,7 @@ export default function ClassRoutine() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const unsavedGuard = useUnsavedChangesGuard(hasUnsavedChanges);
   const [session, setSession] = useState('2024-25');
-  const [routineGrid, setRoutineGrid] = useState<RoutineGridData>(() => buildEmptyGrid(timeSlotsByShift['Morning']));
+  const [routineGrid, setRoutineGrid] = useState<RoutineGridData>(() => buildEmptyGrid());
   const [routineData, setRoutineData] = useState<ClassRoutine[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -108,22 +119,42 @@ export default function ClassRoutine() {
   const [isTeacherEditMode, setIsTeacherEditMode] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ day: DayOfWeek; time: string } | null>(null);
-  const [slotForm, setSlotForm] = useState({ 
-    subject: '', 
+  // True while adding a brand-new class (day + start/end are chosen in the
+  // dialog) rather than editing a clicked grid cell.
+  const [isNewSlot, setIsNewSlot] = useState(false);
+  const [slotForm, setSlotForm] = useState({
+    subject: '',
     subjectCode: '',
     classType: 'Theory',
     labName: '',
-    teacher: '', 
-    teacherId: '', 
-    room: '', 
-    department: '', 
-    semester: 4 
+    teacher: '',
+    teacherId: '',
+    room: '',
+    department: '',
+    semester: 4,
+    day: 'Sunday' as DayOfWeek,
+    startTime: '08:00',
+    endTime: '08:45',
   });
   const [slotFormErrors, setSlotFormErrors] = useState<Record<string, string>>({});
   // Auto-fill status for the subject-name lookup driven by the subject code.
   const [subjectLookup, setSubjectLookup] = useState<'idle' | 'loading' | 'found' | 'notfound'>('idle');
   const { toast } = useToast();
-  const timeSlots = timeSlotsByShift[shift] || [];
+
+  // Grid columns are the union of every class time-range currently in the grid,
+  // sorted by start time. When the routine is empty we fall back to the shift's
+  // base slots so there's a grid to click into. This is what lets a class span
+  // any duration and lets several periods be combined into one wide column.
+  const timeSlots = useMemo(() => {
+    const set = new Set<string>();
+    days.forEach(day => {
+      Object.entries(routineGrid[day] || {}).forEach(([key, cell]) => {
+        if (cell) set.add(key);
+      });
+    });
+    if (set.size === 0) return baseSlotsByShift[shift] || [];
+    return Array.from(set).sort((a, b) => timeToMin(a.split('-')[0]) - timeToMin(b.split('-')[0]));
+  }, [routineGrid, shift]);
 
   // Teachers available for the selected shift. A teacher with no explicitly
   // assigned shifts is treated as available for every shift (otherwise newly
@@ -218,7 +249,7 @@ export default function ClassRoutine() {
   const fetchRoutine = async (isRetry: boolean = false) => {
     try {
       if (!department) {
-        setRoutineGrid(buildEmptyGrid(timeSlots));
+        setRoutineGrid(buildEmptyGrid());
         setLoading(false);
         return;
       }
@@ -227,7 +258,7 @@ export default function ClassRoutine() {
       setValidationErrors({});
       
       if (!isRetry) {
-        setRoutineGrid(buildEmptyGrid(timeSlots));
+        setRoutineGrid(buildEmptyGrid());
       }
       
       // Prepare query parameters with proper validation
@@ -257,7 +288,7 @@ export default function ClassRoutine() {
         setSession(response.results[0].session || session);
       }
 
-      const gridData = routineTransformers.apiToGrid(response.results, timeSlots);
+      const gridData = routineTransformers.apiToGrid(response.results);
       setRoutineGrid(gridData);
       
       // Reset retry count on successful fetch
@@ -292,7 +323,7 @@ export default function ClassRoutine() {
   const fetchTeacherRoutine = async (isRetry: boolean = false) => {
     try {
       if (!selectedTeacher) {
-        setRoutineGrid(buildEmptyGrid(timeSlots));
+        setRoutineGrid(buildEmptyGrid());
         setLoading(false);
         return;
       }
@@ -301,7 +332,7 @@ export default function ClassRoutine() {
       setValidationErrors({});
       
       if (!isRetry) {
-        setRoutineGrid(buildEmptyGrid(timeSlots));
+        setRoutineGrid(buildEmptyGrid());
       }
       
       // Fetch all routine entries for this teacher
@@ -320,7 +351,7 @@ export default function ClassRoutine() {
 
       setRoutineData(response.results);
 
-      const gridData = routineTransformers.apiToGrid(response.results, timeSlots);
+      const gridData = routineTransformers.apiToGrid(response.results);
       setRoutineGrid(gridData);
       
       setRetryCount(0);
@@ -342,34 +373,43 @@ export default function ClassRoutine() {
     // Allow click in student edit mode or teacher edit mode
     if (viewMode === 'student' && !isEditMode) return;
     if (viewMode === 'teacher' && !isTeacherEditMode) return;
-    
+
+    setIsNewSlot(false);
     setSelectedSlot({ day, time });
     const existing = routineGrid[day]?.[time];
+    // The column key is a 24h "HH:MM-HH:MM" range — seed the time pickers from it.
+    const [colStart, colEnd] = time.split('-');
     if (existing) {
-      setSlotForm({ 
-        subject: existing.subject, 
+      setSlotForm({
+        subject: existing.subject,
         subjectCode: existing.subjectCode || '',
         classType: existing.classType || 'Theory',
         labName: existing.labName || '',
-        teacher: existing.teacher, 
+        teacher: existing.teacher,
         teacherId: existing.teacherId || '',
         room: existing.room,
         department: department,
-        semester: semester
+        semester: semester,
+        day,
+        startTime: existing.startTime || colStart || SHIFT_BOUNDS[shift].defaultStart,
+        endTime: existing.endTime || colEnd || minToTime(timeToMin(SHIFT_BOUNDS[shift].defaultStart) + 45),
       });
     } else {
       // For teacher mode, pre-fill teacher name
       const selectedTeacherData = teachers.find(t => t.id === selectedTeacher);
-      setSlotForm({ 
-        subject: '', 
+      setSlotForm({
+        subject: '',
         subjectCode: '',
         classType: 'Theory',
         labName: '',
-        teacher: viewMode === 'teacher' && selectedTeacherData ? selectedTeacherData.fullNameEnglish : '', 
+        teacher: viewMode === 'teacher' && selectedTeacherData ? selectedTeacherData.fullNameEnglish : '',
         teacherId: viewMode === 'teacher' ? selectedTeacher : '',
         room: '',
         department: department || (departments.length > 0 ? departments[0].id : ''),
-        semester: semester || 4
+        semester: semester || 4,
+        day,
+        startTime: colStart || SHIFT_BOUNDS[shift].defaultStart,
+        endTime: colEnd || minToTime(timeToMin(SHIFT_BOUNDS[shift].defaultStart) + 45),
       });
     }
     setSlotFormErrors({}); // Clear any previous errors
@@ -377,6 +417,33 @@ export default function ClassRoutine() {
     // already-resolved so we don't re-fetch it the instant the dialog opens.
     setSubjectLookup('idle');
     lastLookedUpCode.current = existing?.subjectCode?.trim() || '';
+    setIsAddDialogOpen(true);
+  };
+
+  /** Open the dialog to add a brand-new class with day + start/end pickers. */
+  const handleAddClass = () => {
+    const start = SHIFT_BOUNDS[shift].defaultStart;
+    const end = minToTime(Math.min(timeToMin(start) + 45, timeToMin(SHIFT_BOUNDS[shift].max)));
+    const selectedTeacherData = teachers.find(t => t.id === selectedTeacher);
+    setIsNewSlot(true);
+    setSelectedSlot(null);
+    setSlotForm({
+      subject: '',
+      subjectCode: '',
+      classType: 'Theory',
+      labName: '',
+      teacher: viewMode === 'teacher' && selectedTeacherData ? selectedTeacherData.fullNameEnglish : '',
+      teacherId: viewMode === 'teacher' ? selectedTeacher : '',
+      room: '',
+      department: department || (departments.length > 0 ? departments[0].id : ''),
+      semester: semester || 4,
+      day: 'Sunday',
+      startTime: start,
+      endTime: end,
+    });
+    setSlotFormErrors({});
+    setSubjectLookup('idle');
+    lastLookedUpCode.current = '';
     setIsAddDialogOpen(true);
   };
 
@@ -494,14 +561,28 @@ export default function ClassRoutine() {
     if (slotForm.room && slotForm.room.trim().length > 50) {
       errors.room = 'Room number must be less than 50 characters';
     }
-    
+
+    // Time window + duration checks (only meaningful once a subject is set).
+    if (slotForm.subject) {
+      const start = timeToMin(slotForm.startTime);
+      const end = timeToMin(slotForm.endTime);
+      const bounds = SHIFT_BOUNDS[shift];
+      if (!slotForm.startTime || !slotForm.endTime) {
+        errors.time = 'Start and end time are required';
+      } else if (end <= start) {
+        errors.time = 'End time must be after start time';
+      } else if (end - start < 15) {
+        errors.time = 'Class must be at least 15 minutes long';
+      } else if (bounds && (start < timeToMin(bounds.min) || end > timeToMin(bounds.max))) {
+        errors.time = `${shift} shift classes must be between ${to12h(bounds.min)} and ${to12h(bounds.max)}`;
+      }
+    }
+
     setSlotFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
   const handleSaveSlot = () => {
-    if (!selectedSlot) return;
-    
     // Validate form if there's content
     if (slotForm.subject && !validateSlotForm()) {
       toast({
@@ -524,40 +605,56 @@ export default function ClassRoutine() {
         return;
       }
     }
-    
-    const { day, time } = selectedSlot;
-    
+
+    const day = isNewSlot ? slotForm.day : (selectedSlot?.day as DayOfWeek);
+    const oldTime = selectedSlot?.time; // column key the dialog was opened on
+    // New 24h range key derived from the chosen start/end times.
+    const newKey = `${slotForm.startTime}-${slotForm.endTime}`;
+
+    // Empty subject on an existing slot means "clear this slot".
     if (!slotForm.subject) {
-      // Remove the slot (set to null/break)
-      setRoutineGrid(prev => ({
-        ...prev,
-        [day]: {
-          ...prev[day],
-          [time]: null
-        }
-      }));
-    } else {
-      setRoutineGrid(prev => ({
-        ...prev,
-        [day]: {
-          ...prev[day],
-          [time]: { 
-            subject: slotForm.subject.trim(), 
-            subjectCode: slotForm.subjectCode.trim(),
-            classType: slotForm.classType as 'Theory' | 'Lab',
-            labName: slotForm.classType === 'Lab' ? slotForm.labName.trim() : '',
-            teacher: slotForm.teacher.trim() || 'TBA',
-            teacherId: slotForm.teacherId || undefined,
-            room: slotForm.room.trim() 
-          }
-        }
-      }));
+      if (oldTime) {
+        setRoutineGrid(prev => ({ ...prev, [day]: { ...prev[day], [oldTime]: null } }));
+      }
+      setIsAddDialogOpen(false);
+      setSlotFormErrors({});
+      setHasUnsavedChanges(true);
+      return;
     }
-    
+
+    // Guard: don't silently overwrite a different existing class in the target
+    // range (unless it's the same slot being edited in place).
+    const occupant = routineGrid[day]?.[newKey];
+    if (occupant && newKey !== oldTime) {
+      setSlotFormErrors(prev => ({ ...prev, time: `That time overlaps ${occupant.subject} on ${day}. Pick a different time.` }));
+      toast({ title: 'Time already used', description: `${day} already has a class at ${formatRangeLabel(newKey)}.`, variant: 'destructive' });
+      return;
+    }
+
+    const cell = {
+      subject: slotForm.subject.trim(),
+      subjectCode: slotForm.subjectCode.trim(),
+      classType: slotForm.classType as 'Theory' | 'Lab',
+      labName: slotForm.classType === 'Lab' ? slotForm.labName.trim() : '',
+      teacher: slotForm.teacher.trim() || 'TBA',
+      teacherId: slotForm.teacherId || undefined,
+      room: slotForm.room.trim(),
+      startTime: slotForm.startTime,
+      endTime: slotForm.endTime,
+    };
+
+    setRoutineGrid(prev => {
+      const nextDay = { ...prev[day] };
+      // If the time was changed while editing, drop the old column entry.
+      if (oldTime && oldTime !== newKey) nextDay[oldTime] = null;
+      nextDay[newKey] = cell;
+      return { ...prev, [day]: nextDay };
+    });
+
     setIsAddDialogOpen(false);
     setSlotFormErrors({});
     setHasUnsavedChanges(true);
-    toast({ title: "Slot Updated", description: "Remember to save your changes before leaving." });
+    toast({ title: 'Slot Updated', description: 'Remember to save your changes before leaving.' });
   };
 
   const handleDeleteSlot = () => {
@@ -807,8 +904,12 @@ export default function ClassRoutine() {
                 <X className="w-4 h-4 mr-2" />
                 Cancel
               </Button>
-              <Button 
-                onClick={handleSaveRoutine} 
+              <Button variant="outline" onClick={handleAddClass} disabled={saving}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Class
+              </Button>
+              <Button
+                onClick={handleSaveRoutine}
                                disabled={saving || loading}
               >
                 {saving ? (
@@ -819,8 +920,8 @@ export default function ClassRoutine() {
                 {saving ? 'Saving Changes...' : 'Save Changes'}
               </Button>
               {Object.keys(validationErrors).length > 0 && (
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={() => setValidationErrors({})}
                   disabled={saving}
                 >
@@ -867,8 +968,12 @@ export default function ClassRoutine() {
                 <X className="w-4 h-4 mr-2" />
                 Cancel
               </Button>
-              <Button 
-                onClick={handleSaveRoutine} 
+              <Button variant="outline" onClick={handleAddClass} disabled={saving}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Class
+              </Button>
+              <Button
+                onClick={handleSaveRoutine}
                                disabled={saving || loading}
               >
                 {saving ? (
@@ -879,8 +984,8 @@ export default function ClassRoutine() {
                 {saving ? 'Saving Changes...' : 'Save Changes'}
               </Button>
               {Object.keys(validationErrors).length > 0 && (
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={() => setValidationErrors({})}
                   disabled={saving}
                 >
@@ -1109,8 +1214,8 @@ export default function ClassRoutine() {
                     Day / Time
                   </th>
                   {timeSlots.map(slot => (
-                    <th key={slot} className="p-3 text-center text-sm font-semibold text-muted-foreground">
-                      {slot}
+                    <th key={slot} className="p-3 text-center text-xs font-semibold text-muted-foreground whitespace-nowrap">
+                      {formatRangeLabel(slot)}
                     </th>
                   ))}
                 </tr>
@@ -1194,11 +1299,55 @@ export default function ClassRoutine() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {selectedSlot && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Calendar className="w-4 h-4" />
-                <span>{selectedSlot.day}, {selectedSlot.time}</span>
+            {/* Day + time range — a class can span any duration; to combine
+                several periods into one class, set the start of the first and
+                the end of the last (e.g. 10:15 AM – 12:30 PM). */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-2">
+                <Label>Day</Label>
+                {isNewSlot ? (
+                  <Select value={slotForm.day} onValueChange={(v) => handleSlotFormChange('day', v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {days.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="h-10 flex items-center gap-2 text-sm text-muted-foreground">
+                    <Calendar className="w-4 h-4" />{slotForm.day}
+                  </div>
+                )}
               </div>
+              <div className="space-y-2">
+                <Label>Start Time</Label>
+                <Input
+                  type="time"
+                  value={slotForm.startTime}
+                  min={SHIFT_BOUNDS[shift].min}
+                  max={SHIFT_BOUNDS[shift].max}
+                  onChange={(e) => handleSlotFormChange('startTime', e.target.value)}
+                  className={slotFormErrors.time ? 'border-destructive' : ''}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>End Time</Label>
+                <Input
+                  type="time"
+                  value={slotForm.endTime}
+                  min={SHIFT_BOUNDS[shift].min}
+                  max={SHIFT_BOUNDS[shift].max}
+                  onChange={(e) => handleSlotFormChange('endTime', e.target.value)}
+                  className={slotFormErrors.time ? 'border-destructive' : ''}
+                />
+              </div>
+            </div>
+            {slotFormErrors.time ? (
+              <p className="text-sm text-destructive -mt-2">{slotFormErrors.time}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground -mt-2">
+                {shift} shift: {to12h(SHIFT_BOUNDS[shift].min)}–{to12h(SHIFT_BOUNDS[shift].max)}.
+                Tip: to combine periods into one class, set a wider start–end range.
+              </p>
             )}
             <div className="space-y-2">
               <Label>Subject Code</Label>

@@ -280,6 +280,10 @@ export interface ClassSlot {
   room: string;
   classType?: 'Theory' | 'Lab';
   labName?: string;
+  // Explicit 24h "HH:MM" times — the source of truth for a class's slot, so a
+  // class can span any duration (and combine several periods into one).
+  startTime?: string;
+  endTime?: string;
 }
 
 export type RoutineGridData = Record<string, Record<string, ClassSlot | null>>;
@@ -541,33 +545,33 @@ export const routineTransformers = {
   /**
    * Convert API routine data to grid format for admin interface
    */
-  apiToGrid: (routines: ClassRoutine[], timeSlots: string[]): RoutineGridData => {
+  /** Unambiguous 24h range key for the grid, e.g. "08:00-08:45". */
+  rangeKey: (start_time: string, end_time: string): string =>
+    `${(start_time || '').slice(0, 5)}-${(end_time || '').slice(0, 5)}`,
+
+  apiToGrid: (routines: ClassRoutine[], _timeSlots?: string[]): RoutineGridData => {
     const days: DayOfWeek[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
     const gridData: RoutineGridData = {};
-    
-    // Initialize empty grid
-    days.forEach(day => {
-      gridData[day] = {};
-      timeSlots.forEach(slot => {
-        gridData[day][slot] = null;
-      });
-    });
+    days.forEach(day => { gridData[day] = {}; });
 
-    // Populate grid with routine data
+    // Columns are derived from the actual data: each routine lives in a column
+    // keyed by its own 24h start-end range, so classes of ANY duration (and
+    // combined multi-period classes) are represented without a fixed grid.
     routines.forEach((routine) => {
-      const timeSlot = routineTransformers.formatTimeSlot(routine.start_time, routine.end_time);
-      if (gridData[routine.day_of_week] && timeSlots.includes(timeSlot)) {
-        gridData[routine.day_of_week][timeSlot] = {
-          id: routine.id,
-          subject: routine.subject_name,
-          subjectCode: routine.subject_code,
-          teacher: routine.teacher?.fullNameEnglish || 'TBA',
-          teacherId: routine.teacher?.id,
-          room: routine.room_number,
-          classType: routine.class_type || 'Theory',
-          labName: routine.lab_name || ''
-        };
-      }
+      const key = routineTransformers.rangeKey(routine.start_time, routine.end_time);
+      if (!gridData[routine.day_of_week]) return;
+      gridData[routine.day_of_week][key] = {
+        id: routine.id,
+        subject: routine.subject_name,
+        subjectCode: routine.subject_code,
+        teacher: routine.teacher?.fullNameEnglish || 'TBA',
+        teacherId: routine.teacher?.id,
+        room: routine.room_number,
+        classType: routine.class_type || 'Theory',
+        labName: routine.lab_name || '',
+        startTime: (routine.start_time || '').slice(0, 5),
+        endTime: (routine.end_time || '').slice(0, 5),
+      };
     });
 
     return gridData;
@@ -590,39 +594,34 @@ export const routineTransformers = {
       filters
     });
     
-    // Create a map of existing routines by day and time slot
+    // Create a map of existing routines by day and 24h time range.
     const existingRoutineMap = new Map<string, ClassRoutine>();
     originalRoutines.forEach(routine => {
-      const timeSlot = routineTransformers.formatTimeSlot(routine.start_time, routine.end_time);
-      const key = `${routine.day_of_week}-${timeSlot}`;
+      const key = `${routine.day_of_week}-${routineTransformers.rangeKey(routine.start_time, routine.end_time)}`;
       existingRoutineMap.set(key, routine);
     });
-
-    console.log('Existing routine map keys:', Array.from(existingRoutineMap.keys()));
 
     // Process each slot in the grid
     days.forEach(day => {
       const daySlots = currentGrid[day] || {};
-      console.log(`Processing day ${day}:`, daySlots);
-      
+
       Object.entries(daySlots).forEach(([timeSlot, classSlot]) => {
         const key = `${day}-${timeSlot}`;
         const existingRoutine = existingRoutineMap.get(key);
-        
-        console.log(`Processing slot ${key}:`, { classSlot, hasExisting: !!existingRoutine });
-        
+
         if (classSlot === null) {
           // Slot is empty - delete if routine exists
           if (existingRoutine) {
-            console.log(`Adding delete operation for ${key}`);
             operations.push({
               operation: 'delete',
               id: existingRoutine.id
             });
           }
         } else {
-          // Slot has data
-          const { start_time, end_time } = routineTransformers.parseTimeSlot(timeSlot);
+          // The slot's explicit times are the source of truth; the column key
+          // (a 24h "HH:MM-HH:MM" range) is the fallback.
+          const start_time = classSlot.startTime || timeSlot.split('-')[0];
+          const end_time = classSlot.endTime || timeSlot.split('-')[1];
           const routineData: Partial<RoutineCreateData> = {
             department: filters.department,
             semester: filters.semester,
@@ -655,25 +654,21 @@ export const routineTransformers = {
               (existingRoutine.teacher?.id || '') !== (classSlot.teacherId || '');
             
             if (hasChanges) {
-              console.log(`Adding update operation for ${key}`);
               operations.push({
                 operation: 'update',
                 id: existingRoutine.id,
                 data: routineData
               });
-            } else {
-              console.log(`No changes for ${key}`);
             }
           } else {
             // Create new routine
-            console.log(`Adding create operation for ${key}:`, routineData);
             operations.push({
               operation: 'create',
               data: routineData as RoutineCreateData
             });
           }
         }
-        
+
         // Remove from existing map to track processed items
         existingRoutineMap.delete(key);
       });
@@ -682,16 +677,12 @@ export const routineTransformers = {
     // Any remaining items in existingRoutineMap should be deleted
     // (they exist in the database but not in the current grid)
     existingRoutineMap.forEach(routine => {
-      const timeSlot = routineTransformers.formatTimeSlot(routine.start_time, routine.end_time);
-      const key = `${routine.day_of_week}-${timeSlot}`;
-      console.log(`Adding delete operation for orphaned routine ${key}`);
       operations.push({
         operation: 'delete',
         id: routine.id
       });
     });
 
-    console.log('Final operations:', operations);
     return operations;
   },
 
