@@ -91,7 +91,7 @@ def _notify(student, title, message, data):
 
 
 def _email(student, subject, heading, intro, details, bullets=None,
-           closing=None):
+           bullets_title=None, closing=None):
     """Branded reminder email (best-effort; honours the email opt-out)."""
     try:
         from apps.notifications.dispatch import student_portal_url
@@ -104,6 +104,11 @@ def _email(student, subject, heading, intro, details, bullets=None,
         if not recipients:
             return
 
+        sections = None
+        if bullets:
+            sections = [{'title': bullets_title or 'Checklist',
+                         'bullets': bullets}]
+
         send_branded_email(
             subject,
             recipients,
@@ -111,7 +116,7 @@ def _email(student, subject, heading, intro, details, bullets=None,
             greeting=f'Dear {student.fullNameEnglish},',
             intro=intro,
             details=details,
-            bullets=bullets,
+            sections=sections,
             cta_label='View Exam Routine',
             cta_url=student_portal_url('/dashboard/exam-routine'),
             accent_label='Exam Reminder',
@@ -137,8 +142,11 @@ def _fmt_time(hhmm: str) -> str:
     return f'{h % 12 or 12}:{m:02d} {period}'
 
 
-def send_due_reminders(now=None) -> dict:
-    """Send every reminder that is due right now. Returns stats."""
+def send_due_reminders(now=None, dry_run: bool = False) -> dict:
+    """Send every reminder that is due right now. Returns stats.
+
+    ``dry_run`` counts what WOULD be sent without sending or logging.
+    """
     now = now.astimezone(DHAKA) if now else _bd_now()
     today: date = now.date()
     stats = {'countdown': 0, 'day_before': 0, 'exam_day': 0, 'students': 0}
@@ -164,7 +172,7 @@ def send_due_reminders(now=None) -> dict:
 
     for student in students.iterator():
         try:
-            sent = _process_student(student, routine, now, today)
+            sent = _process_student(student, routine, now, today, dry_run)
         except Exception:
             logger.exception('Exam reminders failed for student %s', student.pk)
             continue
@@ -175,7 +183,7 @@ def send_due_reminders(now=None) -> dict:
     return stats
 
 
-def _process_student(student, routine, now, today) -> list[str]:
+def _process_student(student, routine, now, today, dry_run=False) -> list[str]:
     payload = generate_for_student(student, 'final')
     exams = [e for e in (payload.get('exams') or [])
              if e['date'] >= today.isoformat()]
@@ -199,6 +207,9 @@ def _process_student(student, routine, now, today) -> list[str]:
             subjectCode=exam['subjectCode'], examDate=exam['date'],
         ).exists():
             continue
+        if dry_run:
+            sent.append('exam_day')
+            continue
         when = _fmt_time(exam['startTime'])
         _notify(
             student,
@@ -220,6 +231,7 @@ def _process_student(student, routine, now, today) -> list[str]:
                 {'label': 'Time', 'value': f'{when} ({exam["weekday"]})'},
             ],
             bullets=EXAM_DAY_TIPS,
+            bullets_title='Before you leave',
         )
         ExamReminderLog.objects.create(
             student=student, routine=routine, kind='exam_day',
@@ -239,6 +251,9 @@ def _process_student(student, routine, now, today) -> list[str]:
             student=student, kind='day_before',
             subjectCode=exam['subjectCode'], examDate=exam['date'],
         ).exists():
+            continue
+        if dry_run:
+            sent.append('day_before')
             continue
         when = _fmt_time(exam['startTime'])
         _notify(
@@ -262,6 +277,7 @@ def _process_student(student, routine, now, today) -> list[str]:
                 {'label': 'Time', 'value': when},
             ],
             bullets=DAY_BEFORE_CHECKLIST,
+            bullets_title='Things to do today',
         )
         ExamReminderLog.objects.create(
             student=student, routine=routine, kind='day_before',
@@ -274,9 +290,12 @@ def _process_student(student, routine, now, today) -> list[str]:
     if 1 < days_to_first <= COUNTDOWN_WINDOW_DAYS:
         recent = ExamReminderLog.objects.filter(
             student=student, kind='countdown', routine=routine,
-            sentAt__gte=timezone.now() - timedelta(days=COUNTDOWN_EVERY_DAYS),
+            sentAt__gte=now - timedelta(days=COUNTDOWN_EVERY_DAYS),
         ).exists()
         if not recent:
+            if dry_run:
+                sent.append('countdown')
+                return sent
             when = _fmt_time(first['startTime'])
             _notify(
                 student,
@@ -308,6 +327,7 @@ def _process_student(student, routine, now, today) -> list[str]:
                     'Collect your admit card in time',
                     'Check the routine for referred subjects too',
                 ],
+                bullets_title='Preparation tips',
             )
             ExamReminderLog.objects.create(
                 student=student, routine=routine, kind='countdown',
