@@ -228,17 +228,22 @@ class StudentViewSet(viewsets.ModelViewSet):
         DELETE /api/students/{id}/
         """
         instance = self.get_object()
-        
-        # Check if student has alumni record
+
+        # Check if student has a REAL alumni record. A 'student_prefill' row
+        # only holds career data the student typed in — delete it along with
+        # the student instead of blocking the deletion.
         if hasattr(instance, 'alumni'):
-            return Response(
-                {
-                    'error': 'Cannot delete student with alumni record',
-                    'details': 'This student has been transitioned to alumni and cannot be deleted.'
-                },
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
+            if instance.alumni.registrationSource == 'student_prefill':
+                instance.alumni.delete()
+            else:
+                return Response(
+                    {
+                        'error': 'Cannot delete student with alumni record',
+                        'details': 'This student has been transitioned to alumni and cannot be deleted.'
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
     
@@ -519,16 +524,23 @@ class StudentViewSet(viewsets.ModelViewSet):
         from datetime import datetime
         
         student = self.get_object()
-        
-        # Check if student already has alumni record
+
+        # Check if student already has a REAL alumni record. A
+        # 'student_prefill' row (career data the student filled in from their
+        # profile before graduating) is NOT alumni status — it gets upgraded
+        # below so the filled data carries straight into the alumni profile.
+        prefill_alumni = None
         if hasattr(student, 'alumni'):
-            return Response(
-                {
-                    'error': 'Student already transitioned to alumni',
-                    'details': 'This student has already been transitioned to alumni status'
-                },
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            if student.alumni.registrationSource == 'student_prefill':
+                prefill_alumni = student.alumni
+            else:
+                return Response(
+                    {
+                        'error': 'Student already transitioned to alumni',
+                        'details': 'This student has already been transitioned to alumni status'
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
         
         # Validate 8 semesters completion
         if not student.has_completed_eighth_semester():
@@ -546,16 +558,26 @@ class StudentViewSet(viewsets.ModelViewSet):
             # Calculate from current year
             graduation_year = datetime.now().year
         
-        # Create alumni record
+        # Create alumni record (or upgrade the student's career-prefill row —
+        # keeping the Career Journey / Skills / Courses / Highlights they
+        # already filled in from their profile)
         try:
-            alumni = Alumni.objects.create(
-                student=student,
-                alumniType='recent',
-                graduationYear=graduation_year,
-                currentSupportCategory='no_support_needed',
-                transitionDate=timezone.now()
-            )
-            
+            if prefill_alumni is not None:
+                alumni = prefill_alumni
+                alumni.registrationSource = 'pipeline'
+                alumni.alumniType = 'recent'
+                alumni.graduationYear = graduation_year
+                alumni.currentSupportCategory = 'no_support_needed'
+                alumni.transitionDate = timezone.now()
+            else:
+                alumni = Alumni.objects.create(
+                    student=student,
+                    alumniType='recent',
+                    graduationYear=graduation_year,
+                    currentSupportCategory='no_support_needed',
+                    transitionDate=timezone.now()
+                )
+
             # Add initial support history entry
             alumni.supportHistory = [{
                 'date': timezone.now().isoformat(),

@@ -5,6 +5,17 @@ from django.db import models
 from django.utils import timezone
 
 
+def exclude_student_prefill(queryset):
+    """Drop career-prefill rows of current students from an Alumni queryset.
+
+    A 'student_prefill' row only stores Career Journey / Skills / Courses /
+    Highlights that a current student filled in from their profile — the
+    student is NOT an alumnus. Every listing, count, detection or targeting
+    of alumni must go through this helper.
+    """
+    return queryset.exclude(registrationSource='student_prefill')
+
+
 class Alumni(models.Model):
     """
     Alumni model for tracking graduated students
@@ -27,6 +38,12 @@ class Alumni(models.Model):
         ('pipeline', 'Promoted From Student'),      # 8th-semester transition
         ('admin_manual', 'Manually Added By Admin'),  # legacy graduate, admin entry
         ('self_registration', 'Self Registered'),    # alumni signed up themselves
+        # Career-data holder for a CURRENT student (not an alumnus yet). Created
+        # when a student fills Career Journey / Skills / Courses / Highlights
+        # from their main profile; upgraded to 'pipeline' at graduation so the
+        # data carries over. Rows with this source must never be treated as
+        # alumni anywhere — use exclude_student_prefill() on alumni querysets.
+        ('student_prefill', 'Student Pre-fill (Not Alumni)'),
     ]
 
     # Review state (only meaningful for self_registration, which needs admin approval)

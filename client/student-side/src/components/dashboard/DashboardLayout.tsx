@@ -2,7 +2,7 @@ import { Outlet, useNavigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { Footer } from '@/components/layout/Footer';
-import { User, Settings, LogOut, ChevronDown } from 'lucide-react';
+import { User, Settings, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState, useEffect } from 'react';
 import { noticeService } from '@/services/noticeService';
@@ -14,17 +14,17 @@ import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { MaintenanceNoticeBanner } from '@/components/layout/MaintenanceNoticeBanner';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import ProfileAvatar from '@/components/ProfileAvatar';
+import { AlumniGate } from '@/components/auth/AdmissionGuard';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
 export function DashboardLayout() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
 
   // Teachers get class-start alerts (5 min before + at start) on every page.
@@ -59,11 +59,6 @@ export function DashboardLayout() {
       }
       console.error('Error loading unread count:', err);
     }
-  };
-
-  const handleLogout = async () => {
-    await logout();
-    navigate('/', { replace: true });
   };
 
   const getRoleBadge = () => {
@@ -166,16 +161,6 @@ export function DashboardLayout() {
                   <Settings className="mr-2 h-4 w-4" />
                   Settings
                 </DropdownMenuItem>
-
-                <DropdownMenuSeparator />
-
-                <DropdownMenuItem
-                  onClick={handleLogout}
-                  className="cursor-pointer rounded-lg py-2 text-destructive focus:bg-destructive/10 focus:text-destructive"
-                >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Logout
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -196,7 +181,10 @@ export function DashboardLayout() {
         <main className="flex-1 overflow-x-clip p-4 md:p-6 lg:p-8">
           <div className="mx-auto min-w-0 max-w-7xl">
             <ErrorBoundary>
-              <Outlet />
+              {/* Not-yet-approved alumni accounts see every page, but locked */}
+              <AlumniGate>
+                <Outlet />
+              </AlumniGate>
             </ErrorBoundary>
           </div>
         </main>

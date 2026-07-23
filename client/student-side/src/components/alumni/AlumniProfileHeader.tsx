@@ -107,13 +107,17 @@ export function AlumniProfileHeader({ alumni, onEdit, isEditable = true, onPhoto
 
       {/* Profile content */}
       <div className="px-4 pb-6 sm:px-6">
-        {/* Avatar overlapping the cover */}
-        <div className="-mt-14 flex flex-col gap-3 sm:-mt-16 sm:flex-row sm:items-end sm:gap-5">
+        {/* Avatar overlapping the cover. The negative margin sits on the
+            AVATAR only — pulling the whole row up let the name/badges column
+            rise over the cover photo (dark text on a dark image) whenever it
+            was taller than the avatar. This way text always starts below the
+            cover, no matter how long the name/role/badges get. */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-5">
           <motion.div
             initial={false}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.1 }}
-            className="group/avatar relative"
+            className="group/avatar relative -mt-14 shrink-0 self-start sm:-mt-16"
           >
             <Avatar className="h-28 w-28 border-4 border-background shadow-xl sm:h-32 sm:w-32">
               <AvatarImage src={alumni.avatar} alt={alumni.name} />

@@ -12,7 +12,7 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Count
 from django.conf import settings
-from .models import Alumni
+from .models import Alumni, exclude_student_prefill
 from .serializers import (
     AlumniSerializer,
     AlumniCreateSerializer,
@@ -92,32 +92,52 @@ class AlumniViewSet(viewsets.ModelViewSet):
     - search: GET /api/alumni/search/?q={query}
     - stats: GET /api/alumni/stats/
     """
-    queryset = Alumni.objects.select_related('student', 'student__department').all()
+    queryset = exclude_student_prefill(
+        Alumni.objects.select_related('student', 'student__department')
+    )
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['alumniType', 'currentSupportCategory', 'graduationYear', 'student__department']
     
-    def _get_student_alumni(self, request):
+    def _get_student_alumni(self, request, create_prefill=False):
         """
         Helper method to get the alumni profile for the authenticated student
         Returns (student, alumni) tuple or raises appropriate error
+
+        With create_prefill=True a missing Alumni row is created on the fly as
+        a 'student_prefill' record — this is what lets CURRENT students manage
+        Career Journey / Skills / Courses / Highlights from their main profile
+        before they graduate. The row is upgraded to 'pipeline' at graduation,
+        so the filled data carries straight into the alumni profile.
         """
         from apps.students.models import Student
-        
+
         student_id = request.user.related_profile_id
-        
+
         if not student_id:
             raise ValueError('No student profile associated with this user')
-        
+
         try:
             student = Student.objects.get(id=student_id)
         except Student.DoesNotExist:
             raise ValueError('Student profile does not exist')
-        
+
         try:
             alumni = Alumni.objects.get(student=student)
         except Alumni.DoesNotExist:
-            raise ValueError('Alumni profile not found')
-        
+            if not create_prefill:
+                raise ValueError('Alumni profile not found')
+            # reviewStatus MUST stay 'approved': exclude_unapproved_alumni()
+            # drops students whose alumni row is pending/rejected from every
+            # student queryset, and a prefill row must never hide a student.
+            alumni = Alumni.objects.create(
+                student=student,
+                registrationSource='student_prefill',
+                reviewStatus='approved',
+                alumniType='recent',
+                isVerified=False,
+                lastEditedBy='student',
+            )
+
         return student, alumni
     
     def get_serializer_class(self):
@@ -260,7 +280,7 @@ class AlumniViewSet(viewsets.ModelViewSet):
         graduation_year = request.query_params.get('graduationYear')
         
         # Start with all alumni
-        alumni = Alumni.objects.all()
+        alumni = exclude_student_prefill(Alumni.objects.all())
         
         # Apply text search if query provided
         if query:
@@ -308,9 +328,9 @@ class AlumniViewSet(viewsets.ModelViewSet):
         (title/organization), location and skills. Only approved alumni are
         listed and only non-sensitive fields are returned. Paginated.
         """
-        queryset = Alumni.objects.select_related('student', 'student__department').filter(
-            reviewStatus='approved'
-        )
+        queryset = exclude_student_prefill(
+            Alumni.objects.select_related('student', 'student__department')
+        ).filter(reviewStatus='approved')
 
         query = (request.query_params.get('q') or '').strip().lower()
         department = request.query_params.get('department')
@@ -436,9 +456,9 @@ class AlumniViewSet(viewsets.ModelViewSet):
 
     def _completion_queryset(self, params):
         """Shared filtered queryset for the completion tools (approved alumni)."""
-        qs = Alumni.objects.select_related('student', 'student__department').filter(
-            reviewStatus='approved'
-        )
+        qs = exclude_student_prefill(
+            Alumni.objects.select_related('student', 'student__department')
+        ).filter(reviewStatus='approved')
         department = params.get('department')
         registration_source = params.get('registrationSource')
         if department:
@@ -574,20 +594,21 @@ class AlumniViewSet(viewsets.ModelViewSet):
         - Department
         """
         # Total alumni
-        total_alumni = Alumni.objects.count()
-        recent_alumni = Alumni.objects.filter(alumniType='recent').count()
-        established_alumni = Alumni.objects.filter(alumniType='established').count()
+        real_alumni = exclude_student_prefill(Alumni.objects.all())
+        total_alumni = real_alumni.count()
+        recent_alumni = real_alumni.filter(alumniType='recent').count()
+        established_alumni = real_alumni.filter(alumniType='established').count()
         
         # By support category
         by_support_category = dict(
-            Alumni.objects.values('currentSupportCategory')
+            real_alumni.values('currentSupportCategory')
             .annotate(count=Count('pk'))
             .values_list('currentSupportCategory', 'count')
         )
         
         # By graduation year
         by_graduation_year = dict(
-            Alumni.objects.values('graduationYear')
+            real_alumni.values('graduationYear')
             .annotate(count=Count('pk'))
             .values_list('graduationYear', 'count')
         )
@@ -597,14 +618,14 @@ class AlumniViewSet(viewsets.ModelViewSet):
         
         # By department
         by_department = {}
-        alumni_with_dept = Alumni.objects.select_related('student__department').all()
+        alumni_with_dept = exclude_student_prefill(Alumni.objects.select_related('student__department'))
         for alumni in alumni_with_dept:
             dept_name = alumni.student.department.name
             by_department[dept_name] = by_department.get(dept_name, 0) + 1
         
         # By position type (from current position)
         by_position_type = {}
-        alumni_with_positions = Alumni.objects.exclude(currentPosition__isnull=True)
+        alumni_with_positions = exclude_student_prefill(Alumni.objects.exclude(currentPosition__isnull=True))
         for alumni in alumni_with_positions:
             if alumni.currentPosition and 'positionTitle' in alumni.currentPosition:
                 position = alumni.currentPosition['positionTitle']
@@ -956,7 +977,7 @@ class AlumniViewSet(viewsets.ModelViewSet):
         POST /api/alumni/add-my-career/
         """
         try:
-            student, alumni = self._get_student_alumni(request)
+            student, alumni = self._get_student_alumni(request, create_prefill=True)
             
             serializer = AddCareerPositionSerializer(data=request.data)
             if not serializer.is_valid():
@@ -1067,7 +1088,7 @@ class AlumniViewSet(viewsets.ModelViewSet):
         POST /api/alumni/add-my-skill/
         """
         try:
-            student, alumni = self._get_student_alumni(request)
+            student, alumni = self._get_student_alumni(request, create_prefill=True)
             
             skill_data = request.data
             
@@ -1178,7 +1199,7 @@ class AlumniViewSet(viewsets.ModelViewSet):
         POST /api/alumni/add-my-highlight/
         """
         try:
-            student, alumni = self._get_student_alumni(request)
+            student, alumni = self._get_student_alumni(request, create_prefill=True)
             
             highlight_data = request.data
             
@@ -1286,7 +1307,7 @@ class AlumniViewSet(viewsets.ModelViewSet):
         POST /api/alumni/add_my_course/
         """
         try:
-            student, alumni = self._get_student_alumni(request)
+            student, alumni = self._get_student_alumni(request, create_prefill=True)
             
             course_data = request.data
             

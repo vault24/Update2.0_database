@@ -21,6 +21,7 @@ import { dashboardService } from '@/services/dashboardService';
 import { StudentProfileHeader } from '@/components/profile/StudentProfileHeader';
 import { StudentStatsCard } from '@/components/profile/StudentStatsCard';
 import { StudentOverviewTab } from '@/components/profile/StudentOverviewTab';
+import { CareerPortfolioSections } from '@/components/profile/CareerPortfolioSections';
 import { LinkedInTeacherProfile } from '@/components/profile/LinkedInTeacherProfile';
 
 // Admission / Routine / Attendance / Marks / Documents are already reachable from
@@ -311,7 +312,7 @@ export function ProfilePageFixed() {
                 className={cn(
                   "flex items-center gap-1 md:gap-1.5 lg:gap-2 px-3 md:px-4 lg:px-5 py-2 md:py-2.5 lg:py-3 rounded-xl text-xs md:text-sm font-medium transition-all duration-200 whitespace-nowrap",
                   isActive
-                    ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg"
+                    ? "gradient-primary text-primary-foreground shadow-lg"
                     : "bg-card text-muted-foreground hover:text-foreground hover:bg-secondary border border-border"
                 )}
               >
@@ -452,6 +453,11 @@ export function ProfilePageFixed() {
           )}
         </motion.div>
       </AnimatePresence>
+
+      {/* Career & Portfolio — the alumni career sections, editable by current
+          students. Alumni manage the same records from their alumni profile,
+          so hide the duplicate here for alumni accounts. */}
+      {!user?.isAlumni && !user?.isAlumniAccount && <CareerPortfolioSections />}
     </div>
   );
 }

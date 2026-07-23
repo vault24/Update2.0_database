@@ -17,27 +17,7 @@ export interface UserPreferences {
   notifications: {
     email: boolean;
     push: boolean;
-    sms: boolean;
-    classReminders: boolean;
-    assignmentAlerts: boolean;
-    examNotices: boolean;
-    announcements: boolean;
-    messages: boolean;
   };
-  privacy: {
-    showProfile: boolean;
-    showAttendance: boolean;
-    showMarks: boolean;
-  };
-  language: string;
-  theme: 'light' | 'dark';
-}
-
-export interface SocialLink {
-  id: string;
-  platform: string;
-  url: string;
-  icon?: React.ElementType;
 }
 
 export interface PublicProfileSetting {
@@ -119,20 +99,7 @@ class SettingsService {
       notifications: {
         email: true,
         push: true,
-        sms: false,
-        classReminders: true,
-        assignmentAlerts: true,
-        examNotices: true,
-        announcements: true,
-        messages: true,
       },
-      privacy: {
-        showProfile: true,
-        showAttendance: false,
-        showMarks: false,
-      },
-      language: 'en',
-      theme: 'light',
     };
   }
 
@@ -149,29 +116,6 @@ class SettingsService {
   }
 
   /**
-   * Get social links
-   */
-  async getSocialLinks(): Promise<SocialLink[]> {
-    // This would need a backend endpoint
-    // For now, return from localStorage
-    const stored = localStorage.getItem('socialLinks');
-    if (stored) {
-      return JSON.parse(stored);
-    }
-    return [];
-  }
-
-  /**
-   * Update social links
-   */
-  async updateSocialLinks(links: SocialLink[]): Promise<SocialLink[]> {
-    // This would need a backend endpoint
-    // For now, store in localStorage
-    localStorage.setItem('socialLinks', JSON.stringify(links));
-    return links;
-  }
-
-  /**
    * Logout from all devices
    */
   async logoutAllDevices(): Promise<{ message: string }> {
@@ -181,18 +125,6 @@ class SettingsService {
     return response;
   }
 
-  /**
-   * Submit role switch request
-   */
-  async submitRoleRequest(data: { requested_role: string; reason: string }): Promise<any> {
-    // This would need a backend endpoint
-    // For now, simulate it
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({ message: 'Role switch request submitted successfully' });
-      }, 1000);
-    });
-  }
 }
 
 export const settingsService = new SettingsService();

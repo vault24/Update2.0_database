@@ -22,6 +22,7 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { apiClient, getErrorMessage, PaginatedResponse } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { AdmissionGuard } from '@/components/auth/AdmissionGuard';
 
 type UiCategory = 'academic' | 'website' | 'facility';
 type UiStatus = 'pending' | 'seen' | 'in_progress' | 'resolved';
@@ -265,6 +266,7 @@ export default function ComplaintsPage() {
   };
 
   return (
+    <AdmissionGuard>
     <motion.div
       initial={false}
       animate={{ opacity: 1, y: 0 }}
@@ -619,5 +621,6 @@ export default function ComplaintsPage() {
         </Tabs>
       )}
     </motion.div>
+    </AdmissionGuard>
   );
 }

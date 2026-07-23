@@ -26,6 +26,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AdmissionGuard } from '@/components/auth/AdmissionGuard';
 import examRoutineService, {
   MyExamRoutineResponse,
   RoutineExam,
@@ -295,6 +296,7 @@ function MidRoutineTab() {
 
 export default function ExamRoutinePage() {
   return (
+    <AdmissionGuard>
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-900/40">
@@ -321,5 +323,6 @@ export default function ExamRoutinePage() {
         </TabsContent>
       </Tabs>
     </div>
+    </AdmissionGuard>
   );
 }

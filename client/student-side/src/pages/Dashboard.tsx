@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { PremiumWelcomeCard } from '@/components/dashboard/PremiumWelcomeCard';
-import { StatusCard } from '@/components/dashboard/StatusCard';
 import { PremiumQuickActions } from '@/components/dashboard/PremiumQuickActions';
 import { AlumniDashboard } from '@/components/dashboard/AlumniDashboard';
 import { EnhancedNoticeBoard } from '@/components/dashboard/EnhancedNoticeBoard';
@@ -584,9 +583,6 @@ export function Dashboard() {
             <PomodoroTimer />
             <QuickNotes />
           </div>
-          
-          {/* Status Card */}
-          <StatusCard />
         </div>
         
         <div className="space-y-4 md:space-y-6">

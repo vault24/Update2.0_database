@@ -734,10 +734,15 @@ class UserSerializer(serializers.ModelSerializer):
         if obj.role in ['student', 'captain'] and obj.related_profile_id:
             try:
                 from apps.students.models import Student
-                from apps.alumni.models import Alumni
+                from apps.alumni.models import Alumni, exclude_student_prefill
                 student = Student.objects.get(id=obj.related_profile_id)
-                # Check if student is graduated or has alumni record
-                return student.status == 'graduated' or Alumni.objects.filter(student=student).exists()
+                # Check if student is graduated or has a REAL alumni record.
+                # 'student_prefill' rows only hold career data a current
+                # student entered from their profile — not alumni status.
+                return (
+                    student.status == 'graduated'
+                    or exclude_student_prefill(Alumni.objects.filter(student=student)).exists()
+                )
             except (Student.DoesNotExist, Alumni.DoesNotExist):
                 pass
         elif obj.role == 'alumni':
@@ -750,8 +755,10 @@ class UserSerializer(serializers.ModelSerializer):
         portal until an admin approves their application."""
         if obj.role in ['student', 'captain'] and obj.related_profile_id:
             try:
-                from apps.alumni.models import Alumni
-                alumni = Alumni.objects.filter(student_id=obj.related_profile_id).only('reviewStatus').first()
+                from apps.alumni.models import Alumni, exclude_student_prefill
+                alumni = exclude_student_prefill(
+                    Alumni.objects.filter(student_id=obj.related_profile_id)
+                ).only('reviewStatus').first()
                 return alumni.reviewStatus if alumni else None
             except Exception:
                 return None

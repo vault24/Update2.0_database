@@ -43,6 +43,7 @@ import resultService, {
   RollSearchResponse,
 } from '@/services/resultService';
 import { useAuth } from '@/contexts/AuthContext';
+import { AdmissionGuard } from '@/components/auth/AdmissionGuard';
 
 const FRIENDS_KEY = 'boardResults.savedFriends';
 
@@ -513,6 +514,7 @@ export default function BoardResultsPage() {
   const isTeacher = user?.role === 'teacher';
 
   return (
+    <AdmissionGuard>
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-900/40">
@@ -548,5 +550,6 @@ export default function BoardResultsPage() {
         </Tabs>
       )}
     </div>
+    </AdmissionGuard>
   );
 }

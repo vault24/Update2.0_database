@@ -1,12 +1,12 @@
 import { motion } from 'framer-motion';
-import { 
-  User, 
-  Calendar, 
-  FolderOpen, 
-  ClipboardCheck, 
-  FileText, 
+import {
+  User,
+  Calendar,
+  CalendarClock,
+  FolderOpen,
+  ClipboardCheck,
+  GraduationCap,
   Send,
-  BookOpen,
   Video,
   Bell
 } from 'lucide-react';
@@ -42,24 +42,24 @@ const actions = [
     color: 'from-orange-500 to-amber-600',
     bgLight: 'bg-orange-50 dark:bg-orange-950/30'
   },
-  { 
-    icon: FileText, 
-    label: 'Marks', 
-    path: '/dashboard/marks', 
+  {
+    icon: GraduationCap,
+    label: 'Board Result',
+    path: '/dashboard/board-results',
     color: 'from-pink-500 to-rose-600',
     bgLight: 'bg-pink-50 dark:bg-pink-950/30'
   },
-  { 
-    icon: Send, 
-    label: 'Applications', 
-    path: '/dashboard/applications', 
+  {
+    icon: Send,
+    label: 'Applications',
+    path: '/dashboard/applications',
     color: 'from-indigo-500 to-blue-600',
     bgLight: 'bg-indigo-50 dark:bg-indigo-950/30'
   },
-  { 
-    icon: BookOpen, 
-    label: 'Learning Hub', 
-    path: '/dashboard/learning', 
+  {
+    icon: CalendarClock,
+    label: 'Exam Routine',
+    path: '/dashboard/exam-routine',
     color: 'from-cyan-500 to-teal-600',
     bgLight: 'bg-cyan-50 dark:bg-cyan-950/30'
   },
@@ -77,7 +77,6 @@ const secondaryActions = [
     icon: Bell,
     label: 'Notices',
     path: '/dashboard/notices',
-    badge: 5
   },
 ];
 
@@ -118,14 +117,11 @@ export function PremiumQuickActions() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => navigate(action.path)}
+              title={action.label}
+              aria-label={action.label}
               className="relative p-2.5 rounded-xl bg-secondary/50 hover:bg-secondary transition-colors"
             >
               <action.icon className="w-5 h-5 text-muted-foreground" />
-              {action.badge > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground text-xs font-bold rounded-full flex items-center justify-center">
-                  {action.badge}
-                </span>
-              )}
             </motion.button>
           ))}
         </div>
@@ -149,10 +145,10 @@ export function PremiumQuickActions() {
             whileTap={{ scale: 0.95 }}
             onClick={() => navigate(action.path)}
             className={cn(
-              "flex flex-col items-center gap-2 p-3 md:p-4 rounded-xl",
+              "flex flex-col items-center justify-center gap-2 p-3 md:p-4 rounded-xl min-h-[84px]",
               "transition-all duration-200 group",
               action.bgLight,
-              "hover:shadow-md"
+              "hover:shadow-md active:scale-95"
             )}
           >
             <motion.div 
@@ -166,7 +162,7 @@ export function PremiumQuickActions() {
             >
               <action.icon className="w-5 h-5 md:w-6 md:h-6 text-white" />
             </motion.div>
-            <span className="text-[10px] md:text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors text-center leading-tight">
+            <span className="text-[11px] md:text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors text-center leading-tight">
               {action.label}
             </span>
           </motion.button>

@@ -64,22 +64,25 @@ class DashboardStatsView(APIView):
                 count=Count('id')
             ).order_by('semester'))
             
-            # Alumni statistics
-            total_alumni = Alumni.objects.count()
-            recent_alumni = Alumni.objects.filter(alumniType='recent').count()
-            established_alumni = Alumni.objects.filter(alumniType='established').count()
-            
+            # Alumni statistics (career-prefill rows of current students are
+            # not alumni and never counted)
+            from apps.alumni.models import exclude_student_prefill
+            real_alumni = exclude_student_prefill(Alumni.objects.all())
+            total_alumni = real_alumni.count()
+            recent_alumni = real_alumni.filter(alumniType='recent').count()
+            established_alumni = real_alumni.filter(alumniType='established').count()
+
             # Convert support categories to dict format
             support_dict = {}
-            alumni_by_support = Alumni.objects.values('currentSupportCategory').annotate(
+            alumni_by_support = real_alumni.values('currentSupportCategory').annotate(
                 count=Count('student_id')
             )
             for item in alumni_by_support:
                 support_dict[item['currentSupportCategory']] = item['count']
-            
+
             # Convert years to dict format
             year_dict = {}
-            alumni_by_year = Alumni.objects.values('graduationYear').annotate(
+            alumni_by_year = real_alumni.values('graduationYear').annotate(
                 count=Count('student_id')
             ).order_by('-graduationYear')
             for item in alumni_by_year:

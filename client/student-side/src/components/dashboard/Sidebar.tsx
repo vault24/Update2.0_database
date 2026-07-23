@@ -9,7 +9,6 @@ import {
   BarChart3,
   FolderOpen,
   Send,
-  LogOut,
   GraduationCap,
   ChevronLeft,
   Menu,
@@ -91,20 +90,21 @@ const alumniMenuItems: MenuItem[] = [
   { icon: Settings, label: 'Settings', path: '/dashboard/settings', roles: ['alumni'] },
 ];
 
-// Minimal menu for alumni accounts that have not been approved yet: the
-// registration wizard (before submitting) or the application-status page
-// (while pending / rejected), plus Settings for account switching / deletion.
+// Menu for alumni accounts that have not been approved yet: the registration
+// wizard (before submitting) or the application-status page (while pending /
+// rejected) on top, followed by the FULL alumni menu — every page stays
+// visible but its content is locked by the AlumniGate until approval.
 const pendingAlumniMenuItems = (submitted: boolean): MenuItem[] => [
   submitted
     ? { icon: ClipboardList, label: 'Application Status', path: '/dashboard/alumni-application-status', roles: ['alumni'] }
     : { icon: GraduationCap, label: 'Alumni Registration', path: '/dashboard/alumni-registration', roles: ['alumni'] },
-  { icon: Settings, label: 'Settings', path: '/dashboard/settings', roles: ['alumni'] },
+  ...alumniMenuItems,
 ];
 
 export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout, user } = useAuth();
+  const { user } = useAuth();
   const { countFor } = useBadges();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
@@ -139,11 +139,6 @@ export function Sidebar() {
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
   }, []);
-
-  const handleLogout = async () => {
-    await logout();
-    navigate('/', { replace: true });
-  };
 
   // Alumni accounts have backend role 'student' + an alumni flag, so detect via
   // the flags rather than the raw role.
@@ -356,7 +351,7 @@ export function Sidebar() {
           )}
         </nav>
 
-        {/* Footer: switch account + profile + logout */}
+        {/* Footer: switch account + profile (logout lives in Settings) */}
         <div className="border-t border-sidebar-border p-3">
           {showSwitchAccount && (
             <button
@@ -373,10 +368,18 @@ export function Sidebar() {
               {!isCollapsed && <span className="truncate">Switch Account</span>}
             </button>
           )}
-          <div
+          <button
+            type="button"
+            onClick={() => {
+              navigate('/dashboard/settings');
+              setIsMobileOpen(false);
+            }}
+            title="Open Settings"
+            aria-label="Open Settings"
             className={cn(
-              'flex items-center gap-3 rounded-xl p-2',
+              'flex w-full items-center gap-3 rounded-xl p-2 text-left transition-colors hover:bg-sidebar-accent',
               !isCollapsed && 'bg-sidebar-accent/60',
+              isCollapsed && 'justify-center',
             )}
           >
             <ProfileAvatar size="sm" />
@@ -387,26 +390,9 @@ export function Sidebar() {
               </div>
             )}
             {!isCollapsed && (
-              <button
-                onClick={handleLogout}
-                title="Logout"
-                aria-label="Logout"
-                className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-              >
-                <LogOut className="h-4 w-4" />
-              </button>
+              <Settings className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
             )}
-          </div>
-          {isCollapsed && (
-            <button
-              onClick={handleLogout}
-              title="Logout"
-              aria-label="Logout"
-              className="mt-2 flex w-full items-center justify-center rounded-lg py-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
-          )}
+          </button>
         </div>
 
         {/* Collapse toggle (desktop only) */}

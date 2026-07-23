@@ -84,12 +84,12 @@ export function StudentProfileHeader({
     <motion.div
       initial={false}
       animate={{ opacity: 1, y: 0 }}
-      className="relative overflow-hidden rounded-2xl lg:rounded-3xl bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 shadow-xl max-w-full"
+      className="relative overflow-hidden rounded-2xl lg:rounded-3xl bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-500 shadow-xl max-w-full"
     >
       {/* Decorative elements */}
       <div className="absolute top-0 right-0 w-80 h-80 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
-      <div className="absolute bottom-0 left-0 w-64 h-64 bg-pink-400/20 rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
-      <div className="absolute top-1/2 right-1/3 w-40 h-40 bg-indigo-400/20 rounded-full blur-2xl" />
+      <div className="absolute bottom-0 left-0 w-64 h-64 bg-amber-400/20 rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
+      <div className="absolute top-1/2 right-1/3 w-40 h-40 bg-teal-300/20 rounded-full blur-2xl" />
       
       {/* Pattern overlay */}
       <div className="absolute inset-0 opacity-10 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjMpIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')]" />
@@ -122,16 +122,6 @@ export function StudentProfileHeader({
                   {name.charAt(0).toUpperCase()}
                 </span>
               </div>
-              <motion.div
-                animate={{ scale: [1, 1.2, 1] }}
-                transition={{ duration: 2, repeat: Infinity }}
-                className={cn(
-                  "absolute -bottom-1 -right-1 w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center ring-2 ring-white shadow-lg",
-                  status === 'active' ? 'bg-emerald-500' : 'bg-amber-500'
-                )}
-              >
-                <Check className="w-3 h-3 md:w-4 md:h-4 text-white" />
-              </motion.div>
             </div>
           </motion.div>
 
@@ -230,7 +220,7 @@ export function StudentProfileHeader({
               <DialogTrigger asChild>
                 <Button 
                   size="sm" 
-                  className="bg-white text-indigo-600 hover:bg-white/90 shadow-lg font-medium text-xs md:text-sm gap-1.5"
+                  className="bg-white text-emerald-700 hover:bg-white/90 shadow-lg font-medium text-xs md:text-sm gap-1.5"
                 >
                   <Share2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
                   <span className="hidden sm:inline">Share Profile</span>
@@ -245,7 +235,7 @@ export function StudentProfileHeader({
                   </DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
-                  <div className="p-4 rounded-xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-primary/20">
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border border-primary/20">
                     <p className="text-xs text-muted-foreground mb-2">Your public profile link:</p>
                     <div className="flex items-center gap-2">
                       <input

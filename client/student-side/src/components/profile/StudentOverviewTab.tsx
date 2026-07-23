@@ -151,23 +151,23 @@ export function StudentOverviewTab({
             color="from-emerald-500 to-teal-600"
             iconColor="text-emerald-500"
           />
-          <PerformanceCard 
-            value={`${performanceMetrics.attendancePercentage}%`} 
+          <PerformanceCard
+            value={`${performanceMetrics.attendancePercentage}%`}
             label="Attendance"
-            color="from-blue-500 to-indigo-600"
-            iconColor="text-blue-500"
+            color="from-teal-500 to-cyan-600"
+            iconColor="text-teal-500"
           />
-          <PerformanceCard 
-            value={performanceMetrics.rank || '-'} 
+          <PerformanceCard
+            value={performanceMetrics.rank || '-'}
             label="Class Rank"
-            color="from-amber-500 to-orange-600"
-            iconColor="text-amber-500"
+            color="from-orange-500 to-rose-500"
+            iconColor="text-orange-500"
           />
-          <PerformanceCard 
-            value={performanceMetrics.subjectsCount} 
+          <PerformanceCard
+            value={performanceMetrics.subjectsCount}
             label="Subjects"
-            color="from-violet-500 to-purple-600"
-            iconColor="text-violet-500"
+            color="from-amber-500 to-orange-500"
+            iconColor="text-amber-500"
           />
         </div>
       </motion.div>

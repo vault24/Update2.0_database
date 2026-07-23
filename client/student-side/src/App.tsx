@@ -110,26 +110,24 @@ const AlumniAccountGate = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   const regPath = "/dashboard/alumni-registration";
   const statusPath = "/dashboard/alumni-application-status";
-  const settingsPath = "/dashboard/settings";
 
   if (user?.isAlumniAccount) {
     const submitted = !!user.isAlumni;
     const approved = submitted && user.alumniReviewStatus === "approved";
-    const onAllowedPage = location.pathname === settingsPath;
 
     if (!submitted) {
-      // Stage 1: only the registration wizard (and Settings) are available.
-      if (location.pathname !== regPath && !onAllowedPage) {
+      // Stage 1: the status page makes no sense before submitting — send it
+      // to the registration wizard. Every other page renders (locked by the
+      // AlumniGate in DashboardLayout) so the whole portal stays browsable.
+      if (location.pathname === statusPath) {
         return <Navigate to={regPath} replace />;
       }
     } else if (!approved) {
-      // Stage 2: application under review (or rejected) — no alumni
-      // privileges yet; only the status page (and Settings) are available.
-      // A rejected applicant may also open the registration page to edit and
-      // reapply with their previous data pre-filled.
+      // Stage 2: under review (or rejected). Pages render locked; only keep
+      // pending applicants off the registration wizard (a rejected applicant
+      // may reopen it to edit and reapply with their previous data).
       const rejected = user.alumniReviewStatus === "rejected";
-      const canReapply = rejected && location.pathname === regPath;
-      if (location.pathname !== statusPath && !onAllowedPage && !canReapply) {
+      if (location.pathname === regPath && !rejected) {
         return <Navigate to={statusPath} replace />;
       }
     } else {

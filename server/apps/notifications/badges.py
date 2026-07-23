@@ -155,8 +155,10 @@ def _manage_attendance(user, since):
 @_safe
 def _alumni_directory(user, since):
     """Alumni newly approved into the directory since `since`."""
-    from apps.alumni.models import Alumni
-    return Alumni.objects.filter(reviewStatus='approved', createdAt__gt=since).count()
+    from apps.alumni.models import Alumni, exclude_student_prefill
+    return exclude_student_prefill(
+        Alumni.objects.filter(reviewStatus='approved', createdAt__gt=since)
+    ).count()
 
 
 # ────────────────────────── Admin-portal counters ───────────────────────────

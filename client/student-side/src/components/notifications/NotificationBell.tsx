@@ -124,7 +124,8 @@ export function NotificationBell({ unreadCount, onCountChange }: NotificationBel
       <PopoverContent
         align="end"
         sideOffset={10}
-        className="w-[360px] max-w-[calc(100vw-1.5rem)] p-0 rounded-2xl overflow-hidden shadow-xl border-border"
+        collisionPadding={8}
+        className="w-[calc(100vw-1rem)] sm:w-[380px] p-0 rounded-2xl overflow-hidden shadow-xl border-border"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-gradient-to-r from-primary/5 to-transparent">
@@ -153,8 +154,10 @@ export function NotificationBell({ unreadCount, onCountChange }: NotificationBel
           )}
         </div>
 
-        {/* List */}
-        <div className="max-h-[340px] overflow-y-auto">
+        {/* List — viewport-based height so the panel never overflows small
+            phone screens; overscroll-contain stops the page behind from
+            scrolling when the list reaches its end. */}
+        <div className="max-h-[min(60vh,420px)] overflow-y-auto overscroll-contain">
           {loading && !fetchedOnce.current ? (
             <div className="flex items-center justify-center py-10">
               <Loader2 className="w-6 h-6 animate-spin text-primary" />
@@ -179,11 +182,12 @@ export function NotificationBell({ unreadCount, onCountChange }: NotificationBel
                     transition={{ delay: Math.min(index * 0.03, 0.2) }}
                     onClick={() => handleItemClick(notification)}
                     className={cn(
-                      'w-full text-left flex items-start gap-3 px-4 py-3 border-b border-border/60 transition-colors hover:bg-secondary/60',
+                      // py-3.5 keeps each row a comfortable ~48px touch target on phones
+                      'w-full text-left flex items-start gap-3 px-4 py-3.5 border-b border-border/60 transition-colors hover:bg-secondary/60 active:bg-secondary',
                       isUnread && 'bg-primary/[0.04]'
                     )}
                   >
-                    <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0 mt-0.5">
                       {iconFor(notification.notification_type)}
                     </div>
                     <div className="min-w-0 flex-1">

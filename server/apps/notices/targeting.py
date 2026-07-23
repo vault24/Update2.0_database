@@ -93,7 +93,8 @@ def _teacher_profile_ids(filters):
 
 def _alumni_student_ids(filters):
     """Approved alumni (their Student ids); semester never applies."""
-    qs = Alumni.objects.filter(reviewStatus='approved')
+    from apps.alumni.models import exclude_student_prefill
+    qs = exclude_student_prefill(Alumni.objects.filter(reviewStatus='approved'))
     if filters.departments:
         qs = qs.filter(student__department_id__in=filters.departments)
     if filters.shifts:

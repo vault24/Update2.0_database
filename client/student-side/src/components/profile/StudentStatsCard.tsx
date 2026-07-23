@@ -36,27 +36,27 @@ export function StudentStatsCard({
       label: 'Attendance',
       value: `${attendancePercentage}%`,
       subLabel: 'this semester',
-      color: 'from-blue-500 to-indigo-600',
-      iconColor: 'text-blue-500',
-      bgColor: 'bg-blue-500/10'
+      color: 'from-teal-500 to-cyan-600',
+      iconColor: 'text-teal-500',
+      bgColor: 'bg-teal-500/10'
     },
     {
       icon: BookOpen,
       label: 'Subjects',
       value: subjectsCount,
       subLabel: 'enrolled',
-      color: 'from-violet-500 to-purple-600',
-      iconColor: 'text-violet-500',
-      bgColor: 'bg-violet-500/10'
+      color: 'from-amber-500 to-orange-500',
+      iconColor: 'text-amber-500',
+      bgColor: 'bg-amber-500/10'
     },
     {
       icon: Award,
       label: 'Class Rank',
       value: rank,
       subLabel: '',
-      color: 'from-amber-500 to-orange-600',
-      iconColor: 'text-amber-500',
-      bgColor: 'bg-amber-500/10'
+      color: 'from-orange-500 to-rose-500',
+      iconColor: 'text-orange-500',
+      bgColor: 'bg-orange-500/10'
     }
   ];
 
