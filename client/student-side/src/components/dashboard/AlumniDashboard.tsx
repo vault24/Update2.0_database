@@ -122,7 +122,7 @@ export function AlumniDashboard() {
       {/* ── Hero welcome ─────────────────────────────────────────── */}
       <motion.div
         {...fadeUp}
-        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-700 via-blue-600 to-blue-500 p-6 text-white shadow-lg shadow-blue-500/20"
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-500 p-6 text-white shadow-lg shadow-emerald-500/20"
       >
         {cover && (
           <>
@@ -132,7 +132,7 @@ export function AlumniDashboard() {
               className="pointer-events-none absolute inset-0 h-full w-full object-cover"
               onError={() => setCoverError(true)}
             />
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-blue-950/85 via-blue-900/75 to-blue-800/70" />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-950/85 via-emerald-900/75 to-emerald-800/70" />
           </>
         )}
         <div className="pointer-events-none absolute -right-8 -top-10 opacity-10">
@@ -146,9 +146,9 @@ export function AlumniDashboard() {
               {avatar ? <img src={avatar} alt={name} className="h-full w-full object-cover" /> : initials}
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-medium uppercase tracking-wider text-blue-100">{timeOfDayGreeting()}</p>
+              <p className="text-xs font-medium uppercase tracking-wider text-emerald-100">{timeOfDayGreeting()}</p>
               <h1 className="truncate text-2xl font-bold">{name}</h1>
-              <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-blue-50">
+              <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-emerald-50">
                 {department && (
                   <span className="inline-flex items-center gap-1"><Building2 className="h-3.5 w-3.5" />{department}</span>
                 )}
@@ -165,7 +165,7 @@ export function AlumniDashboard() {
           </div>
           <button
             onClick={() => navigate('/dashboard/alumni-profile')}
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-blue-700 shadow-sm transition-transform hover:scale-[1.02]"
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-emerald-700 shadow-sm transition-transform hover:scale-[1.02]"
           >
             <UserCog className="h-4 w-4" /> Manage Profile
           </button>
@@ -173,7 +173,7 @@ export function AlumniDashboard() {
 
         {/* Current role strip */}
         {(job || company || location) && (
-          <div className="relative mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-white/15 pt-3 text-sm text-blue-50">
+          <div className="relative mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-white/15 pt-3 text-sm text-emerald-50">
             {job && <span className="inline-flex items-center gap-1.5 font-medium"><Briefcase className="h-4 w-4" />{job}{company ? ` · ${company}` : ''}</span>}
             {location && <span className="inline-flex items-center gap-1.5"><MapPin className="h-4 w-4" />{location}</span>}
           </div>
@@ -190,7 +190,7 @@ export function AlumniDashboard() {
             className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm"
           >
             <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
-              s.tone === 'amber' ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400' : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+              s.tone === 'amber' ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
             }`}>
               <s.icon className="h-5 w-5" />
             </div>
@@ -217,7 +217,7 @@ export function AlumniDashboard() {
                 <circle cx="60" cy="60" r="52" fill="none" strokeWidth="12" className="stroke-muted" />
                 <motion.circle
                   cx="60" cy="60" r="52" fill="none" strokeWidth="12" strokeLinecap="round"
-                  className={completion.percentage >= 100 ? 'stroke-emerald-500' : 'stroke-blue-500'}
+                  className={completion.percentage >= 100 ? 'stroke-emerald-500' : 'stroke-amber-500'}
                   strokeDasharray={2 * Math.PI * 52}
                   initial={false}
                   animate={{ strokeDashoffset: 2 * Math.PI * 52 * (1 - completion.percentage / 100) }}
@@ -256,7 +256,7 @@ export function AlumniDashboard() {
               {completion.percentage < 100 && (
                 <button
                   onClick={() => navigate('/dashboard/alumni-profile')}
-                  className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-blue-500/10 px-3 py-1.5 text-sm font-semibold text-blue-600 transition-colors hover:bg-blue-500/15 dark:text-blue-400"
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-sm font-semibold text-emerald-600 transition-colors hover:bg-emerald-500/15 dark:text-emerald-400"
                 >
                   Complete your profile <ArrowRight className="h-3.5 w-3.5" />
                 </button>
@@ -278,7 +278,7 @@ export function AlumniDashboard() {
               </div>
               <h2 className="font-semibold text-foreground">Institute updates</h2>
             </div>
-            <button onClick={() => navigate('/dashboard/notices')} className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400">
+            <button onClick={() => navigate('/dashboard/notices')} className="text-xs font-medium text-emerald-600 hover:underline dark:text-emerald-400">
               View all
             </button>
           </div>
@@ -297,7 +297,7 @@ export function AlumniDashboard() {
                     className="group flex w-full items-start gap-2.5 rounded-xl p-2 text-left transition-colors hover:bg-muted/60"
                   >
                     <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
-                      n.priority === 'high' ? 'bg-red-500' : n.priority === 'normal' ? 'bg-blue-500' : 'bg-muted-foreground/40'
+                      n.priority === 'high' ? 'bg-red-500' : n.priority === 'normal' ? 'bg-teal-500' : 'bg-muted-foreground/40'
                     }`} />
                     <span className="min-w-0 flex-1">
                       <span className="line-clamp-1 text-sm font-medium text-foreground">{n.title}</span>
@@ -315,7 +315,7 @@ export function AlumniDashboard() {
       {/* ── Quick actions ────────────────────────────────────────── */}
       <div>
         <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          <Rocket className="h-4 w-4 text-blue-500" /> Quick actions
+          <Rocket className="h-4 w-4 text-emerald-500" /> Quick actions
         </h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {actions.map((a, i) => (
@@ -327,7 +327,7 @@ export function AlumniDashboard() {
               className="group flex items-center gap-3 rounded-2xl border border-border bg-card p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
             >
               <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
-                a.tone === 'amber' ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400' : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                a.tone === 'amber' ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
               }`}>
                 <a.icon className="h-5 w-5" />
               </div>
@@ -347,12 +347,12 @@ export function AlumniDashboard() {
         <motion.div {...fadeUp} transition={{ delay: 0.1 }} className="rounded-2xl border border-border bg-card p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                 <TrendingUp className="h-4 w-4" />
               </div>
               <h2 className="font-semibold text-foreground">Career journey</h2>
             </div>
-            <button onClick={() => navigate('/dashboard/alumni-profile')} className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400">
+            <button onClick={() => navigate('/dashboard/alumni-profile')} className="text-xs font-medium text-emerald-600 hover:underline dark:text-emerald-400">
               Manage
             </button>
           </div>
@@ -363,7 +363,7 @@ export function AlumniDashboard() {
               <p className="text-sm text-muted-foreground">No career entries yet.</p>
               <button
                 onClick={() => navigate('/dashboard/alumni-profile')}
-                className="mt-1 inline-flex items-center gap-1.5 rounded-lg bg-blue-500/10 px-3 py-1.5 text-sm font-semibold text-blue-600 hover:bg-blue-500/15 dark:text-blue-400"
+                className="mt-1 inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-sm font-semibold text-emerald-600 hover:bg-emerald-500/15 dark:text-emerald-400"
               >
                 Add your first role <ArrowRight className="h-3.5 w-3.5" />
               </button>
@@ -373,7 +373,7 @@ export function AlumniDashboard() {
               <span className="absolute left-[7px] top-1 bottom-1 w-px bg-border" />
               {profile!.careers.slice(0, 3).map((c) => (
                 <li key={c.id} className="relative">
-                  <span className={`absolute -left-5 top-1 h-3.5 w-3.5 rounded-full border-2 border-card ${c.current ? 'bg-emerald-500' : 'bg-blue-500'}`} />
+                  <span className={`absolute -left-5 top-1 h-3.5 w-3.5 rounded-full border-2 border-card ${c.current ? 'bg-emerald-500' : 'bg-teal-500'}`} />
                   <p className="text-sm font-semibold text-foreground">{c.position || c.degree || c.businessName || 'Role'}</p>
                   <p className="text-xs text-muted-foreground">
                     {(c.company || c.institution || c.businessType || '') as string}
@@ -394,7 +394,7 @@ export function AlumniDashboard() {
               </div>
               <h2 className="font-semibold text-foreground">Skills & links</h2>
             </div>
-            <button onClick={() => navigate('/dashboard/alumni-profile')} className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400">
+            <button onClick={() => navigate('/dashboard/alumni-profile')} className="text-xs font-medium text-emerald-600 hover:underline dark:text-emerald-400">
               Edit
             </button>
           </div>
@@ -407,9 +407,9 @@ export function AlumniDashboard() {
           ) : (
             <div className="flex flex-wrap gap-2">
               {topSkills.map((s) => (
-                <span key={s.id} className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/10 px-3 py-1 text-xs font-medium text-blue-700 dark:text-blue-300">
+                <span key={s.id} className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
                   {s.name}
-                  <span className="text-blue-500/70 dark:text-blue-400/70">{s.proficiency}%</span>
+                  <span className="text-emerald-500/70 dark:text-emerald-400/70">{s.proficiency}%</span>
                 </span>
               ))}
             </div>
@@ -432,7 +432,7 @@ export function AlumniDashboard() {
             {!profile?.linkedin && !profile?.portfolio && (
               <button
                 onClick={() => navigate('/dashboard/alumni-profile')}
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400"
               >
                 <Link2 className="h-3.5 w-3.5" /> Add your professional links
               </button>

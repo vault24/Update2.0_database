@@ -21,8 +21,8 @@ export function AlumniStatsCard({ alumni }: AlumniStatsCardProps) {
       icon: Calendar,
       label: 'Years Since Graduation',
       value: yearsAfterGraduation > 0 ? `${yearsAfterGraduation}+` : 'This Year',
-      color: 'text-blue-500',
-      bgColor: 'bg-blue-500/10',
+      color: 'text-emerald-500',
+      bgColor: 'bg-emerald-500/10',
     },
     {
       icon: Briefcase,
@@ -35,8 +35,8 @@ export function AlumniStatsCard({ alumni }: AlumniStatsCardProps) {
       icon: TrendingUp,
       label: 'Skills & Expertise',
       value: totalSkills.toString(),
-      color: 'text-purple-500',
-      bgColor: 'bg-purple-500/10',
+      color: 'text-teal-500',
+      bgColor: 'bg-teal-500/10',
     },
     {
       icon: GraduationCap,

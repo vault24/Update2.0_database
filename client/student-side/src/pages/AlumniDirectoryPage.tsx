@@ -91,14 +91,14 @@ export default function AlumniDirectoryPage() {
       <motion.div
         initial={false}
         animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-700 via-blue-600 to-blue-500 p-6 text-white shadow-lg shadow-blue-500/20"
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-500 p-6 text-white shadow-lg shadow-emerald-500/20"
       >
         <div className="pointer-events-none absolute -right-8 -top-10 opacity-10">
           <Users className="h-44 w-44" />
         </div>
         <div className="relative">
           <h1 className="text-2xl font-bold">Alumni Directory</h1>
-          <p className="mt-1 text-sm text-blue-50">
+          <p className="mt-1 text-sm text-emerald-50">
             Discover and connect with {count > 0 ? `${count} ` : ''}fellow graduates across departments and years.
           </p>
         </div>
@@ -113,7 +113,7 @@ export default function AlumniDirectoryPage() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search by name or department…"
-              className="w-full rounded-xl border border-border bg-background py-2.5 pl-10 pr-3 text-sm outline-none transition-colors focus:border-blue-500"
+              className="w-full rounded-xl border border-border bg-background py-2.5 pl-10 pr-3 text-sm outline-none transition-colors focus:border-emerald-500"
             />
           </div>
 
@@ -121,7 +121,7 @@ export default function AlumniDirectoryPage() {
             <select
               value={department}
               onChange={(e) => setDepartment(e.target.value)}
-              className="rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+              className="rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
             >
               <option value="">All departments</option>
               {departments.map((d) => (
@@ -132,7 +132,7 @@ export default function AlumniDirectoryPage() {
             <select
               value={year}
               onChange={(e) => setYear(e.target.value)}
-              className="rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+              className="rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
             >
               <option value="">All years</option>
               {yearOptions.map((y) => (
@@ -143,7 +143,7 @@ export default function AlumniDirectoryPage() {
             <select
               value={type}
               onChange={(e) => setType(e.target.value)}
-              className="rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-blue-500"
+              className="rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
             >
               <option value="">All types</option>
               <option value="recent">Recent Graduate</option>
@@ -182,7 +182,7 @@ export default function AlumniDirectoryPage() {
             </p>
           </div>
           {hasFilters && (
-            <button onClick={clearFilters} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-500/10 px-3 py-1.5 text-sm font-semibold text-blue-600 hover:bg-blue-500/15 dark:text-blue-400">
+            <button onClick={clearFilters} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-sm font-semibold text-emerald-600 hover:bg-emerald-500/15 dark:text-emerald-400">
               <Filter className="h-4 w-4" /> Clear filters
             </button>
           )}
@@ -199,14 +199,14 @@ export default function AlumniDirectoryPage() {
               role="button"
               tabIndex={0}
               onKeyDown={(e) => { if (e.key === 'Enter') openDetail(a.id); }}
-              className="group cursor-pointer overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:border-blue-500/40 hover:shadow-md"
+              className="group cursor-pointer overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-500/40 hover:shadow-md"
             >
               {/* Cover — fixed institute banner */}
-              <div className="relative h-20 bg-gradient-to-br from-blue-600 to-blue-500">
+              <div className="relative h-20 bg-gradient-to-br from-emerald-600 to-teal-500">
                 <img src={ALUMNI_COVER_IMAGE} alt="" className="h-full w-full object-cover" />
                 {/* Avatar */}
                 <div className="absolute -bottom-7 left-4">
-                  <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl border-4 border-card bg-blue-500/10 text-sm font-bold text-blue-600 dark:text-blue-400">
+                  <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl border-4 border-card bg-emerald-500/10 text-sm font-bold text-emerald-600 dark:text-emerald-400">
                     {a.avatar ? <img src={a.avatar} alt={a.name} className="h-full w-full object-cover" /> : getInitials(a.name)}
                   </div>
                 </div>
@@ -250,7 +250,7 @@ export default function AlumniDirectoryPage() {
                 {a.skills.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-1.5">
                     {a.skills.slice(0, 3).map((s) => (
-                      <span key={s} className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[0.7rem] font-medium text-blue-700 dark:text-blue-300">
+                      <span key={s} className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[0.7rem] font-medium text-emerald-700 dark:text-emerald-300">
                         {s}
                       </span>
                     ))}
@@ -288,12 +288,12 @@ export default function AlumniDirectoryPage() {
             <div className="max-h-[90vh] overflow-y-auto">
 
               {/* Cover + avatar — fixed institute banner */}
-              <div className="relative h-28 bg-gradient-to-br from-blue-700 via-blue-600 to-blue-500">
+              <div className="relative h-28 bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-500">
                 <img src={ALUMNI_COVER_IMAGE} alt="" className="h-full w-full object-cover" />
               </div>
               <div className="px-6 pb-6">
                 <div className="-mt-10 flex items-end gap-4">
-                  <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border-4 border-card bg-blue-500/10 text-lg font-bold text-blue-600 dark:text-blue-400">
+                  <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border-4 border-card bg-emerald-500/10 text-lg font-bold text-emerald-600 dark:text-emerald-400">
                     {detail.avatar ? <img src={detail.avatar} alt={detail.name} className="h-full w-full object-cover" /> : getInitials(detail.name)}
                   </div>
                   <div className="flex-1 pb-1">
@@ -371,11 +371,11 @@ export default function AlumniDirectoryPage() {
                 {detail.allSkills.length > 0 && (
                   <div className="mt-4">
                     <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      <Code2 className="h-3.5 w-3.5 text-blue-500" /> Skills
+                      <Code2 className="h-3.5 w-3.5 text-emerald-500" /> Skills
                     </h3>
                     <div className="flex flex-wrap gap-1.5">
                       {detail.allSkills.map((s) => (
-                        <span key={s.name} className="rounded-full bg-blue-500/10 px-2.5 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-300">
+                        <span key={s.name} className="rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
                           {s.name}
                         </span>
                       ))}
@@ -387,13 +387,13 @@ export default function AlumniDirectoryPage() {
                 {detail.careers.length > 0 && (
                   <div className="mt-4">
                     <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      <Briefcase className="h-3.5 w-3.5 text-blue-500" /> Career & studies
+                      <Briefcase className="h-3.5 w-3.5 text-emerald-500" /> Career & studies
                     </h3>
                     <ol className="relative space-y-3 pl-5">
                       <span className="absolute left-[7px] top-1 bottom-1 w-px bg-border" />
                       {detail.careers.map((c) => (
                         <li key={c.id || `${c.title}-${c.startDate}`} className="relative">
-                          <span className={`absolute -left-5 top-1 h-3.5 w-3.5 rounded-full border-2 border-card ${c.isCurrent ? 'bg-emerald-500' : 'bg-blue-500'}`} />
+                          <span className={`absolute -left-5 top-1 h-3.5 w-3.5 rounded-full border-2 border-card ${c.isCurrent ? 'bg-emerald-500' : 'bg-teal-500'}`} />
                           <p className="text-sm font-semibold text-foreground">{c.title}</p>
                           <p className="text-xs text-muted-foreground">
                             {c.organization}

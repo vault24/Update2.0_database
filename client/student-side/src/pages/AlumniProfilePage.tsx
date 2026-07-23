@@ -376,7 +376,7 @@ export default function AlumniProfilePage() {
                     <circle cx="60" cy="60" r="52" fill="none" strokeWidth="14" className="stroke-muted" />
                     <circle
                       cx="60" cy="60" r="52" fill="none" strokeWidth="14" strokeLinecap="round"
-                      className="stroke-blue-500"
+                      className="stroke-amber-500"
                       strokeDasharray={2 * Math.PI * 52}
                       strokeDashoffset={2 * Math.PI * 52 * (1 - completion.percentage / 100)}
                     />

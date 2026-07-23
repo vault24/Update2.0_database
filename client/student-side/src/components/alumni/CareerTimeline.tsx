@@ -35,7 +35,7 @@ export function CareerTimeline({ careers, onAdd, onEdit, onDelete, isEditable = 
       case 'job':
         return 'bg-emerald-500';
       case 'higherStudies':
-        return 'bg-blue-500';
+        return 'bg-teal-500';
       case 'business':
         return 'bg-amber-500';
       default:
@@ -48,7 +48,7 @@ export function CareerTimeline({ careers, onAdd, onEdit, onDelete, isEditable = 
       case 'job':
         return { label: 'Employment', color: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' };
       case 'higherStudies':
-        return { label: 'Education', color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400' };
+        return { label: 'Education', color: 'bg-teal-500/10 text-teal-600 dark:text-teal-400' };
       case 'business':
         return { label: 'Business', color: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' };
       default:

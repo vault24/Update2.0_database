@@ -404,23 +404,23 @@ class StudentUpdateSerializer(serializers.ModelSerializer):
         return value
     
     def validate_presentAddress(self, value):
-        """Validate present address structure"""
-        if value:
-            return validate_address_structure(value)
+        """Admin edits may save partial addresses — only enforce the shape."""
+        if value and not isinstance(value, dict):
+            raise serializers.ValidationError("Address must be a dictionary")
         return value
-    
+
     def validate_permanentAddress(self, value):
-        """Validate permanent address structure"""
-        if value:
-            return validate_address_structure(value)
+        """Admin edits may save partial addresses — only enforce the shape."""
+        if value and not isinstance(value, dict):
+            raise serializers.ValidationError("Address must be a dictionary")
         return value
-    
+
     def validate_semesterResults(self, value):
         """Validate semester results structure"""
         if value:
             return validate_semester_results_structure(value)
         return value
-    
+
     def validate_semesterAttendance(self, value):
         """Validate semester attendance structure"""
         if value:

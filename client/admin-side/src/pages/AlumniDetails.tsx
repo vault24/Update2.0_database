@@ -81,6 +81,8 @@ interface AlumniData {
   roll: string;
   department: string;
   graduationYear: string;
+  session: string;
+  shift: string;
   email: string;
   phone: string;
   currentJob: string;
@@ -114,6 +116,8 @@ const transformAlumniData = (apiData: AlumniType): AlumniData => {
     roll: apiData.student?.currentRollNumber || 'N/A',
     department: apiData.student?.department?.name || 'Unknown',
     graduationYear: apiData.graduationYear?.toString() || 'N/A',
+    session: apiData.student?.session || '',
+    shift: apiData.student?.shift || '',
     // Extract contact information from student record or alumni data
     email: apiData.student?.email || 'N/A',
     phone: apiData.student?.mobileStudent || 'N/A',
@@ -1455,6 +1459,14 @@ export default function AlumniDetails() {
               <div className="flex justify-between">
                 <span className="text-sm text-muted-foreground">Graduation Year</span>
                 <span className="text-sm font-medium">{alumni.graduationYear}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">Session</span>
+                <span className="text-sm font-medium">{alumni.session || '—'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">Shift</span>
+                <span className="text-sm font-medium">{alumni.shift || '—'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-muted-foreground">Roll Number</span>

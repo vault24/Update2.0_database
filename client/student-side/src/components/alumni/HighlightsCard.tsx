@@ -36,9 +36,9 @@ export function HighlightsCard({ highlights, onAdd, onEdit, onDelete, isEditable
       case 'achievement':
         return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20';
       case 'milestone':
-        return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20';
+        return 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20';
       case 'award':
-        return 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20';
+        return 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20';
       case 'project':
         return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20';
       default:

@@ -31,11 +31,11 @@ export function SkillsCard({ skills, onAdd, onEdit, onDelete, isEditable = true 
   const getCategoryColor = (category: SkillCategory) => {
     switch (category) {
       case 'technical':
-        return 'text-blue-500';
+        return 'text-teal-500';
       case 'soft':
-        return 'text-purple-500';
+        return 'text-rose-500';
       case 'language':
-        return 'text-green-500';
+        return 'text-emerald-500';
       default:
         return 'text-gray-500';
     }
@@ -43,7 +43,7 @@ export function SkillsCard({ skills, onAdd, onEdit, onDelete, isEditable = true 
 
   const getProgressColor = (proficiency: number) => {
     if (proficiency >= 80) return 'bg-emerald-500';
-    if (proficiency >= 60) return 'bg-blue-500';
+    if (proficiency >= 60) return 'bg-teal-500';
     if (proficiency >= 40) return 'bg-amber-500';
     return 'bg-gray-500';
   };

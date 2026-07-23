@@ -539,7 +539,13 @@ const getSupportBadge = (s: DisplayAlumni['supportStatus']) => {
   }
 };
 
-function VerifiedBadge({ verified }: { verified: boolean }) {
+/**
+ * Alumni review-state chip (green Verified / orange Unverified).
+ * NOTE: deliberately NOT named `VerifiedBadge` — that name is the imported
+ * blue contributor badge; a local declaration with the same name shadows the
+ * import and made every card show an "Unverified" chip beside the name.
+ */
+function VerificationChip({ verified }: { verified: boolean }) {
   return verified ? (
     <Badge variant="outline" className="bg-green-500/15 text-green-700 dark:text-green-300 border-green-500/30 text-[10px]">
       <BadgeCheck className="w-3 h-3 mr-0.5" /> Verified
@@ -599,7 +605,7 @@ function AlumniGridCard({ alumni, index, onOpen }: { alumni: DisplayAlumni; inde
                 <VerifiedBadge roll={alumni.roll} size={13} className="ml-1" />
               </h3>
               <p className="text-[11px] text-muted-foreground font-mono truncate">{alumni.roll}</p>
-              <div className="mt-1"><VerifiedBadge verified={alumni.isVerified} /></div>
+              <div className="mt-1"><VerificationChip verified={alumni.isVerified} /></div>
             </div>
           </div>
 
@@ -690,7 +696,7 @@ function AlumniListRow({ alumni, index, onOpen }: { alumni: DisplayAlumni; index
       </div>
 
       <div className="flex items-center gap-2 shrink-0 ml-auto">
-        <VerifiedBadge verified={alumni.isVerified} />
+        <VerificationChip verified={alumni.isVerified} />
         <Button size="sm" variant="ghost" className="h-8 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:inline-flex">
           <Eye className="w-4 h-4 mr-1.5" /> View
         </Button>

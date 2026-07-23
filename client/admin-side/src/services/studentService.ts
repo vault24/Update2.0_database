@@ -138,20 +138,23 @@ export interface StudentCreateData {
   session: string;
 }
 
-export interface StudentUpdateData extends Partial<StudentCreateData> {
+export interface StudentUpdateData extends Partial<Omit<StudentCreateData, 'dateOfBirth'>> {
   // Status fields
   status?: string;
   discontinuedReason?: string;
   lastSemester?: number;
-  
+
+  // Nullable so an admin can clear the value (backend stores NULL)
+  dateOfBirth?: string | null;
+
   // Educational Background (from previous institution)
   highestExam?: string;
   board?: string;
   group?: string;
   rollNumber?: string;
   registrationNumber?: string;
-  passingYear?: number;
-  gpa?: number;
+  passingYear?: number | null;
+  gpa?: number | null;
   institutionName?: string;
   
   // Current Academic Information

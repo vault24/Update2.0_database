@@ -217,7 +217,7 @@ export default function AlumniRegistrationPage() {
   if (loadingMeta || (reapplyMode && !prefilled)) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
+        <Loader2 className="w-10 h-10 animate-spin text-emerald-500" />
       </div>
     );
   }
@@ -226,14 +226,14 @@ export default function AlumniRegistrationPage() {
     <div className="max-w-3xl mx-auto px-4 py-6 space-y-6 pb-16">
       {/* Header */}
       <motion.div initial={false} animate={{ opacity: 1, y: 0 }}
-        className="rounded-3xl bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 shadow-lg shadow-blue-500/20">
+        className="rounded-3xl bg-gradient-to-br from-emerald-600 to-teal-500 text-white p-6 shadow-lg shadow-emerald-500/20">
         <div className="flex items-center gap-3 mb-2">
           <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center">
             <Award className="w-6 h-6" />
           </div>
           <h1 className="text-2xl font-bold">{reapplyMode ? 'Edit & Reapply' : 'Alumni Registration'}</h1>
         </div>
-        <p className="text-blue-50 text-sm">
+        <p className="text-emerald-50 text-sm">
           {reapplyMode
             ? 'Your previous details are pre-filled below. Update anything that needs correcting and resubmit — an administrator will review your application again.'
             : 'Welcome back! Share whatever information you have — only your name and department are required. An administrator will verify your details after you submit.'}
@@ -273,7 +273,7 @@ export default function AlumniRegistrationPage() {
               <div className="flex items-center gap-2">
                 <div className={cn(
                   'w-9 h-9 rounded-full flex items-center justify-center font-semibold text-sm transition-colors',
-                  active ? 'bg-blue-500 text-white' : done ? 'bg-success text-white' : 'bg-muted text-muted-foreground'
+                  active ? 'bg-emerald-600 text-white' : done ? 'bg-success text-white' : 'bg-muted text-muted-foreground'
                 )}>
                   {done ? <CheckCircle2 className="w-5 h-5" /> : s.id}
                 </div>
@@ -380,7 +380,7 @@ export default function AlumniRegistrationPage() {
 
       {/* Step 1 navigation */}
       <div className="flex justify-end">
-        <Button onClick={goNext} className="min-w-[160px] h-12 rounded-2xl bg-blue-500 hover:bg-blue-600 text-white font-semibold gap-2">
+        <Button onClick={goNext} className="min-w-[160px] h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-2">
           Next: Alumni Info <ChevronRight className="w-5 h-5" />
         </Button>
       </div>
@@ -418,7 +418,7 @@ export default function AlumniRegistrationPage() {
 
       <Section icon={FileText} title="Documents">
         {reapplyMode && (
-          <p className="mb-4 rounded-xl border border-blue-200 bg-blue-50 dark:border-blue-500/30 dark:bg-blue-500/10 px-4 py-3 text-sm text-blue-800 dark:text-blue-200">
+          <p className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-200">
             Documents you uploaded previously are kept — you only need to add new ones here if something changed.
           </p>
         )}
@@ -456,8 +456,8 @@ function Section({ icon: Icon, title, children }: { icon: React.ElementType; tit
     <motion.div initial={false} animate={{ opacity: 1, y: 0 }}
       className="rounded-3xl bg-card border border-border shadow-sm p-5 sm:p-6">
       <div className="flex items-center gap-2 mb-4">
-        <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center">
-          <Icon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+        <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+          <Icon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
         </div>
         <h2 className="text-lg font-semibold text-foreground">{title}</h2>
       </div>

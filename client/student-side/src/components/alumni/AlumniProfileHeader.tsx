@@ -53,11 +53,11 @@ export function AlumniProfileHeader({ alumni, onEdit, isEditable = true, onPhoto
       case 'employed':
         return { label: 'Employed', color: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' };
       case 'higherStudies':
-        return { label: 'Higher Studies', color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400' };
+        return { label: 'Higher Studies', color: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' };
       case 'business':
         return { label: 'Entrepreneur', color: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' };
       case 'established':
-        return { label: 'Established Professional', color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400' };
+        return { label: 'Established Professional', color: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' };
       default:
         return { label: 'Alumni', color: 'bg-primary/10 text-primary' };
     }
@@ -87,7 +87,7 @@ export function AlumniProfileHeader({ alumni, onEdit, isEditable = true, onPhoto
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent" />
           </>
         ) : (
-          <div className="h-full w-full bg-gradient-to-br from-blue-700 via-blue-600 to-blue-500">
+          <div className="h-full w-full bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-500">
             <div className="absolute -right-6 -top-8 text-white opacity-10">
               <GraduationCap className="h-44 w-44" />
             </div>
@@ -117,7 +117,7 @@ export function AlumniProfileHeader({ alumni, onEdit, isEditable = true, onPhoto
           >
             <Avatar className="h-28 w-28 border-4 border-background shadow-xl sm:h-32 sm:w-32">
               <AvatarImage src={alumni.avatar} alt={alumni.name} />
-              <AvatarFallback className="bg-gradient-to-br from-blue-600 to-blue-500 text-2xl font-bold text-white sm:text-3xl">
+              <AvatarFallback className="bg-gradient-to-br from-emerald-600 to-teal-500 text-2xl font-bold text-white sm:text-3xl">
                 {getInitials(alumni.name)}
               </AvatarFallback>
             </Avatar>

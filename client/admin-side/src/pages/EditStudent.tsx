@@ -80,25 +80,17 @@ export default function EditStudent() {
     setSaving(true);
 
     try {
-      // Validate required fields
-      if (!student.fullNameEnglish || !student.mobileStudent || !student.guardianMobile) {
-        toast({
-          title: 'Validation Error',
-          description: 'Please fill in all required fields',
-          variant: 'destructive'
-        });
-        setSaving(false);
-        return;
-      }
-
-      // Prepare update data - ONLY include fields that backend accepts
-      const updateData: StudentUpdateData = {
+      // No required-field validation — admins may save partial records.
+      // Empty values are sent as-is (the backend allows blank for almost every
+      // field); the few fields the backend can't accept empty are simply
+      // omitted so they keep their current value instead of blocking the save.
+      const updateData: Partial<StudentUpdateData> = {
         // Personal Information
         fullNameEnglish: student.fullNameEnglish,
         fullNameBangla: student.fullNameBangla,
         fatherName: student.fatherName,
         motherName: student.motherName,
-        dateOfBirth: student.dateOfBirth,
+        dateOfBirth: student.dateOfBirth || null,
         gender: student.gender,
         religion: student.religion,
         bloodGroup: student.bloodGroup,
@@ -118,8 +110,8 @@ export default function EditStudent() {
         group: student.group,
         rollNumber: student.rollNumber,
         registrationNumber: student.registrationNumber,
-        passingYear: student.passingYear,
-        gpa: student.gpa && !isNaN(Number(student.gpa)) && Number(student.gpa) >= 0 && Number(student.gpa) <= 5 ? Number(student.gpa) : 0,
+        passingYear: Number.isFinite(Number(student.passingYear)) && student.passingYear ? Number(student.passingYear) : null,
+        gpa: student.gpa && !isNaN(Number(student.gpa)) && Number(student.gpa) >= 0 && Number(student.gpa) <= 5 ? Number(student.gpa) : null,
         institutionName: student.institutionName,
 
         // Current Academic Information
@@ -131,8 +123,7 @@ export default function EditStudent() {
         shift: student.shift,
         currentGroup: student.currentGroup,
         status: student.status,
-        
-        // Required backend fields
+
         fatherNID: (student as any).fatherNID || '',
         motherNID: (student as any).motherNID || '',
         birthCertificateNo: (student as any).birthCertificateNo || '',
@@ -141,9 +132,21 @@ export default function EditStudent() {
         enrollmentDate: (student as any).enrollmentDate || student.createdAt.split('T')[0],
       };
 
+      // Fields the backend cannot store empty — drop them when blank so the
+      // existing value is kept rather than the whole update being rejected.
+      const strictFields: (keyof StudentUpdateData)[] = [
+        'fullNameEnglish', 'currentRollNumber', 'currentRegistrationNumber',
+        'semester', 'department', 'status', 'gender', 'shift',
+      ];
+      for (const field of strictFields) {
+        const value = updateData[field];
+        if (value === '' || value === null || value === undefined) {
+          delete updateData[field];
+        }
+      }
 
       console.log('Sending update data:', updateData);
-      await studentService.updateStudent(id, updateData);
+      await studentService.patchStudent(id, updateData);
 
       toast({
         title: 'Success',
@@ -202,48 +205,43 @@ export default function EditStudent() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Full Name (Bangla) *</Label>
+                  <Label>Full Name (Bangla)</Label>
                   <Input
                     value={student.fullNameBangla}
                     onChange={(e) => handleInputChange('fullNameBangla', e.target.value)}
-                    required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Full Name (English) *</Label>
+                  <Label>Full Name (English)</Label>
                   <Input
                     value={student.fullNameEnglish}
                     onChange={(e) => handleInputChange('fullNameEnglish', e.target.value)}
-                    required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Father's Name *</Label>
+                  <Label>Father's Name</Label>
                   <Input
                     value={student.fatherName}
                     onChange={(e) => handleInputChange('fatherName', e.target.value)}
-                    required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Mother's Name *</Label>
+                  <Label>Mother's Name</Label>
                   <Input
                     value={student.motherName}
                     onChange={(e) => handleInputChange('motherName', e.target.value)}
-                    required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Date of Birth *</Label>
+                  <Label>Date of Birth</Label>
                   <Input
                     type="date"
                     value={student.dateOfBirth}
                     onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
-                    required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Gender *</Label>
+                  <Label>Gender</Label>
                   <Select value={student.gender} onValueChange={(v) => handleInputChange('gender', v)}>
                     <SelectTrigger>
                       <SelectValue />
@@ -276,11 +274,10 @@ export default function EditStudent() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Nationality *</Label>
+                  <Label>Nationality</Label>
                   <Input
                     value={student.nationality}
                     onChange={(e) => handleInputChange('nationality', e.target.value)}
-                    required
                   />
                 </div>
               </div>
@@ -297,23 +294,21 @@ export default function EditStudent() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Mobile No (Student) *</Label>
+                  <Label>Mobile No (Student)</Label>
                   <Input
                     type="tel"
                     value={student.mobileStudent}
                     onChange={(e) => handleInputChange('mobileStudent', e.target.value)}
                     maxLength={11}
-                    required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Guardian Mobile *</Label>
+                  <Label>Guardian Mobile</Label>
                   <Input
                     type="tel"
                     value={student.guardianMobile}
                     onChange={(e) => handleInputChange('guardianMobile', e.target.value)}
                     maxLength={11}
-                    required
                   />
                 </div>
                 <div className="space-y-2">
@@ -325,11 +320,10 @@ export default function EditStudent() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Emergency Contact *</Label>
+                  <Label>Emergency Contact</Label>
                   <Input
                     value={student.emergencyContact}
                     onChange={(e) => handleInputChange('emergencyContact', e.target.value)}
-                    required
                   />
                 </div>
               </div>
@@ -346,43 +340,38 @@ export default function EditStudent() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Division *</Label>
+                  <Label>Division</Label>
                   <Input
                     value={student.presentAddress.division}
                     onChange={(e) => handleAddressChange('presentAddress', 'division', e.target.value)}
-                    required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>District *</Label>
+                  <Label>District</Label>
                   <Input
                     value={student.presentAddress.district}
                     onChange={(e) => handleAddressChange('presentAddress', 'district', e.target.value)}
-                    required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Upazila *</Label>
+                  <Label>Upazila</Label>
                   <Input
                     value={student.presentAddress.upazila}
                     onChange={(e) => handleAddressChange('presentAddress', 'upazila', e.target.value)}
-                    required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Post Office *</Label>
+                  <Label>Post Office</Label>
                   <Input
                     value={student.presentAddress.postOffice}
                     onChange={(e) => handleAddressChange('presentAddress', 'postOffice', e.target.value)}
-                    required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Village *</Label>
+                  <Label>Village</Label>
                   <Input
                     value={student.presentAddress.village}
                     onChange={(e) => handleAddressChange('presentAddress', 'village', e.target.value)}
-                    required
                   />
                 </div>
               </div>
@@ -399,43 +388,38 @@ export default function EditStudent() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Division *</Label>
+                  <Label>Division</Label>
                   <Input
                     value={student.permanentAddress.division}
                     onChange={(e) => handleAddressChange('permanentAddress', 'division', e.target.value)}
-                    required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>District *</Label>
+                  <Label>District</Label>
                   <Input
                     value={student.permanentAddress.district}
                     onChange={(e) => handleAddressChange('permanentAddress', 'district', e.target.value)}
-                    required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Upazila *</Label>
+                  <Label>Upazila</Label>
                   <Input
                     value={student.permanentAddress.upazila}
                     onChange={(e) => handleAddressChange('permanentAddress', 'upazila', e.target.value)}
-                    required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Post Office *</Label>
+                  <Label>Post Office</Label>
                   <Input
                     value={student.permanentAddress.postOffice}
                     onChange={(e) => handleAddressChange('permanentAddress', 'postOffice', e.target.value)}
-                    required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Village *</Label>
+                  <Label>Village</Label>
                   <Input
                     value={student.permanentAddress.village}
                     onChange={(e) => handleAddressChange('permanentAddress', 'village', e.target.value)}
-                    required
                   />
                 </div>
               </div>
@@ -524,23 +508,21 @@ export default function EditStudent() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label>Current Roll Number *</Label>
+                  <Label>Current Roll Number</Label>
                   <Input
                     value={student.currentRollNumber}
                     onChange={(e) => handleInputChange('currentRollNumber', e.target.value)}
-                    required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Current Registration Number *</Label>
+                  <Label>Current Registration Number</Label>
                   <Input
                     value={student.currentRegistrationNumber}
                     onChange={(e) => handleInputChange('currentRegistrationNumber', e.target.value)}
-                    required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Current Semester *</Label>
+                  <Label>Current Semester</Label>
                   <Select value={student.semester.toString()} onValueChange={(v) => handleInputChange('semester', parseInt(v))}>
                     <SelectTrigger>
                       <SelectValue />
@@ -553,7 +535,7 @@ export default function EditStudent() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Department *</Label>
+                  <Label>Department</Label>
                   <Select
                     value={typeof student.department === 'string' ? student.department : student.department.id}
                     onValueChange={(v) => handleInputChange('department', v)}
@@ -569,16 +551,15 @@ export default function EditStudent() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Session *</Label>
+                  <Label>Session</Label>
                   <Input
                     value={student.session}
                     onChange={(e) => handleInputChange('session', e.target.value)}
                     placeholder="e.g., 2023-2024"
-                    required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Shift *</Label>
+                  <Label>Shift</Label>
                   <Select value={student.shift} onValueChange={(v) => handleInputChange('shift', v)}>
                     <SelectTrigger>
                       <SelectValue />
@@ -598,7 +579,7 @@ export default function EditStudent() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Status *</Label>
+                  <Label>Status</Label>
                   <Select value={student.status} onValueChange={(v) => handleInputChange('status', v as any)}>
                     <SelectTrigger>
                       <SelectValue />

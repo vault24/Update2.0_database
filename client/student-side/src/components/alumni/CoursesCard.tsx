@@ -25,7 +25,7 @@ export function CoursesCard({ courses, onAdd, onEdit, onDelete, isEditable = tru
       case 'completed':
         return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400';
       case 'in_progress':
-        return 'bg-blue-500/10 text-blue-600 dark:text-blue-400';
+        return 'bg-teal-500/10 text-teal-600 dark:text-teal-400';
       case 'planned':
         return 'bg-amber-500/10 text-amber-600 dark:text-amber-400';
       default:

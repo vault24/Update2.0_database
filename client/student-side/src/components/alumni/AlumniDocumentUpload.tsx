@@ -118,7 +118,7 @@ export function AlumniDocumentUpload({ docCategories, maxDocuments, documents, o
           return (
             <div key={slot.key} className="space-y-2">
               <Label className="flex items-center gap-2 text-sm">
-                {slot.photo ? <ImageIcon className="w-3.5 h-3.5 text-blue-500" /> : <FileText className="w-3.5 h-3.5 text-blue-500" />}
+                {slot.photo ? <ImageIcon className="w-3.5 h-3.5 text-emerald-500" /> : <FileText className="w-3.5 h-3.5 text-emerald-500" />}
                 {slot.label}
               </Label>
               <div
@@ -126,7 +126,7 @@ export function AlumniDocumentUpload({ docCategories, maxDocuments, documents, o
                   'rounded-2xl border-2 border-dashed p-5 text-center transition-colors',
                   hasFile
                     ? 'border-success/50 bg-success/5'
-                    : 'border-border hover:border-blue-400 hover:bg-muted/40',
+                    : 'border-border hover:border-emerald-400 hover:bg-muted/40',
                 )}
               >
                 <input
@@ -186,7 +186,7 @@ export function AlumniDocumentUpload({ docCategories, maxDocuments, documents, o
             <Label className="text-xs">File</Label>
             <Input ref={customFileRef} type="file" accept={ACCEPT} />
           </div>
-          <Button type="button" onClick={addCustom} disabled={totalCount >= maxDocuments} className="bg-blue-500 hover:bg-blue-600 h-10">
+          <Button type="button" onClick={addCustom} disabled={totalCount >= maxDocuments} className="bg-emerald-600 hover:bg-emerald-700 h-10">
             <Plus className="w-4 h-4 mr-1" /> Add
           </Button>
         </div>
