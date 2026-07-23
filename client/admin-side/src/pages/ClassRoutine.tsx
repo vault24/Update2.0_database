@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, Filter, Download, Clock, Plus, Edit, Trash2, Save, X, Loader2, AlertCircle, Users, GraduationCap } from 'lucide-react';
+import { Calendar, Filter, Download, Clock, Plus, Edit, Trash2, Save, X, Loader2, AlertCircle, Users, GraduationCap, Check } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -20,6 +20,7 @@ import {
 } from '@/services/routineService';
 import departmentService, { type Department } from '@/services/departmentService';
 import { teacherService, type Teacher } from '@/services/teacherService';
+import resultService from '@/services/resultService';
 import { getErrorMessage } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUnsavedChangesGuard, UnsavedChangesDialog } from '@/hooks/useUnsavedChangesGuard';
@@ -119,6 +120,8 @@ export default function ClassRoutine() {
     semester: 4 
   });
   const [slotFormErrors, setSlotFormErrors] = useState<Record<string, string>>({});
+  // Auto-fill status for the subject-name lookup driven by the subject code.
+  const [subjectLookup, setSubjectLookup] = useState<'idle' | 'loading' | 'found' | 'notfound'>('idle');
   const { toast } = useToast();
   const timeSlots = timeSlotsByShift[shift] || [];
 
@@ -370,6 +373,10 @@ export default function ClassRoutine() {
       });
     }
     setSlotFormErrors({}); // Clear any previous errors
+    // Reset the subject-code auto-fill state; treat an existing code as
+    // already-resolved so we don't re-fetch it the instant the dialog opens.
+    setSubjectLookup('idle');
+    lastLookedUpCode.current = existing?.subjectCode?.trim() || '';
     setIsAddDialogOpen(true);
   };
 
@@ -414,6 +421,48 @@ export default function ClassRoutine() {
       });
     }
   };
+
+  // ── Auto-fill the subject name from its code ─────────────────────────────
+  // When an admin types a subject code, look it up in the imported course
+  // structure (subject catalog) and fill in the name automatically. Debounced;
+  // if the code isn't in the catalog the name stays editable for manual entry.
+  const lastLookedUpCode = useRef('');
+  useEffect(() => {
+    if (!isAddDialogOpen) return;
+    const code = slotForm.subjectCode.trim();
+    if (code.length < 3) {
+      setSubjectLookup('idle');
+      lastLookedUpCode.current = '';
+      return;
+    }
+    if (code === lastLookedUpCode.current) return;
+
+    const timer = setTimeout(async () => {
+      lastLookedUpCode.current = code;
+      setSubjectLookup('loading');
+      try {
+        const res = await resultService.lookupSubject(code, slotForm.semester);
+        // Ignore stale responses if the code changed while awaiting.
+        if (slotForm.subjectCode.trim() !== code) return;
+        if (res.found && res.name) {
+          setSlotForm(prev => ({ ...prev, subject: res.name as string }));
+          setSlotFormErrors(prev => {
+            const next = { ...prev };
+            delete next.subject;
+            return next;
+          });
+          setSubjectLookup('found');
+        } else {
+          setSubjectLookup('notfound');
+        }
+      } catch {
+        // Lookup is best-effort — manual name entry always remains possible.
+        setSubjectLookup('notfound');
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slotForm.subjectCode, slotForm.semester, isAddDialogOpen]);
 
   const validateSlotForm = (): boolean => {
     const errors: Record<string, string> = {};
@@ -1152,8 +1201,33 @@ export default function ClassRoutine() {
               </div>
             )}
             <div className="space-y-2">
+              <Label>Subject Code</Label>
+              <div className="relative">
+                <Input
+                  placeholder="e.g., 28541"
+                  value={slotForm.subjectCode}
+                  onChange={(e) => handleSlotFormChange('subjectCode', e.target.value)}
+                  className={slotFormErrors.subjectCode ? 'border-destructive pr-9' : 'pr-9'}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2">
+                  {subjectLookup === 'loading' && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+                  {subjectLookup === 'found' && <Check className="w-4 h-4 text-emerald-500" />}
+                  {subjectLookup === 'notfound' && <AlertCircle className="w-4 h-4 text-amber-500" />}
+                </span>
+              </div>
+              {slotFormErrors.subjectCode && (
+                <p className="text-sm text-destructive">{slotFormErrors.subjectCode}</p>
+              )}
+              {subjectLookup === 'found' && (
+                <p className="text-xs text-emerald-600 dark:text-emerald-400">Subject name filled in from the course structure.</p>
+              )}
+              {subjectLookup === 'notfound' && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">Code not found in the course structure — enter the name manually.</p>
+              )}
+            </div>
+            <div className="space-y-2">
               <Label>Subject Name</Label>
-              <Input 
+              <Input
                 placeholder="e.g., Mathematics"
                 value={slotForm.subject}
                 onChange={(e) => handleSlotFormChange('subject', e.target.value)}
@@ -1161,18 +1235,6 @@ export default function ClassRoutine() {
               />
               {slotFormErrors.subject && (
                 <p className="text-sm text-destructive">{slotFormErrors.subject}</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label>Subject Code</Label>
-              <Input 
-                placeholder="e.g., MATH-101"
-                value={slotForm.subjectCode}
-                onChange={(e) => handleSlotFormChange('subjectCode', e.target.value)}
-                className={slotFormErrors.subjectCode ? 'border-destructive' : ''}
-              />
-              {slotFormErrors.subjectCode && (
-                <p className="text-sm text-destructive">{slotFormErrors.subjectCode}</p>
               )}
             </div>
             <div className="space-y-2">

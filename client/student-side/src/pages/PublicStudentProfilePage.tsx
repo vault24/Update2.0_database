@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   GraduationCap, Mail, Phone, MapPin, Building, Award,
-  BookOpen, Copy, Check, Share2, FileText, Clock, Target,
+  BookOpen, Copy, Check, Share2, FileText, Clock,
   TrendingUp, User, BarChart3, Loader2, AlertCircle, Lock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -294,8 +294,9 @@ export default function PublicStudentProfilePage() {
     about: `${student.fullNameEnglish || 'Student'} is currently studying ${student.departmentName || (typeof student.department === 'object' ? student.department?.name : student.department) || 'at our institute'} in semester ${student.semester || 1}. 
 
 This is a public profile showcasing academic information and achievements.`,
-    skills: ['Academic Excellence', 'Problem Solving', 'Team Work', 'Communication'],
-    interests: ['Technology', 'Learning', 'Innovation', 'Development'],
+    // Real skills the student added in their profile's Career & Portfolio
+    // section (empty when none — the Skills card is hidden then).
+    skills: (Array.isArray(student.skills) ? student.skills : []) as string[],
     cgpa: calculatedCGPA,
     attendanceRate: calculatedAttendance,
     completedCourses: student.semesterResults?.length || 0,
@@ -548,8 +549,9 @@ This is a public profile showcasing academic information and achievements.`,
           </TabsContent>
         </Tabs>
 
-        {/* Skills & Interests */}
-        <div className="grid md:grid-cols-2 gap-4">
+        {/* Skills — the student's own entries from the Career & Portfolio
+            section of their profile. Hidden entirely when none are added. */}
+        {transformedStudent.skills.length > 0 && (
           <motion.div initial={false} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="bg-card rounded-xl border border-border p-4 md:p-6 shadow-card">
             <h3 className="font-semibold mb-3 flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-primary" />
@@ -561,19 +563,7 @@ This is a public profile showcasing academic information and achievements.`,
               ))}
             </div>
           </motion.div>
-
-          <motion.div initial={false} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="bg-card rounded-xl border border-border p-4 md:p-6 shadow-card">
-            <h3 className="font-semibold mb-3 flex items-center gap-2">
-              <Target className="w-5 h-5 text-primary" />
-              Interests
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {transformedStudent.interests.map((interest, i) => (
-                <Badge key={i} variant="outline" className="text-xs">{interest}</Badge>
-              ))}
-            </div>
-          </motion.div>
-        </div>
+        )}
 
         {/* Contact */}
         <motion.div initial={false} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }} className="bg-card rounded-lg sm:rounded-xl border border-border p-3 sm:p-4 md:p-6 shadow-card">

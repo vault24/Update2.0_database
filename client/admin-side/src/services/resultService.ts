@@ -190,6 +190,17 @@ export interface SubjectStats {
   }[];
 }
 
+export interface SubjectLookup {
+  found: boolean;
+  code: string;
+  name?: string;
+  semester?: number;
+  credit?: number | null;
+  technology?: string;
+  /** Distinct semesters this code appears in across technologies. */
+  semesters?: number[];
+}
+
 class ResultService {
   private baseURL = '/results';
 
@@ -235,6 +246,17 @@ class ResultService {
 
   async getSubjectStats(): Promise<SubjectStats> {
     return await apiClient.get<SubjectStats>(`${this.baseURL}/subjects/stats/`);
+  }
+
+  /**
+   * Resolve a subject code to its catalog entry (name, semester, credit…).
+   * Used by the routine builder to auto-fill the subject name from a code.
+   * `found: false` when the code isn't in the imported course structure.
+   */
+  async lookupSubject(code: string, semester?: number): Promise<SubjectLookup> {
+    const params = new URLSearchParams({ code });
+    if (semester != null) params.set('semester', String(semester));
+    return await apiClient.get<SubjectLookup>(`${this.baseURL}/subjects/lookup/?${params.toString()}`);
   }
 
   async getAnalyticsSemesters(): Promise<SemesterOption[]> {

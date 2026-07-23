@@ -373,6 +373,56 @@ class SubjectImportView(APIView):
         return Response(stats)
 
 
+class SubjectLookupView(APIView):
+    """Resolve a subject CODE to its catalog entry (name, semester, credit…).
+
+    Used by the admin routine builder to auto-fill the subject name the moment
+    an admin types a code. The catalog stores one row per (code, technology,
+    regulation); the NAME is the same for a shared code, so any matching row
+    answers the name. When a semester is supplied we prefer the row for that
+    semester, so the returned metadata is the most relevant one.
+
+    GET /api/results/subjects/lookup/?code=28541[&semester=4]
+    """
+
+    permission_classes = [IsAdminRole]
+
+    def get(self, request):
+        from .models import Subject
+
+        code = (request.query_params.get('code') or '').strip()
+        if not code:
+            return Response(
+                {'error': 'Provide a subject code, e.g. ?code=28541.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        matches = list(Subject.objects.filter(code__iexact=code))
+        if not matches:
+            return Response({'found': False, 'code': code})
+
+        # Prefer the row for the requested semester when one is given.
+        semester = request.query_params.get('semester')
+        chosen = matches[0]
+        if semester:
+            try:
+                sem = int(semester)
+                chosen = next((m for m in matches if m.semester == sem), matches[0])
+            except (TypeError, ValueError):
+                pass
+
+        return Response({
+            'found': True,
+            'code': chosen.code,
+            'name': chosen.name,
+            'semester': chosen.semester,
+            'credit': chosen.credit,
+            'technology': chosen.technology,
+            # Distinct semesters this code appears in (helps disambiguation).
+            'semesters': sorted({m.semester for m in matches}),
+        })
+
+
 class SubjectStatsView(APIView):
     """Subject-catalog overview for the admin Imports screen."""
 

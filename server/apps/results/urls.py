@@ -12,6 +12,7 @@ urlpatterns = [
     path('analytics/download/', views.AnalyticsDownloadView.as_view(), name='result-analytics-download'),
     path('subjects/import/', views.SubjectImportView.as_view(), name='result-subject-import'),
     path('subjects/stats/', views.SubjectStatsView.as_view(), name='result-subject-stats'),
+    path('subjects/lookup/', views.SubjectLookupView.as_view(), name='result-subject-lookup'),
     path('public/search/', views.PublicRollSearchView.as_view(), name='result-public-search'),
     path('public/exams/', views.PublicRecentExamsView.as_view(), name='result-public-exams'),
     path('public/download/', views.PublicResultPdfView.as_view(), name='result-public-download'),

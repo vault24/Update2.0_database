@@ -109,6 +109,7 @@ class StudentPublicProfileSerializer(serializers.ModelSerializer):
     profilePhoto = serializers.SerializerMethodField()
     presentAddress = serializers.SerializerMethodField()
     avatarVariant = serializers.SerializerMethodField()
+    skills = serializers.SerializerMethodField()
 
     class Meta:
         model = Student
@@ -129,6 +130,8 @@ class StudentPublicProfileSerializer(serializers.ModelSerializer):
             'finalCgpa',
             'semesterResults',
             'semesterAttendance',
+            # Self-published portfolio (Career & Portfolio section)
+            'skills',
             # Contact (published by institute decision)
             'email',
             'mobileStudent',
@@ -147,6 +150,22 @@ class StudentPublicProfileSerializer(serializers.ModelSerializer):
     def get_avatarVariant(self, obj):
         """Which placeholder avatar the public page should render."""
         return 'female' if obj.gender == 'Female' else 'default'
+
+    def get_skills(self, obj):
+        """Skill NAMES the student added themselves in the Career & Portfolio
+        section of their profile (stored on the linked alumni / career-prefill
+        record). Names only — ids and proficiency stay private. Empty list when
+        the student hasn't added any."""
+        try:
+            alumni = getattr(obj, 'alumni', None)
+            if alumni is None:
+                return []
+            return [
+                s.get('name') for s in (alumni.skills or [])
+                if isinstance(s, dict) and s.get('name')
+            ][:20]
+        except Exception:
+            return []
 
     def get_presentAddress(self, obj):
         """Coarse location only — never the street-level address."""
