@@ -126,11 +126,20 @@ class TeacherUpdateSerializer(serializers.ModelSerializer):
 
 class TeacherExperienceSerializer(serializers.ModelSerializer):
     """Serializer for teacher work experience"""
-    
+
     class Meta:
         model = TeacherExperience
         fields = ['id', 'title', 'institution', 'location', 'startDate', 'endDate', 'current', 'description', 'order']
         read_only_fields = ['id']
+        # Only title/institution/startDate are truly required; the rest are
+        # optional so saving an experience never 400s on a blank location or
+        # description (an ongoing role also has no end date).
+        extra_kwargs = {
+            'location': {'required': False, 'allow_blank': True},
+            'endDate': {'required': False, 'allow_blank': True},
+            'description': {'required': False, 'allow_blank': True},
+            'order': {'required': False},
+        }
 
 
 class TeacherEducationSerializer(serializers.ModelSerializer):

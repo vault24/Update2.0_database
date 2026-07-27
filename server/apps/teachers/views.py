@@ -30,6 +30,44 @@ from .serializers import (
 from apps.authentication.permissions import BlockStudentWrite
 
 
+# ── Teacher profile/cover image storage ────────────────────────────────────
+# These images are PUBLIC (faculty pages) and have no Document record, so they
+# must live under the storage root that SecureFileView actually reads from
+# (server/storage/Documents/…), NOT client/assets/images (which /files/ never
+# serves). SecureFileView serves the `teachers/` prefix publicly — see the
+# PUBLIC_NO_DOC_PREFIXES allow-list there.
+TEACHER_IMAGE_PREFIX = 'teachers'
+
+
+def save_teacher_image(uploaded_file):
+    """Save a teacher profile/cover image into the served storage root.
+    Returns a relative path like 'teachers/<uuid>.jpg' (served at /files/…)."""
+    import uuid as _uuid
+    from utils.structured_file_storage import structured_storage
+    ext = (uploaded_file.name.rsplit('.', 1)[-1] or 'jpg').lower()
+    target_dir = structured_storage.storage_root / TEACHER_IMAGE_PREFIX
+    target_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"{_uuid.uuid4().hex}.{ext}"
+    with open(target_dir / filename, 'wb+') as destination:
+        for chunk in uploaded_file.chunks():
+            destination.write(chunk)
+    return f"{TEACHER_IMAGE_PREFIX}/{filename}"
+
+
+def delete_teacher_image(relative_path):
+    """Remove a previously stored teacher image (best-effort; ignores legacy
+    base64 values and missing files)."""
+    if not relative_path or relative_path.startswith('data:'):
+        return
+    if not relative_path.startswith(f"{TEACHER_IMAGE_PREFIX}/"):
+        return
+    try:
+        from utils.structured_file_storage import structured_storage
+        (structured_storage.storage_root / relative_path).unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
 class TeacherViewSet(viewsets.ModelViewSet):
     """
     ViewSet for Teacher CRUD operations
@@ -127,54 +165,37 @@ class TeacherViewSet(viewsets.ModelViewSet):
         
         Accepts: multipart/form-data with 'photo' field
         """
-        from utils.file_handler import (
-            save_uploaded_file,
-            validate_file_type,
-            validate_file_size,
-            delete_file
-        )
-        
+        from utils.file_handler import validate_file_type, validate_file_size
+
         teacher = self.get_object()
-        
+
         if 'photo' not in request.FILES:
-            return Response({
-                'error': 'No photo file provided'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
+            return Response({'error': 'No photo file provided'}, status=status.HTTP_400_BAD_REQUEST)
+
         photo_file = request.FILES['photo']
-        
-        # Validate file type
         if not validate_file_type(photo_file, ['jpg', 'jpeg', 'png']):
-            return Response({
-                'error': 'Invalid file type',
-                'details': 'Only JPG and PNG images are allowed'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Validate file size (max 5MB)
+            return Response(
+                {'error': 'Invalid file type', 'details': 'Only JPG and PNG images are allowed'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         if not validate_file_size(photo_file, 5):
-            return Response({
-                'error': 'File too large',
-                'details': 'Maximum file size is 5MB'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Delete old photo if exists
-        if teacher.profilePhoto:
-            delete_file(teacher.profilePhoto)
-        
-        # Save new photo
+            return Response(
+                {'error': 'File too large', 'details': 'Maximum file size is 5MB'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         try:
-            relative_path = save_uploaded_file(photo_file, 'teachers')
-            teacher.profilePhoto = relative_path
+            old = teacher.profilePhoto
+            teacher.profilePhoto = save_teacher_image(photo_file)
             teacher.save()
-            
+            delete_teacher_image(old)
             serializer = TeacherDetailSerializer(teacher)
             return Response(serializer.data)
-            
         except Exception as e:
-            return Response({
-                'error': 'Failed to upload photo',
-                'details': str(e) if settings.DEBUG else None
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {'error': 'Failed to upload photo', 'details': str(e) if settings.DEBUG else None},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
     
     @action(detail=True, methods=['post'])
     def upload_cover(self, request, pk=None):
@@ -184,12 +205,7 @@ class TeacherViewSet(viewsets.ModelViewSet):
         POST /api/teachers/{id}/upload-cover/
         Accepts: multipart/form-data with 'photo' field
         """
-        from utils.file_handler import (
-            save_uploaded_file,
-            validate_file_type,
-            validate_file_size,
-            delete_file,
-        )
+        from utils.file_handler import validate_file_type, validate_file_size
 
         teacher = self.get_object()
 
@@ -208,15 +224,11 @@ class TeacherViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Only delete the previous cover if it was a stored file (not a legacy
-        # base64/data-URL value some older profiles may still hold).
-        if teacher.coverPhoto and not teacher.coverPhoto.startswith('data:'):
-            delete_file(teacher.coverPhoto)
-
         try:
-            relative_path = save_uploaded_file(photo_file, 'teachers')
-            teacher.coverPhoto = relative_path
+            old = teacher.coverPhoto
+            teacher.coverPhoto = save_teacher_image(photo_file)
             teacher.save()
+            delete_teacher_image(old)
             serializer = TeacherDetailSerializer(teacher)
             return Response(serializer.data)
         except Exception as e:

@@ -57,10 +57,10 @@ export function StudentAttendanceProfileDialog({ studentId, open, onOpenChange }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <User className="w-5 h-5 text-primary" />
+      <DialogContent className="w-[calc(100vw-1.5rem)] max-w-3xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+        <DialogHeader className="text-left">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <User className="w-5 h-5 text-primary shrink-0" />
             Student Attendance Profile
           </DialogTitle>
         </DialogHeader>
@@ -77,30 +77,28 @@ export function StudentAttendanceProfileDialog({ studentId, open, onOpenChange }
         ) : profile ? (
           <div className="space-y-5">
             {/* Student header */}
-            <div className="flex items-center gap-4 p-4 rounded-xl bg-secondary/40 border border-border">
+            <div className="flex items-center gap-3 p-3 sm:p-4 rounded-xl bg-secondary/40 border border-border">
               <StudentAvatar
                 name={profile.student.name}
                 gender={profile.student.gender}
                 avatarVariant={profile.student.avatarVariant}
                 photoUrl={profile.student.profilePhoto}
                 size="lg"
-                className="w-14 h-14"
+                className="w-12 h-12 sm:w-14 sm:h-14"
               />
               <div className="min-w-0 flex-1">
-                <p className="font-bold text-base truncate">{profile.student.name}</p>
-                <div className="flex items-center gap-2 flex-wrap mt-1">
-                  <Badge variant="secondary">Roll: {profile.student.roll}</Badge>
-                  <Badge variant="outline">{profile.student.department}</Badge>
-                  <Badge variant="outline">Sem {profile.student.semester}</Badge>
-                  <Badge variant="outline">{profile.student.shift}</Badge>
-                  {profile.student.session && <Badge variant="outline">{profile.student.session}</Badge>}
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-bold text-sm sm:text-base truncate">{profile.student.name}</p>
+                  <span className={cn('text-xl sm:text-3xl font-bold shrink-0', pctColor(profile.summary.percentage))}>
+                    {profile.summary.percentage}%
+                  </span>
                 </div>
-              </div>
-              <div className="text-right hidden sm:block">
-                <p className={cn('text-3xl font-bold', pctColor(profile.summary.percentage))}>
-                  {profile.summary.percentage}%
-                </p>
-                <p className="text-xs text-muted-foreground">Overall</p>
+                <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                  <Badge variant="secondary" className="text-[10px] sm:text-xs">Roll: {profile.student.roll}</Badge>
+                  <Badge variant="outline" className="text-[10px] sm:text-xs max-w-[9rem] truncate">{profile.student.department}</Badge>
+                  <Badge variant="outline" className="text-[10px] sm:text-xs">Sem {profile.student.semester}</Badge>
+                  <Badge variant="outline" className="text-[10px] sm:text-xs">{profile.student.shift}</Badge>
+                </div>
               </div>
             </div>
 

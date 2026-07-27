@@ -62,8 +62,8 @@ export function exportAttendancePdf(
     head: [columns.map(c => c.header)],
     body: rows.map(row => columns.map(c => String(row[c.key] ?? ''))),
     styles: { fontSize: 8.5, cellPadding: 2 },
-    headStyles: { fillColor: [30, 64, 175], textColor: 255, fontStyle: 'bold' },
-    alternateRowStyles: { fillColor: [245, 247, 250] },
+    headStyles: { fillColor: [16, 122, 87], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [240, 249, 244] },
     margin: { left: 12, right: 12 },
     didDrawPage: (data) => {
       // Footer with page number + generation timestamp
@@ -176,13 +176,13 @@ export function exportRegisterPdf(data: RegisterExportData, teacherName?: string
       body,
       foot,
       styles: { fontSize: 7, cellPadding: 1.2, halign: 'center' },
-      headStyles: { fillColor: [30, 64, 175], textColor: 255, fontStyle: 'bold', fontSize: 6.5 },
-      footStyles: { fillColor: [226, 232, 240], textColor: 30, fontStyle: 'bold' },
+      headStyles: { fillColor: [16, 122, 87], textColor: 255, fontStyle: 'bold', fontSize: 6.5 },
+      footStyles: { fillColor: [220, 240, 230], textColor: 20, fontStyle: 'bold' },
       columnStyles: {
         0: { halign: 'left', cellWidth: 18 },
         1: { halign: 'left', cellWidth: 40 },
       },
-      alternateRowStyles: { fillColor: [246, 248, 251] },
+      alternateRowStyles: { fillColor: [240, 249, 244] },
       margin: { left: 8, right: 8 },
       didDrawPage: () => {
         const pageHeight = doc.internal.pageSize.getHeight();

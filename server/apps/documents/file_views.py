@@ -75,18 +75,29 @@ class SecureFileView(View):
         # 3. The same physical file is referenced by multiple document records
         # We use the most recent document (by uploadDate) for access control
         # TODO: Consider implementing file deduplication or unique constraints
-        try:
-            document = Document.objects.filter(filePath=file_path, status='active').order_by('-uploadDate').first()
-            if not document:
-                # File exists but no document record - only allow admin access
+        # Public, document-less assets served straight from disk. Teacher
+        # profile/cover images render in plain <img> tags on public faculty
+        # pages and have no Document record — serve them without auth. (Keep
+        # this list tight; never add student paths here — the female-student
+        # photo privacy rule depends on those NOT being openly served.)
+        PUBLIC_NO_DOC_PREFIXES = ('teachers/',)
+        if file_path.startswith(PUBLIC_NO_DOC_PREFIXES):
+            document = None
+        else:
+            try:
+                document = Document.objects.filter(filePath=file_path, status='active').order_by('-uploadDate').first()
+                if not document:
+                    # File exists but no document record - only allow admin access
+                    if not request.user.is_authenticated or not request.user.is_staff:
+                        raise PermissionDenied("Access denied")
+            except PermissionDenied:
+                raise
+            except Exception as e:
+                logger.error(f"Error querying document for {file_path}: {str(e)}")
+                # File exists but error querying - only allow admin access
                 if not request.user.is_authenticated or not request.user.is_staff:
                     raise PermissionDenied("Access denied")
-        except Exception as e:
-            logger.error(f"Error querying document for {file_path}: {str(e)}")
-            # File exists but error querying - only allow admin access
-            if not request.user.is_authenticated or not request.user.is_staff:
-                raise PermissionDenied("Access denied")
-            document = None
+                document = None
         
         # Check permissions
         if document and not self._check_access_permission(request.user, document):

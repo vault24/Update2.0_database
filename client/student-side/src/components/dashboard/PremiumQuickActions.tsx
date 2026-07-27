@@ -106,10 +106,10 @@ export function PremiumQuickActions() {
       initial={false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="bg-card rounded-2xl border border-border p-5 md:p-6 shadow-card"
+      className="bg-card rounded-2xl border border-border p-3 sm:p-5 md:p-6 shadow-card"
     >
-      <div className="flex items-center justify-between mb-5">
-        <h3 className="text-lg font-semibold text-foreground">Quick Actions</h3>
+      <div className="flex items-center justify-between mb-4 sm:mb-5">
+        <h3 className="text-base sm:text-lg font-semibold text-foreground">Quick Actions</h3>
         <div className="flex gap-2">
           {secondaryActions.map((action) => (
             <motion.button
@@ -131,7 +131,7 @@ export function PremiumQuickActions() {
         variants={containerVariants}
         initial={false}
         animate="visible"
-        className="grid grid-cols-4 md:grid-cols-8 gap-3"
+        className="grid grid-cols-4 md:grid-cols-8 gap-2 sm:gap-3"
       >
         {actions.map((action, index) => (
           <motion.button

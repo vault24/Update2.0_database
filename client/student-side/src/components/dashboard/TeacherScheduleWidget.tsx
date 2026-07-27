@@ -212,14 +212,14 @@ export function TeacherScheduleWidget() {
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2 md:gap-3 mt-1.5 md:mt-2 flex-wrap">
-                    <div className="flex items-center gap-1 text-[9px] md:text-[10px] text-muted-foreground">
-                      <Users className="w-3 h-3" />
-                      <span>{item.department} · Sem {item.semester} · {item.shift}{item.session ? ` · ${item.session}` : ''}</span>
+                  <div className="flex items-center gap-2 md:gap-3 mt-1.5 md:mt-2 flex-wrap min-w-0">
+                    <div className="flex items-center gap-1 text-[9px] md:text-[10px] text-muted-foreground min-w-0 max-w-full">
+                      <Users className="w-3 h-3 shrink-0" />
+                      <span className="truncate">{item.department} · Sem {item.semester} · {item.shift}{item.session ? ` · ${item.session}` : ''}</span>
                     </div>
-                    <div className="flex items-center gap-1 text-[9px] md:text-[10px] text-muted-foreground">
-                      <MapPin className="w-3 h-3" />
-                      <span>{item.room ? `Room ${item.room}` : 'Room TBA'}</span>
+                    <div className="flex items-center gap-1 text-[9px] md:text-[10px] text-muted-foreground min-w-0">
+                      <MapPin className="w-3 h-3 shrink-0" />
+                      <span className="truncate">{item.room ? `Room ${item.room}` : 'Room TBA'}</span>
                     </div>
                   </div>
                 </div>

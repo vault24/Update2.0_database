@@ -91,9 +91,9 @@ export function EnhancedNoticeBoard() {
       className="bg-card rounded-2xl border border-border shadow-card overflow-hidden"
     >
       {/* Header with gradient */}
-      <div className="bg-gradient-to-r from-primary/10 via-accent/5 to-transparent p-5 border-b border-border">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+      <div className="bg-gradient-to-r from-primary/10 via-accent/5 to-transparent p-3 sm:p-5 border-b border-border">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <div className="relative">
               <div className="p-2.5 bg-primary/10 rounded-xl">
                 <Bell className="w-5 h-5 text-primary" />
@@ -108,14 +108,14 @@ export function EnhancedNoticeBoard() {
                 </motion.span>
               )}
             </div>
-            <div>
-              <h3 className="text-lg font-semibold">Notices & Updates</h3>
+            <div className="min-w-0">
+              <h3 className="text-base sm:text-lg font-semibold truncate">Notices &amp; Updates</h3>
               <p className="text-xs text-muted-foreground">Stay informed</p>
             </div>
           </div>
-          <Link 
-            to="/dashboard/notices" 
-            className="flex items-center gap-1 text-sm text-primary hover:underline font-medium"
+          <Link
+            to="/dashboard/notices"
+            className="flex items-center gap-1 text-xs sm:text-sm text-primary hover:underline font-medium shrink-0"
           >
             View All
             <ExternalLink className="w-3.5 h-3.5" />
@@ -124,7 +124,7 @@ export function EnhancedNoticeBoard() {
       </div>
 
       {/* Content */}
-      <div className="p-4">
+      <div className="p-3 sm:p-4">
         <div className="space-y-2">
           {loading ? (
             <div className="flex items-center justify-center py-12">
@@ -171,7 +171,7 @@ export function EnhancedNoticeBoard() {
                         }
                       }}
                       className={cn(
-                        "w-full text-left p-4 rounded-xl transition-all duration-200",
+                        "w-full text-left p-3 sm:p-4 rounded-xl transition-all duration-200",
                         "hover:shadow-md",
                         notice.is_read 
                           ? 'bg-secondary/30 hover:bg-secondary/50' 

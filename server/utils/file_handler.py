@@ -21,8 +21,8 @@ def save_uploaded_file(uploaded_file, subdirectory):
     Raises:
         ValueError: If subdirectory is invalid
     """
-    # Validate subdirectory
-    valid_subdirs = ['students', 'documents']
+    # Validate subdirectory (allow-list; keep in sync with all upload callers).
+    valid_subdirs = ['students', 'documents', 'teachers']
     if subdirectory not in valid_subdirs:
         raise ValueError(f"Invalid subdirectory. Must be one of: {valid_subdirs}")
     

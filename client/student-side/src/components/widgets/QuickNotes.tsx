@@ -211,7 +211,9 @@ export function QuickNotes() {
                     <span className="text-[10px] text-muted-foreground">
                       {new Date(note.createdAt).toLocaleDateString()}
                     </span>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {/* Always visible on touch devices (no hover); reveal on
+                        hover only from sm+ where a pointer exists. */}
+                    <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => togglePin(note.id)}
                         className={cn(
