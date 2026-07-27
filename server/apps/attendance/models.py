@@ -50,13 +50,13 @@ class AttendanceRecord(models.Model):
     date = models.DateField()
     is_present = models.BooleanField(default=False)
 
-    # Detailed attendance state. `is_present` stays the canonical presence flag
-    # (late counts as present, leave counts as an excused absence).
+    # Attendance state — simplified to Present / Absent only. `is_present`
+    # remains the canonical presence flag. Legacy rows may still hold 'late' or
+    # 'leave'; save() folds those into present/absent so nothing new is created
+    # with the retired values and reads stay consistent.
     ATTENDANCE_TYPE_CHOICES = [
         ('present', 'Present'),
         ('absent', 'Absent'),
-        ('late', 'Late'),
-        ('leave', 'Leave'),
     ]
     attendance_type = models.CharField(
         max_length=10,
@@ -122,11 +122,18 @@ class AttendanceRecord(models.Model):
         ]
     
     def save(self, *args, **kwargs):
-        # Keep attendance_type and is_present consistent.
+        # Fold any retired values (late/leave) into the two supported states,
+        # then keep attendance_type and is_present consistent. late→present,
+        # leave→absent preserves how those rows already counted.
+        if self.attendance_type == 'late':
+            self.attendance_type = 'present'
+        elif self.attendance_type == 'leave':
+            self.attendance_type = 'absent'
+
         if not self.attendance_type:
             self.attendance_type = 'present' if self.is_present else 'absent'
         else:
-            self.is_present = self.attendance_type in ('present', 'late')
+            self.is_present = self.attendance_type == 'present'
         super().save(*args, **kwargs)
 
     def __str__(self):

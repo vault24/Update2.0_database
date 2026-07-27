@@ -121,8 +121,6 @@ export interface RegisterExportData {
 const CELL_MARKS: Record<string, string> = {
   present: 'P',
   absent: 'A',
-  late: 'L',
-  leave: 'Lv',
 };
 
 const shortDate = (iso: string) => {
@@ -191,7 +189,7 @@ export function exportRegisterPdf(data: RegisterExportData, teacherName?: string
         doc.setFontSize(7.5);
         doc.setTextColor(120);
         doc.text(
-          `P = Present, A = Absent, L = Late, Lv = Leave · Generated ${new Date().toLocaleString()}`,
+          `P = Present, A = Absent · Generated ${new Date().toLocaleString()}`,
           pageWidth / 2,
           pageHeight - 5,
           { align: 'center' }
@@ -227,7 +225,7 @@ export function exportRegisterExcel(data: RegisterExportData, teacherName?: stri
     [INSTITUTE_NAME],
     [title],
     [subtitle],
-    ['P = Present, A = Absent, L = Late, Lv = Leave'],
+    ['P = Present, A = Absent'],
     [],
     header,
     ...body,

@@ -124,6 +124,7 @@ class AlumniDirectorySerializer(serializers.ModelSerializer):
     name = serializers.SerializerMethodField()
     department = serializers.SerializerMethodField()
     avatar = serializers.SerializerMethodField()
+    avatarVariant = serializers.SerializerMethodField()
     location = serializers.SerializerMethodField()
     currentPosition = serializers.SerializerMethodField()
     skills = serializers.SerializerMethodField()
@@ -132,7 +133,7 @@ class AlumniDirectorySerializer(serializers.ModelSerializer):
         model = Alumni
         fields = [
             'id', 'name', 'department', 'graduationYear', 'alumniType',
-            'isVerified', 'coverImage', 'avatar', 'location',
+            'isVerified', 'coverImage', 'avatar', 'avatarVariant', 'location',
             'currentPosition', 'skills',
         ]
 
@@ -146,7 +147,18 @@ class AlumniDirectorySerializer(serializers.ModelSerializer):
         return obj.student.department.name if obj.student.department_id else ''
 
     def get_avatar(self, obj):
+        # Female-photo privacy rule: a female alumna's real photo is never shown
+        # to teachers/students/public — only to admin staff or herself. The
+        # client renders the generic female avatar (see avatarVariant) instead.
+        from apps.students.serializers import viewer_may_see_female_photo
+        if (obj.student.gender or '') == 'Female' and not viewer_may_see_female_photo(
+            obj.student, self.context.get('request')
+        ):
+            return ''
         return obj.student.profilePhoto or ''
+
+    def get_avatarVariant(self, obj):
+        return 'female' if (obj.student.gender or '') == 'Female' else 'default'
 
     def get_location(self, obj):
         addr = obj.student.presentAddress or {}

@@ -1,7 +1,7 @@
 """
 Class Routine Views
 """
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, serializers
 from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
@@ -529,6 +529,17 @@ class ClassRoutineViewSet(viewsets.ModelViewSet):
                                 'id': str(routine_id)
                             })
             
+            except serializers.ValidationError as e:
+                # Keep DRF's structured validation payload.  Converting it to
+                # str() loses the useful teacher/room conflict explanation and
+                # leaves the client with an unhelpful "[object Object]".
+                errors.append({
+                    'operation_index': i,
+                    'operation': operation,
+                    'error': 'Validation failed',
+                    'details': e.detail,
+                    'id': str(routine_id) if routine_id else None
+                })
             except Exception as e:
                 errors.append({
                     'operation_index': i,

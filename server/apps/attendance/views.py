@@ -411,8 +411,6 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             total=Count('id'),
             present=Count('id', filter=Q(is_present=True)),
             absent=Count('id', filter=Q(is_present=False)),
-            late=Count('id', filter=Q(attendance_type='late')),
-            leave=Count('id', filter=Q(attendance_type='leave')),
         )
         total = type_counts['total'] or 0
         percentage = round(type_counts['present'] / total * 100, 2) if total else 0
@@ -424,8 +422,6 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             .annotate(
                 total=Count('id'),
                 present=Count('id', filter=Q(is_present=True)),
-                late=Count('id', filter=Q(attendance_type='late')),
-                leave=Count('id', filter=Q(attendance_type='leave')),
             )
             .order_by('month')
         )
@@ -436,8 +432,6 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 'total': item['total'],
                 'present': item['present'],
                 'absent': item['total'] - item['present'],
-                'late': item['late'],
-                'leave': item['leave'],
                 'percentage': round(item['present'] / item['total'] * 100, 1) if item['total'] else 0,
             }
             for item in monthly
@@ -449,8 +443,6 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             .annotate(
                 total=Count('id'),
                 present=Count('id', filter=Q(is_present=True)),
-                late=Count('id', filter=Q(attendance_type='late')),
-                leave=Count('id', filter=Q(attendance_type='leave')),
             )
             .order_by('subject_code')
         )
@@ -463,6 +455,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             for item in subjects
         ]
 
+        from apps.students.serializers import student_photo_for_viewer, avatar_variant_for
         return Response({
             'student': {
                 'id': str(student.id),
@@ -474,14 +467,15 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 'shift': student.shift,
                 'session': student.session,
                 'status': student.status,
-                'profilePhoto': student.profilePhoto or None,
+                # Female-photo privacy rule enforced at the API layer.
+                'profilePhoto': student_photo_for_viewer(student, request),
+                'gender': student.gender,
+                'avatarVariant': avatar_variant_for(student),
             },
             'summary': {
                 'totalClasses': total,
                 'present': type_counts['present'],
                 'absent': type_counts['absent'],
-                'late': type_counts['late'],
-                'leave': type_counts['leave'],
                 'percentage': percentage,
             },
             'monthly': monthly_stats,
@@ -616,15 +610,14 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                     'cells': {},
                     'present': 0,
                     'absent': 0,
-                    'late': 0,
-                    'leave': 0,
                 }
             row = students[sid]
             date_key = record.date.isoformat()
-            cell_type = record.attendance_type or ('present' if record.is_present else 'absent')
-            # One cell per date — a later/present record wins over an earlier one.
+            # Present/Absent only — fold any legacy late/leave via is_present.
+            cell_type = 'present' if record.is_present else 'absent'
+            # One cell per date — a present record wins over an earlier absent.
             previous = row['cells'].get(date_key)
-            if previous is None or (record.is_present and previous in ('absent', 'leave')):
+            if previous is None or (record.is_present and previous == 'absent'):
                 row['cells'][date_key] = cell_type
 
         # Totals from the final cell values (so duplicates never double-count).
@@ -632,16 +625,14 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         totals_by_date = {key: {'present': 0, 'absent': 0} for key in date_keys}
         rows = []
         for row in students.values():
-            present = sum(1 for v in row['cells'].values() if v in ('present', 'late'))
+            present = sum(1 for v in row['cells'].values() if v == 'present')
             total = len(row['cells'])
             row['present'] = present
             row['absent'] = total - present
-            row['late'] = sum(1 for v in row['cells'].values() if v == 'late')
-            row['leave'] = sum(1 for v in row['cells'].values() if v == 'leave')
             row['total'] = total
             row['percentage'] = round(present / total * 100, 1) if total else 0
             for key, value in row['cells'].items():
-                if value in ('present', 'late'):
+                if value == 'present':
                     totals_by_date[key]['present'] += 1
                 else:
                     totals_by_date[key]['absent'] += 1
@@ -696,8 +687,6 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         overall = records.aggregate(
             total=Count('id'),
             present=Count('id', filter=Q(is_present=True)),
-            late=Count('id', filter=Q(attendance_type='late')),
-            leave=Count('id', filter=Q(attendance_type='leave')),
         )
         total = overall['total'] or 0
 
@@ -755,8 +744,6 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 'totalRecords': total,
                 'present': overall['present'],
                 'absent': total - overall['present'],
-                'late': overall['late'],
-                'leave': overall['leave'],
                 'percentage': round(overall['present'] / total * 100, 1) if total else 0,
             },
             'monthlyTrend': monthly_trend,
@@ -827,8 +814,14 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         for idx, record_data in enumerate(records_data):
             try:
                 raw_type = record_data.get('attendance_type') or record_data.get('attendanceType') or ''
+                # Attendance is Present/Absent only. Fold any retired value a
+                # stale client might still send (late→present, leave→absent).
+                if raw_type == 'late':
+                    raw_type = 'present'
+                elif raw_type == 'leave':
+                    raw_type = 'absent'
                 is_present_raw = record_data.get('is_present') if 'is_present' in record_data else record_data.get('isPresent')
-                if raw_type and raw_type not in ('present', 'absent', 'late', 'leave'):
+                if raw_type and raw_type not in ('present', 'absent'):
                     raise ValueError(f'Invalid attendance_type: {raw_type}')
 
                 # Convert camelCase to snake_case if needed
@@ -838,7 +831,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                     'subject_name': record_data.get('subject_name') or record_data.get('subjectName'),
                     'semester': record_data.get('semester'),
                     'date': record_data.get('date'),
-                    'is_present': raw_type in ('present', 'late') if raw_type else bool(is_present_raw),
+                    'is_present': raw_type == 'present' if raw_type else bool(is_present_raw),
                     'attendance_type': raw_type or ('present' if is_present_raw else 'absent'),
                     'status': record_data.get('status', 'direct'),
                     'notes': record_data.get('notes', ''),
@@ -1182,10 +1175,10 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                     'student_id': student_id,
                     'student_name': record.student.fullNameEnglish,
                     'student_roll': record.student.currentRollNumber,
+                    'gender': record.student.gender,
+                    'avatarVariant': 'female' if record.student.gender == 'Female' else 'default',
                     'present': 0,
                     'absent': 0,
-                    'late': 0,
-                    'leave': 0,
                     'total': 0,
                     'percentage': 0
                 }
@@ -1195,10 +1188,6 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 subjects[subject_key]['students'][student_id]['present'] += 1
             else:
                 subjects[subject_key]['students'][student_id]['absent'] += 1
-            if record.attendance_type == 'late':
-                subjects[subject_key]['students'][student_id]['late'] += 1
-            elif record.attendance_type == 'leave':
-                subjects[subject_key]['students'][student_id]['leave'] += 1
 
         # Calculate percentages
         for subject in subjects.values():

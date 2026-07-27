@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Loader2, AlertCircle, TrendingUp, PieChart as PieIcon, BarChart3, RefreshCw,
-  CalendarCheck2, CalendarX2, Timer, Plane, Percent, BookOpen,
+  CalendarCheck2, CalendarX2, Percent, BookOpen,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -69,18 +69,14 @@ export function AttendanceAnalyticsTab() {
   }
 
   const pieData = [
-    { name: 'Present', value: overall.present - overall.late },
-    { name: 'Absent', value: overall.absent - overall.leave },
-    { name: 'Late', value: overall.late },
-    { name: 'Leave', value: overall.leave },
+    { name: 'Present', value: overall.present },
+    { name: 'Absent', value: overall.absent },
   ].filter(d => d.value > 0);
 
   const overviewTiles = [
     { icon: BookOpen, label: 'Total Records', value: overall.totalRecords.toLocaleString(), color: 'text-primary bg-primary/10' },
     { icon: CalendarCheck2, label: 'Present', value: overall.present.toLocaleString(), color: 'text-success bg-success/10' },
     { icon: CalendarX2, label: 'Absent', value: overall.absent.toLocaleString(), color: 'text-destructive bg-destructive/10' },
-    { icon: Timer, label: 'Late', value: overall.late.toLocaleString(), color: 'text-warning bg-warning/10' },
-    { icon: Plane, label: 'Leave', value: overall.leave.toLocaleString(), color: 'text-blue-500 bg-blue-500/10' },
     { icon: Percent, label: 'Attendance Rate', value: `${overall.percentage}%`, color: 'text-primary bg-primary/10' },
   ];
 
@@ -89,7 +85,7 @@ export function AttendanceAnalyticsTab() {
       {/* Overview tiles */}
       <motion.div
         initial={false} animate={{ opacity: 1, y: 0 }}
-        className="grid grid-cols-3 sm:grid-cols-6 gap-2"
+        className="grid grid-cols-2 sm:grid-cols-4 gap-2"
       >
         {overviewTiles.map(tile => (
           <div key={tile.label} className="rounded-xl border border-border bg-card p-3 text-center shadow-sm">

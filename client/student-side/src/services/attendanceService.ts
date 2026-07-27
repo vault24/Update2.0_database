@@ -21,7 +21,7 @@ export interface AttendanceRecord {
   date: string;
   isPresent: boolean;
   is_present?: boolean;   // Backend uses snake_case
-  attendance_type?: 'present' | 'absent' | 'late' | 'leave' | '';
+  attendance_type?: 'present' | 'absent' | '';
   status: 'draft' | 'pending' | 'approved' | 'rejected' | 'direct';
   recordedBy?: string;
   recorded_by?: string;   // Backend uses snake_case
@@ -68,7 +68,7 @@ export interface AttendanceCreateData {
   semester: number;
   date: string;
   isPresent: boolean;
-  attendanceType?: 'present' | 'absent' | 'late' | 'leave';
+  attendanceType?: 'present' | 'absent';
   status?: 'draft' | 'pending' | 'direct';
   notes?: string;
   classRoutineId?: string;
@@ -106,13 +106,13 @@ export interface StudentAttendanceProfile {
     session: string;
     status: string;
     profilePhoto: string | null;
+    gender?: string | null;
+    avatarVariant?: 'female' | 'default';
   };
   summary: {
     totalClasses: number;
     present: number;
     absent: number;
-    late: number;
-    leave: number;
     percentage: number;
   };
   monthly: Array<{
@@ -121,8 +121,6 @@ export interface StudentAttendanceProfile {
     total: number;
     present: number;
     absent: number;
-    late: number;
-    leave: number;
     percentage: number;
   }>;
   subjects: Array<{
@@ -131,8 +129,6 @@ export interface StudentAttendanceProfile {
     total: number;
     present: number;
     absent: number;
-    late: number;
-    leave: number;
     percentage: number;
   }>;
 }
@@ -151,11 +147,9 @@ export interface AttendanceRegister {
     student_id: string;
     name: string;
     roll: string;
-    cells: Record<string, 'present' | 'absent' | 'late' | 'leave'>;
+    cells: Record<string, 'present' | 'absent'>;
     present: number;
     absent: number;
-    late: number;
-    leave: number;
     total: number;
     percentage: number;
   }>;
@@ -167,8 +161,6 @@ export interface TeacherAnalytics {
     totalRecords: number;
     present: number;
     absent: number;
-    late: number;
-    leave: number;
     percentage: number;
   };
   monthlyTrend: Array<{ key: string; label: string; total: number; present: number; absent: number; percentage: number }>;
@@ -450,6 +442,8 @@ export const attendanceService = {
         absent: number;
         total: number;
         percentage: number;
+        gender?: string | null;
+        avatarVariant?: 'female' | 'default';
       }>;
     }>;
   }> => {

@@ -83,6 +83,8 @@ export interface Student {
   
   // Additional Information
   profilePhoto?: string;
+  /** 'female' → client must render the generic female avatar (privacy rule). */
+  avatarVariant?: 'female' | 'default';
   semesterResults?: SemesterResult[];
   semesterAttendance?: SemesterAttendance[];
   finalCgpa?: number | string | null;

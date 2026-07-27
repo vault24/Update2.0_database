@@ -109,4 +109,28 @@ export const marksService = {
   ): Promise<{ saved: number; errors: Array<{ index: number; student: string; error: string }>; records: MarksRecord[] }> => {
     return await apiClient.post('marks/bulk_upsert/', { records });
   },
+
+  /**
+   * Subject-wise historical performance analysis for the teacher's taught
+   * subjects (pass/fail %, average marks, attendance). Reuses marks + attendance.
+   */
+  getTeacherResultAnalysis: async (): Promise<{ subjects: TeacherSubjectResult[] }> => {
+    return await apiClient.get('marks/teacher_result_analysis/');
+  },
 };
+
+export interface TeacherSubjectResult {
+  subject_code: string;
+  subject_name: string;
+  semester: number | null;
+  total_students: number;
+  evaluated: number;
+  passed: number;
+  failed: number;
+  pass_percentage: number;
+  fail_percentage: number;
+  average_percentage: number;
+  attendance_percentage: number;
+  attendance_present: number;
+  attendance_total: number;
+}

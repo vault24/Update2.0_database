@@ -120,7 +120,10 @@ export function DashboardLayout() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold">{user?.name || 'User'}</p>
                     <p className="truncate text-xs text-muted-foreground">
-                      {user?.studentId || user?.email}
+                      {/* Teachers have no student ID — showing it rendered an
+                          unexplained number. Show their email (their real
+                          identifier) instead; students keep their student ID. */}
+                      {user?.role === 'teacher' ? user?.email : (user?.studentId || user?.email)}
                     </p>
                     <span
                       className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[0.7rem] font-semibold ${roleBadge.color}`}

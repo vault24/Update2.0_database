@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
-  User, Loader2, AlertCircle, CalendarCheck2, CalendarX2, Timer, Plane, Percent, BookOpen,
+  User, Loader2, AlertCircle, CalendarCheck2, CalendarX2, Percent, BookOpen,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
+import { StudentAvatar } from '@/components/StudentAvatar';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
 } from 'recharts';
@@ -52,8 +52,6 @@ export function StudentAttendanceProfileDialog({ studentId, open, onOpenChange }
     { icon: BookOpen, label: 'Total Classes', value: profile.summary.totalClasses, color: 'text-primary bg-primary/10' },
     { icon: CalendarCheck2, label: 'Present', value: profile.summary.present, color: 'text-success bg-success/10' },
     { icon: CalendarX2, label: 'Absent', value: profile.summary.absent, color: 'text-destructive bg-destructive/10' },
-    { icon: Timer, label: 'Late', value: profile.summary.late, color: 'text-warning bg-warning/10' },
-    { icon: Plane, label: 'Leave', value: profile.summary.leave, color: 'text-blue-500 bg-blue-500/10' },
     { icon: Percent, label: 'Attendance', value: `${profile.summary.percentage}%`, color: 'text-primary bg-primary/10' },
   ] : [];
 
@@ -80,15 +78,14 @@ export function StudentAttendanceProfileDialog({ studentId, open, onOpenChange }
           <div className="space-y-5">
             {/* Student header */}
             <div className="flex items-center gap-4 p-4 rounded-xl bg-secondary/40 border border-border">
-              <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden flex-shrink-0">
-                {profile.student.profilePhoto ? (
-                  <img src={profile.student.profilePhoto} alt={profile.student.name} className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-lg font-bold text-primary">
-                    {profile.student.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                  </span>
-                )}
-              </div>
+              <StudentAvatar
+                name={profile.student.name}
+                gender={profile.student.gender}
+                avatarVariant={profile.student.avatarVariant}
+                photoUrl={profile.student.profilePhoto}
+                size="lg"
+                className="w-14 h-14"
+              />
               <div className="min-w-0 flex-1">
                 <p className="font-bold text-base truncate">{profile.student.name}</p>
                 <div className="flex items-center gap-2 flex-wrap mt-1">
@@ -108,7 +105,7 @@ export function StudentAttendanceProfileDialog({ studentId, open, onOpenChange }
             </div>
 
             {/* Summary tiles */}
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {summaryItems.map(item => (
                 <div key={item.label} className="rounded-xl border border-border bg-card p-3 text-center">
                   <div className={cn('w-8 h-8 rounded-lg mx-auto flex items-center justify-center mb-1.5', item.color)}>
@@ -155,9 +152,7 @@ export function StudentAttendanceProfileDialog({ studentId, open, onOpenChange }
                         <div className="min-w-0">
                           <p className="font-medium text-sm truncate">{subject.subject_name}</p>
                           <p className="text-xs text-muted-foreground">
-                            {subject.subject_code} · {subject.present}/{subject.total} present
-                            {subject.late > 0 && ` · ${subject.late} late`}
-                            {subject.leave > 0 && ` · ${subject.leave} leave`}
+                            {subject.subject_code} · {subject.present}/{subject.total} present · {subject.absent} absent
                           </p>
                         </div>
                         <span className={cn('font-bold text-sm flex-shrink-0', pctColor(subject.percentage))}>

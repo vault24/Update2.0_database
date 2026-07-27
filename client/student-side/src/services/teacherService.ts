@@ -150,6 +150,25 @@ export const teacherService = {
     return await api.patch<TeacherProfile>(`teachers/${id}/update_profile/`, data);
   },
 
+  /**
+   * Upload the teacher's profile photo as a file (persists to the DB).
+   * Returns the updated record incl. the stored `profilePhoto` path.
+   */
+  uploadPhoto: async (id: string, file: File): Promise<{ profilePhoto?: string; coverPhoto?: string }> => {
+    const form = new FormData();
+    form.append('photo', file);
+    return await api.post(`teachers/${id}/upload_photo/`, form, true);
+  },
+
+  /**
+   * Upload the teacher's cover photo as a file (persists to the DB).
+   */
+  uploadCover: async (id: string, file: File): Promise<{ profilePhoto?: string; coverPhoto?: string }> => {
+    const form = new FormData();
+    form.append('photo', file);
+    return await api.post(`teachers/${id}/upload_cover/`, form, true);
+  },
+
   // Experience methods
   addExperience: async (teacherId: string, data: Experience): Promise<Experience> => {
     return await api.post<Experience>(`teachers/${teacherId}/add_experience/`, data);

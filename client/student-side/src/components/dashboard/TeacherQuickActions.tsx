@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { 
   ClipboardCheck, Users, FileText, BookOpen, 
-  Calendar, Shield, PenTool, Bell
+  Calendar, PenTool, Bell
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -46,14 +46,6 @@ const actions = [
     color: 'from-pink-500 to-rose-600',
     bgColor: 'bg-pink-500/10',
     description: 'Schedule classes'
-  },
-  { 
-    icon: Shield, 
-    label: 'Allegations', 
-    path: '/dashboard/allegations',
-    color: 'from-red-500 to-orange-600',
-    bgColor: 'bg-red-500/10',
-    description: 'Report issues'
   },
 ];
 

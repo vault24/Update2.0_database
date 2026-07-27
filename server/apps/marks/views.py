@@ -231,3 +231,90 @@ class MarksViewSet(viewsets.ModelViewSet):
         
         serializer = MarksRecordSerializer(marks, many=True)
         return Response({'marks': serializer.data})
+
+    @action(detail=False, methods=['get'])
+    def teacher_result_analysis(self, request):
+        """
+        Subject-wise historical performance for the subjects a teacher has
+        taught. Reuses existing marks + attendance data (no new storage).
+
+        For each (subject, semester) the teacher has marks for, aggregates each
+        student's total obtained/total across all exam types → percentage, and
+        counts pass (≥40%) / fail. Attendance % is pulled from the same
+        teacher-scoped attendance records.
+
+        GET /api/marks/teacher_result_analysis/
+        """
+        from collections import defaultdict
+        user = request.user
+        is_admin = user.is_superuser or getattr(user, 'role', None) in MARKS_FULL_ROLES
+        if not is_admin and _resolve_teacher_id(user) is None:
+            return Response({'error': 'Teacher profile not found'}, status=status.HTTP_403_FORBIDDEN)
+
+        PASS_MARK = 40.0
+
+        marks = scope_marks_queryset(
+            MarksRecord.objects.select_related('student'), user
+        )
+
+        subjects = {}
+        for m in marks:
+            key = (m.subject_code or '', m.semester)
+            grp = subjects.setdefault(key, {
+                'subject_code': m.subject_code or '',
+                'subject_name': m.subject_name or '',
+                'semester': m.semester,
+                'students': defaultdict(lambda: {'obtained': 0.0, 'total': 0.0}),
+            })
+            if not grp['subject_name'] and m.subject_name:
+                grp['subject_name'] = m.subject_name
+            st = grp['students'][str(m.student_id)]
+            st['obtained'] += float(m.marks_obtained or 0)
+            st['total'] += float(m.total_marks or 0)
+
+        # Attendance %, reusing the teacher-scoped attendance queryset.
+        from apps.attendance.models import AttendanceRecord
+        from apps.attendance.views import scope_attendance_queryset, VERIFIED_STATUSES
+
+        results = []
+        for (code, sem), grp in subjects.items():
+            graded = 0
+            passed = 0
+            pct_sum = 0.0
+            for _sid, v in grp['students'].items():
+                if v['total'] > 0:
+                    pct = v['obtained'] / v['total'] * 100
+                    graded += 1
+                    pct_sum += pct
+                    if pct >= PASS_MARK:
+                        passed += 1
+            failed = graded - passed
+            avg_pct = round(pct_sum / graded, 1) if graded else 0
+            pass_pct = round(passed / graded * 100, 1) if graded else 0
+            fail_pct = round(failed / graded * 100, 1) if graded else 0
+
+            att_qs = scope_attendance_queryset(AttendanceRecord.objects.all(), user).filter(
+                subject_code=code, semester=sem, status__in=VERIFIED_STATUSES,
+            )
+            att_total = att_qs.count()
+            att_present = att_qs.filter(is_present=True).count()
+            att_pct = round(att_present / att_total * 100, 1) if att_total else 0
+
+            results.append({
+                'subject_code': grp['subject_code'],
+                'subject_name': grp['subject_name'],
+                'semester': sem,
+                'total_students': len(grp['students']),
+                'evaluated': graded,
+                'passed': passed,
+                'failed': failed,
+                'pass_percentage': pass_pct,
+                'fail_percentage': fail_pct,
+                'average_percentage': avg_pct,
+                'attendance_percentage': att_pct,
+                'attendance_present': att_present,
+                'attendance_total': att_total,
+            })
+
+        results.sort(key=lambda r: (r['semester'] or 0, r['subject_code']))
+        return Response({'subjects': results})

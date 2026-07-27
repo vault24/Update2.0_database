@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, Loader2, AlertCircle, FileSpreadsheet, FileText, ChevronLeft, ChevronRight,
-  CheckCircle2, X, Timer, Plane, Eye, Trash2, Filter, CalendarRange, RefreshCw, Users,
+  CheckCircle2, X, Eye, Trash2, Filter, CalendarRange, RefreshCw, Users,
   BookOpen, ChevronDown, Grid3X3, ListChecks, History,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -47,10 +47,10 @@ type SubjectSummary = {
     student_roll: string;
     present: number;
     absent: number;
-    late?: number;
-    leave?: number;
     total: number;
     percentage: number;
+    gender?: string | null;
+    avatarVariant?: 'female' | 'default';
   }>;
 };
 
@@ -60,27 +60,11 @@ const pctColor = (pct: number) =>
 const CELL_STYLES: Record<string, { label: string; cls: string }> = {
   present: { label: 'P', cls: 'bg-success/15 text-success' },
   absent: { label: 'A', cls: 'bg-destructive/15 text-destructive' },
-  late: { label: 'L', cls: 'bg-warning/15 text-warning' },
-  leave: { label: 'Lv', cls: 'bg-blue-500/15 text-blue-500' },
 };
 
 const shortDate = (iso: string) => {
   const [, m, d] = iso.split('-');
   return `${d}/${m}`;
-};
-
-const typeBadge = (record: AttendanceRecord) => {
-  const type = record.attendance_type || (record.isPresent ? 'present' : 'absent');
-  switch (type) {
-    case 'present':
-      return <Badge className="bg-success/10 text-success border-success/20 gap-1" variant="outline"><CheckCircle2 className="w-3 h-3" />Present</Badge>;
-    case 'late':
-      return <Badge className="bg-warning/10 text-warning border-warning/20 gap-1" variant="outline"><Timer className="w-3 h-3" />Late</Badge>;
-    case 'leave':
-      return <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20 gap-1" variant="outline"><Plane className="w-3 h-3" />Leave</Badge>;
-    default:
-      return <Badge className="bg-destructive/10 text-destructive border-destructive/20 gap-1" variant="outline"><X className="w-3 h-3" />Absent</Badge>;
-  }
 };
 
 export function AttendanceRecordsTab() {
@@ -299,15 +283,15 @@ export function AttendanceRecordsTab() {
     setRegisterError(null);
   };
 
+  // Attendance is Present/Absent only — tapping a record's status flips it.
   const cycleType = async (record: AttendanceRecord) => {
-    const order: Array<'present' | 'late' | 'leave' | 'absent'> = ['present', 'late', 'leave', 'absent'];
-    const current = (record.attendance_type || (record.isPresent ? 'present' : 'absent')) as typeof order[number];
-    const next = order[(order.indexOf(current) + 1) % order.length];
+    const currentlyPresent = record.attendance_type ? record.attendance_type === 'present' : record.isPresent;
+    const next: 'present' | 'absent' = currentlyPresent ? 'absent' : 'present';
     try {
       setProcessingId(record.id);
-      await attendanceService.updateAttendance(record.id, { attendanceType: next, isPresent: next === 'present' || next === 'late' });
+      await attendanceService.updateAttendance(record.id, { attendanceType: next, isPresent: next === 'present' });
       setRecords(prev => prev.map(r => r.id === record.id
-        ? { ...r, attendance_type: next, isPresent: next === 'present' || next === 'late' }
+        ? { ...r, attendance_type: next, isPresent: next === 'present' }
         : r));
       toast.success(`Marked ${next}`);
       fetchRegister();
@@ -783,63 +767,60 @@ export function AttendanceRecordsTab() {
                   <p className="font-medium">No records found</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-secondary/50">
-                      <tr>
-                        <th className="text-left p-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Date</th>
-                        <th className="text-left p-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Student</th>
-                        <th className="text-center p-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Attendance</th>
-                        <th className="text-right p-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {records.map(record => (
-                        <tr key={record.id} className="hover:bg-secondary/30 transition-colors">
-                          <td className="p-3 whitespace-nowrap text-xs md:text-sm">{record.date}</td>
-                          <td className="p-3">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <span className="inline-flex items-center justify-center min-w-[2.75rem] px-1.5 py-1 rounded-lg bg-primary/10 text-primary font-bold text-xs tabular-nums flex-shrink-0">
-                                {record.studentRoll || '—'}
-                              </span>
-                              <p className="font-medium truncate max-w-[140px] md:max-w-[240px]">{record.studentName}</p>
-                            </div>
-                          </td>
-                          <td className="p-3 text-center">
-                            <button
-                              onClick={() => cycleType(record)}
-                              disabled={processingId === record.id}
-                              title="Click to change status"
-                              className="disabled:opacity-50"
-                            >
-                              {processingId === record.id
-                                ? <Loader2 className="w-4 h-4 animate-spin mx-auto" />
-                                : typeBadge(record)}
-                            </button>
-                          </td>
-                          <td className="p-3">
-                            <div className="flex items-center justify-end gap-1">
-                              <Button
-                                variant="ghost" size="icon-sm" title="View student profile"
-                                onClick={() => { setProfileStudentId(record.student); setProfileOpen(true); }}
-                                className="h-8 w-8"
-                              >
-                                <Eye className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="ghost" size="icon-sm" title="Delete record"
-                                onClick={() => setDeleteTarget(record)}
-                                className="h-8 w-8 text-destructive hover:text-destructive"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <>
+                  <p className="px-3.5 pt-3 text-[11px] text-muted-foreground">
+                    Tap a student's <span className="font-semibold text-success">P</span> /
+                    <span className="font-semibold text-destructive"> A</span> badge to switch between Present and Absent.
+                  </p>
+                  {/* Register-style compact list: same P/A interaction as the
+                      register, one row per record, touch-friendly toggle. */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 p-3">
+                    {records.map(record => {
+                      const present = record.attendance_type ? record.attendance_type === 'present' : record.isPresent;
+                      const busy = processingId === record.id;
+                      return (
+                        <div
+                          key={record.id}
+                          className="flex items-center gap-2.5 rounded-xl border border-border bg-card p-2.5 shadow-sm"
+                        >
+                          <span className="inline-flex items-center justify-center min-w-[2.75rem] px-1.5 py-1 rounded-lg bg-primary/10 text-primary font-bold text-xs tabular-nums flex-shrink-0">
+                            {record.studentRoll || '—'}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-sm truncate">{record.studentName}</p>
+                            <p className="text-[11px] text-muted-foreground">{record.date}</p>
+                          </div>
+                          {/* Big P/A toggle */}
+                          <button
+                            onClick={() => cycleType(record)}
+                            disabled={busy}
+                            title="Tap to switch Present / Absent"
+                            className={cn(
+                              'w-11 h-11 rounded-xl flex items-center justify-center font-bold text-base transition-all active:scale-95 disabled:opacity-50 shrink-0',
+                              present ? 'bg-success/15 text-success' : 'bg-destructive/15 text-destructive'
+                            )}
+                          >
+                            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : present ? 'P' : 'A'}
+                          </button>
+                          <Button
+                            variant="ghost" size="icon-sm" title="View student profile"
+                            onClick={() => { setProfileStudentId(record.student); setProfileOpen(true); }}
+                            className="h-9 w-9 shrink-0"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost" size="icon-sm" title="Delete record"
+                            onClick={() => setDeleteTarget(record)}
+                            className="h-9 w-9 shrink-0 text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
               )}
 
               {!loadingRecords && recordsCount > PAGE_SIZE && (

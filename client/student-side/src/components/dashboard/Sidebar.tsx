@@ -66,7 +66,6 @@ const mainMenuItems: MenuItem[] = [
   { icon: BookOpen, label: 'Manage Marks', path: '/dashboard/manage-marks', roles: ['teacher'] },
   { icon: GraduationCap, label: 'Board Results', path: '/dashboard/board-results', roles: ['teacher'] },
   { icon: Mail, label: 'Class Emails', path: '/dashboard/class-email', roles: ['teacher'] },
-  { icon: Shield, label: 'Allegations', path: '/dashboard/allegations', roles: ['teacher'] },
 ];
 
 // "Upcoming" group items

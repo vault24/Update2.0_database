@@ -1,9 +1,9 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform, PanInfo } from 'framer-motion';
-import { 
+import {
   ClipboardCheck, Calendar, Users, Check, X, Clock, Search, ChevronRight, History,
-  CheckCircle2, AlertCircle, RotateCcw, Save, ChevronLeft, UserCheck, UserX, Timer,
-  TrendingUp, Filter, Sparkles, BarChart3, Eye, Undo2, Loader2, BookOpen
+  CheckCircle2, AlertCircle, RotateCcw, Save, ChevronLeft, UserCheck, UserX,
+  Filter, Sparkles, BarChart3, Eye, Undo2, Loader2, BookOpen
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,8 +21,9 @@ import { routineService, type ClassRoutine, type DayOfWeek } from '@/services/ro
 import { getErrorMessage } from '@/lib/api';
 import { AttendanceRecordsTab } from '@/components/attendance/AttendanceRecordsTab';
 import { AttendanceAnalyticsTab } from '@/components/attendance/AttendanceAnalyticsTab';
+import { StudentAvatar } from '@/components/StudentAvatar';
 
-type AttendanceStatusType = 'present' | 'absent' | 'late' | 'unmarked';
+type AttendanceStatusType = 'present' | 'absent' | 'unmarked';
 
 interface StudentAttendance extends Student {
   attendanceStatus: AttendanceStatusType;
@@ -54,7 +55,6 @@ function SwipeableStudentCard({
     switch (status) {
       case 'present': return 'border-success bg-success/5';
       case 'absent': return 'border-destructive bg-destructive/5';
-      case 'late': return 'border-warning bg-warning/5';
       default: return 'border-border';
     }
   };
@@ -63,7 +63,6 @@ function SwipeableStudentCard({
     switch (status) {
       case 'present': return <CheckCircle2 className="w-5 h-5 text-success" />;
       case 'absent': return <X className="w-5 h-5 text-destructive" />;
-      case 'late': return <Clock className="w-5 h-5 text-warning" />;
       default: return null;
     }
   };
@@ -78,9 +77,14 @@ function SwipeableStudentCard({
         className={cn("relative bg-card rounded-xl border-2 p-3 cursor-grab active:cursor-grabbing transition-colors", getStatusStyles(student.attendanceStatus))}>
         <div className="flex items-center gap-3">
           <div className="relative">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary/30 to-primary/10 flex items-center justify-center text-primary font-bold text-sm">
-              {student.fullNameEnglish.split(' ').map(n => n[0]).join('').slice(0, 2)}
-            </div>
+            <StudentAvatar
+              name={student.fullNameEnglish}
+              gender={student.gender}
+              avatarVariant={student.avatarVariant}
+              photoUrl={student.profilePhoto}
+              size="lg"
+              className="w-12 h-12"
+            />
             {student.attendanceStatus !== 'unmarked' && (
               <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-card border-2 border-card flex items-center justify-center">
                 {getStatusIcon(student.attendanceStatus)}
@@ -93,21 +97,16 @@ function SwipeableStudentCard({
               <Badge variant="secondary" className="text-xs px-2">Roll: {student.currentRollNumber}</Badge>
             </div>
           </div>
-          <div className="flex gap-1.5">
+          <div className="flex gap-2">
             <motion.button whileTap={{ scale: 0.9 }} onClick={() => onMarkAttendance(student.id, 'present')}
-              className={cn("w-11 h-11 rounded-xl flex items-center justify-center transition-all touch-button",
+              className={cn("w-12 h-12 rounded-xl flex items-center justify-center transition-all touch-button",
                 student.attendanceStatus === 'present' ? "bg-success text-success-foreground shadow-lg shadow-success/30" : "bg-success/10 text-success hover:bg-success/20 active:bg-success/30")}>
               <UserCheck className="w-5 h-5" />
             </motion.button>
             <motion.button whileTap={{ scale: 0.9 }} onClick={() => onMarkAttendance(student.id, 'absent')}
-              className={cn("w-11 h-11 rounded-xl flex items-center justify-center transition-all touch-button",
+              className={cn("w-12 h-12 rounded-xl flex items-center justify-center transition-all touch-button",
                 student.attendanceStatus === 'absent' ? "bg-destructive text-destructive-foreground shadow-lg shadow-destructive/30" : "bg-destructive/10 text-destructive hover:bg-destructive/20 active:bg-destructive/30")}>
               <UserX className="w-5 h-5" />
-            </motion.button>
-            <motion.button whileTap={{ scale: 0.9 }} onClick={() => onMarkAttendance(student.id, 'late')}
-              className={cn("w-11 h-11 rounded-xl flex items-center justify-center transition-all touch-button",
-                student.attendanceStatus === 'late' ? "bg-warning text-warning-foreground shadow-lg shadow-warning/30" : "bg-warning/10 text-warning hover:bg-warning/20 active:bg-warning/30")}>
-              <Timer className="w-5 h-5" />
             </motion.button>
           </div>
         </div>
@@ -118,7 +117,10 @@ function SwipeableStudentCard({
 
 export default function TeacherAttendancePage() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'take' | 'pending' | 'records' | 'analytics'>('take');
+  const [activeTab, setActiveTab] = useState<'take' | 'records' | 'analytics'>('take');
+  // Pending approvals now live behind a compact header button + dialog rather
+  // than a primary tab, keeping the main nav focused on Take / Records / Analysis.
+  const [pendingOpen, setPendingOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState<Step>('setup');
   
   // Setup state
@@ -172,11 +174,17 @@ export default function TeacherAttendancePage() {
     fetchTodayRoutines();
   }, [selectedDate]);
 
+  // Load pending once on mount so the header badge shows a live count, and
+  // refresh whenever the pending dialog is opened.
   useEffect(() => {
-    if (activeTab === 'pending') {
+    fetchPending();
+  }, []);
+
+  useEffect(() => {
+    if (pendingOpen) {
       fetchPending();
     }
-  }, [activeTab]);
+  }, [pendingOpen]);
 
   const fetchTodayRoutines = async () => {
     try {
@@ -308,6 +316,8 @@ export default function TeacherAttendancePage() {
     return Object.values(groups).sort((a, b) => b.date.localeCompare(a.date));
   }, [pendingRecords]);
 
+  const pendingCount = groupedPendingSubmissions.length;
+
   const loadStudents = async () => {
     if (!selectedRoutine) return;
     
@@ -380,11 +390,10 @@ export default function TeacherAttendancePage() {
   const counts = useMemo(() => {
     const present = students.filter(s => s.attendanceStatus === 'present').length;
     const absent = students.filter(s => s.attendanceStatus === 'absent').length;
-    const late = students.filter(s => s.attendanceStatus === 'late').length;
     const unmarked = students.filter(s => s.attendanceStatus === 'unmarked').length;
     const total = students.length;
     const percentage = total > 0 ? Math.round((present / total) * 100) : 0;
-    return { present, absent, late, unmarked, total, percentage };
+    return { present, absent, unmarked, total, percentage };
   }, [students]);
 
   const filteredStudents = useMemo(() => {
@@ -420,8 +429,8 @@ export default function TeacherAttendancePage() {
         subjectName: freshRoutine.subject_name,
         semester: freshRoutine.semester,
         date: selectedDate,
-        isPresent: student.attendanceStatus === 'present' || student.attendanceStatus === 'late',
-        attendanceType: student.attendanceStatus === 'unmarked' ? 'absent' : student.attendanceStatus,
+        isPresent: student.attendanceStatus === 'present',
+        attendanceType: student.attendanceStatus === 'present' ? 'present' : 'absent',
         status: 'direct',
         classRoutineId: freshRoutine.id,
         recordedBy: user?.id,
@@ -443,7 +452,7 @@ export default function TeacherAttendancePage() {
       }
       
       toast.success('Attendance submitted successfully!', {
-        description: `${counts.present} present, ${counts.absent} absent, ${counts.late} late`
+        description: `${counts.present} present, ${counts.absent} absent`
       });
       
       // Mark the current routine as completed immediately
@@ -561,9 +570,9 @@ export default function TeacherAttendancePage() {
         <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
           <ClipboardCheck className="w-7 h-7 text-primary" />
         </div>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <h1 className="text-xl md:text-2xl font-bold">Manage Attendance</h1>
-          <p className="text-sm text-muted-foreground">Take attendance, review records, analyze and export</p>
+          <p className="text-sm text-muted-foreground hidden sm:block">Take attendance, review records, analyze and export</p>
         </div>
         {currentStep === 'marking' && (
           <div className="text-right">
@@ -571,16 +580,26 @@ export default function TeacherAttendancePage() {
             <p className="text-xs text-muted-foreground">Present</p>
           </div>
         )}
+        {/* Compact Pending-approvals launcher with live count badge */}
+        <button
+          type="button"
+          onClick={() => setPendingOpen(true)}
+          aria-label={`Pending approvals${pendingCount ? ` (${pendingCount})` : ''}`}
+          className="relative shrink-0 w-12 h-12 rounded-2xl border border-border bg-card flex items-center justify-center hover:bg-secondary/60 active:scale-95 transition"
+        >
+          <History className="w-5 h-5 text-primary" />
+          {pendingCount > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 min-w-5 h-5 px-1 rounded-full bg-destructive text-destructive-foreground text-[11px] font-bold flex items-center justify-center">
+              {pendingCount > 99 ? '99+' : pendingCount}
+            </span>
+          )}
+        </button>
       </motion.div>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-        <TabsList className="w-full grid grid-cols-4 h-12">
+        <TabsList className="w-full grid grid-cols-3 h-12">
           <TabsTrigger value="take" className="gap-1.5 h-10 px-1.5 md:px-3">
             <ClipboardCheck className="w-4 h-4 flex-shrink-0" /><span className="truncate">Take</span>
-          </TabsTrigger>
-          <TabsTrigger value="pending" className="gap-1.5 h-10 px-1.5 md:px-3">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" /><span className="truncate">Pending</span>
-            {groupedPendingSubmissions.length > 0 && <Badge variant="destructive" className="ml-0.5 px-1.5">{groupedPendingSubmissions.length}</Badge>}
           </TabsTrigger>
           <TabsTrigger value="records" className="gap-1.5 h-10 px-1.5 md:px-3">
             <Eye className="w-4 h-4 flex-shrink-0" /><span className="truncate">Records</span>
@@ -697,11 +716,10 @@ export default function TeacherAttendancePage() {
                   
                   <div className="h-3 bg-secondary rounded-full overflow-hidden flex mb-3">
                     <motion.div className="bg-success h-full" initial={false} animate={{ width: `${(counts.present / counts.total) * 100}%` }} transition={{ duration: 0.3 }} />
-                    <motion.div className="bg-warning h-full" initial={false} animate={{ width: `${(counts.late / counts.total) * 100}%` }} transition={{ duration: 0.3 }} />
                     <motion.div className="bg-destructive h-full" initial={false} animate={{ width: `${(counts.absent / counts.total) * 100}%` }} transition={{ duration: 0.3 }} />
                   </div>
 
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     <div className="text-center p-2 rounded-xl bg-secondary/50">
                       <p className="text-lg font-bold">{counts.total}</p>
                       <p className="text-xs text-muted-foreground">Total</p>
@@ -713,10 +731,6 @@ export default function TeacherAttendancePage() {
                     <div className="text-center p-2 rounded-xl bg-destructive/10">
                       <p className="text-lg font-bold text-destructive">{counts.absent}</p>
                       <p className="text-xs text-destructive">Absent</p>
-                    </div>
-                    <div className="text-center p-2 rounded-xl bg-warning/10">
-                      <p className="text-lg font-bold text-warning">{counts.late}</p>
-                      <p className="text-xs text-warning">Late</p>
                     </div>
                   </div>
                 </div>
@@ -800,7 +814,7 @@ export default function TeacherAttendancePage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 gap-3">
                     <div className="bg-success/10 rounded-xl p-4 text-center border border-success/20">
                       <p className="text-4xl font-bold text-success">{counts.present}</p>
                       <p className="text-sm text-success font-medium">Present</p>
@@ -808,10 +822,6 @@ export default function TeacherAttendancePage() {
                     <div className="bg-destructive/10 rounded-xl p-4 text-center border border-destructive/20">
                       <p className="text-4xl font-bold text-destructive">{counts.absent}</p>
                       <p className="text-sm text-destructive font-medium">Absent</p>
-                    </div>
-                    <div className="bg-warning/10 rounded-xl p-4 text-center border border-warning/20">
-                      <p className="text-4xl font-bold text-warning">{counts.late}</p>
-                      <p className="text-sm text-warning font-medium">Late</p>
                     </div>
                   </div>
 
@@ -848,7 +858,15 @@ export default function TeacherAttendancePage() {
           </AnimatePresence>
         </TabsContent>
 
-        <TabsContent value="pending" className="mt-4">
+        <Dialog open={pendingOpen} onOpenChange={setPendingOpen}>
+          <DialogContent className="max-w-3xl w-[calc(100vw-1.5rem)] max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+            <DialogHeader className="text-left">
+              <DialogTitle className="flex items-center gap-2">
+                <History className="w-5 h-5 text-primary" />
+                Pending Approvals
+                {pendingCount > 0 && <Badge variant="destructive" className="ml-1">{pendingCount}</Badge>}
+              </DialogTitle>
+            </DialogHeader>
           {loadingPending ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -1118,7 +1136,8 @@ export default function TeacherAttendancePage() {
               </div>
             </>
           )}
-        </TabsContent>
+          </DialogContent>
+        </Dialog>
 
         <TabsContent value="records" className="mt-4">
           <AttendanceRecordsTab />

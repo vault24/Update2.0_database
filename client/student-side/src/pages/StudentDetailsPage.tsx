@@ -8,7 +8,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { StudentAvatar } from '@/components/StudentAvatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -258,23 +258,21 @@ export default function StudentDetailsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Student Details</h1>
-            <p className="text-muted-foreground">View student information (Read-only)</p>
-          </div>
+      <div className="flex items-center gap-2 sm:gap-4">
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="shrink-0">
+          <ArrowLeft className="w-5 h-5" />
+        </Button>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">Student Details</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground truncate">View student information (Read-only)</p>
         </div>
-        <Button 
-          onClick={() => setIsCorrectionDialogOpen(true)} 
-          className="gradient-primary text-primary-foreground"
+        <Button
+          onClick={() => setIsCorrectionDialogOpen(true)}
+          className="gradient-primary text-primary-foreground shrink-0"
           disabled={!student}
         >
-          <AlertCircle className="w-4 h-4 mr-2" />
-          Request Correction
+          <AlertCircle className="w-4 h-4 sm:mr-2" />
+          <span className="hidden sm:inline">Request Correction</span>
         </Button>
       </div>
 
@@ -289,12 +287,14 @@ export default function StudentDetailsPage() {
               {/* Profile Photo */}
               <div className="flex flex-col items-center lg:items-start">
                 <div className="relative">
-                  <Avatar className="w-40 h-40 border-4 border-primary/20 ring-4 ring-primary/10">
-                    <AvatarImage src={student.profilePhoto} />
-                    <AvatarFallback className="gradient-primary text-primary-foreground text-4xl">
-                      {student.fullNameEnglish.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                    </AvatarFallback>
-                  </Avatar>
+                  <StudentAvatar
+                    name={student.fullNameEnglish}
+                    gender={student.gender}
+                    avatarVariant={student.avatarVariant}
+                    photoUrl={student.profilePhoto}
+                    size="xl"
+                    className="w-40 h-40 border-4 border-primary/20 ring-4 ring-primary/10 text-4xl"
+                  />
                   <Badge 
                     className={`absolute -bottom-2 left-1/2 -translate-x-1/2 ${getStatusColor(student.status)}`}
                   >

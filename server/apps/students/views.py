@@ -93,9 +93,11 @@ def scope_students_queryset(qs, user):
         from apps.class_routines.models import ClassRoutine
         cohorts = list(ClassRoutine.objects.filter(teacher_id=tid)
                        .values_list('department_id', 'semester', 'shift').distinct())
-        if not cohorts:
-            return qs.none()
-        q = Q()
+        # Teachers may see EVERY alumnus (graduated student), any department —
+        # graduated cohorts no longer match a teacher's current classes, so the
+        # Alumni list would otherwise be almost empty. Active students stay
+        # scoped to the cohorts the teacher actually teaches.
+        q = Q(status='graduated')
         for dept_id, sem, shift in cohorts:
             q |= Q(department_id=dept_id, semester=sem, shift=shift)
         return qs.filter(q)
@@ -191,7 +193,7 @@ class StudentViewSet(viewsets.ModelViewSet):
         
         # Return complete student data
         student = Student.objects.get(pk=serializer.instance.pk)
-        response_serializer = StudentDetailSerializer(student)
+        response_serializer = StudentDetailSerializer(student, context={'request': request})
         
         return Response(
             response_serializer.data,
@@ -218,7 +220,7 @@ class StudentViewSet(viewsets.ModelViewSet):
         
         # Return complete student data
         student = Student.objects.get(pk=instance.pk)
-        response_serializer = StudentDetailSerializer(student)
+        response_serializer = StudentDetailSerializer(student, context={'request': request})
         
         return Response(response_serializer.data)
     
@@ -279,10 +281,10 @@ class StudentViewSet(viewsets.ModelViewSet):
         # Paginate results
         page = self.paginate_queryset(students)
         if page is not None:
-            serializer = StudentListSerializer(page, many=True)
+            serializer = StudentListSerializer(page, many=True, context={'request': request})
             return self.get_paginated_response(serializer.data)
         
-        serializer = StudentListSerializer(students, many=True)
+        serializer = StudentListSerializer(students, many=True, context={'request': request})
         return Response(serializer.data)
     
     @action(detail=False, methods=['get'])
@@ -310,7 +312,7 @@ class StudentViewSet(viewsets.ModelViewSet):
             Q(currentRegistrationNumber__icontains=query)
         )
         
-        serializer = StudentListSerializer(students, many=True)
+        serializer = StudentListSerializer(students, many=True, context={'request': request})
         return Response(serializer.data)
     
     @action(detail=False, methods=['get'], permission_classes=[AllowAny])
@@ -492,7 +494,7 @@ class StudentViewSet(viewsets.ModelViewSet):
             student.save()
             
             # Return updated student
-            serializer = StudentDetailSerializer(student)
+            serializer = StudentDetailSerializer(student, context={'request': request})
             return Response(serializer.data)
             
         except Exception as e:
@@ -665,7 +667,7 @@ class StudentViewSet(viewsets.ModelViewSet):
         student.save()
         
         # Return updated student
-        serializer = StudentDetailSerializer(student)
+        serializer = StudentDetailSerializer(student, context={'request': request})
         return Response(serializer.data)
     
     @action(detail=True, methods=['get'])
@@ -882,7 +884,7 @@ class StudentViewSet(viewsets.ModelViewSet):
         student.save()
         
         # Return updated student data
-        serializer = StudentDetailSerializer(student)
+        serializer = StudentDetailSerializer(student, context={'request': request})
         return Response({
             'message': 'Semester results updated successfully',
             'student': serializer.data,

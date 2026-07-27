@@ -679,24 +679,44 @@ export default function ClassRoutine() {
   };
 
   const parseValidationErrors = (error: any): Record<string, string[]> => {
-    if (typeof error === 'object' && error !== null) {
-      if (error.field_errors) {
-        return error.field_errors;
+    const messagesFrom = (value: unknown, messages: string[] = []): string[] => {
+      if (typeof value === 'string') {
+        messages.push(value);
+        return messages;
       }
-      if (error.operations && Array.isArray(error.operations)) {
-        const fieldErrors: Record<string, string[]> = {};
-        error.operations.forEach((op: any, index: number) => {
-          if (op.data && typeof op.data === 'object') {
-            Object.entries(op.data).forEach(([field, messages]) => {
-              const key = `operation_${index}_${field}`;
-              fieldErrors[key] = Array.isArray(messages) ? messages : [String(messages)];
-            });
-          }
-        });
-        return fieldErrors;
+      if (Array.isArray(value)) {
+        value.forEach(item => messagesFrom(item, messages));
+        return messages;
       }
+      if (!value || typeof value !== 'object') return messages;
+
+      const data = value as Record<string, unknown>;
+      // Conflict payloads have a human-readable message plus the affected
+      // teacher/room/time. Prefer that message and avoid rendering metadata.
+      if (typeof data.message === 'string') messages.push(data.message);
+      if (typeof data.detail === 'string') messages.push(data.detail);
+      ['conflicts', 'field_errors', 'errors', 'details', 'data', 'schedule_conflicts', 'non_field_errors'].forEach(key => {
+        if (data[key] !== undefined) messagesFrom(data[key], messages);
+      });
+      return messages;
+    };
+
+    if (!error || typeof error !== 'object') return {};
+    const result: Record<string, string[]> = {};
+    const operations = Array.isArray(error.operations) ? error.operations : Array.isArray(error.errors) ? error.errors : null;
+    if (operations) {
+      operations.forEach((operation: any, index: number) => {
+        const messages = messagesFrom(operation.details ?? operation.data ?? operation).filter(message =>
+          message !== 'Validation failed for create operation' && message !== 'Validation failed for update operation'
+        );
+        if (messages.length) result[`operation_${operation.operation_index ?? index}`] = [...new Set(messages)];
+      });
+      return result;
     }
-    return {};
+
+    const messages = messagesFrom(error).filter(message => !['Validation failed', 'All operations failed'].includes(message));
+    if (messages.length) result.routine = [...new Set(messages)];
+    return result;
   };
 
   const handleSaveRoutine = async () => {
@@ -743,10 +763,11 @@ export default function ClassRoutine() {
         if (saveResponse.errors && saveResponse.errors.length > 0) {
           const validationErrs = parseValidationErrors({ operations: saveResponse.errors });
           setValidationErrors(validationErrs);
+          const firstReason = Object.values(validationErrs).flat()[0];
           
           toast({
             title: 'Validation Errors',
-            description: `${saveResponse.errors.length} validation error(s) occurred. Please check the highlighted fields.`,
+            description: firstReason || `${saveResponse.errors.length} validation error(s) occurred. Please check the highlighted fields.`,
             variant: 'destructive',
           });
           return;
@@ -911,7 +932,7 @@ export default function ClassRoutine() {
               </Button>
               <Button
                 onClick={handleSaveRoutine}
-                               disabled={saving || loading}
+                disabled={saving}
               >
                 {saving ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -975,7 +996,7 @@ export default function ClassRoutine() {
               </Button>
               <Button
                 onClick={handleSaveRoutine}
-                               disabled={saving || loading}
+                disabled={saving}
               >
                 {saving ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -1549,7 +1570,10 @@ export default function ClassRoutine() {
             </Button>
             <Button
               onClick={handleSaveSlot}
-                           disabled={saving || (slotForm.subject && Object.keys(slotFormErrors).length > 0)}
+              // Keep this actionable after the user corrects a field. The
+              // submit handler always performs fresh validation, so stale
+              // inline errors can never trap the Save button in a disabled state.
+              disabled={saving}
             >
               <Save className="w-4 h-4 mr-2" />
               Save

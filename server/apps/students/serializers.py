@@ -49,12 +49,58 @@ def build_profile_photo_url(obj, request=None):
     return url
 
 
+# ── Female-student photo privacy (system-wide rule) ────────────────────────
+# A female student's real/uploaded photo must NEVER be exposed to teachers,
+# captains, other students, or the public. It is visible ONLY to:
+#   * admin-level staff (Principal / Registrar / Department Head / superuser), and
+#   * the student herself (her own account).
+# Everywhere else the client renders a generic female avatar (avatarVariant).
+# Enforced here at the API layer so it can't leak via list/detail responses,
+# cached data, or a direct image URL a teacher tries to reuse.
+_PHOTO_ADMIN_ROLES = ('institute_head', 'registrar', 'department_head')
+
+
+def viewer_may_see_female_photo(obj, request):
+    """True only when `request.user` is admin-level staff or the student herself."""
+    if request is None:
+        return False
+    user = getattr(request, 'user', None)
+    if not (user and getattr(user, 'is_authenticated', False)):
+        return False
+    if getattr(user, 'is_superuser', False):
+        return True
+    if getattr(user, 'role', None) in _PHOTO_ADMIN_ROLES:
+        return True
+    # The student viewing her own record.
+    own = str(getattr(user, 'related_profile_id', '') or '')
+    return bool(own) and own == str(getattr(obj, 'id', ''))
+
+
+def student_photo_for_viewer(obj, request):
+    """
+    profilePhoto URL that respects the female-photo privacy rule.
+
+    Returns None (→ client shows the female avatar) whenever a female student's
+    photo would be exposed to a viewer who is not admin-level staff or the
+    student herself. Male students are unaffected.
+    """
+    if (getattr(obj, 'gender', '') or '') == 'Female' and not viewer_may_see_female_photo(obj, request):
+        return None
+    return build_profile_photo_url(obj, request)
+
+
+def avatar_variant_for(obj):
+    """Which placeholder avatar the client should render for this student."""
+    return 'female' if (getattr(obj, 'gender', '') or '') == 'Female' else 'default'
+
+
 class StudentListSerializer(serializers.ModelSerializer):
     """
     Lightweight serializer for list views
     """
     department = DepartmentListSerializer(read_only=True)
     profilePhoto = serializers.SerializerMethodField()
+    avatarVariant = serializers.SerializerMethodField()
 
     class Meta:
         model = Student
@@ -64,14 +110,19 @@ class StudentListSerializer(serializers.ModelSerializer):
             'currentRollNumber',
             'currentRegistrationNumber',
             'semester',
+            'gender',
             'department',
             'status',
-            'profilePhoto'
+            'profilePhoto',
+            'avatarVariant',
         ]
 
     def get_profilePhoto(self, obj):
-        """Return full URL for profile photo"""
-        return build_profile_photo_url(obj, self.context.get('request'))
+        """Full URL for profile photo, respecting the female-photo privacy rule."""
+        return student_photo_for_viewer(obj, self.context.get('request'))
+
+    def get_avatarVariant(self, obj):
+        return avatar_variant_for(obj)
 
 
 class StudentDetailSerializer(serializers.ModelSerializer):
@@ -80,14 +131,18 @@ class StudentDetailSerializer(serializers.ModelSerializer):
     """
     department = DepartmentListSerializer(read_only=True)
     profilePhoto = serializers.SerializerMethodField()
-    
+    avatarVariant = serializers.SerializerMethodField()
+
     class Meta:
         model = Student
         fields = '__all__'
-    
+
     def get_profilePhoto(self, obj):
-        """Return full URL for profile photo"""
-        return build_profile_photo_url(obj, self.context.get('request'))
+        """Full URL for profile photo, respecting the female-photo privacy rule."""
+        return student_photo_for_viewer(obj, self.context.get('request'))
+
+    def get_avatarVariant(self, obj):
+        return avatar_variant_for(obj)
 
 
 class StudentPublicProfileSerializer(serializers.ModelSerializer):

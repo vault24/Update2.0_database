@@ -38,6 +38,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
+import { TeacherResultAnalysis } from '@/components/marks/TeacherResultAnalysis';
 import { marksService, type MarksRecord, type ExamType } from '@/services/marksService';
 import { studentService } from '@/services/studentService';
 import { type Subject, type ClassRoutine } from '@/services/subjectService';
@@ -93,6 +94,7 @@ export default function ManageMarksPage() {
   const { user } = useAuth();
   const studentRequestRef = useRef(0);
   const marksRequestRef = useRef(0);
+  const [showAnalysis, setShowAnalysis] = useState(false);
   
   // Data states
   const [routineOptions, setRoutineOptions] = useState<TeacherRoutineOption[]>([]);
@@ -1114,6 +1116,10 @@ export default function ManageMarksPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setShowAnalysis(true)}>
+            <GraduationCap className="w-4 h-4 mr-2" />
+            Result Analysis
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm">
@@ -1694,6 +1700,22 @@ export default function ManageMarksPage() {
               {editingColumn ? 'Update' : 'Add'} Column
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Result Analysis — subject-wise historical performance */}
+      <Dialog open={showAnalysis} onOpenChange={setShowAnalysis}>
+        <DialogContent className="max-w-4xl w-[calc(100vw-1.5rem)] max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+          <DialogHeader className="text-left">
+            <DialogTitle className="flex items-center gap-2">
+              <GraduationCap className="w-5 h-5 text-primary" />
+              Result Analysis
+            </DialogTitle>
+            <DialogDescription>
+              Subject-wise pass/fail and attendance for the classes you've taught.
+            </DialogDescription>
+          </DialogHeader>
+          {showAnalysis && <TeacherResultAnalysis />}
         </DialogContent>
       </Dialog>
     </div>

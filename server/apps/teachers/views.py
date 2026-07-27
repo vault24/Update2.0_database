@@ -176,12 +176,61 @@ class TeacherViewSet(viewsets.ModelViewSet):
                 'details': str(e) if settings.DEBUG else None
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
+    @action(detail=True, methods=['post'])
+    def upload_cover(self, request, pk=None):
+        """
+        Upload teacher cover photo as a file (persists across refresh/login,
+        unlike storing a base64 blob).
+        POST /api/teachers/{id}/upload-cover/
+        Accepts: multipart/form-data with 'photo' field
+        """
+        from utils.file_handler import (
+            save_uploaded_file,
+            validate_file_type,
+            validate_file_size,
+            delete_file,
+        )
+
+        teacher = self.get_object()
+
+        if 'photo' not in request.FILES:
+            return Response({'error': 'No photo file provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+        photo_file = request.FILES['photo']
+        if not validate_file_type(photo_file, ['jpg', 'jpeg', 'png']):
+            return Response(
+                {'error': 'Invalid file type', 'details': 'Only JPG and PNG images are allowed'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not validate_file_size(photo_file, 8):
+            return Response(
+                {'error': 'File too large', 'details': 'Maximum file size is 8MB'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Only delete the previous cover if it was a stored file (not a legacy
+        # base64/data-URL value some older profiles may still hold).
+        if teacher.coverPhoto and not teacher.coverPhoto.startswith('data:'):
+            delete_file(teacher.coverPhoto)
+
+        try:
+            relative_path = save_uploaded_file(photo_file, 'teachers')
+            teacher.coverPhoto = relative_path
+            teacher.save()
+            serializer = TeacherDetailSerializer(teacher)
+            return Response(serializer.data)
+        except Exception as e:
+            return Response(
+                {'error': 'Failed to upload cover photo', 'details': str(e) if settings.DEBUG else None},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
     @action(detail=True, methods=['get'])
     def profile(self, request, pk=None):
         """
         Get complete teacher profile with all related data
         GET /api/teachers/{id}/profile/
-        
+
         Returns teacher info with experiences, education, publications, research, and awards
         """
         teacher = self.get_object()

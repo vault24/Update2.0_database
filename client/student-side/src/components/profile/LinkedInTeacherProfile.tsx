@@ -17,11 +17,19 @@ import { EditEducationDialog, type Education } from './edit-dialogs/EditEducatio
 import { EditPublicationDialog, type Publication } from './edit-dialogs/EditPublicationDialog';
 import { EditResearchDialog, type Research } from './edit-dialogs/EditResearchDialog';
 import { EditAwardDialog, type Award as AwardType } from './edit-dialogs/EditAwardDialog';
-import { EditSkillsDialog } from './edit-dialogs/EditSkillsDialog';
 import { EditProfileHeaderDialog, type ProfileHeaderData } from './edit-dialogs/EditProfileHeaderDialog';
 import { ConfirmDeleteDialog } from './edit-dialogs/ConfirmDeleteDialog';
 import { teacherService } from '@/services/teacherService';
 import { settingsService } from '@/services/settingsService';
+import { API_BASE_URL } from '@/config/api';
+
+/** Absolute URL for a stored teacher image path (passes through data:/http). */
+const resolveTeacherImg = (p?: string | null): string => {
+  if (!p) return '';
+  if (p.startsWith('data:') || p.startsWith('http')) return p;
+  const path = p.startsWith('/files/') ? p : `/files/${p}`;
+  return `${API_BASE_URL.replace(/\/api$/, '')}${path}`;
+};
 import { useAuth } from '@/contexts/AuthContext';
 import { LoadingState } from '@/components/LoadingState';
 import { ErrorState } from '@/components/ErrorState';
@@ -223,8 +231,6 @@ export function LinkedInTeacherProfile({ isPublicView = false, teacherId }: Link
   const [editPublicationOpen, setEditPublicationOpen] = useState(false);
   const [editResearchOpen, setEditResearchOpen] = useState(false);
   const [editAwardOpen, setEditAwardOpen] = useState(false);
-  const [editSpecializationsOpen, setEditSpecializationsOpen] = useState(false);
-  const [editSkillsOpen, setEditSkillsOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   // Edit item states
@@ -275,8 +281,8 @@ export function LinkedInTeacherProfile({ isPublicView = false, teacherId }: Link
           joiningDate: new Date(profileData.joiningDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
           officeLocation: profileData.officeLocation,
           university: instituteName,
-          profileImage: profileData.profilePhoto,
-          coverImage: profileData.coverPhoto,
+          profileImage: resolveTeacherImg(profileData.profilePhoto),
+          coverImage: resolveTeacherImg(profileData.coverPhoto),
           about: profileData.about || '',
           specializations: profileData.specializations || [],
           skills: profileData.skills || [],
@@ -465,53 +471,44 @@ export function LinkedInTeacherProfile({ isPublicView = false, teacherId }: Link
     }
   };
 
-  const handleSaveSpecializations = async (items: string[]) => {
-    try {
-      await teacherService.updateProfile(teacher.id, { specializations: items });
-      setTeacher({ ...teacher, specializations: items });
-      toast.success('Specializations updated');
-    } catch (err: any) {
-      console.error('Error updating specializations:', err);
-      toast.error('Failed to update specializations');
-    }
-  };
-
-  const handleSaveSkills = async (items: string[]) => {
-    try {
-      await teacherService.updateProfile(teacher.id, { skills: items });
-      setTeacher({ ...teacher, skills: items });
-      toast.success('Skills updated');
-    } catch (err: any) {
-      console.error('Error updating skills:', err);
-      toast.error('Failed to update skills');
-    }
-  };
-
   const scrollToContact = () => {
     contactSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const handleCoverPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCoverPhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setTeacher({ ...teacher, coverImage: reader.result as string });
-        toast.success('Cover photo updated');
-      };
-      reader.readAsDataURL(file);
+    if (!file || !teacher) return;
+    const preview = URL.createObjectURL(file); // instant optimistic preview
+    setTeacher(t => (t ? { ...t, coverImage: preview } : t));
+    try {
+      const updated = await teacherService.uploadCover(teacher.id, file);
+      // Persisted — swap the temporary preview for the stored URL.
+      setTeacher(t => (t ? { ...t, coverImage: resolveTeacherImg(updated.coverPhoto) || t.coverImage } : t));
+      toast.success('Cover photo updated');
+    } catch (err) {
+      console.error('Cover upload failed:', err);
+      toast.error('Failed to upload cover photo');
+    } finally {
+      URL.revokeObjectURL(preview);
+      e.target.value = '';
     }
   };
 
-  const handleProfilePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleProfilePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setTeacher({ ...teacher, profileImage: reader.result as string });
-        toast.success('Profile photo updated');
-      };
-      reader.readAsDataURL(file);
+    if (!file || !teacher) return;
+    const preview = URL.createObjectURL(file);
+    setTeacher(t => (t ? { ...t, profileImage: preview } : t));
+    try {
+      const updated = await teacherService.uploadPhoto(teacher.id, file);
+      setTeacher(t => (t ? { ...t, profileImage: resolveTeacherImg(updated.profilePhoto) || t.profileImage } : t));
+      toast.success('Profile photo updated');
+    } catch (err) {
+      console.error('Profile photo upload failed:', err);
+      toast.error('Failed to upload profile photo');
+    } finally {
+      URL.revokeObjectURL(preview);
+      e.target.value = '';
     }
   };
 
@@ -1024,53 +1021,6 @@ export function LinkedInTeacherProfile({ isPublicView = false, teacherId }: Link
         </Tabs>
       </motion.div>
 
-      {/* Skills & Specializations */}
-      <div className="grid md:grid-cols-2 gap-4">
-        <motion.div
-          initial={false}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="bg-card rounded-xl border border-border p-4 md:p-6 shadow-card group"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold flex items-center gap-2">
-              <Target className="w-5 h-5 text-primary" />
-              Specializations
-            </h3>
-            <EditButton onClick={() => setEditSpecializationsOpen(true)} />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {teacher.specializations.map((spec, index) => (
-              <Badge key={index} variant="secondary" className="text-xs">
-                {spec}
-              </Badge>
-            ))}
-          </div>
-        </motion.div>
-
-        <motion.div
-          initial={false}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="bg-card rounded-xl border border-border p-4 md:p-6 shadow-card group"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-primary" />
-              Skills
-            </h3>
-            <EditButton onClick={() => setEditSkillsOpen(true)} />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {teacher.skills.map((skill, index) => (
-              <Badge key={index} variant="outline" className="text-xs">
-                {skill}
-              </Badge>
-            ))}
-          </div>
-        </motion.div>
-      </div>
-
       {/* Awards */}
       <motion.div
         initial={false}
@@ -1226,24 +1176,6 @@ export function LinkedInTeacherProfile({ isPublicView = false, teacherId }: Link
         award={editingAward?.data}
         onSave={handleSaveAward}
         isNew={!editingAward}
-      />
-
-      <EditSkillsDialog
-        open={editSpecializationsOpen}
-        onOpenChange={setEditSpecializationsOpen}
-        items={teacher.specializations}
-        onSave={handleSaveSpecializations}
-        title="Specializations"
-        placeholder="Add a specialization..."
-      />
-
-      <EditSkillsDialog
-        open={editSkillsOpen}
-        onOpenChange={setEditSkillsOpen}
-        items={teacher.skills}
-        onSave={handleSaveSkills}
-        title="Skills"
-        placeholder="Add a skill..."
       />
 
       <ConfirmDeleteDialog
