@@ -116,8 +116,14 @@ class DocumentRenderTests(TestCase):
     # ---- Task 9: identical layout on every device --------------------------
     def test_viewport_is_pinned_to_the_document_width(self):
         html = _render_document_html(self.application, None)
-        self.assertIn('content="width=204', html)
+        self.assertIn('content="width=204"', html)
         self.assertNotIn('width=device-width', html)
+
+    def test_viewport_has_no_initial_scale(self):
+        """`initial-scale=1` would open the document zoomed right in on a
+        phone — the browser must be left to scale it to fit."""
+        html = _render_document_html(self.application, None)
+        self.assertNotIn('initial-scale', html)
 
     def test_fixed_layout_css_is_injected(self):
         html = _render_document_html(self.application, None)

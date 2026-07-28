@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=204, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=204">
     <title>Student ID Card - Sirajganj Government Polytechnic Institute</title>
     <style>
         /* ============================================================
@@ -11,9 +11,10 @@
            browsers must not reflow it or inflate its text, or the
            downloaded/printed file stops matching the design (content
            cut off, sections misaligned). The viewport is pinned to the
-           document's own CSS width so small screens zoom-to-fit
-           instead of re-laying-out, text auto-sizing is disabled, and
-           the page keeps its exact width at every breakpoint.
+           document's own CSS width (with NO initial-scale, so the
+           browser picks the scale that fits it to the screen instead of
+           opening it zoomed in), text auto-sizing is disabled, and the
+           page keeps its exact width at every breakpoint.
            ============================================================ */
         html {
             -webkit-text-size-adjust: 100%;

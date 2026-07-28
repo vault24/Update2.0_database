@@ -13,7 +13,7 @@ interface Department {
   code?: string;
 }
 
-const INSTITUTE_NAME = 'SIRAJGANJ POLYTECHNIC INSTITUTE';
+const INSTITUTE_NAME = 'SIRAJGANJ GOVT POLYTECHNIC INSTITUTE';
 const INSTITUTE_SUB = 'Directorate of Technical Education · Ministry of Education, Bangladesh';
 
 // Brand palette (RGB) used across the PDF.

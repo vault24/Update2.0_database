@@ -200,8 +200,8 @@ def send_branded_email(
         logo_url_bcc = ''
         context_bcc = {
             "subject": subject,
-            "brand_name": "Sirajganj Gov. Polytechnic Institute",
-            "brand_tagline": "Sirajganj Gov. Polytechnic Institute",
+            "brand_name": "Sirajganj Govt Polytechnic Institute",
+            "brand_tagline": "Sirajganj Govt Polytechnic Institute",
             "logo_url": logo_url_bcc,
             "support_email": support_email_bcc,
             "support_phone": support_phone_bcc,
@@ -254,8 +254,8 @@ def send_branded_email(
 
     context = {
         "subject": subject,
-        "brand_name": "Sirajganj Gov. Polytechnic Institute",
-        "brand_tagline": "Sirajganj Gov. Polytechnic Institute",
+        "brand_name": "Sirajganj Govt Polytechnic Institute",
+        "brand_tagline": "Sirajganj Govt Polytechnic Institute",
         "logo_url": logo_url,
         "support_email": support_email,
         "support_phone": support_phone,

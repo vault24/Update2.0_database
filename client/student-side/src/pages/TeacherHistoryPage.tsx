@@ -13,12 +13,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   History, Loader2, AlertCircle, BookOpen, Users, CalendarCheck2, CheckCircle2,
-  XCircle, TrendingUp, FileText, Archive, Lock, ChevronRight,
+  XCircle, TrendingUp, FileText, Archive, Lock, ChevronRight, GraduationCap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { TeacherResultAnalysis } from '@/components/marks/TeacherResultAnalysis';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -43,6 +45,7 @@ export default function TeacherHistoryPage() {
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<HistorySubject | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [tab, setTab] = useState('semesters');
 
   // Load the list of archives once.
   useEffect(() => {
@@ -159,18 +162,48 @@ export default function TeacherHistoryPage() {
             Previous semesters — subjects, attendance and results
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleExport}
-          disabled={exporting || subjects.length === 0}
-          className="gap-1.5 shrink-0"
-        >
-          {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-          <span className="hidden sm:inline">Export PDF</span>
-        </Button>
+        {/* Export covers the archived semester, so it only belongs to that tab. */}
+        {tab === 'semesters' && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExport}
+            disabled={exporting || subjects.length === 0}
+            className="gap-1.5 shrink-0"
+          >
+            {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+            <span className="hidden sm:inline">Export PDF</span>
+          </Button>
+        )}
       </motion.div>
 
+      {/* Two views: the archived semesters, and the cross-semester Result
+          Analysis (moved here from Manage Marks, which now only handles the
+          CURRENT semester). */}
+      <Tabs value={tab} onValueChange={setTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2 h-auto p-1 rounded-xl">
+          <TabsTrigger value="semesters" className="gap-1.5 text-xs sm:text-sm py-2 rounded-lg">
+            <Archive className="w-4 h-4 shrink-0" />
+            <span className="truncate">Semester Archive</span>
+          </TabsTrigger>
+          <TabsTrigger value="results" className="gap-1.5 text-xs sm:text-sm py-2 rounded-lg">
+            <GraduationCap className="w-4 h-4 shrink-0" />
+            <span className="truncate">Result Analysis</span>
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="results" className="mt-4 space-y-4">
+          <div className="bg-card border border-border rounded-2xl p-3 sm:p-4 shadow-card">
+            <p className="text-xs text-muted-foreground">
+              Subject-wise pass/fail and attendance across every class you have taught.
+            </p>
+          </div>
+          <div className="bg-card border border-border rounded-2xl p-3 sm:p-4 shadow-card">
+            <TeacherResultAnalysis />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="semesters" className="mt-4 space-y-4">
       {/* Read-only notice + archive selector */}
       <div className="bg-card border border-border rounded-2xl p-3 sm:p-4 shadow-card space-y-3">
         <div className="flex items-start gap-2 text-xs text-muted-foreground">
@@ -293,6 +326,8 @@ export default function TeacherHistoryPage() {
           </div>
         </>
       )}
+        </TabsContent>
+      </Tabs>
 
       {/* Subject detail (read-only) */}
       <Dialog open={!!detail} onOpenChange={(open) => !open && setDetail(null)}>

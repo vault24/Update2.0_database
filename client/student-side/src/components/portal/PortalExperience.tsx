@@ -210,7 +210,7 @@ function TrustStrip() {
   const items = [
     { icon: Zap, text: 'Instant search' },
     { icon: ShieldCheck, text: 'From official BTEB notices' },
-    { icon: Landmark, text: 'Sirajganj Polytechnic Institute' },
+    { icon: Landmark, text: 'Sirajganj Govt Polytechnic Institute' },
   ];
   return (
     <ul className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5 text-xs text-muted-foreground sm:text-sm">
@@ -431,7 +431,7 @@ export function PortalExperience({ standalone = false }: { standalone?: boolean 
             <span>
               BTEB Result
               <span className="ml-1.5 hidden text-xs font-normal text-muted-foreground sm:inline">
-                by Sirajganj Polytechnic Institute
+                by Sirajganj Govt Polytechnic Institute
               </span>
             </span>
           </a>
@@ -625,7 +625,7 @@ export function PortalExperience({ standalone = false }: { standalone?: boolean 
               <h3 className="mb-3 text-sm font-semibold">Institute</h3>
               <p className="flex items-start gap-1.5 text-sm text-muted-foreground">
                 <Landmark className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
-                Sirajganj Polytechnic Institute,
+                Sirajganj Govt Polytechnic Institute,
                 <br />
                 Sirajganj, Bangladesh
               </p>
@@ -641,7 +641,7 @@ export function PortalExperience({ standalone = false }: { standalone?: boolean 
             <p>
               © {new Date().getFullYear()}{' '}
               <a href="https://spisg.gov.bd/" className="font-medium hover:text-emerald-600">
-                Sirajganj Polytechnic Institute
+                Sirajganj Govt Polytechnic Institute
               </a>
             </p>
           </div>

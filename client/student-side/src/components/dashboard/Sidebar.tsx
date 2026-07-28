@@ -45,35 +45,46 @@ interface MenuItem {
   roles: UserRole[];
 }
 
-// Main navigation items
+// Main navigation for STUDENT / CAPTAIN accounts.
+// Teachers and alumni have their own explicitly ordered menus below.
 const mainMenuItems: MenuItem[] = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', roles: ['student', 'captain', 'teacher', 'alumni'] },
-  { icon: Bell, label: 'Notices & Updates', path: '/dashboard/notices', roles: ['student', 'captain', 'teacher', 'alumni'] },
+  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', roles: ['student', 'captain'] },
+  { icon: Bell, label: 'Notices & Updates', path: '/dashboard/notices', roles: ['student', 'captain'] },
   { icon: FileText, label: 'Admission', path: '/dashboard/admission', roles: ['student', 'captain'] },
-  { icon: Calendar, label: 'Class Routine', path: '/dashboard/routine', roles: ['student', 'captain', 'teacher'] },
+  { icon: Calendar, label: 'Class Routine', path: '/dashboard/routine', roles: ['student', 'captain'] },
   { icon: ClipboardCheck, label: 'Attendance', path: '/dashboard/attendance', roles: ['student', 'captain'] },
   { icon: BarChart3, label: 'Marks', path: '/dashboard/marks', roles: ['student', 'captain'] },
   { icon: GraduationCap, label: 'Board Results', path: '/dashboard/board-results', roles: ['student', 'captain'] },
   { icon: CalendarClock, label: 'Exam Routine', path: '/dashboard/exam-routine', roles: ['student', 'captain'] },
   { icon: FolderOpen, label: 'Documents', path: '/dashboard/documents', roles: ['student', 'captain'] },
-  { icon: Shield, label: 'Complaints', path: '/dashboard/complaints', roles: ['student', 'captain', 'teacher'] },
+  { icon: Shield, label: 'Complaints', path: '/dashboard/complaints', roles: ['student', 'captain'] },
   { icon: Send, label: 'Applications', path: '/dashboard/applications', roles: ['student', 'captain'] },
   // Captain-specific
   { icon: UserCheck, label: 'Add Attendance', path: '/dashboard/add-attendance', roles: ['captain'] },
   { icon: Phone, label: 'Teacher Contacts', path: '/dashboard/teacher-contacts', roles: ['captain'] },
-  // Teacher-specific
-  { icon: Users, label: 'Student List', path: '/dashboard/students', roles: ['teacher'] },
-  { icon: ClipboardCheck, label: 'Manage Attendance', path: '/dashboard/teacher-attendance', roles: ['teacher'] },
-  { icon: BookOpen, label: 'Manage Marks', path: '/dashboard/manage-marks', roles: ['teacher'] },
-  { icon: History, label: 'History', path: '/dashboard/history', roles: ['teacher'] },
-  { icon: GraduationCap, label: 'Board Results', path: '/dashboard/board-results', roles: ['teacher'] },
-  { icon: Mail, label: 'Class Emails', path: '/dashboard/class-email', roles: ['teacher'] },
 ];
 
 // "Upcoming" group items
 const upcomingMenuItems: MenuItem[] = [
   { icon: BookOpen, label: 'Learning Hub', path: '/dashboard/learning-hub', roles: ['student', 'captain', 'teacher'] },
   { icon: Video, label: 'Live Classes', path: '/dashboard/live-classes', roles: ['student', 'captain', 'teacher'] },
+];
+
+// Dedicated menu for TEACHER accounts, in the order teachers actually work:
+// daily teaching first, then records/history, then reference and admin items.
+// (Filtering mainMenuItems by role would interleave them with the student
+// entries and put Notices/Complaints in the middle.)
+const teacherMenuItems: MenuItem[] = [
+  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', roles: ['teacher'] },
+  { icon: Calendar, label: 'Class Routine', path: '/dashboard/routine', roles: ['teacher'] },
+  { icon: Users, label: 'Student List', path: '/dashboard/students', roles: ['teacher'] },
+  { icon: ClipboardCheck, label: 'Manage Attendance', path: '/dashboard/teacher-attendance', roles: ['teacher'] },
+  { icon: BookOpen, label: 'Manage Marks', path: '/dashboard/manage-marks', roles: ['teacher'] },
+  { icon: Mail, label: 'Class Mail', path: '/dashboard/class-email', roles: ['teacher'] },
+  { icon: History, label: 'History', path: '/dashboard/history', roles: ['teacher'] },
+  { icon: GraduationCap, label: 'Board Results', path: '/dashboard/board-results', roles: ['teacher'] },
+  { icon: Bell, label: 'Notices & Updates', path: '/dashboard/notices', roles: ['teacher'] },
+  { icon: Shield, label: 'Complaints', path: '/dashboard/complaints', roles: ['teacher'] },
 ];
 
 // Dedicated menu for alumni accounts — no Admission / Class Routine / Attendance,
@@ -156,9 +167,11 @@ export function Sidebar() {
   // admitted students only see items that apply to them.
   const isAdmitted = user?.admissionStatus === 'approved';
 
-  // Alumni get a dedicated menu and no "Explore" group.
+  // Alumni and teachers each get a dedicated, explicitly ordered menu.
   const filteredMainItems = isAlumni
     ? (isApprovedAlumni ? alumniMenuItems : pendingAlumniMenuItems(!!user?.isAlumni))
+    : userRole === 'teacher'
+    ? teacherMenuItems
     : mainMenuItems.filter(
         (item) =>
           item.roles.includes(userRole) &&

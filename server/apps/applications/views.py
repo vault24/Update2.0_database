@@ -331,10 +331,12 @@ def _harden_document_html(html):
     html = _PRINT_BUTTON_RE.sub('', html)
 
     width = _document_design_width(html)
-    fixed_meta = (
-        f'<meta name="viewport" content="width={width}, initial-scale=1.0, '
-        'viewport-fit=cover">'
-    )
+    # Width only — deliberately NO initial-scale. Pinning the width keeps the
+    # layout identical everywhere; adding `initial-scale=1` on top of it forces
+    # 1 CSS px = 1 device px, which opens an A4 document zoomed so far in that
+    # only a corner is visible on a phone. Without it the browser picks the
+    # scale that fits the document to the screen.
+    fixed_meta = f'<meta name="viewport" content="width={width}">'
     if _VIEWPORT_RE.search(html):
         html = _VIEWPORT_RE.sub(fixed_meta, html, count=1)
     elif '<head>' in html.lower():

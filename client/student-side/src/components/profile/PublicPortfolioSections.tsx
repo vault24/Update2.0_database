@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import {
-  Award, Briefcase, ExternalLink, GraduationCap, Link2, Sparkles, TrendingUp,
+  Award, Briefcase, Building2, Calendar, ExternalLink, GraduationCap, Link2,
+  MapPin, MoreHorizontal, Sparkles, Star, TrendingUp,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
@@ -32,6 +33,8 @@ export interface PublicPortfolioCareer {
   businessType?: string;
   otherType?: string;
   achievements?: string[];
+  /** Insertion stamp — drives the same "newest first" order as the profile page. */
+  addedAt?: string;
 }
 
 export interface PublicPortfolioSkill {
@@ -111,10 +114,45 @@ function careerTitle(c: PublicPortfolioCareer): string {
   );
 }
 
-function careerSubtitle(c: PublicPortfolioCareer): string {
-  return [c.company || c.institution || c.businessType, c.location]
-    .filter(Boolean)
-    .join(' • ');
+/** Organization line — the institution/business stands in for the company. */
+function careerOrganization(c: PublicPortfolioCareer): string {
+  return c.company || c.institution || c.businessName || '';
+}
+
+// Type presentation, mirrored from the profile page's CareerTimeline so the
+// public profile reads exactly like the private one.
+const CAREER_TYPE_META: Record<string, { icon: typeof Briefcase; dot: string; label: string; badge: string }> = {
+  job: {
+    icon: Briefcase, dot: 'bg-emerald-500', label: 'Employment',
+    badge: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+  },
+  higherStudies: {
+    icon: GraduationCap, dot: 'bg-teal-500', label: 'Education',
+    badge: 'bg-teal-500/10 text-teal-600 dark:text-teal-400',
+  },
+  business: {
+    icon: Building2, dot: 'bg-amber-500', label: 'Business',
+    badge: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+  },
+};
+
+const CAREER_TYPE_FALLBACK = {
+  icon: MoreHorizontal, dot: 'bg-gray-500', label: 'Other',
+  badge: 'bg-gray-500/10 text-gray-600 dark:text-gray-400',
+};
+
+const careerMeta = (type?: string) => CAREER_TYPE_META[type || ''] || CAREER_TYPE_FALLBACK;
+
+/**
+ * Same order the profile page shows: most recently ADDED first, falling back
+ * to start date for entries saved before the insertion stamp existed.
+ */
+function orderCareers(careers: PublicPortfolioCareer[]): PublicPortfolioCareer[] {
+  return [...careers].sort((a, b) => {
+    const stamp = (b.addedAt || '').localeCompare(a.addedAt || '');
+    if (stamp !== 0) return stamp;
+    return (b.startDate || '').localeCompare(a.startDate || '');
+  });
 }
 
 function Section({
@@ -201,39 +239,91 @@ export function PublicPortfolioSections({ portfolio }: { portfolio?: PublicPortf
 
       {careers.length > 0 && (
         <Section icon={Briefcase} title="Career Journey" count={careers.length} delay={0.3}>
-          <ol className="relative border-l border-border ml-2 space-y-5">
-            {careers.map((c, i) => (
-              <li key={c.id || i} className="pl-5 relative">
-                <span className="absolute -left-[6px] top-1.5 w-3 h-3 rounded-full bg-primary ring-4 ring-primary/15" />
-                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                  <p className="font-medium text-sm sm:text-base break-words">{careerTitle(c)}</p>
-                  {c.current && <Badge variant="success" className="text-[10px]">Current</Badge>}
-                </div>
-                {careerSubtitle(c) && (
-                  <p className="text-xs sm:text-sm text-muted-foreground break-words">
-                    {careerSubtitle(c)}
-                  </p>
-                )}
-                {dateRange(c.startDate, c.endDate, c.current) && (
-                  <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">
-                    {dateRange(c.startDate, c.endDate, c.current)}
-                  </p>
-                )}
-                {c.description && (
-                  <p className="text-xs sm:text-sm text-muted-foreground mt-1.5 whitespace-pre-line">
-                    {c.description}
-                  </p>
-                )}
-                {c.achievements && c.achievements.length > 0 && (
-                  <ul className="mt-1.5 space-y-0.5 list-disc pl-4">
-                    {c.achievements.map((a, j) => (
-                      <li key={j} className="text-xs text-muted-foreground">{a}</li>
-                    ))}
-                  </ul>
-                )}
-              </li>
-            ))}
-          </ol>
+          {/* Same timeline treatment as the profile page's CareerTimeline. */}
+          <div className="relative">
+            <div className="absolute left-[15px] sm:left-[19px] top-2 bottom-2 w-0.5 bg-gradient-to-b from-primary via-primary/50 to-transparent" />
+            <div className="space-y-5">
+              {orderCareers(careers).map((c, i) => {
+                const meta = careerMeta(c.type);
+                const Icon = meta.icon;
+                const org = careerOrganization(c);
+                return (
+                  <div key={c.id || i} className="relative pl-10 sm:pl-12 min-w-0">
+                    <div className={`absolute left-0 top-1 w-8 h-8 sm:w-10 sm:h-10 rounded-full ${meta.dot} flex items-center justify-center shadow-lg`}>
+                      <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                    </div>
+
+                    <div className="p-3 sm:p-4 rounded-xl bg-muted/50 min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1.5">
+                        <h4 className="font-semibold text-sm sm:text-base text-foreground break-words">
+                          {careerTitle(c)}
+                        </h4>
+                        {c.current && (
+                          <Badge className="bg-primary/10 text-primary text-[10px]">Current</Badge>
+                        )}
+                        <Badge className={`${meta.badge} text-[10px]`}>{meta.label}</Badge>
+                      </div>
+
+                      {org && (
+                        <p className="text-xs sm:text-sm text-muted-foreground font-medium break-words">{org}</p>
+                      )}
+
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-[11px] sm:text-xs text-muted-foreground">
+                        {c.location && (
+                          <span className="flex items-center gap-1 min-w-0">
+                            <MapPin className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+                            <span className="truncate">{c.location}</span>
+                          </span>
+                        )}
+                        {dateRange(c.startDate, c.endDate, c.current) && (
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+                            {dateRange(c.startDate, c.endDate, c.current)}
+                          </span>
+                        )}
+                      </div>
+
+                      {c.description && (
+                        <p className="mt-2 text-xs sm:text-sm text-muted-foreground whitespace-pre-line break-words">
+                          {c.description}
+                        </p>
+                      )}
+
+                      {c.achievements && c.achievements.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          {c.achievements.map((a, j) => (
+                            <div key={j} className="flex items-start gap-2 text-xs sm:text-sm">
+                              <Star className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
+                              <span className="text-muted-foreground break-words">{a}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Type-specific detail, matching the profile page.
+                          Salary is deliberately never published. */}
+                      {c.type === 'higherStudies' && (c.degree || c.field) && (
+                        <p className="mt-2 text-xs sm:text-sm text-muted-foreground break-words">
+                          <span className="font-medium">Program:</span>{' '}
+                          {[c.degree, c.field].filter(Boolean).join(' — ')}
+                        </p>
+                      )}
+                      {c.type === 'business' && c.businessType && (
+                        <p className="mt-2 text-xs sm:text-sm text-muted-foreground break-words">
+                          <span className="font-medium">Business type:</span> {c.businessType}
+                        </p>
+                      )}
+                      {c.type === 'other' && c.otherType && (
+                        <p className="mt-2 text-xs sm:text-sm text-muted-foreground break-words">
+                          <span className="font-medium">Type:</span> {c.otherType}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </Section>
       )}
 

@@ -94,8 +94,14 @@ export function StudentProfileHeader({
       {/* Pattern overlay */}
       <div className="absolute inset-0 opacity-10 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjMpIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')]" />
 
-      <div className="relative z-10 p-4 md:p-6 lg:p-8">
-        <div className="flex flex-col md:flex-row gap-4 md:gap-6">
+      <div className="relative z-10 p-4 sm:p-5 lg:p-6">
+        <div className="flex flex-col md:flex-row gap-3 md:gap-6">
+          {/* On mobile the avatar sits BESIDE the name/status instead of
+              stacked above it — that removes most of the card's height while
+              the contact details keep the full width below and stay readable.
+              `md:contents` dissolves this wrapper on desktop, so the original
+              three-column row is unchanged there. */}
+          <div className="flex items-center gap-3 min-w-0 md:contents">
           {/* Avatar Section */}
           <motion.div
             initial={false}
@@ -104,7 +110,7 @@ export function StudentProfileHeader({
             className="flex-shrink-0"
           >
             <div className="relative">
-              <div className="w-24 h-24 md:w-32 md:h-32 lg:w-36 lg:h-36 rounded-2xl lg:rounded-3xl bg-white/25 flex items-center justify-center text-3xl md:text-4xl lg:text-5xl font-bold text-white shadow-2xl ring-4 ring-white/30 overflow-hidden">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-28 md:h-28 lg:w-32 lg:h-32 rounded-2xl bg-white/25 flex items-center justify-center text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-white shadow-2xl ring-2 md:ring-4 ring-white/30 overflow-hidden">
                 {displayAvatarUrl ? (
                   <img 
                     src={displayAvatarUrl} 
@@ -125,24 +131,48 @@ export function StudentProfileHeader({
             </div>
           </motion.div>
 
+          {/* Name + status — the only thing that shares the avatar's row on
+              mobile. On desktop it heads the info column as before. */}
+          <motion.div
+            initial={false}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.3 }}
+            className="min-w-0 text-white md:hidden"
+          >
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <h1 className="text-base sm:text-lg font-display font-bold break-words">
+                {name}
+                <VerifiedBadge roll={rollNumber} size={16} className="ml-1.5 -mt-0.5" />
+              </h1>
+              <Badge className="bg-white/20 text-white border-white/30 text-[10px]">
+                {status === 'active' ? '● Active' : '○ Inactive'}
+              </Badge>
+            </div>
+            {nameBangla && (
+              <p className="text-white/70 text-xs">{nameBangla}</p>
+            )}
+          </motion.div>
+          </div>
+
           {/* Info Section */}
           <div className="flex-1 min-w-0 text-white">
             <motion.div
               initial={false}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.3 }}
+              className="hidden md:block"
             >
-              <div className="flex flex-wrap items-start gap-2 mb-1">
-                <h1 className="text-xl md:text-2xl lg:text-3xl font-display font-bold">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <h1 className="text-2xl lg:text-3xl font-display font-bold break-words">
                   {name}
                   <VerifiedBadge roll={rollNumber} size={20} className="ml-1.5 -mt-0.5" />
                 </h1>
-                <Badge className="bg-white/20 text-white border-white/30 text-[10px] md:text-xs">
+                <Badge className="bg-white/20 text-white border-white/30 text-xs">
                   {status === 'active' ? '● Active' : '○ Inactive'}
                 </Badge>
               </div>
               {nameBangla && (
-                <p className="text-white/70 text-sm md:text-base mb-2">{nameBangla}</p>
+                <p className="text-white/70 text-base">{nameBangla}</p>
               )}
             </motion.div>
 
@@ -150,11 +180,11 @@ export function StudentProfileHeader({
               initial={false}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.4 }}
-              className="flex flex-wrap gap-1.5 md:gap-2 mb-3 md:mb-4"
+              className="flex flex-wrap gap-1.5 mt-1.5 md:mt-2 mb-2 md:mb-4"
             >
               <Badge className="bg-white/20 text-white border-0 text-[10px] md:text-sm px-2 py-0.5 md:px-2.5 md:py-1">
                 <GraduationCap className="w-3 h-3 md:w-4 md:h-4 mr-1 flex-shrink-0" />
-                <span className="truncate max-w-[120px] md:max-w-none">{department}</span>
+                <span className="truncate max-w-[100px] md:max-w-none">{department}</span>
               </Badge>
               <Badge className="bg-white/20 text-white border-0 text-[10px] md:text-sm px-2 py-0.5 md:px-2.5 md:py-1">
                 <Calendar className="w-3 h-3 md:w-4 md:h-4 mr-1 flex-shrink-0" />
@@ -172,36 +202,38 @@ export function StudentProfileHeader({
               )}
             </motion.div>
 
+            {/* Contact details: two per row on mobile so four items take two
+                lines instead of four. */}
             <motion.div
               initial={false}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.5 }}
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3"
+              className="grid grid-cols-2 lg:grid-cols-4 gap-x-3 gap-y-1.5 md:gap-3"
             >
-              <div className="flex items-center gap-2 text-white/80 text-xs md:text-sm">
-                <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-white/15 flex items-center justify-center">
-                  <Building className="w-3.5 h-3.5 md:w-4 md:h-4" />
+              <div className="flex items-center gap-1.5 md:gap-2 text-white/80 text-[11px] md:text-sm min-w-0">
+                <div className="w-6 h-6 md:w-8 md:h-8 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
+                  <Building className="w-3 h-3 md:w-4 md:h-4" />
                 </div>
                 <span className="truncate">{displayIdentifier}</span>
               </div>
-              <div className="flex items-center gap-2 text-white/80 text-xs md:text-sm">
-                <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-white/15 flex items-center justify-center">
-                  <Mail className="w-3.5 h-3.5 md:w-4 md:h-4" />
+              <div className="flex items-center gap-1.5 md:gap-2 text-white/80 text-[11px] md:text-sm min-w-0">
+                <div className="w-6 h-6 md:w-8 md:h-8 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
+                  <Mail className="w-3 h-3 md:w-4 md:h-4" />
                 </div>
                 <span className="truncate">{email}</span>
               </div>
               {phone && (
-                <div className="flex items-center gap-2 text-white/80 text-xs md:text-sm">
-                  <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-white/15 flex items-center justify-center">
-                    <Phone className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                <div className="flex items-center gap-1.5 md:gap-2 text-white/80 text-[11px] md:text-sm min-w-0">
+                  <div className="w-6 h-6 md:w-8 md:h-8 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
+                    <Phone className="w-3 h-3 md:w-4 md:h-4" />
                   </div>
                   <span className="truncate">{phone}</span>
                 </div>
               )}
               {location && (
-                <div className="flex items-center gap-2 text-white/80 text-xs md:text-sm">
-                  <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-white/15 flex items-center justify-center">
-                    <MapPin className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                <div className="flex items-center gap-1.5 md:gap-2 text-white/80 text-[11px] md:text-sm min-w-0">
+                  <div className="w-6 h-6 md:w-8 md:h-8 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
+                    <MapPin className="w-3 h-3 md:w-4 md:h-4" />
                   </div>
                   <span className="truncate">{location}</span>
                 </div>

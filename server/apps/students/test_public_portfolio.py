@@ -29,13 +29,16 @@ class PublicProfilePortfolioTests(APITestCase):
             bio='Backend developer in the making.',
             linkedinUrl='https://linkedin.com/in/nabil',
             portfolioUrl='https://nabil.dev',
+            # Stored in the alumni vocabulary — exactly what add_career_position
+            # writes (positionType / positionTitle / organizationName / isCurrent).
             careerHistory=[{
-                'id': 'c1', 'type': 'job', 'position': 'Junior Developer',
-                'company': 'Acme Ltd', 'location': 'Dhaka',
-                'startDate': '2024-01', 'endDate': '', 'current': True,
+                'id': 'c1', 'positionType': 'job', 'positionTitle': 'Junior Developer',
+                'organizationName': 'Acme Ltd', 'location': 'Dhaka',
+                'startDate': '2024-01-01', 'endDate': '', 'isCurrent': True,
                 'description': 'Django APIs.',
                 'achievements': ['Shipped the billing service'],
                 'salary': '50000',  # must NOT be published
+                'addedAt': '2026-07-01T10:00:00+00:00',
             }],
             skills=[
                 {'id': 's1', 'name': 'Python', 'category': 'technical', 'proficiency': 85},
@@ -62,12 +65,29 @@ class PublicProfilePortfolioTests(APITestCase):
         return response.data['portfolio']
 
     def test_career_journey_is_published(self):
+        """The alumni-vocabulary keys are normalised to the shape the student's
+        own profile page renders, so both pages show the same thing."""
         careers = self._portfolio()['careers']
         self.assertEqual(len(careers), 1)
+        self.assertEqual(careers[0]['type'], 'job')
         self.assertEqual(careers[0]['position'], 'Junior Developer')
         self.assertEqual(careers[0]['company'], 'Acme Ltd')
+        self.assertEqual(careers[0]['location'], 'Dhaka')
         self.assertTrue(careers[0]['current'])
         self.assertEqual(careers[0]['achievements'], ['Shipped the billing service'])
+
+    def test_legacy_short_key_entries_still_render(self):
+        """Rows written before the alumni vocabulary existed must not break."""
+        self.alumni.careerHistory = [{
+            'id': 'old', 'type': 'business', 'position': 'Founder',
+            'company': 'Old Co', 'startDate': '2019-01-01', 'current': False,
+        }]
+        self.alumni.save(update_fields=['careerHistory'])
+        career = self._portfolio()['careers'][0]
+        self.assertEqual(career['position'], 'Founder')
+        self.assertEqual(career['company'], 'Old Co')
+        self.assertEqual(career['type'], 'business')
+        self.assertFalse(career['current'])
 
     def test_salary_is_never_published(self):
         self.assertNotIn('salary', self._portfolio()['careers'][0])

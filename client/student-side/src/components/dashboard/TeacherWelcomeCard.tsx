@@ -32,89 +32,60 @@ export function TeacherWelcomeCard({ stats }: TeacherWelcomeCardProps) {
       initial={false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="relative overflow-hidden rounded-2xl lg:rounded-3xl bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-500 p-4 md:p-6 lg:p-8 text-white"
+      className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-500 p-4 sm:p-5 text-white shadow-lg shadow-emerald-600/20"
     >
       {/* Decorative elements */}
-      <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
-      <div className="absolute bottom-0 left-0 w-48 h-48 bg-teal-300/20 rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
-      <div className="absolute top-1/2 right-1/4 w-32 h-32 bg-emerald-300/20 rounded-full blur-2xl" />
+      <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+      <div className="absolute bottom-0 left-0 w-32 h-32 bg-teal-300/20 rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
 
-      <div className="relative z-10">
-        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 md:gap-6">
-          <div className="flex-1">
-            <motion.div
-              initial={false}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-              className="flex items-center gap-2 mb-2"
-            >
-              <Sparkles className="w-4 h-4 md:w-5 md:h-5" />
-              <span className="text-xs md:text-sm font-medium opacity-90">{getGreeting()}</span>
-            </motion.div>
-            
-            <motion.h1
-              initial={false}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.3 }}
-              className="text-xl md:text-2xl lg:text-3xl font-display font-bold mb-1 md:mb-2"
-            >
+      <div className="relative z-10 min-w-0">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-6">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 text-xs text-white/80">
+              <Sparkles className="w-3 h-3" />
+              <span className="font-medium">{getGreeting()}</span>
+            </div>
+
+            <h1 className="mt-0.5 truncate text-lg sm:text-xl lg:text-2xl font-display font-bold">
               Welcome back, {user?.name?.split(' ')[0]}!
-            </motion.h1>
-            
-            <motion.p
-              initial={false}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.4 }}
-              className="text-white/80 text-sm md:text-base max-w-md"
-            >
-              Manage your classes, track student performance, and stay connected with your department.
-            </motion.p>
+            </h1>
 
-            {/* Teacher Badge */}
-            <motion.div
-              initial={false}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 }}
-              className="mt-3 md:mt-4 inline-flex items-center gap-2 md:gap-3 bg-white/20 rounded-full px-3 md:px-4 py-1.5 md:py-2"
-            >
-              <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-white/20 flex items-center justify-center">
-                <GraduationCap className="w-3.5 h-3.5 md:w-4 md:h-4" />
-              </div>
-              <div>
-                <p className="text-[10px] md:text-xs opacity-80">Faculty Member</p>
-                <p className="text-xs md:text-sm font-semibold">{user?.department || 'Department'}</p>
-              </div>
-            </motion.div>
+            {/* The blurb is desktop-only — on a phone it is the biggest block
+                of the card and adds nothing the teacher does not know. */}
+            <p className="hidden lg:block mt-1 max-w-md text-sm text-white/80">
+              Manage your classes, track student performance, and stay connected with your department.
+            </p>
+
+            {/* Faculty badge */}
+            <div className="mt-2.5 inline-flex items-center gap-2 rounded-full bg-white/20 px-2.5 py-1 sm:px-3 sm:py-1.5">
+              <GraduationCap className="w-3.5 h-3.5 shrink-0" />
+              <span className="text-[11px] sm:text-xs font-semibold truncate max-w-[12rem]">
+                {user?.department || 'Department'}
+              </span>
+              <span className="text-[10px] text-white/70 hidden sm:inline">· Faculty</span>
+            </div>
           </div>
 
-          {/* Quick Stats */}
-          <motion.div
-            initial={false}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.5 }}
-            className="grid grid-cols-3 gap-2 md:gap-3 lg:flex lg:flex-col lg:gap-2"
-          >
-            {quickStats.map((stat, index) => (
-              <motion.div
+          {/* Quick Stats — a compact 3-up row on mobile, stacked on desktop. */}
+          <div className="grid grid-cols-3 gap-2 lg:flex lg:flex-col lg:gap-2 shrink-0">
+            {quickStats.map((stat) => (
+              <div
                 key={stat.label}
-                initial={false}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.6 + index * 0.1 }}
                 className={cn(
-                  "flex items-center gap-2 md:gap-3 rounded-xl md:rounded-2xl px-3 md:px-4 py-2 md:py-2.5",
-                  "bg-white/10 hover:bg-white/15 transition-colors"
+                  'flex items-center gap-2 rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0',
+                  'bg-white/10 hover:bg-white/15 transition-colors'
                 )}
               >
-                <div className={cn("w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center", stat.color)}>
-                  <stat.icon className="w-4 h-4 md:w-5 md:h-5" />
+                <div className={cn('w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0', stat.color)}>
+                  <stat.icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
-                <div>
-                  <p className="text-base md:text-lg lg:text-xl font-bold">{stat.value}</p>
-                  <p className="text-[9px] md:text-[10px] lg:text-xs opacity-80">{stat.label}</p>
+                <div className="min-w-0">
+                  <p className="text-sm sm:text-base font-bold leading-none">{stat.value}</p>
+                  <p className="text-[9px] sm:text-[10px] opacity-80 truncate">{stat.label}</p>
                 </div>
-              </motion.div>
+              </div>
             ))}
-          </motion.div>
+          </div>
         </div>
       </div>
     </motion.div>

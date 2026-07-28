@@ -287,6 +287,39 @@ class StudentViewSet(viewsets.ModelViewSet):
         serializer = StudentListSerializer(students, many=True, context={'request': request})
         return Response(serializer.data)
     
+    @action(detail=False, methods=['get'], url_path='profile-completion')
+    def profile_completion(self, request):
+        """
+        Completion status for the logged-in student's own profile.
+        GET /api/students/profile-completion/
+
+        Backs the dashboard welcome card: a percentage, the list of what is
+        still missing, and which page fixes each item (Documents vs Profile).
+        """
+        if getattr(request.user, 'role', None) not in ('student', 'captain'):
+            return Response(
+                {'error': 'Not a student account',
+                 'details': 'Profile completion is only tracked for student accounts.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        from .profile_completion import compute_student_profile_completion
+
+        pid = getattr(request.user, 'related_profile_id', None)
+        student = (
+            Student.objects.select_related('department', 'alumni').filter(id=pid).first()
+            if pid else None
+        )
+
+        admission = None
+        try:
+            from apps.admissions.models import Admission
+            admission = Admission.objects.filter(user=request.user).order_by('-created_at').first()
+        except Exception:
+            admission = None
+
+        return Response(compute_student_profile_completion(student, admission))
+
     @action(detail=False, methods=['get'])
     def search(self, request):
         """

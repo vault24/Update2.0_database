@@ -17,11 +17,16 @@ from datetime import date, timedelta
 
 class CareerPositionChronologyPropertyTest(HypothesisTestCase):
     """
-    **Feature: django-backend, Property 11: Career position chronology**
-    
-    Property: For any alumni record, when a new career position is added,
-    the careerHistory array should be sorted by startDate in descending order
-    (most recent first).
+    **Feature: django-backend, Property 11: Career position ordering**
+
+    Property: careerHistory is ordered MOST RECENTLY ADDED first.
+
+    This replaced the original "sorted by startDate descending" property in
+    Jul 2026: sorting by date alone pushed a freshly added entry below older
+    ones whenever it started earlier, so a student who had just saved a role
+    could not see it. `currentPosition` is still date-driven — it is derived
+    from the data (see Alumni.recompute_current_position), not from this
+    display order.
     """
     
     def setUp(self):
@@ -81,51 +86,85 @@ class CareerPositionChronologyPropertyTest(HypothesisTestCase):
     @given(
         num_positions=st.integers(min_value=2, max_value=10),
     )
-    def test_career_positions_sorted_by_date_descending(self, num_positions):
+    def test_career_positions_ordered_newest_added_first(self, num_positions):
         """
-        Test that career positions are always sorted by startDate in descending order
+        Whatever order positions are saved in — and whatever their start dates —
+        the list always reads back in reverse insertion order.
         """
-        # Generate random career positions with different dates
+        # Hypothesis reuses setUp state across examples, so start each example
+        # from an empty history.
+        self.alumni.careerHistory = []
+        self.alumni.currentPosition = None
+        self.alumni.save(update_fields=['careerHistory', 'currentPosition'])
+
+        # Generate positions with distinct dates, then save them shuffled so
+        # insertion order and date order deliberately disagree.
         base_date = date(2020, 1, 1)
         positions = []
-        
+
         for i in range(num_positions):
-            # Create positions with random dates
             days_offset = i * 100 + (i * 37) % 50  # Semi-random offset
             start_date = base_date + timedelta(days=days_offset)
-            
-            position = {
+            positions.append({
                 'company': f'Company {i}',
                 'position': f'Position {i}',
                 'startDate': start_date.isoformat(),
-                'description': f'Description {i}'
-            }
-            positions.append(position)
-        
-        # Add positions in random order
+                'description': f'Description {i}',
+            })
+
         import random
         shuffled_positions = positions.copy()
         random.shuffle(shuffled_positions)
-        
+
         for position in shuffled_positions:
             self.alumni.add_career_position(position)
-        
-        # Refresh from database
+
         self.alumni.refresh_from_db()
-        
-        # Verify positions are sorted by startDate descending
         career_history = self.alumni.careerHistory
-        
-        for i in range(len(career_history) - 1):
-            current_date = career_history[i].get('startDate', '')
-            next_date = career_history[i + 1].get('startDate', '')
-            
-            # Current date should be >= next date (descending order)
-            self.assertGreaterEqual(
-                current_date,
-                next_date,
-                f"Career history not sorted correctly: {current_date} should be >= {next_date}"
-            )
+
+        # The list is the save order, reversed.
+        self.assertEqual(
+            [c['position'] for c in career_history],
+            [p['position'] for p in reversed(shuffled_positions)],
+            'Career history must read back newest-added first',
+        )
+
+        # And the insertion stamps must be non-increasing, which is what the
+        # ordering actually keys on.
+        stamps = [c.get('addedAt', '') for c in career_history]
+        self.assertEqual(stamps, sorted(stamps, reverse=True))
+
+    @settings(max_examples=25, deadline=None)
+    @given(num_positions=st.integers(min_value=2, max_value=8))
+    def test_current_position_is_the_latest_by_date_not_by_insertion(self, num_positions):
+        """
+        `currentPosition` must stay date-driven even though the list is ordered
+        by insertion — adding an OLD role last must not make it current.
+        """
+        self.alumni.careerHistory = []
+        self.alumni.currentPosition = None
+        self.alumni.save(update_fields=['careerHistory', 'currentPosition'])
+
+        base_date = date(2020, 1, 1)
+        positions = [
+            {
+                'company': f'Company {i}',
+                'position': f'Position {i}',
+                'startDate': (base_date + timedelta(days=i * 200)).isoformat(),
+                'description': '',
+            }
+            for i in range(num_positions)
+        ]
+        latest = max(positions, key=lambda p: p['startDate'])
+
+        import random
+        shuffled = positions.copy()
+        random.shuffle(shuffled)
+        for position in shuffled:
+            self.alumni.add_career_position(position)
+
+        self.alumni.refresh_from_db()
+        self.assertEqual(self.alumni.currentPosition['position'], latest['position'])
     
     @settings(max_examples=30, deadline=None)
     @given(

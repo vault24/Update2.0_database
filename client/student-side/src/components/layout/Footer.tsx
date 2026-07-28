@@ -12,7 +12,7 @@ export function Footer() {
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <img src="/spi-logo.png" alt="SPI Logo" className="w-8 h-8" />
-              <span className="font-display font-bold text-lg">SIPI Portal</span>
+              <span className="font-display font-bold text-lg">SGPI Portal</span>
             </div>
             <p className="text-sm text-muted-foreground">
               Empowering students and teachers with modern educational technology for a better learning experience.
@@ -100,7 +100,7 @@ export function Footer() {
         {/* Bottom Bar */}
         <div className="mt-8 pt-6 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-xs text-muted-foreground text-center sm:text-left">
-            © {currentYear} SIPI Portal. All rights reserved.
+            © {currentYear} SGPI Portal. All rights reserved.
           </p>
           <p className="text-xs text-muted-foreground flex items-center gap-1">
             Made with <Heart className="w-3 h-3 text-destructive fill-destructive" /> by <a href= "https://errorburner.site/" > Errorburner Team </a> 

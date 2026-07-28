@@ -1,6 +1,10 @@
-{% load static %}<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml">
 <head>
+  {# Nothing may precede <!DOCTYPE html> — not even {% load %}, which used to
+     sit on line 1 and made validators/editors report "doctype must be the
+     first token". No custom tag library is used by this template or by the
+     children that extend it, so the load was dead weight anyway. #}
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
@@ -30,7 +34,7 @@
           <tr>
             <td class="email-header" align="center" style="padding:28px 32px 22px; background-color:#ffffff; border-bottom:1px solid #eef2f7;">
               <div style="color:#0f172a; font-size:17px; font-weight:700; letter-spacing:0.2px;">
-                {{ brand_tagline|default:"Sirajganj Gov. Polytechnic Institute" }}
+                {{ brand_tagline|default:"Sirajganj Govt Polytechnic Institute" }}
               </div>
               <div style="color:#64748b; font-size:12px; margin-top:2px;">
                 সিরাজগঞ্জ পলিটেকনিক ইনস্টিটিউট
@@ -60,10 +64,10 @@
               </p>
               {% endif %}
               <p style="margin:0 0 6px; color:#64748b; font-size:12px; line-height:18px;">
-                {{ footer_note|default:"This is an automated message from Sirajganj Gov. Polytechnic Institute — please do not reply directly to this email. এটি একটি স্বয়ংক্রিয় ইমেইল — অনুগ্রহ করে সরাসরি উত্তর দেবেন না।" }}
+                {{ footer_note|default:"This is an automated message from Sirajganj Govt Polytechnic Institute — please do not reply directly to this email. এটি একটি স্বয়ংক্রিয় ইমেইল — অনুগ্রহ করে সরাসরি উত্তর দেবেন না।" }}
               </p>
               <p style="margin:0; color:#94a3b8; font-size:12px;">
-                &copy; {{ year }} Sirajganj Gov. Polytechnic Institute. All rights reserved.
+                &copy; {{ year }} Sirajganj Govt Polytechnic Institute. All rights reserved.
               </p>
             </td>
           </tr>

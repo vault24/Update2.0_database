@@ -100,7 +100,7 @@ function PasswordResetPage() {
               <img src="/spi-logo.png" alt="SPI Logo" className="w-full h-full object-contain" />
             </div>
             <p className="text-xs text-gray-400 font-medium tracking-wide uppercase">
-              Sirajganj Polytechnic Institute
+              Sirajganj Govt Polytechnic Institute
             </p>
           </motion.div>
 

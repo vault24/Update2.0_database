@@ -59,7 +59,7 @@ function MathPopup({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: (
         <div className="flex justify-center mb-4">
           <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
             style={{ background: 'linear-gradient(135deg,#3b6cf7,#2152e3)' }}>
-            <span className="text-2xl">ðŸ”</span>
+            <span className="text-2xl">🔐</span>
           </div>
         </div>
 

@@ -106,8 +106,32 @@ export interface StudentFilters {
   ordering?: string;
 }
 
+/** One thing the student still has to do, and the page that fixes it. */
+export interface ProfileCompletionItem {
+  label: string;
+  target: 'documents' | 'profile';
+}
+
+export interface ProfileCompletion {
+  percentage: number;
+  completed: number;
+  total: number;
+  complete: boolean;
+  missing: ProfileCompletionItem[];
+  primaryTarget: 'documents' | 'profile' | null;
+  targetCounts: { documents: number; profile: number };
+}
+
 // Service
 export const studentService = {
+  /**
+   * Completion status for the logged-in student's own profile — percentage,
+   * what is still missing, and which page fixes it.
+   */
+  getProfileCompletion: async (): Promise<ProfileCompletion> => {
+    return await apiClient.get<ProfileCompletion>('students/profile-completion/');
+  },
+
   /**
    * Get list of students with filters
    */

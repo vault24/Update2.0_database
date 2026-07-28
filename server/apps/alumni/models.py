@@ -131,35 +131,67 @@ class Alumni(models.Model):
     def __str__(self):
         return f"Alumni: {self.student.fullNameEnglish} ({self.graduationYear})"
     
+    def sort_career_history(self):
+        """
+        Order career entries so the MOST RECENTLY ADDED one is always first.
+
+        Sorting purely by startDate put a newly added entry below older ones
+        whenever it started earlier (or on the same date), which is the opposite
+        of what the student expects right after adding it.
+
+        Keyed ONLY on `addedAt`, and the sort is stable, so entries sharing a
+        stamp (two saves inside the same microsecond, or legacy rows with no
+        stamp at all) keep the relative order they already have — which is why
+        `add_career_position` puts the new entry at the front first.
+        """
+        if not self.careerHistory:
+            return
+        self.careerHistory.sort(key=lambda c: c.get('addedAt') or '', reverse=True)
+
+    def recompute_current_position(self):
+        """
+        `currentPosition` = the role the alumnus actually holds now.
+
+        Derived from the DATA, never from the list order: careerHistory is
+        displayed newest-ADDED first, so reading index 0 would make whatever
+        was saved last the "current" job even when it started years earlier.
+        A role explicitly flagged isCurrent wins; otherwise the latest
+        startDate does.
+        """
+        entries = [c for c in (self.careerHistory or []) if isinstance(c, dict)]
+        if not entries:
+            self.currentPosition = None
+            return
+        ongoing = [c for c in entries if c.get('isCurrent')]
+        pool = ongoing or entries
+        self.currentPosition = max(pool, key=lambda c: c.get('startDate') or '')
+
     def add_career_position(self, position_data):
         """
-        Add a new career position to career history
-        Positions are sorted by startDate in descending order (most recent first)
-        
+        Add a new career position to career history.
+        The new entry becomes the first item (see sort_career_history).
+
         Args:
-            position_data: dict with keys: company, position, startDate, endDate (optional)
+            position_data: dict with keys: organizationName, positionTitle,
+                startDate, endDate (optional), isCurrent, ...
         """
         import uuid
-        
+        from django.utils import timezone
+
         if not self.careerHistory:
             self.careerHistory = []
-        
+
         # Generate unique ID for the career position
         position_data['id'] = str(uuid.uuid4())
-        
-        # Add the new position
-        self.careerHistory.append(position_data)
-        
-        # Sort by startDate in descending order (most recent first)
-        self.careerHistory.sort(
-            key=lambda x: x.get('startDate', ''),
-            reverse=True
-        )
-        
-        # Update current position if this is the most recent
-        if position_data.get('startDate') == self.careerHistory[0].get('startDate'):
-            self.currentPosition = position_data
-        
+        # Insertion stamp — drives "newest first" ordering.
+        position_data['addedAt'] = timezone.now().isoformat()
+
+        # Front-insert, then stable-sort: the new entry stays first even if it
+        # shares an `addedAt` stamp with the previous one.
+        self.careerHistory.insert(0, position_data)
+        self.sort_career_history()
+        self.recompute_current_position()
+
         self.save()
     
     def update_support_category(self, new_category, notes=''):
@@ -302,7 +334,12 @@ class Alumni(models.Model):
         for i, career in enumerate(self.careerHistory):
             if career.get('id') == career_id:
                 career_data['id'] = career_id
+                # Editing must not move the entry: keep its original insertion
+                # stamp so the list order stays stable.
+                career_data['addedAt'] = career.get('addedAt') or career_data.get('addedAt') or ''
                 self.careerHistory[i] = career_data
+                self.sort_career_history()
+                self.recompute_current_position()
                 self.save()
                 return True
         return False
@@ -318,6 +355,8 @@ class Alumni(models.Model):
             return False
         
         self.careerHistory = [career for career in self.careerHistory if career.get('id') != career_id]
+        # Otherwise a deleted role could stay pinned as the current position.
+        self.recompute_current_position()
         self.save()
         return True
     

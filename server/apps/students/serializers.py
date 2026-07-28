@@ -264,16 +264,22 @@ def build_student_portfolio(student):
     def rows(value):
         return [r for r in (value or []) if isinstance(r, dict)]
 
+    # Career entries are stored in the ALUMNI vocabulary
+    # (positionType / positionTitle / organizationName / isCurrent). They are
+    # emitted here in the same normalised shape the student's own profile page
+    # uses (type / position / company / current), so the public profile renders
+    # identically to the private one. Legacy rows that already used the short
+    # keys are still accepted.
     careers = [
         {
             'id': str(c.get('id', '')),
-            'type': c.get('type', ''),
-            'position': c.get('position', ''),
-            'company': c.get('company', ''),
+            'type': c.get('positionType') or c.get('type') or '',
+            'position': c.get('positionTitle') or c.get('position') or '',
+            'company': c.get('organizationName') or c.get('company') or '',
             'location': c.get('location', ''),
             'startDate': c.get('startDate', ''),
             'endDate': c.get('endDate', ''),
-            'current': bool(c.get('current')),
+            'current': bool(c.get('isCurrent', c.get('current'))),
             'description': c.get('description', ''),
             'degree': c.get('degree', ''),
             'field': c.get('field', ''),
@@ -282,6 +288,9 @@ def build_student_portfolio(student):
             'businessType': c.get('businessType', ''),
             'otherType': c.get('otherType', ''),
             'achievements': [a for a in (c.get('achievements') or []) if isinstance(a, str)],
+            # Insertion stamp — lets the public page reproduce the profile
+            # page's "newest first" ordering.
+            'addedAt': c.get('addedAt', ''),
         }
         for c in rows(alumni.careerHistory)
     ][:30]
