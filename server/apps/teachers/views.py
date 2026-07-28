@@ -3,10 +3,12 @@ Teacher Views
 """
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q
 from django.conf import settings
+from django.shortcuts import get_object_or_404
 from .models import (
     Teacher,
     TeacherExperience,
@@ -21,6 +23,7 @@ from .serializers import (
     TeacherCreateSerializer,
     TeacherUpdateSerializer,
     TeacherProfileSerializer,
+    TeacherPublicProfileSerializer,
     TeacherExperienceSerializer,
     TeacherEducationSerializer,
     TeacherPublicationSerializer,
@@ -247,6 +250,28 @@ class TeacherViewSet(viewsets.ModelViewSet):
         """
         teacher = self.get_object()
         serializer = TeacherProfileSerializer(teacher)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['get'], url_path='public-profile',
+            permission_classes=[AllowAny])
+    def public_profile(self, request, pk=None):
+        """
+        The public faculty profile behind the shareable /teacher/<id> page.
+        GET /api/teachers/{id}/public-profile/
+
+        Deliberately open (AllowAny): the whole point is that the link works
+        for someone who is not logged in. The payload is the strict allow-list
+        in TeacherPublicProfileSerializer — the professional record the teacher
+        published (experience, education, publications, research, awards,
+        skills), never their personal mobile or employment details.
+        """
+        teacher = get_object_or_404(
+            Teacher.objects.select_related('department').prefetch_related(
+                'experiences', 'education', 'publications', 'research', 'awards'
+            ),
+            pk=pk,
+        )
+        serializer = TeacherPublicProfileSerializer(teacher, context={'request': request})
         return Response(serializer.data)
     
     @action(detail=True, methods=['patch'])

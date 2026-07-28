@@ -43,7 +43,48 @@ export interface UpdateAccountData {
   last_name?: string;
 }
 
+/** One Captain-account request as returned by the API. */
+export interface CaptainRequest {
+  id: string;
+  name: string;
+  department: string | null;
+  department_name: string | null;
+  shift: string;
+  status: 'pending' | 'approved' | 'rejected';
+  rejection_reason?: string;
+  created_at: string;
+  reviewed_at?: string | null;
+}
+
+export interface CaptainRequestStatus {
+  isCaptain: boolean;
+  canRequest: boolean;
+  department: string | null;
+  departmentName: string | null;
+  shift: string | null;
+  request: CaptainRequest | null;
+  blockedReason?: string | null;
+}
+
 class SettingsService {
+  /**
+   * Whether this student may request a Class Captain account, plus their
+   * latest request. Routing (department + shift) comes from their own record.
+   */
+  async getCaptainRequestStatus(): Promise<CaptainRequestStatus> {
+    return await api.get<CaptainRequestStatus>('/auth/captain-request/me/');
+  }
+
+  /**
+   * Send a Class Captain account request to the responsible Department Head.
+   */
+  async requestCaptainAccount(): Promise<{ message: string; request: CaptainRequest }> {
+    return await api.post<{ message: string; request: CaptainRequest }>(
+      '/auth/captain-request/me/',
+      {}
+    );
+  }
+
   /**
    * Get system settings (public endpoint)
    */

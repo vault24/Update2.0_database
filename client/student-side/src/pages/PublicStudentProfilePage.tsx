@@ -2,13 +2,12 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  GraduationCap, Mail, Phone, MapPin, Building, Award,
-  BookOpen, Copy, Check, Share2, FileText, Clock,
+  GraduationCap, Mail, Phone, MapPin, Building,
+  BookOpen, Copy, Check, Share2, Clock,
   TrendingUp, User, BarChart3, Loader2, AlertCircle, Lock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
@@ -16,6 +15,11 @@ import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { studentService } from '@/services/studentService';
 import { settingsService, SystemSettings } from '@/services/settingsService';
 import { getErrorMessage } from '@/lib/api';
+import {
+  PublicPortfolioSections,
+  hasPortfolioContent,
+  type PublicPortfolio,
+} from '@/components/profile/PublicPortfolioSections';
 
 /** Generic female avatar silhouette — shown instead of a photo on female
  * students' public profiles (their photo is never published; server rule). */
@@ -300,10 +304,13 @@ This is a public profile showcasing academic information and achievements.`,
     cgpa: calculatedCGPA,
     attendanceRate: calculatedAttendance,
     completedCourses: student.semesterResults?.length || 0,
-    currentCourses: [],
-    achievements: [],
-    projects: [],
   };
+
+  // Career & Portfolio the student published themselves (career journey,
+  // skills, courses & certifications, career highlights). Rendered as real
+  // sections; each one is hidden when it has no entries.
+  const portfolio: PublicPortfolio | null = student.portfolio || null;
+  const showPortfolio = hasPortfolioContent(portfolio);
 
   return (
     <div className="min-h-screen bg-background">
@@ -445,124 +452,54 @@ This is a public profile showcasing academic information and achievements.`,
           <p className="text-sm text-muted-foreground whitespace-pre-line">{transformedStudent.about}</p>
         </motion.div>
 
-        {/* Tabs */}
-        <Tabs defaultValue="courses" className="w-full">
-          <TabsList className="w-full justify-start bg-card border border-border rounded-lg sm:rounded-xl p-1 mb-3 sm:mb-4 overflow-x-auto">
-            <TabsTrigger value="courses" className="gap-1 sm:gap-1.5 text-[10px] sm:text-xs md:text-sm px-2 sm:px-3">
-              <BookOpen className="w-3 h-3 sm:w-4 sm:h-4" />
-              <span className="hidden xs:inline">Courses</span>
-              <span className="xs:hidden">📚</span>
-            </TabsTrigger>
-            <TabsTrigger value="achievements" className="gap-1 sm:gap-1.5 text-[10px] sm:text-xs md:text-sm px-2 sm:px-3">
-              <Award className="w-3 h-3 sm:w-4 sm:h-4" />
-              <span className="hidden xs:inline">Achievements</span>
-              <span className="xs:hidden">🏆</span>
-            </TabsTrigger>
-            <TabsTrigger value="projects" className="gap-1 sm:gap-1.5 text-[10px] sm:text-xs md:text-sm px-2 sm:px-3">
-              <FileText className="w-3 h-3 sm:w-4 sm:h-4" />
-              <span className="hidden xs:inline">Projects</span>
-              <span className="xs:hidden">📁</span>
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="courses">
-            <div className="bg-card rounded-xl border border-border p-4 md:p-6 shadow-card space-y-4">
-              <h3 className="font-semibold flex items-center gap-2">
-                <BookOpen className="w-5 h-5 text-primary" />
-                Academic Information
-              </h3>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 border border-border">
-                  <div>
-                    <h4 className="font-medium text-sm">Department</h4>
-                    <p className="text-xs text-muted-foreground">{transformedStudent.department}</p>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 border border-border">
-                  <div>
-                    <h4 className="font-medium text-sm">Current Semester</h4>
-                    <p className="text-xs text-muted-foreground">Semester {transformedStudent.semester}</p>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 border border-border">
-                  <div>
-                    <h4 className="font-medium text-sm">Session</h4>
-                    <p className="text-xs text-muted-foreground">{transformedStudent.session}</p>
-                  </div>
-                </div>
+        {/* Academic record */}
+        <motion.div
+          initial={false}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.22 }}
+          className="bg-card rounded-xl border border-border p-4 md:p-6 shadow-card"
+        >
+          <h3 className="font-semibold mb-4 flex items-center gap-2 text-sm sm:text-base">
+            <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+            Academic Information
+          </h3>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {[
+              { label: 'Department', value: transformedStudent.department },
+              { label: 'Current Semester', value: `Semester ${transformedStudent.semester}` },
+              { label: 'Session', value: transformedStudent.session },
+              { label: 'Roll Number', value: transformedStudent.rollNumber },
+              { label: 'Academic Status', value: student.status || 'Active' },
+            ].map((row) => (
+              <div key={row.label} className="p-3 rounded-lg bg-secondary/50 border border-border">
+                <h4 className="font-medium text-sm">{row.label}</h4>
+                <p className="text-xs text-muted-foreground mt-0.5 break-words capitalize">{row.value}</p>
               </div>
-            </div>
-          </TabsContent>
+            ))}
+          </div>
+        </motion.div>
 
-          <TabsContent value="achievements">
-            <div className="bg-card rounded-xl border border-border p-4 md:p-6 shadow-card space-y-4">
-              <h3 className="font-semibold flex items-center gap-2">
-                <Award className="w-5 h-5 text-primary" />
-                Student Information
+        {/* Career & Portfolio — the sections the student published themselves.
+            Rendered only when there is something to show. */}
+        {showPortfolio ? (
+          <PublicPortfolioSections portfolio={portfolio} />
+        ) : (
+          /* Fall back to the flat skill-name list the API has always sent, so
+             a profile saved before the portfolio payload existed still shows
+             its skills. */
+          transformedStudent.skills.length > 0 && (
+            <motion.div initial={false} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="bg-card rounded-xl border border-border p-4 md:p-6 shadow-card">
+              <h3 className="font-semibold mb-3 flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-primary" />
+                Skills
               </h3>
-              <div className="space-y-3">
-                <div className="flex gap-3 p-3 rounded-lg bg-gradient-to-br from-emerald-500/10 to-teal-500/5 border border-emerald-500/20">
-                  <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                    <User className="w-5 h-5 text-emerald-600" />
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-sm">Roll Number</h4>
-                    <p className="text-xs text-muted-foreground">{transformedStudent.rollNumber}</p>
-                  </div>
-                </div>
-                <div className="flex gap-3 p-3 rounded-lg bg-gradient-to-br from-green-500/10 to-emerald-500/5 border border-green-500/20">
-                  <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
-                    <GraduationCap className="w-5 h-5 text-green-600" />
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-sm">Academic Status</h4>
-                    <p className="text-xs text-muted-foreground">{student.status || 'Active'}</p>
-                  </div>
-                </div>
+              <div className="flex flex-wrap gap-2">
+                {transformedStudent.skills.map((skill, i) => (
+                  <Badge key={i} variant="secondary" className="text-xs">{skill}</Badge>
+                ))}
               </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="projects">
-            <div className="bg-card rounded-xl border border-border p-4 md:p-6 shadow-card space-y-4">
-              <h3 className="font-semibold flex items-center gap-2">
-                <FileText className="w-5 h-5 text-primary" />
-                Contact Information
-              </h3>
-              <div className="space-y-3">
-                <div className="p-4 rounded-lg border border-border">
-                  <h4 className="font-medium">Email</h4>
-                  <p className="text-sm text-muted-foreground mt-1">{transformedStudent.email}</p>
-                </div>
-                {transformedStudent.phone !== 'N/A' && (
-                  <div className="p-4 rounded-lg border border-border">
-                    <h4 className="font-medium">Phone</h4>
-                    <p className="text-sm text-muted-foreground mt-1">{transformedStudent.phone}</p>
-                  </div>
-                )}
-                <div className="p-4 rounded-lg border border-border">
-                  <h4 className="font-medium">Location</h4>
-                  <p className="text-sm text-muted-foreground mt-1">{transformedStudent.location}</p>
-                </div>
-              </div>
-            </div>
-          </TabsContent>
-        </Tabs>
-
-        {/* Skills — the student's own entries from the Career & Portfolio
-            section of their profile. Hidden entirely when none are added. */}
-        {transformedStudent.skills.length > 0 && (
-          <motion.div initial={false} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="bg-card rounded-xl border border-border p-4 md:p-6 shadow-card">
-            <h3 className="font-semibold mb-3 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-primary" />
-              Skills
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {transformedStudent.skills.map((skill, i) => (
-                <Badge key={i} variant="secondary" className="text-xs">{skill}</Badge>
-              ))}
-            </div>
-          </motion.div>
+            </motion.div>
+          )
         )}
 
         {/* Contact */}

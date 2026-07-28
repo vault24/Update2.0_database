@@ -507,20 +507,22 @@ export function Dashboard() {
         {/* Enhanced Stats Grid */}
         <TeacherStatsGrid stats={teacherStats} />
 
-        {/* Main Content Grid */}
+        {/* Main Content Grid — `min-w-0` on each grid item, see the student
+            grid below: without it a non-wrapping child widens the column past
+            the screen and the cards get cut off on mobile. */}
         <div className="grid lg:grid-cols-3 gap-4 md:gap-6">
-          <div className="lg:col-span-2 space-y-4 md:space-y-6">
+          <div className="min-w-0 lg:col-span-2 space-y-4 md:space-y-6">
             {/* Quick Actions for Teachers */}
             <TeacherQuickActions />
 
             {/* Widgets Grid */}
             <div className="grid md:grid-cols-2 gap-4">
-              <PomodoroTimer />
-              <QuickNotes />
+              <div className="min-w-0"><PomodoroTimer /></div>
+              <div className="min-w-0"><QuickNotes /></div>
             </div>
           </div>
 
-          <div className="space-y-4 md:space-y-6">
+          <div className="min-w-0 space-y-4 md:space-y-6">
             {/* Today's Schedule */}
             <TeacherScheduleWidget />
 
@@ -572,20 +574,24 @@ export function Dashboard() {
       {/* Study Streak */}
       <StudyStreak />
 
-      {/* Main Content Grid */}
+      {/* Main Content Grid.
+          `min-w-0` on every grid item is required: grid items default to
+          `min-width: auto`, so a child with non-wrapping text (the truncated
+          exam titles) makes the column wider than the screen and the cards get
+          cut off on mobile. */}
       <div className="grid lg:grid-cols-3 gap-4 md:gap-6">
-        <div className="lg:col-span-2 space-y-4 md:space-y-6">
+        <div className="min-w-0 lg:col-span-2 space-y-4 md:space-y-6">
           {/* Upcoming Events */}
           <UpcomingEventsWidget />
-          
+
           {/* Widgets Grid */}
           <div className="grid md:grid-cols-2 gap-4">
-            <PomodoroTimer />
-            <QuickNotes />
+            <div className="min-w-0"><PomodoroTimer /></div>
+            <div className="min-w-0"><QuickNotes /></div>
           </div>
         </div>
-        
-        <div className="space-y-4 md:space-y-6">
+
+        <div className="min-w-0 space-y-4 md:space-y-6">
           {/* Enhanced Notice Board */}
           <EnhancedNoticeBoard />
         </div>

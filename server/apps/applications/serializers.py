@@ -11,6 +11,9 @@ ROLE_LABELS = {
     'department_head': 'Department Head',
 }
 
+# Department Head accounts store shift as '1st_shift' / '2nd_shift'.
+HEAD_SHIFT_LABELS = {'1st_shift': '1st Shift', '2nd_shift': '2nd Shift'}
+
 
 class ApplicationApprovalSerializer(serializers.ModelSerializer):
     """One step of the approval history (drives the tracking timeline + signatures)."""
@@ -82,6 +85,7 @@ class ApplicationSerializer(serializers.ModelSerializer):
     current_approver_label = serializers.SerializerMethodField()
     current_holder = serializers.SerializerMethodField()
     current_department_name = serializers.CharField(source='current_department.name', read_only=True, default=None)
+    current_shift_label = serializers.SerializerMethodField()
     approvals = ApplicationApprovalSerializer(many=True, read_only=True)
     can_download = serializers.SerializerMethodField()
 
@@ -106,7 +110,8 @@ class ApplicationSerializer(serializers.ModelSerializer):
             'status',
             'template', 'template_name', 'template_slug',
             'current_approver_role', 'current_approver_label', 'current_holder',
-            'current_department', 'current_department_name', 'stage',
+            'current_department', 'current_department_name',
+            'current_shift', 'current_shift_label', 'stage',
             'approvals', 'can_download',
             'submittedAt',
             'reviewedAt',
@@ -118,6 +123,9 @@ class ApplicationSerializer(serializers.ModelSerializer):
     def get_current_approver_label(self, obj):
         return ROLE_LABELS.get(obj.current_approver_role, obj.current_approver_role or '')
 
+    def get_current_shift_label(self, obj):
+        return HEAD_SHIFT_LABELS.get(obj.current_shift, '')
+
     def get_current_holder(self, obj):
         """Human-readable description of who currently holds the application."""
         if obj.status == 'approved':
@@ -126,7 +134,9 @@ class ApplicationSerializer(serializers.ModelSerializer):
             return 'Rejected'
         label = ROLE_LABELS.get(obj.current_approver_role, obj.current_approver_role or '')
         if obj.current_approver_role == 'department_head' and obj.current_department_id:
-            return f"{label} — {obj.current_department.name}"
+            holder = f"{label} — {obj.current_department.name}"
+            shift_label = HEAD_SHIFT_LABELS.get(obj.current_shift, '')
+            return f"{holder} ({shift_label})" if shift_label else holder
         return label
 
     def get_can_download(self, obj):

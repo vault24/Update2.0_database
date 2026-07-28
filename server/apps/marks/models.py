@@ -65,7 +65,18 @@ class MarksRecord(models.Model):
     
     # Remarks
     remarks = models.TextField(blank=True)
-    
+
+    # Semester archive (see class_routines.SemesterArchive). NULL = current
+    # semester (editable); set = historical, read-only, shown under History.
+    archive = models.ForeignKey(
+        'class_routines.SemesterArchive',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_index=True,
+        related_name='marks_records',
+    )
+
     class Meta:
         db_table = 'marks_records'
         ordering = ['-recorded_at']
@@ -75,6 +86,7 @@ class MarksRecord(models.Model):
             models.Index(fields=['student', 'subject_code']),
             models.Index(fields=['semester']),
             models.Index(fields=['exam_type']),
+            models.Index(fields=['archive']),
         ]
     
     def __str__(self):

@@ -27,6 +27,7 @@ urlpatterns = [
     path('account/delete/', views.delete_account_view, name='account-delete'),
 
     # Captain account requests (reviewed by Department Heads)
+    path('captain-request/me/', views.my_captain_request_view, name='my-captain-request'),
     path('captain-requests/', views.list_captain_requests_view, name='list-captain-requests'),
     path('captain-requests/<uuid:request_id>/review/', views.review_captain_request_view, name='review-captain-request'),
     

@@ -2,9 +2,35 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=794, initial-scale=1.0, viewport-fit=cover">
     <title>Clearance Certificate - Sirajganj Polytechnic Institute</title>
     <style>
+        /* ============================================================
+           FIXED DOCUMENT LAYOUT — identical on every device
+           This document is a fixed physical size: A4 portrait (210mm). Mobile
+           browsers must not reflow it or inflate its text, or the
+           downloaded/printed file stops matching the design (content
+           cut off, sections misaligned). The viewport is pinned to the
+           document's own CSS width so small screens zoom-to-fit
+           instead of re-laying-out, text auto-sizing is disabled, and
+           the page keeps its exact width at every breakpoint.
+           ============================================================ */
+        html {
+            -webkit-text-size-adjust: 100%;
+            -moz-text-size-adjust: 100%;
+            text-size-adjust: 100%;
+        }
+
+        html, body {
+            min-width: 794px;
+        }
+
+        @media print {
+            /* Printing already uses @page; the screen guard must not
+               add an extra page or shift the sheet. */
+            html, body { min-width: 0; }
+        }
+
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
         body {

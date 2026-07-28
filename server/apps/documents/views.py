@@ -152,6 +152,15 @@ class DocumentViewSet(viewsets.ModelViewSet):
                         validate=True
                     )
                 
+                # One document per field: replace whatever occupies this slot
+                # rather than stacking a duplicate next to it.
+                from .admission_documents import supersede_field
+                supersede_field(
+                    validated_data.get('original_field_name', ''),
+                    student_id=validated_data.get('student'),
+                    source_id=validated_data.get('source_id'),
+                )
+
                 # Create document record with enhanced fields
                 document = Document.objects.create(
                     student_id=validated_data.get('student'),
@@ -366,6 +375,203 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
+    # ------------------------------------------------------------------
+    # Admission document checklist — "what did I submit, what is missing"
+    # ------------------------------------------------------------------
+    def _resolve_admission_owner(self, request):
+        """
+        (student, admission) for the logged-in student, either of which may be
+        None. Admission uploads carry student_id=None until the admission is
+        approved, so both are needed to find every document they own.
+        """
+        user = request.user
+        student = None
+        pid = getattr(user, 'related_profile_id', None)
+        if pid:
+            from apps.students.models import Student
+            student = Student.objects.filter(id=pid).first()
+
+        from apps.admissions.models import Admission
+        admission = Admission.objects.filter(user=user).order_by('-created_at').first()
+        return student, admission
+
+    @action(detail=False, methods=['get'], url_path='admission-checklist')
+    def admission_checklist(self, request):
+        """
+        The logged-in student's admission-document checklist.
+        GET /api/documents/admission-checklist/
+
+        Every catalogue field with whether it is required, whether it has been
+        submitted, and the document occupying it — so the Documents page can
+        show what is still missing and let the student upload it later.
+        """
+        if getattr(request.user, 'role', None) not in ('student', 'captain'):
+            return Response(
+                {'error': 'Not a student account',
+                 'details': 'The admission checklist is only available to student accounts.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        from .admission_documents import build_checklist
+
+        student, admission = self._resolve_admission_owner(request)
+        checklist = build_checklist(student=student, admission=admission)
+
+        missing_required = [c['field'] for c in checklist if c['required'] and not c['submitted']]
+        return Response({
+            'documents': checklist,
+            'summary': {
+                'total': len(checklist),
+                'submitted': sum(1 for c in checklist if c['submitted']),
+                'required': sum(1 for c in checklist if c['required']),
+                'missingRequired': missing_required,
+                'complete': not missing_required,
+            },
+        })
+
+    @action(detail=False, methods=['post'], url_path='admission-upload')
+    def admission_upload(self, request):
+        """
+        Upload (or replace) ONE admission document for the logged-in student.
+        POST /api/documents/admission-upload/
+          multipart: field=<admission field name>, file=<the file>
+
+        Students who skipped a document at admission time use this to submit it
+        later. The upload always occupies the field's single slot: an existing
+        document for that field is superseded, never duplicated.
+        """
+        if getattr(request.user, 'role', None) not in ('student', 'captain'):
+            return Response(
+                {'error': 'Not a student account',
+                 'details': 'Only student accounts can upload admission documents.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        from .admission_documents import (
+            FIELD_MAP, build_checklist, category_for, document_category_for,
+            supersede_field,
+        )
+
+        field_name = (request.data.get('field') or '').strip()
+        if field_name not in FIELD_MAP:
+            return Response(
+                {'error': 'Unknown document',
+                 'details': f'"{field_name}" is not an admission document field.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        upload = request.FILES.get('file')
+        if not upload:
+            return Response(
+                {'error': 'No file', 'details': 'Attach the document file to upload.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        student, admission = self._resolve_admission_owner(request)
+        if student is None and admission is None:
+            return Response(
+                {'error': 'No admission record',
+                 'details': 'We could not find your student or admission record.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        document_category = document_category_for(field_name)
+
+        try:
+            with transaction.atomic():
+                if student is not None:
+                    student_data = {
+                        'department_code': student.department.code.lower().replace(' ', '-'),
+                        'department_name': student.department.name.lower().replace(' ', '-'),
+                        'session': student.session,
+                        'shift': (student.shift or '').lower().replace(' ', '-'),
+                        'student_name': student.fullNameEnglish.replace(' ', ''),
+                        'student_id': student.currentRollNumber,
+                    }
+                    file_info = structured_storage.save_student_document(
+                        uploaded_file=upload,
+                        student_data=student_data,
+                        document_category=document_category,
+                        validate=True,
+                    )
+                else:
+                    file_info = structured_storage.save_system_document(
+                        uploaded_file=upload,
+                        document_category=document_category,
+                        validate=True,
+                    )
+
+                # Single slot per field — replace, never duplicate.
+                supersede_field(
+                    field_name,
+                    student_id=student.id if student else None,
+                    source_id=admission.id if admission else None,
+                )
+
+                document = Document.objects.create(
+                    student=student,
+                    fileName=file_info['file_name'],
+                    fileType=file_info['file_type'],
+                    category=category_for(field_name),
+                    filePath=file_info['file_path'],
+                    fileSize=file_info['file_size'],
+                    fileHash=file_info['file_hash'],
+                    mimeType=file_info['mime_type'],
+                    source_type='admission',
+                    source_id=admission.id if admission else None,
+                    original_field_name=field_name,
+                    description=f'Admission document: {field_name}',
+                    status='active',
+                    document_type=file_info.get('document_type', 'student'),
+                    department_code=file_info.get('department_code', ''),
+                    session=file_info.get('session', ''),
+                    shift=file_info.get('shift', ''),
+                    owner_name=file_info.get('owner_name', ''),
+                    owner_id=file_info.get('owner_id', ''),
+                    document_category=file_info.get('document_category', document_category),
+                )
+
+                # Mirror the path onto the admission's documents map so the
+                # admission review screens stay in sync.
+                if admission is not None:
+                    admission.documents = dict(admission.documents or {})
+                    admission.documents[field_name] = file_info['file_path']
+                    admission.save(update_fields=['documents'])
+
+                self._log_document_access(
+                    document=document, user=request.user,
+                    access_type='upload', request=request, success=True,
+                )
+
+                # A passport photo doubles as the profile picture.
+                if student is not None and field_name == 'photo':
+                    try:
+                        document.assign_as_profile_photo(student)
+                    except Exception as photo_err:
+                        logger.warning(f"Auto profile-photo assignment failed: {photo_err}")
+
+        except ValidationError as e:
+            return Response(
+                {'error': 'Invalid file', 'details': '; '.join(getattr(e, 'messages', [])) or str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as e:
+            logger.error(f"Admission document upload failed: {e}")
+            return Response(
+                {'error': 'Upload failed', 'details': 'An unexpected error occurred'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        checklist = build_checklist(student=student, admission=admission)
+        return Response(
+            {
+                'message': f'{FIELD_MAP[field_name]["label"]} uploaded successfully.',
+                'document': DocumentSerializer(document).data,
+                'documents': checklist,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
     @action(detail=True, methods=['get'])
     def preview(self, request, pk=None):
         """
@@ -717,6 +923,15 @@ class DocumentViewSet(viewsets.ModelViewSet):
                                 validate=True
                             )
                         
+                        # One document per field — supersede the slot's current
+                        # occupant instead of creating a duplicate.
+                        from .admission_documents import supersede_field
+                        supersede_field(
+                            doc_data.get('original_field_name', ''),
+                            student_id=student_id,
+                            source_id=source_id,
+                        )
+
                         # Create document record
                         document = Document.objects.create(
                             student_id=student_id,

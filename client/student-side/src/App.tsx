@@ -34,6 +34,7 @@ const ApplicationsPage = lazy(() => import("./pages/ApplicationsPage"));
 const AddAttendancePage = lazy(() => import("./pages/AddAttendancePage"));
 const TeacherContactsPage = lazy(() => import("./pages/TeacherContactsPage"));
 const TeacherAttendancePage = lazy(() => import("./pages/TeacherAttendancePage"));
+const TeacherHistoryPage = lazy(() => import("./pages/TeacherHistoryPage"));
 const ManageMarksPage = lazy(() => import("./pages/ManageMarksPage"));
 const ClassEmailPage = lazy(() => import("./pages/ClassEmailPage"));
 const PublicStudentProfilePage = lazy(() => import("./pages/PublicStudentProfilePage"));
@@ -225,6 +226,7 @@ const App = () => {
         <Route path="students" element={<StudentListPage />} />
         <Route path="students/:id" element={<StudentDetailsPage />} />
         <Route path="teacher-attendance" element={<TeacherAttendancePage />} />
+        <Route path="history" element={<TeacherHistoryPage />} />
         <Route path="manage-marks" element={<ManageMarksPage />} />
         <Route path="class-email" element={<ClassEmailPage />} />
         <Route path="assignment/:id" element={<TeacherAssignmentDetailPage />} />

@@ -15,6 +15,14 @@ export interface ApplicationApproval {
   created_at: string;
 }
 
+// Department Head accounts are scoped to a shift; the API uses these keys.
+export type HeadShift = '1st_shift' | '2nd_shift';
+
+export const HEAD_SHIFT_OPTIONS: { value: HeadShift; label: string }[] = [
+  { value: '1st_shift', label: '1st Shift' },
+  { value: '2nd_shift', label: '2nd Shift' },
+];
+
 export interface Application {
   id: string;
   fullNameBangla: string;
@@ -41,6 +49,8 @@ export interface Application {
   current_holder?: string;
   current_department?: string | null;
   current_department_name?: string | null;
+  current_shift?: HeadShift | '';
+  current_shift_label?: string;
   stage?: number;
   approvals?: ApplicationApproval[];
   can_download?: boolean;
@@ -95,15 +105,18 @@ const applicationService = {
     });
   },
 
-  // Forward application for a second approval (Principal default, or a Department Head)
+  // Forward application for a second approval (Principal default, or a Department Head).
+  // A department has one head PER SHIFT, so forwarding to a Department Head needs
+  // both the department and the shift.
   async forwardApplication(
     id: string,
     forwardTo: 'institute_head' | 'department_head',
-    options?: { departmentId?: string; reviewNotes?: string }
+    options?: { departmentId?: string; shift?: HeadShift; reviewNotes?: string }
   ): Promise<Application> {
     return apiClient.post(`/applications/${id}/forward/`, {
       forward_to: forwardTo,
       department_id: options?.departmentId,
+      shift: options?.shift,
       reviewNotes: options?.reviewNotes || '',
     });
   },

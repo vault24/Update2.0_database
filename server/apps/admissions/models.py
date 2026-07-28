@@ -336,7 +336,13 @@ class Admission(models.Model):
                         )
                     
                     logger.info(f"File saved successfully: {file_info['file_path']}")
-                    
+
+                    # One document per field: a re-upload supersedes whatever
+                    # already occupies this slot instead of creating a duplicate
+                    # (also enforced by unique constraints on Document).
+                    from apps.documents.admission_documents import supersede_field
+                    supersede_field(field_name, student_id=student_id, source_id=self.id)
+
                     # Create document record with enhanced fields
                     document = Document.objects.create(
                         student_id=student_id,

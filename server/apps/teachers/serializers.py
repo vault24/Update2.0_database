@@ -178,6 +178,57 @@ class TeacherAwardSerializer(serializers.ModelSerializer):
         read_only_fields = ['id']
 
 
+class TeacherPublicProfileSerializer(serializers.ModelSerializer):
+    """
+    The shareable /teacher/<id> faculty profile, readable WITHOUT a login.
+
+    Deliberately a strict allow-list, not `exclude`: this payload is reachable
+    by anyone, so a field added to the model must never become public by
+    accident. Everything here is professional/academic information a faculty
+    page is meant to publish — the full profile that a teacher fills in
+    (experience, education, publications, research, awards, skills).
+
+    NOT exposed: personal mobile number, employment status, joining date and
+    the internal user link.
+    """
+    department = DepartmentSerializer(read_only=True)
+    departmentName = serializers.CharField(source='department.name', read_only=True, default='')
+    experiences = TeacherExperienceSerializer(many=True, read_only=True)
+    education = TeacherEducationSerializer(many=True, read_only=True)
+    publications = TeacherPublicationSerializer(many=True, read_only=True)
+    research = TeacherResearchSerializer(many=True, read_only=True)
+    awards = TeacherAwardSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Teacher
+        fields = [
+            'id',
+            'fullNameBangla',
+            'fullNameEnglish',
+            'designation',
+            'department',
+            'departmentName',
+            'subjects',
+            'qualifications',
+            'specializations',
+            'headline',
+            'about',
+            'skills',
+            'profilePhoto',
+            'coverPhoto',
+            # Institute contact only — the office, not the personal mobile.
+            'email',
+            'officeLocation',
+            # Full professional record
+            'experiences',
+            'education',
+            'publications',
+            'research',
+            'awards',
+        ]
+        read_only_fields = fields
+
+
 class TeacherProfileSerializer(serializers.ModelSerializer):
     """
     Complete profile serializer with all related data

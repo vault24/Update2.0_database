@@ -379,10 +379,11 @@ class CaptainAccountRequest(models.Model):
     """
     A student's request to become a Class Captain.
 
-    Created at signup when the person registers as a Captain. The account is
-    created as a regular student and is upgraded to the captain role only after
-    the Department Head responsible for the request's department + shift
-    approves it.
+    Created either at signup (when the person registers as a Captain) or later
+    from an existing student's Settings page. Either way the account stays a
+    regular student and is upgraded to the captain role only after the
+    Department Head responsible for the request's department + shift approves
+    it — the student's existing record and data are untouched.
     """
     STATUS_CHOICES = [
         ('pending', 'Pending'),

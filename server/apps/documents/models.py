@@ -6,6 +6,13 @@ from django.core.exceptions import ValidationError
 import uuid
 
 
+# Document fields that legitimately hold MANY files (a bag, not a slot) and are
+# therefore exempt from the one-document-per-field constraints below. Mirrors
+# documents.admission_documents.MULTI_VALUE_FIELDS — defined here to avoid a
+# circular import at model-definition time.
+MULTI_VALUE_DOCUMENT_FIELDS = ['custom', 'extraCertificates', 'other']
+
+
 class Document(models.Model):
     """
     Enhanced document model with filesystem-based storage
@@ -215,6 +222,39 @@ class Document(models.Model):
             models.CheckConstraint(
                 check=models.Q(fileSize__gte=0),
                 name='positive_file_size'
+            ),
+            # One document per document FIELD, enforced in the database so a
+            # duplicate can never be created behind the API's back. A field
+            # such as `fatherNIDFront` is a single slot: re-uploading must
+            # supersede the previous file (see documents.admission_documents),
+            # never add a second active record.
+            #
+            # Ownership is keyed two ways because admission uploads carry
+            # student_id=None until the admission is approved:
+            #   * by student, once the record is linked;
+            #   * by the source admission otherwise.
+            # MULTI_VALUE_DOCUMENT_FIELDS are deliberately excluded — those are
+            # bags of files, not slots.
+            models.UniqueConstraint(
+                fields=['student', 'original_field_name'],
+                condition=(
+                    models.Q(status='active')
+                    & models.Q(student__isnull=False)
+                    & ~models.Q(original_field_name='')
+                    & ~models.Q(original_field_name__in=MULTI_VALUE_DOCUMENT_FIELDS)
+                ),
+                name='uniq_active_document_per_student_field',
+            ),
+            models.UniqueConstraint(
+                fields=['source_id', 'original_field_name'],
+                condition=(
+                    models.Q(status='active')
+                    & models.Q(student__isnull=True)
+                    & models.Q(source_id__isnull=False)
+                    & ~models.Q(original_field_name='')
+                    & ~models.Q(original_field_name__in=MULTI_VALUE_DOCUMENT_FIELDS)
+                ),
+                name='uniq_active_document_per_source_field',
             ),
         ]
     

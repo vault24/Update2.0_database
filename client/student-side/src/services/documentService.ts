@@ -47,8 +47,59 @@ export interface DocumentFilters {
   source_id?: string;
 }
 
+/** One admission-document slot and what (if anything) fills it. */
+export interface AdmissionChecklistItem {
+  field: string;
+  label: string;
+  category: DocumentCategory;
+  required: boolean;
+  multiple: boolean;
+  submitted: boolean;
+  documents: {
+    id: string;
+    fileName: string;
+    fileType: string;
+    fileSize: number;
+    file_url: string;
+    uploadDate: string | null;
+  }[];
+}
+
+export interface AdmissionChecklist {
+  documents: AdmissionChecklistItem[];
+  summary: {
+    total: number;
+    submitted: number;
+    required: number;
+    missingRequired: string[];
+    complete: boolean;
+  };
+}
+
 // Service
 export const documentService = {
+  /**
+   * The student's admission-document checklist — which documents are already
+   * submitted and which are still missing.
+   */
+  getAdmissionChecklist: async (): Promise<AdmissionChecklist> => {
+    return await apiClient.get<AdmissionChecklist>('documents/admission-checklist/');
+  },
+
+  /**
+   * Upload (or replace) a single admission document. The backend keeps one
+   * document per field, so re-uploading supersedes rather than duplicates.
+   */
+  uploadAdmissionDocument: async (
+    field: string,
+    file: File
+  ): Promise<{ message: string; documents: AdmissionChecklistItem[] }> => {
+    const formData = new FormData();
+    formData.append('field', field);
+    formData.append('file', file);
+    return await apiClient.post('documents/admission-upload/', formData, true);
+  },
+
   /**
    * Get documents with filters
    */

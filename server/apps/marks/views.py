@@ -28,13 +28,18 @@ def _resolve_teacher_id(user):
 
 
 def _teacher_cohorts(user):
-    """Distinct (department_id, semester, shift) tuples the teacher teaches."""
+    """
+    Distinct (department_id, semester, shift) tuples the teacher CURRENTLY
+    teaches. Archived routines (previous semesters) are excluded so the marks
+    workspace starts fresh after a semester update; that historical data is
+    still readable through the Teacher History endpoints.
+    """
     teacher_id = _resolve_teacher_id(user)
     if not teacher_id:
         return []
     from apps.class_routines.models import ClassRoutine
     return list(
-        ClassRoutine.objects.filter(teacher_id=teacher_id)
+        ClassRoutine.objects.filter(teacher_id=teacher_id, archive__isnull=True)
         .values_list('department_id', 'semester', 'shift')
         .distinct()
     )
@@ -66,7 +71,11 @@ def scope_marks_queryset(qs, user):
         q = Q(recorded_by=user)
         for dept_id, sem, shift in _teacher_cohorts(user):
             q |= Q(student__department_id=dept_id, student__semester=sem, student__shift=shift)
-        return qs.filter(q)
+        # CURRENT semester only — archived marks are read-only history (they
+        # stay in the DB and are served by the Teacher History endpoints).
+        # Students reading their own marks use a different branch, so their
+        # full academic history is unaffected.
+        return qs.filter(q).filter(archive__isnull=True)
     if role in STUDENT_ROLES:
         pid = getattr(user, 'related_profile_id', None)
         return qs.filter(student_id=pid) if pid else qs.none()
@@ -168,6 +177,12 @@ class MarksViewSet(viewsets.ModelViewSet):
                     instance = MarksRecord.objects.filter(id=record_id).first()
                     if not instance:
                         raise ValueError(f'Marks record not found: {record_id}')
+                    # Archived semesters are read-only. This lookup is by id and
+                    # deliberately unscoped, so without this guard an archived
+                    # record could be edited whenever the same cohort exists
+                    # again in the new semester.
+                    if instance.archive_id is not None:
+                        raise ValueError('This record belongs to an archived semester and is read-only')
                     target_student_id = str(instance.student_id)
                 else:
                     target_student_id = str(item.get('student') or '')
@@ -253,9 +268,10 @@ class MarksViewSet(viewsets.ModelViewSet):
 
         PASS_MARK = 40.0
 
+        # Current semester only — previous semesters live on Teacher History.
         marks = scope_marks_queryset(
             MarksRecord.objects.select_related('student'), user
-        )
+        ).filter(archive__isnull=True)
 
         subjects = {}
         for m in marks:

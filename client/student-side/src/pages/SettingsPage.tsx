@@ -49,6 +49,7 @@ import {
   subscribeInstall,
   isStandalone,
 } from '@/pwa/installState';
+import { CaptainAccountRequestCard } from '@/components/account/CaptainAccountRequestCard';
 
 export default function SettingsPage() {
   const navigate = useNavigate();
@@ -580,6 +581,10 @@ export default function SettingsPage() {
             </Button>
           </div>
         </motion.div>
+
+        {/* Class Captain account request — routed to the Department Head
+            responsible for this student's department + shift. */}
+        <CaptainAccountRequestCard />
 
         {/* Appearance Section */}
         <motion.div

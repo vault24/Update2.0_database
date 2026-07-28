@@ -10,6 +10,7 @@ import {
   FolderOpen,
   Send,
   GraduationCap,
+  History,
   ChevronLeft,
   Menu,
   Users,
@@ -64,6 +65,7 @@ const mainMenuItems: MenuItem[] = [
   { icon: Users, label: 'Student List', path: '/dashboard/students', roles: ['teacher'] },
   { icon: ClipboardCheck, label: 'Manage Attendance', path: '/dashboard/teacher-attendance', roles: ['teacher'] },
   { icon: BookOpen, label: 'Manage Marks', path: '/dashboard/manage-marks', roles: ['teacher'] },
+  { icon: History, label: 'History', path: '/dashboard/history', roles: ['teacher'] },
   { icon: GraduationCap, label: 'Board Results', path: '/dashboard/board-results', roles: ['teacher'] },
   { icon: Mail, label: 'Class Emails', path: '/dashboard/class-email', roles: ['teacher'] },
 ];

@@ -30,6 +30,26 @@ ROLE_LABELS = {
     'department_head': 'Department Head',
 }
 
+# Department Head accounts carry shift as '1st_shift' / '2nd_shift'. Students and
+# applications use the timetable vocabulary (Morning / Day). Everything routed to
+# a head is normalised to the head vocabulary.
+HEAD_SHIFT_LABELS = {'1st_shift': '1st Shift', '2nd_shift': '2nd Shift'}
+_SHIFT_ALIASES = {
+    '1st_shift': '1st_shift', '1st shift': '1st_shift', '1st': '1st_shift',
+    'first': '1st_shift', 'first_shift': '1st_shift',
+    'morning': '1st_shift', 'day shift': '1st_shift',
+    '2nd_shift': '2nd_shift', '2nd shift': '2nd_shift', '2nd': '2nd_shift',
+    'second': '2nd_shift', 'second_shift': '2nd_shift',
+    'day': '2nd_shift', 'evening': '2nd_shift',
+}
+
+
+def normalize_head_shift(value):
+    """Map any shift spelling to the Department Head vocabulary, or '' if unknown."""
+    if not value:
+        return ''
+    return _SHIFT_ALIASES.get(str(value).strip().lower(), '')
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -116,8 +136,33 @@ def _user_can_act(user, app):
             return False
         if app.current_department_id and getattr(user, 'department_id', None) != app.current_department_id:
             return False
+        # A department has a head per shift — only the head of the targeted
+        # shift may act. Heads with no shift on their account are not blocked
+        # (legacy accounts), and neither is an application with no shift set.
+        if app.current_shift and getattr(user, 'shift', ''):
+            if user.shift != app.current_shift:
+                return False
         return True
     return False
+
+
+def _department_heads_for(department_id, head_shift):
+    """
+    Department Head accounts responsible for a department + shift.
+
+    Falls back to every head of the department when no account matches the exact
+    shift, so an application is never routed into a black hole.
+    """
+    if not department_id:
+        return []
+    heads = User.objects.filter(
+        role='department_head', is_active=True, department_id=department_id
+    )
+    if head_shift:
+        scoped = list(heads.filter(shift=head_shift))
+        if scoped:
+            return scoped
+    return list(heads)
 
 
 def _record_approval(app, user, action_value, *, notes='',
@@ -143,7 +188,7 @@ def _notify_next_approver(app):
         recipients = []
         role = app.current_approver_role
         if role == 'department_head' and app.current_department_id:
-            recipients = list(User.objects.filter(role='department_head', department_id=app.current_department_id))
+            recipients = _department_heads_for(app.current_department_id, app.current_shift)
         elif role:
             recipients = list(User.objects.filter(role=role))
         if recipients:
@@ -226,6 +271,83 @@ def _asset_data_uri(filename, mime):
     return uri
 
 
+# Design width (CSS px) per page size, keyed by the mm width found in the
+# template's own @page / .page rules. mm / 25.4 * 96.
+_PAGE_WIDTH_PX = {'210': 794, '297': 1123, '53.98': 204}
+
+_SCREEN_ONLY_CONTROL_RE = re.compile(
+    r'<div[^>]*class="[^"]*\b(?:controls|no-print)\b[^"]*"[^>]*>.*?</div>',
+    re.IGNORECASE | re.DOTALL,
+)
+_PRINT_BUTTON_RE = re.compile(
+    r'<button\b[^>]*onclick\s*=\s*["\'][^"\']*(?:window\.)?print\(\)[^"\']*["\'][^>]*>.*?</button>',
+    re.IGNORECASE | re.DOTALL,
+)
+_VIEWPORT_RE = re.compile(r'<meta\s+name=["\']viewport["\'][^>]*>', re.IGNORECASE)
+
+# Injected into every rendered document. Fixes the "renders differently on
+# different devices" problem: the page has a fixed physical size, so mobile
+# browsers must not reflow it or inflate its text.
+_FIXED_LAYOUT_CSS = """
+<style id="fixed-document-layout">
+/* Documents are a fixed physical size (A4 / CR80). Freeze the layout so the
+   downloaded and printed output is identical on phone, tablet and desktop. */
+html { -webkit-text-size-adjust: 100%; -moz-text-size-adjust: 100%; text-size-adjust: 100%; }
+html, body { min-width: __WIDTH__px; }
+@media print { html, body { min-width: 0; } }
+/* Belt and braces: no in-document print/download control ever reaches the
+   exported file — printing is driven by the surrounding app. */
+.controls, .no-print { display: none !important; }
+</style>
+"""
+
+
+def _document_design_width(html):
+    """The document's own design width in CSS px, inferred from its page size."""
+    match = re.search(r'width:\s*(210|297|53\.98)mm', html, flags=re.IGNORECASE)
+    if match:
+        return _PAGE_WIDTH_PX[match.group(1)]
+    if re.search(r'@page[^{]*\{[^}]*landscape', html, flags=re.IGNORECASE):
+        return 1123
+    return 794
+
+
+def _harden_document_html(html):
+    """
+    Make a stored template safe and device-consistent at render time.
+
+    Templates live in the database and may have been seeded before these rules
+    existed (or edited by an admin), so the guarantees are re-applied on every
+    render rather than trusted to the source file:
+      * strip any in-document print/download control (it would otherwise end up
+        in the downloaded and printed output);
+      * pin the viewport to the document's design width and disable mobile text
+        auto-sizing, so the layout never reflows or gets clipped on a phone.
+    """
+    if not html:
+        return html
+
+    html = _SCREEN_ONLY_CONTROL_RE.sub('', html)
+    html = _PRINT_BUTTON_RE.sub('', html)
+
+    width = _document_design_width(html)
+    fixed_meta = (
+        f'<meta name="viewport" content="width={width}, initial-scale=1.0, '
+        'viewport-fit=cover">'
+    )
+    if _VIEWPORT_RE.search(html):
+        html = _VIEWPORT_RE.sub(fixed_meta, html, count=1)
+    elif '<head>' in html.lower():
+        html = re.sub(r'(<head[^>]*>)', r'\1' + fixed_meta, html, count=1, flags=re.IGNORECASE)
+
+    css = _FIXED_LAYOUT_CSS.replace('__WIDTH__', str(width))
+    if '</head>' in html.lower():
+        html = re.sub(r'(</head>)', css + r'\1', html, count=1, flags=re.IGNORECASE)
+    else:
+        html = css + html
+    return html
+
+
 def _inline_template_assets(html):
     """Replace relative gov.svg / spi.png logo references with inline data URIs."""
     gov = _asset_data_uri('gov.svg', 'image/svg+xml')
@@ -235,6 +357,112 @@ def _inline_template_assets(html):
     if spi:
         html = re.sub(r'src=([\'"])(?:\./)?spi\.png\1', f'src="{spi}"', html, flags=re.IGNORECASE)
     return html
+
+
+def _student_photo_data_uri(student):
+    """
+    The student's profile photo as an inline base64 data URI.
+
+    The signed document is downloaded and re-opened as a standalone file, so a
+    plain URL would break (no session, possibly no network). Inlining is what
+    makes the photo actually appear on the printed / downloaded ID card.
+    Returns '' when there is no readable photo.
+    """
+    if not student:
+        return ''
+    raw = (getattr(student, 'profilePhoto', '') or '').strip()
+    if not raw:
+        return ''
+    if raw.startswith('data:'):
+        return raw
+
+    import base64
+    import mimetypes
+    from pathlib import Path
+    from django.conf import settings as dj_settings
+
+    # profilePhoto is stored as '/files/<relative path>' inside the structured
+    # store (see Document.profile_photo_path).
+    rel = raw
+    for prefix in ('/files/', 'files/'):
+        if rel.startswith(prefix):
+            rel = rel[len(prefix):]
+            break
+    rel = rel.lstrip('/')
+    if not rel or '..' in rel:
+        return ''
+
+    candidates = []
+    try:
+        from utils.structured_file_storage import structured_storage
+        info = structured_storage.get_file_info(rel)
+        if info and info.get('exists') and info.get('storage_path'):
+            candidates.append(Path(info['storage_path']))
+    except Exception:
+        pass
+    base_dir = Path(dj_settings.BASE_DIR)
+    candidates.append(base_dir / 'storage' / rel)
+    candidates.append(Path(getattr(dj_settings, 'MEDIA_ROOT', base_dir / 'media')) / rel)
+
+    for path in candidates:
+        try:
+            if path.is_file():
+                mime = mimetypes.guess_type(path.name)[0] or 'image/jpeg'
+                data = base64.b64encode(path.read_bytes()).decode('ascii')
+                return f'data:{mime};base64,{data}'
+        except Exception:
+            continue
+    return ''
+
+
+def _public_profile_url(app, student):
+    """The shareable /student/<roll> page this card's QR code points at."""
+    identifier = (
+        (getattr(student, 'currentRollNumber', '') if student else '')
+        or app.rollNumber
+        or (str(student.id) if student else '')
+    )
+    if not identifier:
+        return ''
+    from urllib.parse import quote
+    from apps.notifications.dispatch import student_portal_url
+    return student_portal_url(f'/student/{quote(str(identifier))}')
+
+
+def _qr_code_img(text):
+    """
+    An <img> tag holding a base64 PNG QR code for `text`, or '' when there is
+    nothing to encode. Inline data keeps the code visible in the downloaded
+    file, exactly like the front-end generation path does.
+    """
+    value = (text or '').strip()
+    if not value:
+        return ''
+    try:
+        import base64
+        import io
+        import qrcode
+
+        qr = qrcode.QRCode(
+            version=None,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=6,
+            border=2,
+        )
+        qr.add_data(value)
+        qr.make(fit=True)
+        buf = io.BytesIO()
+        qr.make_image(fill_color='black', back_color='white').save(buf, format='PNG')
+        data = base64.b64encode(buf.getvalue()).decode('ascii')
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning('QR code generation failed: %s', exc)
+        return ''
+
+    return (
+        f'<img src="data:image/png;base64,{data}" alt="Profile QR code" '
+        'style="width:100%;height:100%;display:block;object-fit:contain;" />'
+    )
 
 
 def _gender_pronouns(gender):
@@ -294,8 +522,13 @@ def _render_document_html(app, request):
     student = getattr(app, 'student', None)
     pron = _gender_pronouns(getattr(student, 'gender', '') if student else '')
     dob = cgpa = passing_year = ''
+    blood_group = phone = emergency_contact = ''
     addr = {'village': '', 'post_office': '', 'upazila': '', 'district': ''}
     if student:
+        blood_group = getattr(student, 'bloodGroup', '') or ''
+        phone = getattr(student, 'mobileStudent', '') or ''
+        # Emergency contact on the ID card: the guardian's number, else the student's.
+        emergency_contact = getattr(student, 'guardianMobile', '') or phone
         if getattr(student, 'dateOfBirth', None):
             dob = student.dateOfBirth.strftime('%d %B %Y')
         if getattr(student, 'gpa', None) is not None:
@@ -318,7 +551,18 @@ def _render_document_html(app, request):
     dept = app.department or ''
     serial = app.registrationNumber or str(app.id)[:8]
 
+    # ID-card assets. Both are inlined so they survive download/print — a plain
+    # URL would resolve to nothing once the file leaves the browser session.
+    photo_uri = _student_photo_data_uri(student)
+    profile_url = _public_profile_url(app, student)
+
     ctx = {
+        'photo': photo_uri, 'profilePhoto': photo_uri, 'STUDENT_PHOTO': photo_uri,
+        'publicProfileUrl': profile_url, 'PUBLIC_PROFILE_URL': profile_url,
+        'bloodGroup': blood_group, 'BLOOD_GROUP': blood_group,
+        'phoneNumber': phone, 'PHONE_NUMBER': phone, 'mobile': phone,
+        'emergencyContact': emergency_contact, 'EMERGENCY_CONTACT': emergency_contact,
+        'email': (getattr(student, 'email', '') if student else '') or app.email or '',
         'name': name, 'STUDENT_NAME': name, 'studentName': name, 'fullNameEnglish': name,
         'fullNameBangla': app.fullNameBangla or '',
         'fatherName': app.fatherName or '', 'FATHER_NAME': app.fatherName or '',
@@ -355,6 +599,12 @@ def _render_document_html(app, request):
     for key, val in ctx.items():
         html = html.replace('{{' + key + '}}', escape(str(val)))
 
+    # QR code is generated HTML (an <img> tag), so it is substituted raw — its
+    # only variable part is base64 we produced ourselves, never user input.
+    qr_img = _qr_code_img(profile_url)
+    for token in ('{{QR_CODE}}', '{{qrCode}}', '{{qr_code}}'):
+        html = html.replace(token, qr_img)
+
     # Known bracket-style tokens.
     bracket_map = {
         '[Student Name]': name, '[Father Name]': app.fatherName or '', '[Mother Name]': app.motherName or '',
@@ -376,6 +626,10 @@ def _render_document_html(app, request):
 
     # Inline the shared logo assets so they render on the Django-served document.
     html = _inline_template_assets(html)
+
+    # Strip in-document print controls and pin the layout so the exported file
+    # is identical on every device.
+    html = _harden_document_html(html)
 
     return html
 
@@ -419,10 +673,13 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             return qs
         if role == 'department_head':
             from django.db.models import Q
-            return qs.filter(
-                Q(current_department_id=getattr(user, 'department_id', None))
-                | Q(approvals__approver=user)
-            ).distinct()
+            # Their inbox: applications routed to their department AND their
+            # shift (an unset shift on either side stays visible so legacy
+            # accounts/records are not hidden), plus anything they acted on.
+            mine = Q(current_department_id=getattr(user, 'department_id', None))
+            if getattr(user, 'shift', ''):
+                mine &= Q(current_shift__in=['', user.shift])
+            return qs.filter(mine | Q(approvals__approver=user)).distinct()
         if role in ('student', 'captain'):
             student = _user_student_profile(user)
             if not student:
@@ -472,6 +729,10 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                     application.current_department = dept
             except Exception:
                 pass
+            # Route to the head of the applicant's own shift when it is known.
+            application.current_shift = normalize_head_shift(
+                request.data.get('head_shift') or application.shift
+            )
 
         _link_student(application)
         application.save()
@@ -515,6 +776,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         application.current_approver_role = ''
         application.current_approver = None
         application.current_department = None
+        application.current_shift = ''
         application.save()
 
         _email_applicant(
@@ -549,6 +811,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         notes = request.data.get('reviewNotes', '') or request.data.get('notes', '')
         forwarded_to_name = ROLE_LABELS.get(target, target)
         new_department = None
+        new_shift = ''
         if target == 'department_head':
             dept_id = request.data.get('department_id') or request.data.get('department')
             try:
@@ -557,9 +820,29 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             except Exception:
                 new_department = None
             if not new_department:
-                return Response({'detail': 'Select a department head to forward to.'},
+                return Response({'detail': 'Select a department to forward to.'},
                                 status=status.HTTP_400_BAD_REQUEST)
-            forwarded_to_name = f"{ROLE_LABELS['department_head']} — {new_department.name}"
+
+            # A department has one head per shift, so the shift decides WHICH
+            # head receives it and is therefore required.
+            raw_shift = request.data.get('shift') or request.data.get('head_shift')
+            new_shift = normalize_head_shift(raw_shift)
+            if not new_shift:
+                return Response(
+                    {'detail': 'Select the shift of the Department Head to forward to (1st Shift or 2nd Shift).'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if not _department_heads_for(new_department.id, new_shift):
+                return Response(
+                    {'detail': f'No active Department Head account exists for {new_department.name}.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            forwarded_to_name = (
+                f"{ROLE_LABELS['department_head']} — {new_department.name} "
+                f"({HEAD_SHIFT_LABELS[new_shift]})"
+            )
 
         _record_approval(
             application, request.user, 'forwarded', notes=notes,
@@ -568,6 +851,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
         application.current_approver_role = target
         application.current_department = new_department
+        application.current_shift = new_shift
         application.current_approver = None
         application.stage = 2
         application.reviewedBy = _actor_name(request.user)
@@ -608,6 +892,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         application.current_approver_role = ''
         application.current_approver = None
         application.current_department = None
+        application.current_shift = ''
         application.save()
 
         _email_applicant(

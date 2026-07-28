@@ -594,3 +594,296 @@ class ClassRoutineViewSet(viewsets.ModelViewSet):
             'completed_operations': len(results),
             'total_operations': len(operations)
         }, status=status.HTTP_200_OK)
+
+    # ──────────────────────────────────────────────────────────────────────
+    # Semester rollover  (ARCHIVE, DON'T DELETE)
+    # ──────────────────────────────────────────────────────────────────────
+    @action(detail=False, methods=['post'], url_path='update-semester')
+    def update_semester(self, request):
+        """
+        Start a new semester: archive the current one.
+
+        POST /api/class-routines/update-semester/
+          body: { admin_password, label?, notes? }
+
+        Administrator-only and confirmed with the admin's OWN account password.
+
+        Nothing is deleted or moved. A SemesterArchive row is created and every
+        CURRENT (archive IS NULL) ClassRoutine / AttendanceRecord / MarksRecord
+        is stamped with it, so:
+          * teachers' Manage Attendance (records + analysis) and Manage Marks
+            start empty for the new semester, and
+          * all previous data stays exactly where it is, readable read-only
+            from the Teacher History page.
+        Archived routines are also deactivated so they leave the live timetable
+        (and no longer trigger schedule-conflict checks).
+        """
+        from django.utils import timezone
+        from apps.attendance.models import AttendanceRecord
+        from apps.marks.models import MarksRecord
+        from .models import SemesterArchive
+
+        # Institute-wide action: a semester rollover archives EVERY department's
+        # data, so a single department head must not be able to trigger it.
+        if not (getattr(request.user, 'is_superuser', False) or
+                getattr(request.user, 'role', None) in ('registrar', 'institute_head')):
+            return Response(
+                {'error': 'Permission denied',
+                 'detail': 'Only the Principal or Registrar can update the semester.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        admin_password = (request.data.get('admin_password') or '').strip()
+        if not admin_password:
+            return Response(
+                {'error': 'Password confirmation required',
+                 'detail': 'Enter your administrator password to confirm the semester update.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not request.user.check_password(admin_password):
+            return Response(
+                {'error': 'Incorrect password',
+                 'detail': 'The administrator password you entered is incorrect.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        current_routines = ClassRoutine.objects.filter(archive__isnull=True)
+        current_attendance = AttendanceRecord.objects.filter(archive__isnull=True)
+        current_marks = MarksRecord.objects.filter(archive__isnull=True)
+
+        if not current_routines.exists() and not current_attendance.exists() and not current_marks.exists():
+            return Response(
+                {'error': 'Nothing to archive',
+                 'detail': 'There is no current semester data to archive yet.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Dominant session of the outgoing semester (best-effort, for labelling).
+        session = ''
+        session_row = (
+            current_routines.exclude(session='')
+            .values_list('session', flat=True)
+            .first()
+        )
+        if session_row:
+            session = session_row
+
+        today = timezone.localdate()
+        label = (request.data.get('label') or '').strip()
+        if not label:
+            label = f"{session or 'Previous semester'} — archived {today.strftime('%d %b %Y')}"
+
+        with transaction.atomic():
+            archive = SemesterArchive.objects.create(
+                label=label,
+                session=session,
+                notes=(request.data.get('notes') or '').strip(),
+                archived_by=request.user if getattr(request.user, 'is_authenticated', False) else None,
+            )
+
+            # Stamp, don't move: the rows stay put and simply gain an archive FK.
+            routines_count = current_routines.update(archive=archive, is_active=False)
+            attendance_count = current_attendance.update(archive=archive)
+            marks_count = current_marks.update(archive=archive)
+
+            archive.routines_count = routines_count
+            archive.attendance_count = attendance_count
+            archive.marks_count = marks_count
+            archive.save(update_fields=['routines_count', 'attendance_count', 'marks_count'])
+
+        try:
+            from apps.activity_logs.signals import log_activity
+            xff = request.META.get('HTTP_X_FORWARDED_FOR')
+            ip = xff.split(',')[0].strip() if xff else request.META.get('REMOTE_ADDR')
+            log_activity(
+                request.user, 'update', 'SemesterArchive', str(archive.id),
+                f'Semester updated — archived {routines_count} routines, '
+                f'{attendance_count} attendance records and {marks_count} marks records as "{label}"',
+                changes={
+                    'label': label,
+                    'session': session,
+                    'routines': routines_count,
+                    'attendance': attendance_count,
+                    'marks': marks_count,
+                },
+                ip_address=ip, user_agent=request.META.get('HTTP_USER_AGENT', '')[:255],
+            )
+        except Exception as exc:  # audit logging must never block the rollover
+            import logging
+            logging.getLogger(__name__).warning('Semester archive activity log failed: %s', exc)
+
+        return Response({
+            'success': True,
+            'archive': {
+                'id': str(archive.id),
+                'label': archive.label,
+                'session': archive.session,
+                'archived_at': archive.archived_at.isoformat(),
+                'routines_count': routines_count,
+                'attendance_count': attendance_count,
+                'marks_count': marks_count,
+            },
+            'message': (
+                f'Semester updated. Archived {routines_count} class routines, '
+                f'{attendance_count} attendance records and {marks_count} marks records. '
+                'They remain available read-only under Teacher History.'
+            ),
+        }, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['get'], url_path='semester-archives')
+    def semester_archives(self, request):
+        """
+        Past semester archives.
+
+        GET /api/class-routines/semester-archives/
+
+        Teachers only see archives they actually have data in; admins see all.
+        """
+        from .models import SemesterArchive
+
+        archives = SemesterArchive.objects.all()
+        teacher_id = _resolve_teacher_id(request.user)
+        if teacher_id:
+            archives = archives.filter(routines__teacher_id=teacher_id).distinct()
+
+        return Response({
+            'archives': [
+                {
+                    'id': str(a.id),
+                    'label': a.label,
+                    'session': a.session,
+                    'notes': a.notes,
+                    'archived_at': a.archived_at.isoformat(),
+                    'routines_count': a.routines_count,
+                    'attendance_count': a.attendance_count,
+                    'marks_count': a.marks_count,
+                }
+                for a in archives
+            ]
+        })
+
+    @action(detail=False, methods=['get'], url_path='teacher-history')
+    def teacher_history(self, request):
+        """
+        Subject-wise archived data for the requesting teacher — the Teacher
+        History page. READ-ONLY by construction: it only reads archived rows.
+
+        GET /api/class-routines/teacher-history/?archive=<id>
+        (omit `archive` for the most recent one)
+
+        Per archived subject returns the class identity (session / semester /
+        shift / department), attendance analysis and result (pass/fail)
+        analysis, reusing the same data the live workspace uses.
+        """
+        from collections import defaultdict
+        from django.db.models import Count
+        from apps.attendance.models import AttendanceRecord
+        from apps.marks.models import MarksRecord
+        from .models import SemesterArchive
+
+        teacher_id = _resolve_teacher_id(request.user)
+        if not teacher_id:
+            return Response({'error': 'Teacher profile not found'}, status=status.HTTP_403_FORBIDDEN)
+
+        archive_id = request.query_params.get('archive')
+        if archive_id:
+            archive = SemesterArchive.objects.filter(id=archive_id).first()
+        else:
+            archive = SemesterArchive.objects.filter(routines__teacher_id=teacher_id).distinct().first()
+        if not archive:
+            return Response({'archive': None, 'subjects': []})
+
+        routines = (
+            ClassRoutine.objects.filter(archive=archive, teacher_id=teacher_id)
+            .select_related('department')
+        )
+
+        # One entry per taught class (subject + cohort), like the live summary.
+        groups = {}
+        for r in routines:
+            key = (r.subject_code, r.department_id, r.semester, r.shift, r.session)
+            g = groups.setdefault(key, {
+                'subject_code': r.subject_code,
+                'subject_name': r.subject_name,
+                'department': r.department.name if r.department else '',
+                'semester': r.semester,
+                'shift': r.shift,
+                'session': r.session,
+                'class_type': r.class_type,
+                'routine_ids': [],
+            })
+            g['routine_ids'].append(str(r.id))
+
+        PASS_MARK = 40.0
+        subjects = []
+        for key, g in groups.items():
+            subject_code, dept_id, sem, shift, session = key
+
+            att = AttendanceRecord.objects.filter(
+                archive=archive,
+                class_routine_id__in=g['routine_ids'],
+                status__in=['approved', 'direct'],
+            )
+            agg = att.aggregate(
+                total=Count('id'),
+                present=Count('id', filter=Q(is_present=True)),
+                students=Count('student', distinct=True),
+                class_days=Count('date', distinct=True),
+            )
+            total = agg['total'] or 0
+            present = agg['present'] or 0
+
+            # Result analysis over the same archived semester/subject.
+            marks = MarksRecord.objects.filter(
+                archive=archive, subject_code=subject_code, semester=sem,
+                student__department_id=dept_id,
+            )
+            per_student = defaultdict(lambda: {'obtained': 0.0, 'total': 0.0})
+            for m in marks:
+                s = per_student[str(m.student_id)]
+                s['obtained'] += float(m.marks_obtained or 0)
+                s['total'] += float(m.total_marks or 0)
+
+            graded = passed = 0
+            pct_sum = 0.0
+            for v in per_student.values():
+                if v['total'] > 0:
+                    pct = v['obtained'] / v['total'] * 100
+                    graded += 1
+                    pct_sum += pct
+                    if pct >= PASS_MARK:
+                        passed += 1
+            failed = graded - passed
+
+            subjects.append({
+                **{k: v for k, v in g.items() if k != 'routine_ids'},
+                'attendance': {
+                    'total_records': total,
+                    'present': present,
+                    'absent': total - present,
+                    'percentage': round(present / total * 100, 1) if total else 0,
+                    'students': agg['students'] or 0,
+                    'class_days': agg['class_days'] or 0,
+                },
+                'results': {
+                    'total_students': len(per_student),
+                    'evaluated': graded,
+                    'passed': passed,
+                    'failed': failed,
+                    'pass_percentage': round(passed / graded * 100, 1) if graded else 0,
+                    'fail_percentage': round(failed / graded * 100, 1) if graded else 0,
+                    'average_percentage': round(pct_sum / graded, 1) if graded else 0,
+                },
+            })
+
+        subjects.sort(key=lambda s: (s['semester'] or 0, s['subject_code']))
+
+        return Response({
+            'archive': {
+                'id': str(archive.id),
+                'label': archive.label,
+                'session': archive.session,
+                'archived_at': archive.archived_at.isoformat(),
+            },
+            'subjects': subjects,
+        })

@@ -15,8 +15,9 @@ import {
   routineTransformers, 
   type ClassRoutine, 
   type DayOfWeek, 
-  type Shift, 
-  type RoutineGridData 
+  type Shift,
+  type RoutineGridData,
+  type SemesterUpdateResponse
 } from '@/services/routineService';
 import departmentService, { type Department } from '@/services/departmentService';
 import { teacherService, type Teacher } from '@/services/teacherService';
@@ -134,6 +135,36 @@ export default function ClassRoutine() {
   const [slotFormErrors, setSlotFormErrors] = useState<Record<string, string>>({});
   // Auto-fill status for the subject-name lookup driven by the subject code.
   const [subjectLookup, setSubjectLookup] = useState<'idle' | 'loading' | 'found' | 'notfound'>('idle');
+
+  // ── Semester rollover (archive current semester) ──────────────────────
+  // Institute-wide, so only the Principal/Registrar may run it (the backend
+  // enforces the same rule and re-checks the password).
+  const canUpdateSemester = user?.role === 'registrar' || user?.role === 'institute_head';
+  const [isSemesterDialogOpen, setIsSemesterDialogOpen] = useState(false);
+  const [semesterPassword, setSemesterPassword] = useState('');
+  const [semesterSubmitting, setSemesterSubmitting] = useState(false);
+  const [semesterResult, setSemesterResult] = useState<SemesterUpdateResponse['archive'] | null>(null);
+
+  const handleUpdateSemester = async () => {
+    if (!semesterPassword.trim()) return;
+    try {
+      setSemesterSubmitting(true);
+      const response = await routineService.updateSemester({ admin_password: semesterPassword });
+      setSemesterResult(response.archive);
+      setSemesterPassword('');
+      toast({ title: 'Semester updated', description: response.message });
+      // All routines were archived/deactivated — reload the (now empty) grid.
+      fetchRoutine(true);
+    } catch (err) {
+      toast({
+        variant: 'destructive',
+        title: 'Semester update failed',
+        description: err instanceof Error ? err.message : 'Please try again.',
+      });
+    } finally {
+      setSemesterSubmitting(false);
+    }
+  };
   const { toast } = useToast();
 
   // The timeline is one continuous, proportional track. A class's left edge
@@ -905,7 +936,17 @@ export default function ClassRoutine() {
             {viewMode === 'student' ? 'Manage department-wise weekly class schedules.' : 'View teacher-wise class schedules.'}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Semester rollover — Principal/Registrar only, password confirmed */}
+          {canUpdateSemester && !isEditMode && !isTeacherEditMode && (
+            <Button
+              variant="outline"
+              onClick={() => { setSemesterPassword(''); setSemesterResult(null); setIsSemesterDialogOpen(true); }}
+            >
+              <GraduationCap className="w-4 h-4 mr-2" />
+              Update Semester
+            </Button>
+          )}
           {/* Student Edit Mode Actions */}
           {viewMode === 'student' && isEditMode ? (
             <>
@@ -1579,6 +1620,98 @@ export default function ClassRoutine() {
               Save
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Update Semester (archive current semester) ── */}
+      <Dialog open={isSemesterDialogOpen} onOpenChange={setIsSemesterDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <GraduationCap className="w-5 h-5 text-primary" />
+              {semesterResult ? 'Semester updated' : 'Update Semester'}
+            </DialogTitle>
+          </DialogHeader>
+
+          {semesterResult ? (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-border bg-muted/40 p-4 space-y-2">
+                <p className="font-medium">{semesterResult.label}</p>
+                <div className="grid grid-cols-3 gap-2 text-center pt-1">
+                  <div>
+                    <p className="text-lg font-bold">{semesterResult.routines_count}</p>
+                    <p className="text-[11px] text-muted-foreground">Routines</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold">{semesterResult.attendance_count}</p>
+                    <p className="text-[11px] text-muted-foreground">Attendance</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold">{semesterResult.marks_count}</p>
+                    <p className="text-[11px] text-muted-foreground">Marks</p>
+                  </div>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Nothing was deleted. Teachers can still read this data from their
+                <span className="font-medium text-foreground"> History </span>
+                page, while their current attendance and marks workspaces start fresh.
+              </p>
+              <DialogFooter>
+                <Button onClick={() => setIsSemesterDialogOpen(false)}>Done</Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-amber-300/50 bg-amber-50 dark:bg-amber-950/20 p-3 text-sm">
+                <p className="font-medium text-amber-900 dark:text-amber-200">This starts a new semester.</p>
+                <ul className="mt-1.5 list-disc pl-4 space-y-0.5 text-amber-800 dark:text-amber-300/90 text-[13px]">
+                  <li>All current class routines, attendance and marks are archived.</li>
+                  <li>Teachers' Records, Analysis and Manage Marks start empty.</li>
+                  <li>Nothing is deleted — archived data stays readable under Teacher History.</li>
+                </ul>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="semester-admin-password">
+                  Confirm with your administrator password
+                </Label>
+                <Input
+                  id="semester-admin-password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={semesterPassword}
+                  onChange={(e) => setSemesterPassword(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && semesterPassword.trim() && !semesterSubmitting) {
+                      handleUpdateSemester();
+                    }
+                  }}
+                  placeholder="Your account password"
+                />
+              </div>
+
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsSemesterDialogOpen(false)}
+                  disabled={semesterSubmitting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleUpdateSemester}
+                  disabled={semesterSubmitting || !semesterPassword.trim()}
+                >
+                  {semesterSubmitting ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Updating…</>
+                  ) : (
+                    <><GraduationCap className="w-4 h-4 mr-2" />Confirm &amp; Update</>
+                  )}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

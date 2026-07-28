@@ -132,6 +132,7 @@ class StudentDetailSerializer(serializers.ModelSerializer):
     department = DepartmentListSerializer(read_only=True)
     profilePhoto = serializers.SerializerMethodField()
     avatarVariant = serializers.SerializerMethodField()
+    portfolio = serializers.SerializerMethodField()
 
     class Meta:
         model = Student
@@ -143,6 +144,11 @@ class StudentDetailSerializer(serializers.ModelSerializer):
 
     def get_avatarVariant(self, obj):
         return avatar_variant_for(obj)
+
+    def get_portfolio(self, obj):
+        """Career & Portfolio sections — same payload the public profile gets,
+        so an authorised viewer previews exactly what outsiders see."""
+        return build_student_portfolio(obj)
 
 
 class StudentPublicProfileSerializer(serializers.ModelSerializer):
@@ -165,6 +171,7 @@ class StudentPublicProfileSerializer(serializers.ModelSerializer):
     presentAddress = serializers.SerializerMethodField()
     avatarVariant = serializers.SerializerMethodField()
     skills = serializers.SerializerMethodField()
+    portfolio = serializers.SerializerMethodField()
 
     class Meta:
         model = Student
@@ -187,6 +194,7 @@ class StudentPublicProfileSerializer(serializers.ModelSerializer):
             'semesterAttendance',
             # Self-published portfolio (Career & Portfolio section)
             'skills',
+            'portfolio',
             # Contact (published by institute decision)
             'email',
             'mobileStudent',
@@ -222,6 +230,9 @@ class StudentPublicProfileSerializer(serializers.ModelSerializer):
         except Exception:
             return []
 
+    def get_portfolio(self, obj):
+        return build_student_portfolio(obj)
+
     def get_presentAddress(self, obj):
         """Coarse location only — never the street-level address."""
         address = obj.presentAddress if isinstance(obj.presentAddress, dict) else {}
@@ -229,6 +240,96 @@ class StudentPublicProfileSerializer(serializers.ModelSerializer):
             'district': address.get('district', ''),
             'division': address.get('division', ''),
         }
+
+
+def build_student_portfolio(student):
+    """
+    The Career & Portfolio sections the student filled in themselves —
+    career journey, skills, courses & certifications and career highlights.
+
+    These live on the linked alumni / career-prefill record (the same rows
+    the student edits from their profile page), so the public profile shows
+    exactly what they published. Every section is an allow-list of display
+    fields; anything a section does not need stays private. Sections with
+    no entries come back empty and the page hides them.
+    """
+    empty = {
+        'bio': '', 'linkedinUrl': '', 'portfolioUrl': '',
+        'careers': [], 'skills': [], 'courses': [], 'highlights': [],
+    }
+    alumni = getattr(student, 'alumni', None)
+    if alumni is None:
+        return empty
+
+    def rows(value):
+        return [r for r in (value or []) if isinstance(r, dict)]
+
+    careers = [
+        {
+            'id': str(c.get('id', '')),
+            'type': c.get('type', ''),
+            'position': c.get('position', ''),
+            'company': c.get('company', ''),
+            'location': c.get('location', ''),
+            'startDate': c.get('startDate', ''),
+            'endDate': c.get('endDate', ''),
+            'current': bool(c.get('current')),
+            'description': c.get('description', ''),
+            'degree': c.get('degree', ''),
+            'field': c.get('field', ''),
+            'institution': c.get('institution', ''),
+            'businessName': c.get('businessName', ''),
+            'businessType': c.get('businessType', ''),
+            'otherType': c.get('otherType', ''),
+            'achievements': [a for a in (c.get('achievements') or []) if isinstance(a, str)],
+        }
+        for c in rows(alumni.careerHistory)
+    ][:30]
+
+    # Skills keep their category so the page can group them, but the
+    # self-rated proficiency number stays private.
+    skills = [
+        {
+            'id': str(s.get('id', '')),
+            'name': s.get('name', ''),
+            'category': s.get('category', ''),
+        }
+        for s in rows(alumni.skills) if s.get('name')
+    ][:40]
+
+    courses = [
+        {
+            'id': str(c.get('id', '')),
+            'name': c.get('name', ''),
+            'provider': c.get('provider', ''),
+            'status': c.get('status', ''),
+            'completionDate': c.get('completionDate', ''),
+            'certificateUrl': c.get('certificateUrl', ''),
+            'description': c.get('description', ''),
+        }
+        for c in rows(alumni.courses) if c.get('name')
+    ][:30]
+
+    highlights = [
+        {
+            'id': str(h.get('id', '')),
+            'title': h.get('title', ''),
+            'description': h.get('description', ''),
+            'date': h.get('date', ''),
+            'type': h.get('type', ''),
+        }
+        for h in rows(alumni.highlights) if h.get('title')
+    ][:30]
+
+    return {
+        'bio': alumni.bio or '',
+        'linkedinUrl': alumni.linkedinUrl or '',
+        'portfolioUrl': alumni.portfolioUrl or '',
+        'careers': careers,
+        'skills': skills,
+        'courses': courses,
+        'highlights': highlights,
+    }
 
 
 def generate_student_identifiers(department, session):

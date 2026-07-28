@@ -532,6 +532,12 @@ def attach_alumni_documents(alumni, document_items):
                 validate=True,
             )
 
+            # One document per category slot: a re-uploaded photo/NID replaces
+            # the previous one instead of stacking a duplicate. The open-ended
+            # 'other'/'custom' buckets are exempt (see MULTI_VALUE_FIELDS).
+            from apps.documents.admission_documents import supersede_field
+            supersede_field(category_key, student_id=student.id, source_id=student.id)
+
             document = Document.objects.create(
                 student=student,
                 fileName=file_info['file_name'],

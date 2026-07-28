@@ -393,7 +393,11 @@ export function ClassStatusBox({
     <motion.div
       initial={false}
       animate={{ opacity: 1, y: 0 }}
-      className={cn('space-y-3', className)}
+      // The class/motivation crossfade below slides on the X axis. A child's
+      // transform is only clipped by an ANCESTOR, so the clip lives here —
+      // without it the sliding panel is pushed past the right edge of a phone
+      // screen and the card gets cut off.
+      className={cn('space-y-3 min-w-0 overflow-x-clip', className)}
     >
       {runningClass && canShowMotivation && (
         <div className="flex items-center justify-between">
@@ -444,6 +448,7 @@ export function ClassStatusBox({
       <AnimatePresence mode="wait">
         <motion.div
           key={showMotivation ? 'motivation' : 'class'}
+          className="min-w-0"
           initial={false}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: showMotivation ? -20 : 20 }}

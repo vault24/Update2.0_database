@@ -256,9 +256,13 @@ export function LinkedInTeacherProfile({ isPublicView = false, teacherId }: Link
           return;
         }
 
-        // Fetch profile data
-        const profileData = await teacherService.getTeacherProfile(idToFetch);
-        
+        // The shareable /faculty/<id> page must work for a logged-out
+        // visitor, and `.../profile/` requires authentication — so the public
+        // view reads the open public-profile endpoint instead.
+        const profileData = isPublicView
+          ? await teacherService.getPublicTeacherProfile(idToFetch)
+          : await teacherService.getTeacherProfile(idToFetch);
+
         // Try to fetch system settings, but don't fail if it errors
         let instituteName = 'Sylhet Polytechnic Institute'; // Default fallback
         try {
@@ -272,14 +276,21 @@ export function LinkedInTeacherProfile({ isPublicView = false, teacherId }: Link
         setTeacher({
           id: profileData.id,
           name: profileData.fullNameEnglish,
-          headline: profileData.headline || `${profileData.designation} at ${profileData.department.name}`,
-          department: profileData.department.name,
+          // A teacher may have no department, and the public payload omits
+          // mobile/joining date — every field below tolerates that.
+          headline:
+            profileData.headline ||
+            [profileData.designation, profileData.department?.name].filter(Boolean).join(' at ') ||
+            'Faculty Member',
+          department: profileData.department?.name || 'Institute',
           designation: profileData.designation,
           email: profileData.email,
-          phone: profileData.mobileNumber,
+          phone: profileData.mobileNumber || '',
           employeeId: profileData.id,
-          joiningDate: new Date(profileData.joiningDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
-          officeLocation: profileData.officeLocation,
+          joiningDate: profileData.joiningDate
+            ? new Date(profileData.joiningDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+            : '',
+          officeLocation: profileData.officeLocation || '',
           university: instituteName,
           profileImage: resolveTeacherImg(profileData.profilePhoto),
           coverImage: resolveTeacherImg(profileData.coverPhoto),
@@ -693,11 +704,15 @@ export function LinkedInTeacherProfile({ isPublicView = false, teacherId }: Link
                 <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold leading-tight text-foreground break-words">{teacher.name}</h1>
                 <p className="text-xs sm:text-sm md:text-base text-muted-foreground line-clamp-2">{teacher.headline}</p>
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2 text-xs md:text-sm text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <MapPin className="w-3 h-3 sm:w-3.5 sm:h-3.5 flex-shrink-0" />
-                    <span className="truncate">{teacher.officeLocation}</span>
-                  </span>
-                  <span className="hidden sm:inline">•</span>
+                  {teacher.officeLocation && (
+                    <>
+                      <span className="flex items-center gap-1">
+                        <MapPin className="w-3 h-3 sm:w-3.5 sm:h-3.5 flex-shrink-0" />
+                        <span className="truncate">{teacher.officeLocation}</span>
+                      </span>
+                      <span className="hidden sm:inline">•</span>
+                    </>
+                  )}
                   <span className="flex items-center gap-1">
                     <Building className="w-3 h-3 sm:w-3.5 sm:h-3.5 flex-shrink-0" />
                     <span className="text-primary font-medium truncate">{teacher.university}</span>
@@ -1083,33 +1098,41 @@ export function LinkedInTeacherProfile({ isPublicView = false, teacherId }: Link
               <p className="text-sm font-medium">{teacher.email}</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Phone className="w-5 h-5 text-primary" />
+          {/* The public payload omits the personal mobile — only render the
+              rows that actually have a value. */}
+          {teacher.phone && (
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Phone className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Phone</p>
+                <p className="text-sm font-medium">{teacher.phone}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Phone</p>
-              <p className="text-sm font-medium">{teacher.phone}</p>
+          )}
+          {teacher.officeLocation && (
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                <MapPin className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Office</p>
+                <p className="text-sm font-medium">{teacher.officeLocation}</p>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <MapPin className="w-5 h-5 text-primary" />
+          )}
+          {!isPublicView && (
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Building className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Employee ID</p>
+                <p className="text-sm font-medium">{teacher.employeeId}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Office</p>
-              <p className="text-sm font-medium">{teacher.officeLocation}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Building className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Employee ID</p>
-              <p className="text-sm font-medium">{teacher.employeeId}</p>
-            </div>
-          </div>
+          )}
         </div>
       </motion.div>
 

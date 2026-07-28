@@ -669,7 +669,84 @@ class StudentViewSet(viewsets.ModelViewSet):
         # Return updated student
         serializer = StudentDetailSerializer(student, context={'request': request})
         return Response(serializer.data)
-    
+
+    @action(detail=True, methods=['post'])
+    def reinstate_studies(self, request, pk=None):
+        """
+        Restore a discontinued student back to an active student.
+        POST /api/students/{id}/reinstate-studies/
+
+        Optional fields:
+        - semester: semester to re-admit into (defaults to lastSemester, then
+          the student's stored semester)
+        - remarks: free-text note recorded in the activity log
+
+        Only the status/discontinuation fields change — every academic record
+        (results, attendance, marks, documents) is left untouched.
+        """
+        from apps.activity_logs.signals import log_activity
+
+        student = self.get_object()
+
+        if student.status != 'discontinued':
+            return Response(
+                {
+                    'error': 'Student is not discontinued',
+                    'details': 'Only a discontinued student can be restored to active.'
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Semester to come back into. Falls back to the semester the student
+        # was in when they left, so the caller may omit it entirely.
+        raw_semester = request.data.get('semester')
+        if raw_semester in (None, ''):
+            semester = student.lastSemester or student.semester
+        else:
+            try:
+                semester = int(raw_semester)
+            except (ValueError, TypeError):
+                return Response(
+                    {'error': 'Invalid semester', 'details': 'Semester must be a valid integer'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        if not semester or semester < 1 or semester > 8:
+            return Response(
+                {'error': 'Invalid semester', 'details': 'Semester must be between 1 and 8'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        previous_reason = student.discontinuedReason
+        previous_semester = student.semester
+
+        student.status = 'active'
+        student.semester = semester
+        # Discontinuation metadata only describes a discontinued record; clear
+        # it so the student no longer shows up on the Discontinued page.
+        student.discontinuedReason = ''
+        student.lastSemester = None
+        student.save(update_fields=['status', 'semester', 'discontinuedReason', 'lastSemester', 'updatedAt'])
+
+        remarks = (request.data.get('remarks') or '').strip()
+        xff = request.META.get('HTTP_X_FORWARDED_FOR')
+        ip = xff.split(',')[0].strip() if xff else request.META.get('REMOTE_ADDR')
+        log_activity(
+            request.user, 'update', 'StudentRecord', student.id,
+            f'Restored {student.fullNameEnglish} [{student.currentRollNumber}] '
+            f'from discontinued to active (semester {semester})'
+            + (f' — {remarks}' if remarks else ''),
+            changes={
+                'status': {'from': 'discontinued', 'to': 'active'},
+                'semester': {'from': previous_semester, 'to': semester},
+                'discontinuedReason': {'from': previous_reason, 'to': ''},
+            },
+            ip_address=ip, user_agent=request.META.get('HTTP_USER_AGENT', ''),
+        )
+
+        serializer = StudentDetailSerializer(student, context={'request': request})
+        return Response(serializer.data)
+
     @action(detail=True, methods=['get'])
     def semester_results(self, request, pk=None):
         """

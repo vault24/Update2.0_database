@@ -51,6 +51,7 @@ export const API_ENDPOINTS = {
     uploadPhoto: (id: string) => `/students/${id}/upload_photo/`,
     transitionToAlumni: (id: string) => `/students/${id}/transition_to_alumni/`,
     disconnectStudies: (id: string) => `/students/${id}/disconnect_studies/`,
+    reinstateStudies: (id: string) => `/students/${id}/reinstate_studies/`,
     semesterResults: (id: string) => `/students/${id}/semester_results/`,
     semesterAttendance: (id: string) => `/students/${id}/semester_attendance/`,
     updateSemesterResults: (id: string) => `/students/${id}/update_semester_results/`,

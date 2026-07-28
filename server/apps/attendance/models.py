@@ -94,7 +94,18 @@ class AttendanceRecord(models.Model):
     
     # Notes
     notes = models.TextField(blank=True)
-    
+
+    # Semester archive (see class_routines.SemesterArchive). NULL = current
+    # semester (editable); set = historical, read-only, shown under History.
+    archive = models.ForeignKey(
+        'class_routines.SemesterArchive',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_index=True,
+        related_name='attendance_records',
+    )
+
     class Meta:
         db_table = 'attendance_records'
         ordering = ['-date', '-recorded_at']
@@ -106,6 +117,7 @@ class AttendanceRecord(models.Model):
             models.Index(fields=['semester']),
             models.Index(fields=['status']),
             models.Index(fields=['class_routine']),
+            models.Index(fields=['archive']),
         ]
         constraints = [
             # Primary uniqueness for routine-based attendance (teacher flow)

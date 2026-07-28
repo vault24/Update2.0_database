@@ -1480,6 +1480,15 @@ def delete_account_view(request):
 # shift a Department Head account is responsible for.
 HEAD_SHIFT_TO_STUDENT_SHIFT = {'1st_shift': 'Morning', '2nd_shift': 'Day'}
 
+# Student records store shift as Morning/Day, the same vocabulary
+# CaptainAccountRequest uses; the head-account spellings are tolerated too.
+STUDENT_SHIFT_TO_REQUEST_SHIFT = {
+    'Morning': 'Morning',
+    'Day': 'Day',
+    '1st_shift': 'Morning',
+    '2nd_shift': 'Day',
+}
+
 
 def _serialize_captain_request(req):
     return {
@@ -1511,6 +1520,152 @@ def _captain_request_visible_to(user, req):
     if user.shift and HEAD_SHIFT_TO_STUDENT_SHIFT.get(user.shift) != req.shift:
         return False
     return True
+
+
+def _notify_heads_of_captain_request(captain_request):
+    """Tell the Department Head(s) for this dept + shift that a request arrived."""
+    try:
+        from apps.notifications.models import Notification
+        user = captain_request.user
+        dept_name = captain_request.department.name if captain_request.department_id else 'Unknown department'
+        name = f"{user.first_name} {user.last_name}".strip() or user.username
+        for head in captain_request.matching_department_heads():
+            Notification.objects.create(
+                recipient=head,
+                notification_type='signup_request',
+                title='New Captain Account Request',
+                message=(
+                    f"{name} has requested a Class Captain account for "
+                    f"{dept_name} ({captain_request.shift} shift)."
+                ),
+                data={
+                    'captain_request_id': str(captain_request.id),
+                    'department': str(captain_request.department_id) if captain_request.department_id else None,
+                    'shift': captain_request.shift,
+                },
+                status='unread',
+            )
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception(
+            "Failed to notify department head about captain request"
+        )
+
+
+def _student_profile_for(user):
+    """The Student record behind a student/captain account (or None)."""
+    pid = getattr(user, 'related_profile_id', None)
+    if not pid:
+        return None
+    from apps.students.models import Student
+    return Student.objects.select_related('department').filter(id=pid).first()
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([permissions.IsAuthenticated])
+def my_captain_request_view(request):
+    """
+    A student's own Captain-account request.
+
+    GET  /api/auth/captain-request/me/  -> current eligibility + latest request
+    POST /api/auth/captain-request/me/  -> submit a request
+
+    The request is routed to the Department Head responsible for the student's
+    department AND shift — the same routing used when a Captain account is
+    created at signup. Approval upgrades the role in place, so the student's
+    existing account, profile and academic records are preserved.
+    """
+    from .models import CaptainAccountRequest
+
+    user = request.user
+    if user.role not in ('student', 'captain') or user.is_alumni_account:
+        return Response(
+            {'detail': 'Only student accounts can request a Class Captain account.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    latest = (
+        CaptainAccountRequest.objects
+        .select_related('department')
+        .filter(user=user)
+        .order_by('-created_at')
+        .first()
+    )
+    profile = _student_profile_for(user)
+
+    def payload(extra=None):
+        data = {
+            'isCaptain': user.role == 'captain',
+            # A student may apply when they are not already a captain, have no
+            # request awaiting review, and we know their department + shift.
+            'canRequest': (
+                user.role == 'student'
+                and not (latest and latest.status == 'pending')
+                and bool(profile and profile.department_id and profile.shift)
+            ),
+            'department': str(profile.department_id) if profile and profile.department_id else None,
+            'departmentName': profile.department.name if profile and profile.department_id else None,
+            'shift': profile.shift if profile else None,
+            'request': _serialize_captain_request(latest) if latest else None,
+        }
+        if extra:
+            data.update(extra)
+        return data
+
+    if request.method == 'GET':
+        reason = None
+        if user.role == 'captain':
+            reason = 'You already have a Class Captain account.'
+        elif latest and latest.status == 'pending':
+            reason = 'Your previous request is still awaiting review by your Department Head.'
+        elif not profile:
+            reason = 'Complete your admission before requesting a Class Captain account.'
+        elif not (profile.department_id and profile.shift):
+            reason = 'Your department and shift must be set on your profile first.'
+        return Response(payload({'blockedReason': reason}), status=status.HTTP_200_OK)
+
+    # ---- POST: submit ----
+    if user.role == 'captain':
+        return Response(
+            {'detail': 'You already have a Class Captain account.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if latest and latest.status == 'pending':
+        return Response(
+            {'detail': 'You already have a Captain account request awaiting review.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if not profile:
+        return Response(
+            {'detail': 'We could not find your student record. Complete your admission first.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Department and shift come from the student's own record — never the
+    # request body — so a student cannot route themselves to another head.
+    shift = STUDENT_SHIFT_TO_REQUEST_SHIFT.get(profile.shift, profile.shift)
+    if not profile.department_id or shift not in dict(CaptainAccountRequest.SHIFT_CHOICES):
+        return Response(
+            {'detail': 'Your department and shift must be set on your profile before you can apply.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    captain_request = CaptainAccountRequest.objects.create(
+        user=user,
+        department_id=profile.department_id,
+        shift=shift,
+        status='pending',
+    )
+    captain_request.department = profile.department
+    _notify_heads_of_captain_request(captain_request)
+
+    return Response(
+        {
+            'message': 'Your Class Captain request has been sent to your Department Head.',
+            'request': _serialize_captain_request(captain_request),
+        },
+        status=status.HTTP_201_CREATED,
+    )
 
 
 @api_view(['GET'])

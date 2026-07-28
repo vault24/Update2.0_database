@@ -52,6 +52,11 @@ const reasons = ['All', 'Dropout', 'Expelled', 'Migrated', 'Financial Issue', 'H
 const departments = ['All', 'Computer', 'Electrical', 'Civil', 'Mechanical', 'Electronics', 'Power'];
 const years = ['All', '2024', '2023', '2022', '2021', '2020'];
 
+// The API stores semester as an integer 1–8; the label is only cosmetic.
+const SEMESTER_OPTIONS = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'].map(
+  (label, i) => ({ value: String(i + 1), label })
+);
+
 // Helper function to safely get department name
 const getDepartmentName = (student: Student): string => {
   if (student.departmentName) return student.departmentName;
@@ -95,6 +100,7 @@ export default function DiscontinuedStudents() {
     semester: '',
     remarks: '',
   });
+  const [reAdmitting, setReAdmitting] = useState(false);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [editedNotes, setEditedNotes] = useState('');
   
@@ -154,16 +160,20 @@ export default function DiscontinuedStudents() {
     }
 
     try {
-      await studentService.patchStudent(selectedStudent.id, {
-        status: 'active',
-        semester: parseInt(reAdmitData.semester),
+      setReAdmitting(true);
+      // Dedicated endpoint: flips the status back to active and clears the
+      // discontinuation reason/last-semester while leaving results,
+      // attendance, marks and documents untouched.
+      await studentService.reinstateStudies(selectedStudent.id, {
+        semester: parseInt(reAdmitData.semester, 10),
+        remarks: reAdmitData.remarks.trim() || undefined,
       });
-      
+
       toast({
-        title: 'Student Re-admitted',
-        description: `${selectedStudent.fullNameEnglish} has been successfully re-admitted.`,
+        title: 'Student Restored',
+        description: `${selectedStudent.fullNameEnglish} is an active student again.`,
       });
-      
+
       setReAdmitDialogOpen(false);
       setSelectedStudent(null);
       setReAdmitData({ semester: '', remarks: '' });
@@ -175,7 +185,17 @@ export default function DiscontinuedStudents() {
         description: errorMsg,
         variant: 'destructive',
       });
+    } finally {
+      setReAdmitting(false);
     }
+  };
+
+  const openReAdmitDialog = (student: Student) => {
+    setSelectedStudent(student);
+    // Default back to the semester they left from so the admin can just confirm.
+    const fallback = student.lastSemester || student.semester;
+    setReAdmitData({ semester: fallback ? String(fallback) : '', remarks: '' });
+    setReAdmitDialogOpen(true);
   };
 
   const handleViewClick = (student: Student) => {
@@ -410,18 +430,13 @@ export default function DiscontinuedStudents() {
                       </Button>
                       <Button
                         variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-success hover:text-success"
-                        title="Re-admit"
-                        onClick={() => {
-                          setSelectedStudent(student);
-                          setReAdmitDialogOpen(true);
-                        }}
+                        size="sm"
+                        className="h-8 gap-1.5 text-success hover:text-success hover:bg-success/10"
+                        title="Restore to Active Student"
+                        onClick={() => openReAdmitDialog(student)}
                       >
                         <RotateCcw className="w-4 h-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" title="Add Note">
-                        <MessageSquare className="w-4 h-4" />
+                        <span className="hidden sm:inline">Restore</span>
                       </Button>
                     </div>
                   </td>
@@ -670,6 +685,16 @@ export default function DiscontinuedStudents() {
                   Close
                 </Button>
                 <Button
+                  className="gradient-success text-success-foreground gap-2"
+                  onClick={() => {
+                    setViewDialogOpen(false);
+                    openReAdmitDialog(selectedStudent);
+                  }}
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Restore to Active
+                </Button>
+                <Button
                   className="gradient-primary text-primary-foreground gap-2"
                   onClick={() => {
                     setViewDialogOpen(false);
@@ -685,47 +710,57 @@ export default function DiscontinuedStudents() {
         </DialogContent>
       </Dialog>
 
-      {/* Re-admit Dialog */}
+      {/* Restore Dialog */}
       <Dialog open={reAdmitDialogOpen} onOpenChange={setReAdmitDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Re-admit Student</DialogTitle>
+            <DialogTitle>Restore to Active Student</DialogTitle>
             <DialogDescription>
-              Re-admit {selectedStudent?.fullNameEnglish} back to active status.
+              Bring {selectedStudent?.fullNameEnglish} back as an active student. All existing
+              records — results, attendance, marks and documents — are kept.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>New Semester *</Label>
+              <Label>Semester to restore into *</Label>
               <Select value={reAdmitData.semester} onValueChange={(val) => setReAdmitData((prev) => ({ ...prev, semester: val }))}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select semester" />
                 </SelectTrigger>
                 <SelectContent>
-                  {['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'].map((sem) => (
-                    <SelectItem key={sem} value={sem}>
-                      {sem}
+                  {SEMESTER_OPTIONS.map((sem) => (
+                    <SelectItem key={sem.value} value={sem.value}>
+                      {sem.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {selectedStudent?.lastSemester ? (
+                <p className="text-xs text-muted-foreground">
+                  Last completed semester: {selectedStudent.lastSemester}
+                </p>
+              ) : null}
             </div>
             <div className="space-y-2">
               <Label>Remarks</Label>
               <Textarea
-                placeholder="Add any notes about this re-admission..."
+                placeholder="Add any notes about this restoration..."
                 value={reAdmitData.remarks}
                 onChange={(e) => setReAdmitData((prev) => ({ ...prev, remarks: e.target.value }))}
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setReAdmitDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setReAdmitDialogOpen(false)} disabled={reAdmitting}>
               Cancel
             </Button>
-            <Button onClick={handleReAdmit} className="gradient-success text-success-foreground">
-              <RotateCcw className="w-4 h-4 mr-2" />
-              Re-admit
+            <Button onClick={handleReAdmit} disabled={reAdmitting} className="gradient-success text-success-foreground">
+              {reAdmitting ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <RotateCcw className="w-4 h-4 mr-2" />
+              )}
+              Restore Student
             </Button>
           </DialogFooter>
         </DialogContent>

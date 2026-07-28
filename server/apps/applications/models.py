@@ -108,6 +108,20 @@ class Application(models.Model):
         related_name='pending_applications',
         help_text='Department whose head should review (when assigned to a Department Head)'
     )
+    # A department has one head PER SHIFT, so routing to a Department Head needs
+    # department + shift. Stored in the Department Head account's own vocabulary
+    # (User.shift) so it can be matched directly.
+    HEAD_SHIFT_CHOICES = [
+        ('1st_shift', '1st Shift'),
+        ('2nd_shift', '2nd Shift'),
+    ]
+    current_shift = models.CharField(
+        max_length=20,
+        choices=HEAD_SHIFT_CHOICES,
+        blank=True,
+        default='',
+        help_text="Shift of the Department Head who should review (matches User.shift)"
+    )
     stage = models.PositiveSmallIntegerField(default=1, help_text='1 = first approver, 2 = forwarded approver')
 
     submittedAt = models.DateTimeField(auto_now_add=True)

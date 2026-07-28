@@ -28,20 +28,23 @@ export interface TeacherProfile {
   fullNameBangla: string;
   fullNameEnglish: string;
   designation: string;
-  department: {
+  // Optional: a teacher may have no department, and the PUBLIC payload
+  // deliberately omits the personal/employment fields.
+  department?: {
     id: string;
     name: string;
     code: string;
-  };
+  } | null;
+  departmentName?: string;
   subjects: string[];
   qualifications: any[];
   specializations: string[];
-  shifts: string[];
+  shifts?: string[];
   email: string;
-  mobileNumber: string;
-  officeLocation: string;
-  employmentStatus: string;
-  joiningDate: string;
+  mobileNumber?: string;
+  officeLocation?: string;
+  employmentStatus?: string;
+  joiningDate?: string;
   profilePhoto?: string;
   coverPhoto?: string;
   headline: string;
@@ -52,8 +55,8 @@ export interface TeacherProfile {
   publications: Publication[];
   research: Research[];
   awards: Award[];
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Experience {
@@ -141,6 +144,18 @@ export const teacherService = {
    */
   getTeacherProfile: async (id: string): Promise<TeacherProfile> => {
     return await api.get<TeacherProfile>(`teachers/${id}/profile/`);
+  },
+
+  /**
+   * The public faculty profile — works without a login.
+   *
+   * `teachers/{id}/profile/` requires authentication, so the shareable
+   * /faculty/<id> page must use this endpoint instead. Same professional
+   * record (experience, education, publications, research, awards, skills)
+   * minus the personal contact/employment fields.
+   */
+  getPublicTeacherProfile: async (id: string): Promise<TeacherProfile> => {
+    return await api.get<TeacherProfile>(`teachers/${id}/public-profile/`);
   },
 
   /**

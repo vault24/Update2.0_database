@@ -398,5 +398,63 @@ export const routineService = {
     clear: () => {
       routineCache.invalidate();
     }
-  }
+  },
+
+  // ── Teacher History (archived / previous semesters, read-only) ─────────
+
+  /** Past semester archives the logged-in teacher has data in. */
+  getSemesterArchives: async (): Promise<{ archives: SemesterArchive[] }> => {
+    return await apiClient.get('class-routines/semester-archives/');
+  },
+
+  /**
+   * Subject-wise archived data (attendance + result analysis) for one past
+   * semester. Omit `archiveId` for the most recent archive.
+   */
+  getTeacherHistory: async (
+    archiveId?: string,
+  ): Promise<{ archive: SemesterArchive | null; subjects: HistorySubject[] }> => {
+    return await apiClient.get(
+      'class-routines/teacher-history/',
+      archiveId ? { archive: archiveId } : undefined,
+    );
+  },
 };
+
+export interface SemesterArchive {
+  id: string;
+  label: string;
+  session: string;
+  notes?: string;
+  archived_at: string;
+  routines_count?: number;
+  attendance_count?: number;
+  marks_count?: number;
+}
+
+export interface HistorySubject {
+  subject_code: string;
+  subject_name: string;
+  department: string;
+  semester: number;
+  shift: string;
+  session: string;
+  class_type?: string;
+  attendance: {
+    total_records: number;
+    present: number;
+    absent: number;
+    percentage: number;
+    students: number;
+    class_days: number;
+  };
+  results: {
+    total_students: number;
+    evaluated: number;
+    passed: number;
+    failed: number;
+    pass_percentage: number;
+    fail_percentage: number;
+    average_percentage: number;
+  };
+}

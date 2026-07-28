@@ -23,6 +23,7 @@ import { getErrorMessage } from '@/lib/api';
 import { toast } from 'sonner';
 import { debugAuthState, ensureAuthentication } from '@/utils/authHelper';
 import { AdmissionBanner, useAdmissionIncomplete, useValidProfileId } from '@/components/auth/AdmissionGuard';
+import { AdmissionDocumentChecklist } from '@/components/documents/AdmissionDocumentChecklist';
 
 // An institute-issued document generated from an approved application
 // (e.g. an approved Testimonial / Certificate from the Applications page).
@@ -409,6 +410,10 @@ export function DocumentsPage() {
           </div>
         </div>
       </motion.div>
+
+      {/* Admission documents: what is submitted, what is still missing, and
+          the place to upload anything that was skipped during admission. */}
+      <AdmissionDocumentChecklist onUploaded={fetchDocuments} />
 
       {/* Institute Issued Documents — generated from approved applications */}
       {instituteDocs.length > 0 && (

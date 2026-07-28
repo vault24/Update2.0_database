@@ -86,9 +86,19 @@ class StructuredStudentDocumentUploadSerializer(serializers.Serializer):
             'other': 'Other',
         }
         
+        # Route the upload into its document FIELD (slot) so the
+        # one-document-per-field rule applies to admin uploads too, and
+        # supersede whatever currently occupies it.
+        from .admission_documents import (
+            DOCUMENT_CATEGORY_TO_FIELD, supersede_field,
+        )
+        field_name = DOCUMENT_CATEGORY_TO_FIELD.get(document_category, '')
+        supersede_field(field_name, student_id=student.id)
+
         # Create document record
         document = Document.objects.create(
             student=student,
+            original_field_name=field_name,
             fileName=file_info['file_name'],
             fileType=file_info['file_type'],
             category=category_map.get(document_category, 'Other'),

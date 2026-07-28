@@ -723,5 +723,38 @@ export const routineTransformers = {
       console.error('Error in saveRoutineChanges:', error);
       throw error;
     }
-  }
+  },
+
+  /**
+   * Start a new semester by archiving the current one.
+   * Requires the logged-in administrator's own account password.
+   * Nothing is deleted — previous data becomes read-only Teacher History.
+   */
+  updateSemester: async (payload: {
+    admin_password: string;
+    label?: string;
+    notes?: string;
+  }): Promise<SemesterUpdateResponse> => {
+    const result = await apiClient.post<SemesterUpdateResponse>(
+      'class-routines/update-semester/',
+      payload,
+    );
+    // Every cached routine list is stale now (all routines were deactivated).
+    routineCache.invalidate();
+    return result;
+  },
 };
+
+export interface SemesterUpdateResponse {
+  success: boolean;
+  message: string;
+  archive: {
+    id: string;
+    label: string;
+    session: string;
+    archived_at: string;
+    routines_count: number;
+    attendance_count: number;
+    marks_count: number;
+  };
+}

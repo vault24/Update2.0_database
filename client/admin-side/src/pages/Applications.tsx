@@ -27,7 +27,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import applicationService, { Application, ApplicationStats } from '@/services/applicationService';
+import applicationService, {
+  Application,
+  ApplicationStats,
+  HEAD_SHIFT_OPTIONS,
+  type HeadShift,
+} from '@/services/applicationService';
 import { apiClient } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -35,6 +40,16 @@ const applicationTypes = ['All Types', 'Testimonial', 'Certificate', 'Transcript
 const statusOptions = ['All Status', 'Pending', 'Approved', 'Rejected'];
 
 interface DeptOption { id: string; name: string; code?: string }
+
+// Applications store the applicant's shift in the timetable vocabulary
+// (Morning / Day / 1st / 2nd); Department Head accounts use 1st_shift/2nd_shift.
+function shiftToHeadShift(shift?: string): HeadShift | '' {
+  const s = (shift || '').trim().toLowerCase();
+  if (!s) return '';
+  if (s.includes('2nd') || s.includes('second') || s === 'day' || s.includes('evening')) return '2nd_shift';
+  if (s.includes('1st') || s.includes('first') || s === 'morning') return '1st_shift';
+  return '';
+}
 
 function Applications() {
   const [search, setSearch] = useState('');
@@ -55,6 +70,8 @@ function Applications() {
   const [forwardOpen, setForwardOpen] = useState(false);
   const [forwardTarget, setForwardTarget] = useState<'institute_head' | 'department_head'>('institute_head');
   const [forwardDeptId, setForwardDeptId] = useState('');
+  // A department has one head per shift, so both are required to route it.
+  const [forwardShift, setForwardShift] = useState<HeadShift | ''>('');
   const [onlyAssignedToMe, setOnlyAssignedToMe] = useState(false);
 
   // The Principal defaults to their "Assigned to me" inbox (forwarded requests),
@@ -83,7 +100,10 @@ function Applications() {
     if (target === 'institute_head') return role === 'institute_head' || !!user.is_superuser;
     if (target === 'department_head') {
       if (role !== 'department_head') return false;
-      return !app.current_department || app.current_department === user.department;
+      if (app.current_department && app.current_department !== user.department) return false;
+      // A department has one head per shift — only the targeted shift's head acts.
+      if (app.current_shift && user.shift && app.current_shift !== user.shift) return false;
+      return true;
     }
     return false;
   };
@@ -183,6 +203,8 @@ function Applications() {
     setForwardOpen(false);
     setForwardTarget('institute_head');
     setForwardDeptId('');
+    // Pre-select the applicant's own shift so the common case is one click.
+    setForwardShift(shiftToHeadShift(app.shift));
     setIsDetailOpen(true);
   };
 
@@ -196,17 +218,23 @@ function Applications() {
       toast({ title: 'Select a department', description: 'Choose which Department Head should receive this.', variant: 'destructive' });
       return;
     }
+    if (forwardTarget === 'department_head' && !forwardShift) {
+      toast({ title: 'Select a shift', description: 'Each department has a head per shift — choose 1st or 2nd Shift.', variant: 'destructive' });
+      return;
+    }
     try {
       setProcessing(true);
       await applicationService.forwardApplication(selectedApp.id, forwardTarget, {
         departmentId: forwardTarget === 'department_head' ? forwardDeptId : undefined,
+        shift: forwardTarget === 'department_head' ? (forwardShift as HeadShift) : undefined,
         reviewNotes: adminRemarks,
       });
+      const shiftLabel = HEAD_SHIFT_OPTIONS.find((s) => s.value === forwardShift)?.label ?? '';
       toast({
         title: 'Application Forwarded',
         description: forwardTarget === 'institute_head'
           ? 'Sent to the Principal for final approval.'
-          : 'Sent to the selected Department Head for final approval.',
+          : `Sent to the Department Head (${shiftLabel}) for final approval.`,
       });
       setIsDetailOpen(false);
       fetchApplications();
@@ -683,14 +711,35 @@ function Applications() {
                         </SelectContent>
                       </Select>
                       {forwardTarget === 'department_head' && (
-                        <Select value={forwardDeptId} onValueChange={setForwardDeptId}>
-                          <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
-                          <SelectContent>
-                            {departments.map((d) => (
-                              <SelectItem key={d.id} value={d.id}>{d.name}{d.code ? ` (${d.code})` : ''}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-muted-foreground">Department</Label>
+                            <Select value={forwardDeptId} onValueChange={setForwardDeptId}>
+                              <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
+                              <SelectContent>
+                                {departments.map((d) => (
+                                  <SelectItem key={d.id} value={d.id}>{d.name}{d.code ? ` (${d.code})` : ''}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-muted-foreground">Shift</Label>
+                            <Select value={forwardShift} onValueChange={(v) => setForwardShift(v as HeadShift)}>
+                              <SelectTrigger><SelectValue placeholder="Select shift" /></SelectTrigger>
+                              <SelectContent>
+                                {HEAD_SHIFT_OPTIONS.map((s) => (
+                                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <p className="sm:col-span-2 text-xs text-muted-foreground">
+                            Each department has a separate head per shift — the application goes to the
+                            head of the department <span className="font-medium">and</span> shift selected here.
+                            {selectedApp?.shift ? ` Applicant's shift: ${selectedApp.shift}.` : ''}
+                          </p>
+                        </div>
                       )}
                       <div className="flex justify-end gap-2">
                         <Button variant="outline" size="sm" onClick={() => setForwardOpen(false)} disabled={processing}>Cancel</Button>

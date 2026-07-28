@@ -42,13 +42,21 @@ def _resolve_teacher_id(user):
         return None
 
 
-def _teacher_routines(user):
-    """Class routines owned by the requesting teacher (or None if not a teacher)."""
+def _teacher_routines(user, include_archived=False):
+    """
+    Class routines owned by the requesting teacher (or None if not a teacher).
+
+    Defaults to the CURRENT semester only (archive IS NULL) so the teacher's
+    live workspace — Take/Records/Analysis — starts clean after a semester
+    update. Archived routines stay in the database and are read through the
+    Teacher History endpoints instead.
+    """
     teacher_id = _resolve_teacher_id(user)
     if not teacher_id:
         return None
     from apps.class_routines.models import ClassRoutine
-    return ClassRoutine.objects.filter(teacher_id=teacher_id)
+    qs = ClassRoutine.objects.filter(teacher_id=teacher_id)
+    return qs if include_archived else qs.filter(archive__isnull=True)
 
 
 # Roles with unrestricted attendance access (Principal / Registrar).
@@ -89,9 +97,14 @@ def scope_attendance_queryset(qs, user):
         teacher_id = _resolve_teacher_id(user)
         if not teacher_id:
             return qs.none()
+        # CURRENT semester only. Archived rows are excluded from the teacher's
+        # live workspace (records/analysis start clean after a semester update)
+        # and are therefore also un-editable through it — history is read-only.
+        # They remain fully readable via the Teacher History endpoints, and
+        # students' own attendance history is unaffected (different branch).
         return qs.filter(
             Q(class_routine__teacher_id=teacher_id) | Q(recorded_by=user)
-        )
+        ).filter(archive__isnull=True)
     if role == 'captain':
         student = _user_student(user)
         if not (student and student.department_id and student.semester):
@@ -241,6 +254,14 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         """Override update to send notifications and keep an audit trail."""
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
+
+        # Archived semesters are history: read-only for everyone.
+        if instance.archive_id is not None:
+            return Response(
+                {'error': 'This attendance record belongs to an archived semester and cannot be edited.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         old_is_present = instance.is_present
         old_type = instance.attendance_type
 
@@ -295,6 +316,13 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         """Only the owning teacher (or staff) may delete attendance records."""
         instance = self.get_object()
+
+        # Archived semesters are history: never deleted through the API.
+        if instance.archive_id is not None:
+            return Response(
+                {'error': 'This attendance record belongs to an archived semester and cannot be deleted.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         user = request.user
         is_staff = getattr(user, 'is_staff', False) or getattr(user, 'role', None) == 'admin'

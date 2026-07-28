@@ -2,9 +2,35 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=204, initial-scale=1.0, viewport-fit=cover">
     <title>Student ID Card - Sirajganj Government Polytechnic Institute</title>
     <style>
+        /* ============================================================
+           FIXED DOCUMENT LAYOUT — identical on every device
+           This document is a fixed physical size: ID-1 / CR80 card (53.98mm). Mobile
+           browsers must not reflow it or inflate its text, or the
+           downloaded/printed file stops matching the design (content
+           cut off, sections misaligned). The viewport is pinned to the
+           document's own CSS width so small screens zoom-to-fit
+           instead of re-laying-out, text auto-sizing is disabled, and
+           the page keeps its exact width at every breakpoint.
+           ============================================================ */
+        html {
+            -webkit-text-size-adjust: 100%;
+            -moz-text-size-adjust: 100%;
+            text-size-adjust: 100%;
+        }
+
+        html, body {
+            min-width: 204px;
+        }
+
+        @media print {
+            /* Printing already uses @page; the screen guard must not
+               add an extra page or shift the sheet. */
+            html, body { min-width: 0; }
+        }
+
         /* ============================================================
            PVC Student ID Card — ISO/IEC 7810 ID-1 (CR80) PORTRAIT
            Exact card size: 53.98mm x 85.60mm (no bleed).
@@ -295,21 +321,10 @@
             letter-spacing: 0.3px;
         }
 
-        /* ======================= CONTROLS ======================= */
-        .controls { position: fixed; top: 16px; right: 16px; z-index: 100; }
-
-        .btn {
-            padding: 8px 14px;
-            background: var(--green);
-            color: #fff;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 12px;
-            font-weight: 700;
-        }
-
-        .btn:hover { background: var(--green-dark); }
+        /* NOTE: the card template deliberately contains NO print/download
+           control of its own — printing and downloading are driven from the
+           surrounding app, and an in-card button would end up in the exported
+           file. */
 
         /* ======================= PRINT ======================= */
         @page { size: 53.98mm 85.60mm; margin: 0; }
@@ -331,10 +346,6 @@
     </style>
 </head>
 <body>
-    <div class="controls no-print">
-        <button class="btn" onclick="window.print()">Print ID Card</button>
-    </div>
-
     <!-- ==================== FRONT (page 1) ==================== -->
     <div class="id-card card-front">
         <div class="hdr">

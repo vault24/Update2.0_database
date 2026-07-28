@@ -6,6 +6,52 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 import uuid
 
 
+class SemesterArchive(models.Model):
+    """
+    One row per "Update Semester" event performed by an administrator.
+
+    ARCHIVE, DON'T DELETE. A semester rollover never removes or moves data:
+    every ClassRoutine / AttendanceRecord / MarksRecord that belonged to the
+    outgoing semester is simply STAMPED with a FK to this row. From then on:
+
+        archive IS NULL  ->  the CURRENT semester workspace (editable)
+        archive = <row>  ->  historical, read-only, shown on Teacher History
+
+    That keeps the records physically in place (no data migration, no loss,
+    fully traceable) while cleanly separating the new semester's workspace.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # Human label shown in the History page selector, e.g. "2024-25 (archived 28 Jul 2026)".
+    label = models.CharField(max_length=255)
+    # Dominant session of the archived routines, when it can be determined.
+    session = models.CharField(max_length=50, blank=True)
+    notes = models.TextField(blank=True)
+
+    archived_at = models.DateTimeField(auto_now_add=True)
+    archived_by = models.ForeignKey(
+        'authentication.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='semester_archives',
+    )
+
+    # Snapshot counts so the History UI can summarise without re-aggregating.
+    routines_count = models.IntegerField(default=0)
+    attendance_count = models.IntegerField(default=0)
+    marks_count = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = 'semester_archives'
+        ordering = ['-archived_at']
+        verbose_name = 'Semester Archive'
+        verbose_name_plural = 'Semester Archives'
+
+    def __str__(self):
+        return self.label
+
+
 class ClassRoutine(models.Model):
     """
     Class routine/schedule model for managing class timetables
@@ -76,11 +122,21 @@ class ClassRoutine(models.Model):
     
     # Status
     is_active = models.BooleanField(default=True)
-    
+
+    # Semester archive (see SemesterArchive). NULL = current semester.
+    archive = models.ForeignKey(
+        'class_routines.SemesterArchive',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_index=True,
+        related_name='routines',
+    )
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         db_table = 'class_routines'
         ordering = ['day_of_week', 'start_time']
@@ -90,6 +146,7 @@ class ClassRoutine(models.Model):
             models.Index(fields=['department', 'semester', 'shift']),
             models.Index(fields=['teacher']),
             models.Index(fields=['day_of_week', 'start_time']),
+            models.Index(fields=['archive']),
         ]
     
     def __str__(self):

@@ -199,6 +199,11 @@ export interface DisconnectStudiesData {
   lastSemester?: number;
 }
 
+export interface ReinstateStudiesData {
+  semester?: number;
+  remarks?: string;
+}
+
 export interface TransitionToAlumniData {
   graduationYear?: number;
 }
@@ -293,6 +298,16 @@ export const studentService = {
   async disconnectStudies(id: string, data: DisconnectStudiesData): Promise<Student> {
     return apiClient.post<Student>(
       API_ENDPOINTS.students.disconnectStudies(id),
+      data
+    );
+  },
+
+  /**
+   * Restore a discontinued student back to active
+   */
+  async reinstateStudies(id: string, data?: ReinstateStudiesData): Promise<Student> {
+    return apiClient.post<Student>(
+      API_ENDPOINTS.students.reinstateStudies(id),
       data
     );
   },
