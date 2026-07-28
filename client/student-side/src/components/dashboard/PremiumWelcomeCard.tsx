@@ -55,7 +55,7 @@ export function PremiumWelcomeCard({
       initial={false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-500 p-5 sm:p-6 text-white shadow-lg shadow-emerald-600/20"
+      className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-500 p-4 sm:p-6 text-white shadow-lg shadow-emerald-600/20"
     >
       {/* Decorative elements */}
       <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
@@ -72,22 +72,25 @@ export function PremiumWelcomeCard({
             <CalendarDays className="w-3 h-3" />
             {format(new Date(), 'EEE, MMM d')}
           </span>
-          <span className="hidden sm:inline-flex items-center gap-1">
+          <span className="inline-flex items-center gap-1">
             <Clock className="w-3 h-3" />
             {format(new Date(), 'hh:mm a')}
           </span>
         </div>
 
-        <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
+        <div className="mt-2 flex items-end justify-between gap-3 sm:flex-wrap sm:gap-4">
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-xl sm:text-2xl font-display font-bold">
+            <h1 className="truncate text-lg sm:text-2xl font-display font-bold">
               Welcome back, {shortName}
             </h1>
-            <p className="mt-0.5 truncate text-sm text-white/75">
+            <p className="mt-0.5 hidden truncate text-sm text-white/75 sm:block">
               Roll {roll || user?.studentId || 'N/A'} · {department}
             </p>
 
-            <div className="mt-3 flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <p className="mt-0.5 truncate text-xs text-white/75 sm:hidden">
+              {roll || user?.studentId || 'N/A'}, {department}
+            </p>
+            <div className="mt-3 hidden flex-wrap items-center gap-1.5 sm:flex sm:gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-2.5 py-1 text-[11px] sm:text-xs font-medium">
                 <GraduationCap className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 Semester {semester}
@@ -110,10 +113,8 @@ export function PremiumWelcomeCard({
             </div>
           </div>
 
-          {/* Right tile: how complete this student's profile is, and the way
-              to finish it. Full width on the narrowest screens so the
-              percentage and the missing items stay readable. */}
-          <div className="w-full shrink-0 sm:w-auto">
+          {/* Profile completion is a compact status circle on mobile. */}
+          <div className="shrink-0 sm:w-auto">
             <ProfileCompletionTile />
           </div>
         </div>

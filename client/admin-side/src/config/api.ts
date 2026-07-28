@@ -104,6 +104,7 @@ export const API_ENDPOINTS = {
     update: (id: string) => `/class-routines/${id}/`,
     delete: (id: string) => `/class-routines/${id}/`,
     myRoutine: '/class-routines/my-routine/',
+    updateSemester: '/class-routines/update-semester/',
   },
   
   // Attendance

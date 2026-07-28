@@ -4,6 +4,7 @@
  */
 
 import { apiClient, PaginatedResponse } from '@/lib/api';
+import { API_ENDPOINTS } from '@/config/api';
 
 // Cache management for routine data
 interface CacheEntry<T> {
@@ -736,7 +737,7 @@ export const routineTransformers = {
     notes?: string;
   }): Promise<SemesterUpdateResponse> => {
     const result = await apiClient.post<SemesterUpdateResponse>(
-      'class-routines/update-semester/',
+      API_ENDPOINTS.classRoutines.updateSemester,
       payload,
     );
     // Every cached routine list is stale now (all routines were deactivated).

@@ -57,8 +57,8 @@ const mainMenuItems: MenuItem[] = [
   { icon: GraduationCap, label: 'Board Results', path: '/dashboard/board-results', roles: ['student', 'captain'] },
   { icon: CalendarClock, label: 'Exam Routine', path: '/dashboard/exam-routine', roles: ['student', 'captain'] },
   { icon: FolderOpen, label: 'Documents', path: '/dashboard/documents', roles: ['student', 'captain'] },
-  { icon: Shield, label: 'Complaints', path: '/dashboard/complaints', roles: ['student', 'captain'] },
   { icon: Send, label: 'Applications', path: '/dashboard/applications', roles: ['student', 'captain'] },
+  { icon: Shield, label: 'Complaints', path: '/dashboard/complaints', roles: ['student', 'captain'] },
   // Captain-specific
   { icon: UserCheck, label: 'Add Attendance', path: '/dashboard/add-attendance', roles: ['captain'] },
   { icon: Phone, label: 'Teacher Contacts', path: '/dashboard/teacher-contacts', roles: ['captain'] },

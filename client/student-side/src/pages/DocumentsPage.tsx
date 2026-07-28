@@ -411,10 +411,6 @@ export function DocumentsPage() {
         </div>
       </motion.div>
 
-      {/* Admission documents: what is submitted, what is still missing, and
-          the place to upload anything that was skipped during admission. */}
-      <AdmissionDocumentChecklist onUploaded={fetchDocuments} />
-
       {/* Institute Issued Documents — generated from approved applications */}
       {instituteDocs.length > 0 && (
         <motion.div
@@ -633,6 +629,10 @@ export function DocumentsPage() {
           </div>
         )}
       </motion.div>
+
+      {/* Kept last so optional admission uploads do not interrupt the main
+          institute-issued and uploaded-document sections. */}
+      <AdmissionDocumentChecklist onUploaded={fetchDocuments} />
 
       {/* Document Preview Dialog */}
       <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>

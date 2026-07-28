@@ -37,7 +37,7 @@ export function ProfileCompletionTile() {
 
   if (loading) {
     return (
-      <div className="flex h-[4.5rem] w-[6.5rem] items-center justify-center rounded-xl bg-white/15">
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/15 sm:h-[4.5rem] sm:w-[6.5rem] sm:rounded-xl">
         <Loader2 className="h-4 w-4 animate-spin text-white/70" />
       </div>
     );
@@ -53,10 +53,10 @@ export function ProfileCompletionTile() {
 
   if (complete) {
     return (
-      <div className="rounded-xl bg-white/15 px-3 py-2 text-center backdrop-blur-sm">
-        <CheckCircle2 className="mx-auto h-5 w-5 text-white" />
-        <p className="mt-1 text-[11px] font-semibold leading-tight">Profile complete</p>
-        <p className="text-[10px] text-white/70">100%</p>
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/15 text-center backdrop-blur-sm sm:block sm:h-auto sm:w-auto sm:rounded-xl sm:px-3 sm:py-2">
+        <CheckCircle2 className="h-5 w-5 text-white sm:mx-auto" />
+        <p className="mt-1 hidden text-[11px] font-semibold leading-tight sm:block">Profile complete</p>
+        <p className="hidden text-[10px] text-white/70 sm:block">100%</p>
       </div>
     );
   }
@@ -66,23 +66,23 @@ export function ProfileCompletionTile() {
       type="button"
       onClick={() => navigate(goTo)}
       aria-label={`Profile ${percentage}% complete — ${missing.length} item${missing.length === 1 ? '' : 's'} left`}
-      className="group w-full rounded-xl bg-white/15 px-3 py-2 text-left backdrop-blur-sm transition hover:bg-white/25 active:scale-[.98] sm:w-auto"
+      className="group flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/15 text-center backdrop-blur-sm transition hover:bg-white/25 active:scale-[.98] sm:block sm:h-auto sm:w-auto sm:rounded-xl sm:px-3 sm:py-2 sm:text-left"
     >
-      <div className="flex items-center justify-between gap-2">
+      <div className="hidden items-center justify-between gap-2 sm:flex">
         <p className="text-[10px] uppercase tracking-wide text-white/70">Profile</p>
         <ChevronRight className="h-3.5 w-3.5 text-white/70 transition-transform group-hover:translate-x-0.5" />
       </div>
 
-      <p className="text-xl font-extrabold leading-none sm:text-2xl">{percentage}%</p>
+      <p className="text-sm font-extrabold leading-none sm:text-xl">{percentage}%</p>
 
-      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-white/25 sm:w-28">
+      <div className="mt-1.5 hidden h-1.5 w-full overflow-hidden rounded-full bg-white/25 sm:block sm:w-28">
         <div
           className="h-full rounded-full bg-white transition-[width] duration-500"
           style={{ width: `${percentage}%` }}
         />
       </div>
 
-      <p className="mt-1.5 max-w-[11rem] truncate text-[10px] text-white/80">
+      <p className="mt-1.5 hidden max-w-[11rem] truncate text-[10px] text-white/80 sm:block">
         {shown.join(', ')}{extra > 0 ? ` +${extra} more` : ''}
       </p>
     </button>
