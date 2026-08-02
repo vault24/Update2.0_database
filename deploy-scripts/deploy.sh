@@ -261,6 +261,15 @@ derive_settings() {
     ADMIN_ORIGIN="${SCHEME}://${ADMIN_DOMAIN}"
     WEBSITE_ORIGIN="${SCHEME}://${WEBSITE_DOMAIN}"
     ALLOWED_HOSTS="${STUDENT_DOMAIN},${ADMIN_DOMAIN},${PUBLIC_IP},localhost,127.0.0.1"
+    # Support the conventional www alias for the public student portal.  It is
+    # served only as a canonical redirect below, but must still be accepted by
+    # Django if a proxied request reaches the backend while Nginx is reloading.
+    # Avoid producing www.www.example.org if the canonical name already has it.
+    STUDENT_WWW_DOMAIN=""
+    if [[ "${STUDENT_DOMAIN}" != www.* ]]; then
+      STUDENT_WWW_DOMAIN="www.${STUDENT_DOMAIN}"
+      ALLOWED_HOSTS="${STUDENT_WWW_DOMAIN},${ALLOWED_HOSTS}"
+    fi
     # The result portal proxies /api same-origin, so Django must accept its Host.
     [[ -n "${RESULT_DOMAIN}" ]] && ALLOWED_HOSTS="${RESULT_DOMAIN},${ALLOWED_HOSTS}"
     # The public website also proxies /api same-origin — accept its Host too.
@@ -1138,6 +1147,36 @@ nginx_result_redirects() {
 EOF
 }
 
+# Canonicalise www.<student domain> to the configured student domain.  This is
+# a separate vhost instead of an extra server_name on the app vhost so the
+# browser address, cookies and generated links consistently use one origin.
+# The HTTP block is emitted before a certificate exists so ACME can validate
+# the www hostname on the first SSL deployment.
+nginx_student_www_redirect() {
+  [[ -n "${STUDENT_WWW_DOMAIN}" ]] || return 0
+  cat <<EOF
+# ---- ${STUDENT_WWW_DOMAIN}: canonical redirect to ${STUDENT_DOMAIN} ----
+server {
+    listen 80;
+    server_name ${STUDENT_WWW_DOMAIN};
+$(nginx_acme_location)
+    location / { return 301 ${SCHEME}://${STUDENT_DOMAIN}\$request_uri; }
+}
+EOF
+
+  if (( SSL_ON )) && have_cert "${STUDENT_WWW_DOMAIN}"; then
+    cat <<EOF
+
+server {
+    listen 443 ssl http2;
+    server_name ${STUDENT_WWW_DOMAIN};
+$(nginx_ssl_extra "${STUDENT_WWW_DOMAIN}")
+    location / { return 301 https://${STUDENT_DOMAIN}\$request_uri; }
+}
+EOF
+  fi
+}
+
 write_nginx_site() {
   local site="${NGINX_ROOT}/sites-available/${NGINX_SITE_NAME}"
   local tmp; tmp="$(mktemp)"
@@ -1153,6 +1192,9 @@ write_nginx_site() {
       local student_ssl=0 admin_ssl=0
       if (( SSL_ON )) && have_cert "${STUDENT_DOMAIN}"; then student_ssl=1; fi
       if (( SSL_ON )) && have_cert "${ADMIN_DOMAIN}";   then admin_ssl=1;   fi
+
+      nginx_student_www_redirect
+      echo
 
       # ----- Student domain -----------------------------------------------
       if (( student_ssl )); then
@@ -1361,6 +1403,7 @@ setup_ssl() {
 
   local got_any=0
   obtain_cert "${STUDENT_DOMAIN}" && got_any=1 || true
+  [[ -n "${STUDENT_WWW_DOMAIN}" ]] && { obtain_cert "${STUDENT_WWW_DOMAIN}" && got_any=1 || true; }
   obtain_cert "${ADMIN_DOMAIN}"   && got_any=1 || true
   # Public result portal subdomain.
   [[ -n "${RESULT_DOMAIN}" ]] && { obtain_cert "${RESULT_DOMAIN}" && got_any=1 || true; }

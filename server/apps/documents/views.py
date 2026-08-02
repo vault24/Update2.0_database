@@ -555,8 +555,12 @@ class DocumentViewSet(viewsets.ModelViewSet):
                 {'error': 'Invalid file', 'details': '; '.join(getattr(e, 'messages', [])) or str(e)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        except Exception as e:
-            logger.error(f"Admission document upload failed: {e}")
+        except Exception:
+            # This is a handled 500, so Django's exception middleware never
+            # sees it. Preserve the traceback for the System Reports logging
+            # handler; without it an upload failure is recorded only as a
+            # generic HTTP 500 and cannot be diagnosed from the admin panel.
+            logger.exception("Admission document upload failed")
             return Response(
                 {'error': 'Upload failed', 'details': 'An unexpected error occurred'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
