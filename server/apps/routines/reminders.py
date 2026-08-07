@@ -222,16 +222,28 @@ def _process_student(student, routine, now, today, dry_run=False) -> list[str]:
         )
         _email(
             student,
-            f'Today: {exam["subjectName"]} exam at {when}',
-            'Exam Day — Get Ready',
-            f"Your {exam['subjectName']} ({exam['subjectCode']}) exam starts "
-            f'today at {when}. A quick pre-departure check:',
+            f'আজ পরীক্ষা: {exam["subjectName"]} — {when} | Today: {exam["subjectName"]} exam at {when}',
+            f'আজ পরীক্ষা — প্রস্তুত হোন! | Exam Day — Get Ready',
+            (
+                f'আজ <strong>{exam["subjectName"]} ({exam["subjectCode"]})</strong> পরীক্ষা '
+                f'<strong>{when}</strong>-এ শুরু হবে। রওনা দেওয়ার আগে নিচের বিষয়গুলো মিলিয়ে নিন।<br><br>'
+                f'<em>Your {exam["subjectName"]} ({exam["subjectCode"]}) exam starts today at {when}. '
+                f'A quick pre-departure check:</em>'
+            ),
             [
-                {'label': 'Subject', 'value': f"{exam['subjectName']} ({exam['subjectCode']})"},
-                {'label': 'Time', 'value': f'{when} ({exam["weekday"]})'},
+                {'label': 'বিষয় / Subject', 'value': f"{exam['subjectName']} ({exam['subjectCode']})"},
+                {'label': 'সময় / Time', 'value': f'{when} ({exam["weekday"]})'},
             ],
-            bullets=EXAM_DAY_TIPS,
-            bullets_title='Before you leave',
+            bullets=[
+                'অ্যাডমিট কার্ড, রেজিস্ট্রেশন কার্ড ও পরিচয়পত্র নিন। / <em>Take your admit card, registration card and ID.</em>',
+                'অতিরিক্ত কলম ও প্রয়োজনীয় সরঞ্জাম সাথে নিন। / <em>Carry spare pens and the allowed instruments.</em>',
+                'আগে বের হন — যানজট ধরে ৩০ মিনিট আগে পৌঁছানোর পরিকল্পনা করুন। / <em>Leave early — plan for traffic and reach 30 minutes before.</em>',
+                'শান্ত থাকুন; সারসংক্ষেপ নোট দেখুন, নতুন বিষয় নয়। / <em>Stay calm; skim your summary notes, not new topics.</em>',
+            ],
+            bullets_title='রওনার আগে / Before you leave',
+            closing=(
+                'পরীক্ষায় শুভকামনা রইল! / <em>Best of luck in your exam!</em>'
+            ),
         )
         ExamReminderLog.objects.create(
             student=student, routine=routine, kind='exam_day',
@@ -267,17 +279,31 @@ def _process_student(student, routine, now, today, dry_run=False) -> list[str]:
         )
         _email(
             student,
-            f'Tomorrow: {exam["subjectName"]} exam — preparation checklist',
-            'Exam Tomorrow',
-            f"Your {exam['subjectName']} ({exam['subjectCode']}) exam is "
-            f'tomorrow at {when}. Things to do today:',
+            f'আগামীকাল পরীক্ষা: {exam["subjectName"]} | Tomorrow: {exam["subjectName"]} exam — preparation checklist',
+            'আগামীকাল পরীক্ষা | Exam Tomorrow',
+            (
+                f'আগামীকাল <strong>{exam["subjectName"]} ({exam["subjectCode"]})</strong> পরীক্ষা '
+                f'<strong>{when}</strong>-এ অনুষ্ঠিত হবে। আজকের জন্য করণীয়গুলো দেখুন।<br><br>'
+                f'<em>Your {exam["subjectName"]} ({exam["subjectCode"]}) exam is tomorrow at {when}. '
+                f'Things to do today:</em>'
+            ),
             [
-                {'label': 'Subject', 'value': f"{exam['subjectName']} ({exam['subjectCode']})"},
-                {'label': 'Date', 'value': f"{_fmt_date(exam['date'])} ({exam['weekday']})"},
-                {'label': 'Time', 'value': when},
+                {'label': 'বিষয় / Subject', 'value': f"{exam['subjectName']} ({exam['subjectCode']})"},
+                {'label': 'তারিখ / Date', 'value': f"{_fmt_date(exam['date'])} ({exam['weekday']})"},
+                {'label': 'সময় / Time', 'value': when},
             ],
-            bullets=DAY_BEFORE_CHECKLIST,
-            bullets_title='Things to do today',
+            bullets=[
+                'সরকারি নোটিশ থেকে পরীক্ষার সময়, তারিখ ও আসন পরিকল্পনা যাচাই করুন। / <em>Verify the exam time, date and seat plan from the official notice.</em>',
+                'অ্যাডমিট কার্ড, রেজিস্ট্রেশন কার্ড ও পরিচয়পত্র প্রস্তুত রাখুন। / <em>Keep your admit card, registration card and ID ready.</em>',
+                'কলম, পেন্সিল, স্কেল ও ক্যালকুলেটর (অনুমোদিত হলে) ব্যাগে ঢুকিয়ে নিন। / <em>Pack pens, pencils, scale and calculator (if allowed).</em>',
+                'মূল বিষয়গুলো হালকাভাবে রিভিশন করুন — সারারাত জাগবেন না। / <em>Revise the key topics lightly — no all-nighters.</em>',
+                'অ্যালার্ম সেট করুন এবং পরীক্ষাকেন্দ্রে ৩০+ মিনিট আগে পৌঁছানোর পরিকল্পনা করুন। / <em>Set an alarm and plan to reach the centre 30+ minutes early.</em>',
+                'তাড়াতাড়ি ঘুমান এবং ঠিকমতো খাবার খান। / <em>Go to bed early and eat a proper meal.</em>',
+            ],
+            bullets_title='আজকের করণীয় / Things to do today',
+            closing=(
+                'পরীক্ষায় শুভকামনা রইল! / <em>Best of luck in your exam!</em>'
+            ),
         )
         ExamReminderLog.objects.create(
             student=student, routine=routine, kind='day_before',
@@ -299,7 +325,7 @@ def _process_student(student, routine, now, today, dry_run=False) -> list[str]:
             when = _fmt_time(first['startTime'])
             _notify(
                 student,
-                f'{days_to_first} days until your first exam',
+                f'{days_to_first} days until your next exam',
                 f"{first['subjectName']} ({first['subjectCode']}) is on "
                 f"{_fmt_date(first['date'])} at {when}. "
                 f'{len(exams)} exam{"s" if len(exams) != 1 else ""} ahead — '
@@ -309,25 +335,33 @@ def _process_student(student, routine, now, today, dry_run=False) -> list[str]:
             )
             _email(
                 student,
-                f'{days_to_first} days to go — exam preparation reminder',
-                'Exams Are Approaching',
-                f'Your first exam is {days_to_first} days away. Here is '
-                'what is coming up:',
+                f'{days_to_first} দিন বাকি — পরীক্ষার প্রস্তুতি শুরু করুন | {days_to_first} days to go — exam preparation reminder',
+                f'পরীক্ষা আসছে — {days_to_first} দিন বাকি | Exams Approaching — {days_to_first} Days to Go',
+                (
+                    f'আপনার পরবর্তী পরীক্ষা আর মাত্র <strong>{days_to_first} দিন</strong> বাকি। '
+                    f'নিচে আসন্ন পরীক্ষার বিস্তারিত দেওয়া হলো।<br><br>'
+                    f'<em>Your next exam is <strong>{days_to_first} days away</strong>. '
+                    f'Here is what is coming up:</em>'
+                ),
                 [
-                    {'label': 'First exam',
+                    {'label': 'পরবর্তী পরীক্ষা / Next exam',
                      'value': f"{first['subjectName']} ({first['subjectCode']})"},
-                    {'label': 'Date',
+                    {'label': 'তারিখ / Date',
                      'value': f"{_fmt_date(first['date'])} ({first['weekday']})"},
-                    {'label': 'Time', 'value': when},
-                    {'label': 'Total exams', 'value': str(len(exams))},
+                    {'label': 'সময় / Time', 'value': when},
+                    {'label': 'মোট পরীক্ষা / Total exams', 'value': str(len(exams))},
                 ],
                 bullets=[
-                    'Plan a revision schedule that covers every subject',
-                    'Practice previous board questions',
-                    'Collect your admit card in time',
-                    'Check the routine for referred subjects too',
+                    'প্রতিটি বিষয়ের জন্য একটি রিভিশন সূচি তৈরি করুন। / <em>Plan a revision schedule that covers every subject.</em>',
+                    'আগের বোর্ড প্রশ্নপত্র অনুশীলন করুন। / <em>Practice previous board questions.</em>',
+                    'সময়মতো অ্যাডমিট কার্ড সংগ্রহ করুন। / <em>Collect your admit card in time.</em>',
+                    'রেফার্ড বিষয়ের রুটিনও দেখে নিন। / <em>Check the routine for referred subjects too.</em>',
                 ],
-                bullets_title='Preparation tips',
+                bullets_title='প্রস্তুতির পরামর্শ / Preparation tips',
+                closing=(
+                    'নিয়মিত পড়াশোনা করুন এবং মনোযোগ দিয়ে প্রস্তুতি নিন। শুভকামনা রইল! / '
+                    '<em>Study consistently and prepare with focus. Best of luck!</em>'
+                ),
             )
             ExamReminderLog.objects.create(
                 student=student, routine=routine, kind='countdown',

@@ -243,40 +243,167 @@ def _student_welcome_sections(user):
     return sections
 
 
+def _teacher_welcome_sections():
+    """
+    Bilingual (English + Bangla) getting-started guidance for a new Teacher
+    Portal account.
+    """
+    return [
+        {
+            "title": "Getting started / শুরু করার পদ্ধতি",
+            "bullets": [
+                "Sign in to the portal using the email address and password you registered with.",
+                "এই ইমেইল ঠিকানা ও আপনার নির্ধারিত পাসওয়ার্ড দিয়ে পোর্টালে সাইন ইন করুন।",
+                "Complete your teacher profile — add your designation, department and a profile photo.",
+                "আপনার শিক্ষক প্রোফাইল সম্পূর্ণ করুন — পদবি, বিভাগ ও প্রোফাইল ছবি যোগ করুন।",
+            ],
+        },
+        {
+            "title": "What you can do / আপনি যা করতে পারবেন",
+            "bullets": [
+                "View and manage your assigned class routine and exam schedule.",
+                "Record and review student attendance and semester marks.",
+                "Receive important notices and announcements from the institute.",
+                "Access the complaints panel to review and respond to student reports.",
+                "আপনার নির্ধারিত ক্লাস রুটিন ও পরীক্ষার সূচি দেখুন এবং পরিচালনা করুন।",
+                "শিক্ষার্থীদের উপস্থিতি ও সেমিস্টার নম্বর পর্যালোচনা করুন।",
+                "ইনস্টিটিউটের গুরুত্বপূর্ণ নোটিশ ও ঘোষণা পান।",
+                "অভিযোগ প্যানেল থেকে শিক্ষার্থীদের রিপোর্ট দেখুন ও জবাব দিন।",
+            ],
+        },
+        {
+            "title": "Security tips / নিরাপত্তা পরামর্শ",
+            "bullets": [
+                "Keep your login credentials private — never share your password.",
+                "Use a strong, unique password and update it regularly from Settings.",
+                "আপনার লগইন তথ্য গোপন রাখুন — কখনো পাসওয়ার্ড কারো সাথে শেয়ার করবেন না।",
+                "শক্তিশালী ও অনন্য পাসওয়ার্ড ব্যবহার করুন এবং নিয়মিত Settings থেকে পরিবর্তন করুন।",
+            ],
+        },
+        {
+            "title": "Need help? / সহায়তা প্রয়োজন?",
+            "lines": [
+                "If you face any issue signing in or using the portal, please contact the institute administration using the email or phone number at the bottom of this message.",
+                "সাইন ইন বা পোর্টাল ব্যবহারে কোনো সমস্যা হলে এই ইমেইলের নিচে দেওয়া যোগাযোগের ঠিকানায় ইনস্টিটিউট কর্তৃপক্ষের সাথে যোগাযোগ করুন।",
+            ],
+        },
+    ]
+
+
+def _admin_welcome_sections(role_label=None):
+    """
+    Bilingual (English + Bangla) getting-started guidance for a new Admin
+    Portal account (Registrar, Department Head, Principal).
+    """
+    role = role_label or "Admin"
+    return [
+        {
+            "title": "Getting started / শুরু করার পদ্ধতি",
+            "bullets": [
+                f"Sign in to the Admin Portal with your username and password.",
+                f"অ্যাডমিন পোর্টালে আপনার ইউজারনেম ও পাসওয়ার্ড দিয়ে সাইন ইন করুন।",
+                "Review your profile in Settings and upload your signature if you approve documents.",
+                "Settings থেকে আপনার প্রোফাইল পর্যালোচনা করুন এবং ডকুমেন্ট অনুমোদন করলে স্বাক্ষর আপলোড করুন।",
+                "Enable two-factor authentication from Settings → Security for extra account protection.",
+                "অতিরিক্ত নিরাপত্তার জন্য Settings → Security থেকে দুই-ধাপ যাচাই (2FA) চালু করুন।",
+            ],
+        },
+        {
+            "title": f"Your responsibilities as {role} / {role} হিসেবে আপনার দায়িত্ব",
+            "bullets": [
+                "Manage student admissions, academic records, and official documents.",
+                "Review and approve or reject signup requests and applications.",
+                "Publish notices and announcements for students and teachers.",
+                "Monitor attendance, marks, and semester results.",
+                "শিক্ষার্থীদের ভর্তি, একাডেমিক রেকর্ড ও সরকারি নথিপত্র পরিচালনা করুন।",
+                "সাইনআপ অনুরোধ ও আবেদনসমূহ পর্যালোচনা করে অনুমোদন বা প্রত্যাখ্যান করুন।",
+                "শিক্ষার্থী ও শিক্ষকদের জন্য নোটিশ ও ঘোষণা প্রকাশ করুন।",
+                "উপস্থিতি, নম্বর ও সেমিস্টার ফলাফল পর্যবেক্ষণ করুন।",
+            ],
+        },
+        {
+            "title": "Security tips / নিরাপত্তা পরামর্শ",
+            "bullets": [
+                "Keep your credentials private — never share your username or password with anyone.",
+                "Log out of the Admin Portal when using a shared or public device.",
+                "Contact the Principal immediately if you suspect any unauthorised access.",
+                "আপনার লগইন তথ্য গোপন রাখুন — ইউজারনেম বা পাসওয়ার্ড কারো সাথে শেয়ার করবেন না।",
+                "শেয়ার করা বা পাবলিক ডিভাইস ব্যবহারের পরে অ্যাডমিন পোর্টাল থেকে লগআউট করুন।",
+                "অননুমোদিত প্রবেশের সন্দেহ হলে তাৎক্ষণিকভাবে অধ্যক্ষকে জানান।",
+            ],
+        },
+        {
+            "title": "Need help? / সহায়তা প্রয়োজন?",
+            "lines": [
+                "If you face any issue signing in or using the Admin Portal, please contact the institute administration using the email or phone number at the bottom of this message.",
+                "অ্যাডমিন পোর্টালে সাইন ইন বা ব্যবহারে কোনো সমস্যা হলে এই ইমেইলের নিচে দেওয়া যোগাযোগের ঠিকানায় ইনস্টিটিউট কর্তৃপক্ষের সাথে যোগাযোগ করুন।",
+            ],
+        },
+    ]
+
+
+
 def send_welcome_email(user, *, portal="admin", role_label=None, details=None):
-    """Welcome a newly-created account (admin or student) with detailed,
+    """Welcome a newly-created account (admin, teacher, or student) with detailed,
     bilingual (English + Bangla) next-step guidance."""
-    portal_name = "Admin Portal" if portal == "admin" else "Student Portal"
-    title = f"Welcome to SIPI {portal_name}"
-    message = (
-        f"Your {portal_name} account has been created successfully. "
-        "You can now sign in and start using the system."
-    )
     rows = details or []
     if role_label:
         rows = [{"label": "Role", "value": role_label}] + rows
 
-    if portal == "admin":
-        sections = [{
-            "title": "Getting started",
-            "bullets": [
-                "Sign in to the Admin Portal with your username and password.",
-                "Review your profile in Settings and upload your signature if you approve documents.",
-                "Enable two-factor authentication from Settings → Security for extra account protection.",
-            ],
-        }]
-        cta_url = admin_portal_url()
-        cta_label = "Open the Admin Portal"
-        intro = f"Welcome aboard! {message}"
-    else:
-        sections = _student_welcome_sections(user)
+    if portal == "teacher":
+        title = "Welcome to SIPI — Your Teacher Account is Ready"
+        message = (
+            "Your teacher account has been approved and activated. "
+            "You can now sign in to the portal and get started."
+        )
+        intro = (
+            "আপনার শিক্ষক অ্যাকাউন্টটি অনুমোদিত ও সক্রিয় হয়েছে। "
+            "Welcome to Sirajganj Polytechnic Institute! "
+            "You can now sign in to the Student Portal using your registered email and password."
+        )
+        sections = _teacher_welcome_sections()
         cta_url = student_portal_url()
-        cta_label = "Open the Student Portal"
+        cta_label = "Sign in to the Portal"
+        closing = (
+            "We are glad to have you as part of our teaching staff. / "
+            "আমাদের শিক্ষকমণ্ডলীর অংশ হিসেবে আপনাকে পেয়ে আমরা আনন্দিত।"
+        )
+
+    elif portal == "admin":
+        title = "Welcome to SIPI Admin Portal / অ্যাডমিন পোর্টালে স্বাগতম"
+        message = (
+            "Your Admin Portal account has been created successfully. "
+            "You can now sign in and start using the system."
+        )
+        intro = (
+            "Welcome to the Sirajganj Polytechnic Institute Admin Portal! "
+            "আপনার অ্যাডমিন পোর্টাল অ্যাকাউন্টটি সফলভাবে তৈরি হয়েছে। "
+            "You can now sign in and start managing the institute's academic operations. "
+            "নিচে শুরু করার জন্য প্রয়োজনীয় তথ্য বাংলা ও ইংরেজিতে দেওয়া হলো।"
+        )
+        sections = _admin_welcome_sections(role_label=role_label)
+        cta_url = admin_portal_url()
+        cta_label = "Open the Admin Portal / অ্যাডমিন পোর্টাল খুলুন"
+        closing = (
+            "We are glad to have you as part of our team. / "
+            "আমাদের টিমের অংশ হিসেবে আপনাকে পেয়ে আমরা আনন্দিত।"
+        )
+
+    else:  # student portal
+        title = "Welcome to SIPI Student Portal"
+        message = (
+            "Your Student Portal account has been created successfully. "
+            "You can now sign in and start using the system."
+        )
         intro = (
             "Welcome to the Sirajganj Polytechnic Institute Student Portal! "
             "আপনার অ্যাকাউন্টটি সফলভাবে তৈরি হয়েছে। "
             "Below you will find everything you need to get started — in English and in Bangla."
         )
+        sections = _student_welcome_sections(user)
+        cta_url = student_portal_url()
+        cta_label = "Open the Student Portal"
+        closing = "We are glad to have you with us. / আপনাকে আমাদের সাথে পেয়ে আমরা আনন্দিত।"
 
     notify(
         user,
@@ -290,7 +417,7 @@ def send_welcome_email(user, *, portal="admin", role_label=None, details=None):
         details=rows or None,
         cta_label=cta_label,
         cta_url=cta_url,
-        closing="We are glad to have you with us. / আপনাকে আমাদের সাথে পেয়ে আমরা আনন্দিত।",
+        closing=closing,
         send_email=True,
     )
 

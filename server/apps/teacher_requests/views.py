@@ -164,7 +164,7 @@ class TeacherSignupRequestViewSet(viewsets.ModelViewSet):
                 from apps.notifications.dispatch import send_welcome_email
                 send_welcome_email(
                     signup_request.user,
-                    portal='student',
+                    portal='teacher',
                     role_label='Teacher',
                     details=[
                         {'label': 'Designation', 'value': signup_request.designation},
