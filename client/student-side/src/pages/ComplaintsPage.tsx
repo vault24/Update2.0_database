@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   Clock, Eye, Loader2, CheckCircle, GraduationCap, Monitor, Building,
   Send, MessageSquare, Calendar, ChevronDown, Search,
-  FileText, Plus, RefreshCw, AlertCircle,
+  FileText, Plus, AlertCircle,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -360,10 +360,9 @@ export default function ComplaintsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const loadData = async (silent = false) => {
-    silent ? setIsRefreshing(true) : setIsLoading(true);
+    silent ? null : setIsLoading(true);
     try {
       const [complaintsRes, categoriesRes, subcategoriesRes] = await Promise.all([
         fetchAll<ComplaintApi>('complaints/complaints/'),
@@ -378,7 +377,6 @@ export default function ComplaintsPage() {
       toast.error(getErrorMessage(error));
     } finally {
       setIsLoading(false);
-      setIsRefreshing(false);
     }
   };
 
@@ -427,18 +425,6 @@ export default function ComplaintsPage() {
           <h1 className="font-display text-xl font-bold md:text-2xl">Report Center</h1>
 
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={() => loadData(true)}
-              disabled={isRefreshing}
-              aria-label="Refresh complaints"
-            >
-              <RefreshCw className={cn('w-4 h-4', isRefreshing && 'animate-spin')} />
-              <span className="hidden sm:inline">Refresh</span>
-            </Button>
-
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button size="sm" className="gap-1.5 shadow-sm">
