@@ -343,16 +343,7 @@ export function ClassStatusBox({
     return (
       <div className="bg-gradient-to-r from-purple-500/20 via-pink-400/10 to-transparent border-2 border-purple-500/30 rounded-lg md:rounded-xl lg:rounded-2xl p-3 md:p-4 lg:p-5 shadow-lg">
         <div className="flex items-start gap-2 md:gap-3 lg:gap-4">
-          <div className="w-10 h-10 md:w-12 md:h-12 lg:w-14 lg:h-14 rounded-lg md:rounded-xl bg-purple-500/20 flex items-center justify-center flex-shrink-0">
-            <Sparkles className="w-5 h-5 md:w-6 md:h-6 lg:w-7 lg:h-7 text-purple-600 animate-pulse" />
-          </div>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="px-2 py-0.5 bg-purple-500/20 text-purple-700 text-[10px] md:text-xs font-semibold rounded-full">
-                Motivation
-              </span>
-            </div>
-
             <p className="text-sm md:text-base lg:text-lg font-semibold text-purple-800 dark:text-purple-200 leading-relaxed">
               {primaryMessage}
             </p>
