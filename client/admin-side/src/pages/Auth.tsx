@@ -185,7 +185,7 @@ export default function Auth() {
 
   // Build the createSignupRequest payload from the current form (shared by
   // the OTP verify + resend handlers).
-  const buildSignupPayload = (verificationCode?: string) => ({
+  const buildSignupPayload = (verificationCode: string) => ({
     username: formData.username,
     email: formData.email,
     first_name: formData.firstName,
@@ -196,7 +196,7 @@ export default function Auth() {
     shift: formData.requestedRole === 'department_head' ? (formData.shift || undefined) : undefined,
     password: formData.password,
     password_confirm: formData.confirmPassword,
-    ...(verificationCode ? { verification_code: verificationCode } : {}),
+    verification_code: verificationCode,
   });
 
   // Step 2 of sign-up: verify the emailed OTP and submit the signup request.

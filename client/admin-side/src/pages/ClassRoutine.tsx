@@ -149,7 +149,7 @@ export default function ClassRoutine() {
     if (!semesterPassword.trim()) return;
     try {
       setSemesterSubmitting(true);
-      const response = await routineService.updateSemester({ admin_password: semesterPassword });
+      const response = await routineTransformers.updateSemester({ admin_password: semesterPassword });
       setSemesterResult(response.archive);
       setSemesterPassword('');
       toast({ title: 'Semester updated', description: response.message });
@@ -967,7 +967,7 @@ export default function ClassRoutine() {
                 <X className="w-4 h-4 mr-2" />
                 Cancel
               </Button>
-              <Button variant="outline" onClick={handleAddClass} disabled={saving}>
+              <Button variant="outline" onClick={() => handleAddClass()} disabled={saving}>
                 <Plus className="w-4 h-4 mr-2" />
                 Add Class
               </Button>
@@ -1031,7 +1031,7 @@ export default function ClassRoutine() {
                 <X className="w-4 h-4 mr-2" />
                 Cancel
               </Button>
-              <Button variant="outline" onClick={handleAddClass} disabled={saving}>
+              <Button variant="outline" onClick={() => handleAddClass()} disabled={saving}>
                 <Plus className="w-4 h-4 mr-2" />
                 Add Class
               </Button>
