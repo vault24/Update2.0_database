@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   Clock, Eye, Loader2, CheckCircle, GraduationCap, Monitor, Building,
   Send, MessageSquare, Calendar, ChevronDown, Search,
-  FileText, Shield, Plus, RefreshCw, AlertCircle,
+  FileText, Plus, RefreshCw, AlertCircle,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -423,59 +423,48 @@ export default function ComplaintsPage() {
       <div className="max-w-full space-y-5 overflow-x-clip md:space-y-6">
 
         {/* ── Header ── */}
-        <motion.div initial={false} animate={{ opacity: 1, y: 0 }} className="surface-card relative overflow-hidden">
-          <div className="gradient-mesh pointer-events-none absolute inset-0 opacity-60" />
-          <div className="relative flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between md:p-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-destructive to-orange-600 shadow-sm">
-                <Shield className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <h1 className="font-display text-xl font-bold md:text-2xl">Report Center</h1>
-                <p className="text-sm text-muted-foreground">Submit and track your complaints</p>
-              </div>
-            </div>
+        <div className="flex items-center justify-between">
+          <h1 className="font-display text-xl font-bold md:text-2xl">Report Center</h1>
 
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                onClick={() => loadData(true)}
-                disabled={isRefreshing}
-                aria-label="Refresh complaints"
-              >
-                <RefreshCw className={cn('w-4 h-4', isRefreshing && 'animate-spin')} />
-                <span className="hidden sm:inline">Refresh</span>
-              </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => loadData(true)}
+              disabled={isRefreshing}
+              aria-label="Refresh complaints"
+            >
+              <RefreshCw className={cn('w-4 h-4', isRefreshing && 'animate-spin')} />
+              <span className="hidden sm:inline">Refresh</span>
+            </Button>
 
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button size="sm" className="gap-1.5 shadow-sm">
-                    <Plus className="w-4 h-4" />
-                    New Report
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-md max-h-[92dvh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                      <FileText className="w-5 h-5 text-primary" />
-                      Submit a Report
-                    </DialogTitle>
-                    <DialogDescription>
-                      Fill in the details and submit your complaint for review.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <NewReportForm
-                    categories={categories}
-                    subcategories={subcategories}
-                    onSuccess={handleNewComplaint}
-                  />
-                </DialogContent>
-              </Dialog>
-            </div>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="gap-1.5 shadow-sm">
+                  <Plus className="w-4 h-4" />
+                  New Report
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md max-h-[92dvh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-primary" />
+                    Submit a Report
+                  </DialogTitle>
+                  <DialogDescription>
+                    Fill in the details and submit your complaint for review.
+                  </DialogDescription>
+                </DialogHeader>
+                <NewReportForm
+                  categories={categories}
+                  subcategories={subcategories}
+                  onSuccess={handleNewComplaint}
+                />
+              </DialogContent>
+            </Dialog>
           </div>
-        </motion.div>
+        </div>
 
         {/* ── Stats ── */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:gap-4">
