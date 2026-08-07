@@ -16,10 +16,12 @@
   </style>
 </head>
 <body style="margin:0; padding:0; background-color:#f1f5f9; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%;">
-  <!-- Preheader (hidden preview text) -->
-  <div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:#f1f5f9;">
+  <!-- Preheader (hidden preview text shown in inbox snippet) -->
+  <!--[if !mso]><!-->
+  <div style="display:none; max-height:0; overflow:hidden; font-size:1px; line-height:1px; color:#f1f5f9;">
     {{ preheader|default:heading }}
   </div>
+  <!--<![endif]-->
 
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f1f5f9; padding:28px 12px;">
     <tr>
@@ -38,8 +40,8 @@
             </td>
           </tr>
 
-          <!-- Thin accent bar -->
-          <tr><td style="background-color:{{ accent_color|default:'#2563eb' }}; height:3px; line-height:3px; font-size:0;">&nbsp;</td></tr>
+          <!-- Thin accent bar — bgcolor attr for Outlook, style for modern clients -->
+          <tr><td style="height:3px; line-height:3px; font-size:0; background-color:#2563eb;" bgcolor="#2563eb">&nbsp;</td></tr>
 
           <!-- Body -->
           <tr>
