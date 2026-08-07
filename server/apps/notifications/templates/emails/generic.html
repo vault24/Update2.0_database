@@ -12,15 +12,15 @@
   </h1>
 
   {% if greeting %}
-  <p style="margin:0 0 14px; color:#334155; font-size:15px; line-height:24px;">{{ greeting }}</p>
+  <p style="margin:0 0 14px; color:#334155; font-size:15px; line-height:24px;">{{ greeting|safe }}</p>
   {% endif %}
 
   {% if intro %}
-  <p style="margin:0 0 16px; color:#334155; font-size:15px; line-height:24px;">{{ intro }}</p>
+  <p style="margin:0 0 16px; color:#334155; font-size:15px; line-height:24px;">{{ intro|safe }}</p>
   {% endif %}
 
   {% for line in body_lines %}
-  <p style="margin:0 0 16px; color:#334155; font-size:15px; line-height:24px;">{{ line }}</p>
+  <p style="margin:0 0 16px; color:#334155; font-size:15px; line-height:24px;">{{ line|safe }}</p>
   {% endfor %}
 
   {# Structured, titled sections — used for detailed guidance (next steps, #}
@@ -30,13 +30,13 @@
     {% if section.title %}
     <tr>
       <td style="padding:0 0 8px;">
-        <span style="color:#0f172a; font-size:14px; font-weight:700;">{{ section.title }}</span>
+        <span style="color:#0f172a; font-size:14px; font-weight:700;">{{ section.title|safe }}</span>
       </td>
     </tr>
     {% endif %}
     {% for line in section.lines %}
     <tr>
-      <td style="padding:0 0 8px; color:#334155; font-size:14px; line-height:22px;">{{ line }}</td>
+      <td style="padding:0 0 8px; color:#334155; font-size:14px; line-height:22px;">{{ line|safe }}</td>
     </tr>
     {% endfor %}
     {% for item in section.bullets %}
@@ -45,7 +45,7 @@
         <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
           <tr>
             <td width="18" style="color:{{ accent_color|default:'#2563eb' }}; font-size:14px; line-height:22px; vertical-align:top;">&#8226;</td>
-            <td style="color:#334155; font-size:14px; line-height:22px;">{{ item }}</td>
+            <td style="color:#334155; font-size:14px; line-height:22px;">{{ item|safe }}</td>
           </tr>
         </table>
       </td>
@@ -58,8 +58,8 @@
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 20px; border:1px solid #e6ebf2; border-radius:10px; overflow:hidden;">
     {% for item in details %}
     <tr>
-      <td style="padding:11px 16px; background-color:{% cycle '#f8fafc' '#ffffff' %}; color:#64748b; font-size:13px; font-weight:600; width:42%; border-bottom:1px solid #eef2f7;">{{ item.label }}</td>
-      <td style="padding:11px 16px; background-color:{% cycle '#f8fafc' '#ffffff' %}; color:#0f172a; font-size:13px; border-bottom:1px solid #eef2f7;">{{ item.value }}</td>
+      <td style="padding:11px 16px; background-color:{% cycle '#f8fafc' '#ffffff' %}; color:#64748b; font-size:13px; font-weight:600; width:42%; border-bottom:1px solid #eef2f7;">{{ item.label|safe }}</td>
+      <td style="padding:11px 16px; background-color:{% cycle '#f8fafc' '#ffffff' %}; color:#0f172a; font-size:13px; border-bottom:1px solid #eef2f7;">{{ item.value|safe }}</td>
     </tr>
     {% endfor %}
   </table>
@@ -103,6 +103,6 @@
   {% endif %}
 
   {% if closing %}
-  <p style="margin:18px 0 0; color:#334155; font-size:15px; line-height:24px;">{{ closing }}</p>
+  <p style="margin:18px 0 0; color:#334155; font-size:15px; line-height:24px;">{{ closing|safe }}</p>
   {% endif %}
 {% endblock %}
