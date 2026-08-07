@@ -4,11 +4,9 @@ import { CheckCircle2, Loader2 } from 'lucide-react';
 import { studentService, type ProfileCompletion } from '@/services/studentService';
 
 /**
- * Profile completion ring for the dashboard welcome card.
- *
- * Shows an SVG circular progress ring with the percentage inside.
- * At 100% switches to a "complete" check state.
- * Clicking navigates to the relevant page to fix missing items.
+ * Circular SVG progress ring showing profile completion %.
+ * Self-contained — fixed 72×72 px bounding box so it never
+ * overlaps neighbouring elements inside the welcome card.
  */
 export function ProfileCompletionTile() {
   const navigate = useNavigate();
@@ -32,7 +30,7 @@ export function ProfileCompletionTile() {
 
   if (loading) {
     return (
-      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/10">
+      <div className="flex h-[72px] w-[72px] items-center justify-center rounded-full bg-white/10">
         <Loader2 className="h-4 w-4 animate-spin text-white/60" />
       </div>
     );
@@ -43,85 +41,78 @@ export function ProfileCompletionTile() {
   const { percentage, complete, missing, primaryTarget } = data;
   const goTo = primaryTarget === 'documents' ? '/dashboard/documents' : '/dashboard/profile';
 
-  // SVG ring dimensions
-  const size = 64;
-  const strokeWidth = 5;
+  // SVG ring
+  const size = 72;
+  const strokeWidth = 6;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (percentage / 100) * circumference;
 
-  // Color based on progress
+  // Adaptive color
   const ringColor =
     percentage >= 80 ? '#34d399' : percentage >= 50 ? '#fbbf24' : '#f87171';
 
   if (complete) {
     return (
-      <div className="flex flex-col items-center gap-1">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/15 backdrop-blur-sm">
-          <CheckCircle2 className="h-7 w-7 text-emerald-300" />
-        </div>
-        <p className="text-[10px] font-semibold text-white/70">Complete</p>
+      <div className="flex h-[72px] w-[72px] flex-col items-center justify-center gap-0.5 rounded-full bg-white/15 backdrop-blur-sm">
+        <CheckCircle2 className="h-6 w-6 text-emerald-300" />
+        <span className="text-[9px] font-semibold text-white/70">100%</span>
       </div>
     );
   }
 
-  const shown = missing.slice(0, 1).map((m) => m.label);
-  const extra = missing.length - shown.length;
+  const firstMissing = missing[0]?.label ?? '';
+  const extra = missing.length - 1;
 
   return (
     <button
       type="button"
       onClick={() => navigate(goTo)}
       aria-label={`Profile ${percentage}% complete — tap to finish`}
-      className="group flex flex-col items-center gap-1 outline-none"
+      className="group relative flex h-[72px] w-[72px] items-center justify-center rounded-full outline-none"
     >
-      {/* Ring */}
-      <div className="relative flex h-16 w-16 items-center justify-center">
-        <svg
-          width={size}
-          height={size}
-          className="-rotate-90"
-          aria-hidden="true"
-        >
-          {/* Track */}
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            fill="none"
-            stroke="rgba(255,255,255,0.15)"
-            strokeWidth={strokeWidth}
-          />
-          {/* Progress */}
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            fill="none"
-            stroke={ringColor}
-            strokeWidth={strokeWidth}
-            strokeLinecap="round"
-            strokeDasharray={circumference}
-            strokeDashoffset={offset}
-            style={{ transition: 'stroke-dashoffset 0.6s ease' }}
-          />
-        </svg>
+      {/* SVG ring — fills the 72×72 box exactly */}
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        className="absolute inset-0 -rotate-90"
+        aria-hidden="true"
+      >
+        {/* Track */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="rgba(255,255,255,0.15)"
+          strokeWidth={strokeWidth}
+        />
+        {/* Progress arc */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke={ringColor}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          style={{ transition: 'stroke-dashoffset 0.6s ease' }}
+        />
+      </svg>
 
-        {/* Percentage label inside ring */}
-        <span className="absolute text-sm font-extrabold text-white leading-none">
-          {percentage}%
-        </span>
-      </div>
-
-      {/* Label below ring */}
-      <div className="text-center">
-        <p className="text-[10px] font-semibold text-white/70 group-hover:text-white transition-colors">
+      {/* Inner label */}
+      <div className="relative flex flex-col items-center leading-none">
+        <span className="text-sm font-extrabold text-white">{percentage}%</span>
+        <span className="mt-0.5 text-[9px] font-medium text-white/60 group-hover:text-white/90 transition-colors">
           Profile
-        </p>
-        {shown.length > 0 && (
-          <p className="max-w-[80px] truncate text-[9px] text-white/50">
-            {shown[0]}{extra > 0 ? ` +${extra}` : ''}
-          </p>
+        </span>
+        {firstMissing && (
+          <span className="mt-0.5 max-w-[52px] truncate text-[8px] text-white/45">
+            {firstMissing}{extra > 0 ? ` +${extra}` : ''}
+          </span>
         )}
       </div>
     </button>
