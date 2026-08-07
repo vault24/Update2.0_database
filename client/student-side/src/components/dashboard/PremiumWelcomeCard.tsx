@@ -17,12 +17,9 @@ export function PremiumWelcomeCard({
 }: PremiumWelcomeCardProps) {
   const { user } = useAuth();
 
-  // First two words of name e.g. "Md Mahadi Hasan" → "Md Mahadi"
   const shortName = user?.name?.trim().split(/\s+/).slice(0, 2).join(' ') || 'Student';
-
   const displayRoll = roll || user?.studentId || 'N/A';
 
-  // Short dept code — strip non-uppercase letters, take up to 4 chars
   const deptCode =
     department.length <= 6
       ? department.toUpperCase()
@@ -44,22 +41,22 @@ export function PremiumWelcomeCard({
         <div className="absolute -bottom-10 -left-10 h-40 w-40 rounded-full bg-teal-300/15 blur-2xl" />
       </div>
 
-      <div className="relative z-10 flex items-end justify-between gap-4">
+      <div className="relative z-10 flex items-center justify-between gap-4">
         {/* Left — pills + welcome text */}
         <div className="min-w-0 space-y-3">
-          {/* Info pills */}
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium backdrop-blur-sm">
+          {/* Info pills — all on one line, no wrap */}
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium backdrop-blur-sm whitespace-nowrap">
               <CalendarDays className="h-3 w-3 opacity-75" />
               {format(new Date(), 'EEE, MMM d')}
             </span>
 
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium backdrop-blur-sm">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium backdrop-blur-sm whitespace-nowrap">
               <Hash className="h-3 w-3 opacity-75" />
               {displayRoll}
             </span>
 
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium backdrop-blur-sm">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium backdrop-blur-sm whitespace-nowrap">
               <Building2 className="h-3 w-3 opacity-75" />
               {deptCode}
             </span>
@@ -70,13 +67,13 @@ export function PremiumWelcomeCard({
             <p className="text-xs font-medium uppercase tracking-widest text-white/55">
               Welcome back
             </p>
-            <h1 className="mt-0.5 truncate text-3xl sm:text-4xl font-extrabold tracking-tight">
+            <h1 className="mt-0.5 truncate text-3xl sm:text-4xl font-extrabold tracking-tight text-white">
               {shortName}
             </h1>
           </div>
         </div>
 
-        {/* Right — profile completion */}
+        {/* Right — profile completion ring */}
         <div className="shrink-0">
           <ProfileCompletionTile />
         </div>
