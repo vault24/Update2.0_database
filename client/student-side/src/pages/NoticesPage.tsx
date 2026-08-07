@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   Search, Calendar, AlertTriangle, Info, Megaphone, Loader2, Eye,
-  CheckSquare, Square, Bell, ChevronDown, CheckCheck, Inbox, User,
-  Paperclip, FileText, Download, ExternalLink,
+  Bell, ChevronDown, CheckCheck, User,
+  Paperclip, FileText, Download, ExternalLink, X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { noticeService, Notice } from '@/services/noticeService';
 import { LoadingState } from '@/components/LoadingState';
@@ -18,44 +17,32 @@ import { EmptyState } from '@/components/EmptyState';
 type Priority = 'low' | 'normal' | 'high';
 
 const priorityConfig: Record<Priority, {
-  icon: typeof Info;
+  icon: React.ElementType;
   label: string;
-  chip: string;       // icon chip (soft tinted)
-  accent: string;     // left border colour for unread
-  badge: 'destructive' | 'info' | 'muted';
+  chip: string;
+  accent: string;
+  pill: string;
 }> = {
-  high: {
-    icon: AlertTriangle,
-    label: 'High Priority',
-    chip: 'bg-destructive/10 text-destructive',
-    accent: 'border-l-destructive',
-    badge: 'destructive',
-  },
-  normal: {
-    icon: Info,
-    label: 'Normal',
-    chip: 'bg-primary/10 text-primary',
-    accent: 'border-l-primary',
-    badge: 'info',
-  },
-  low: {
-    icon: Megaphone,
-    label: 'Low Priority',
-    chip: 'bg-muted text-muted-foreground',
-    accent: 'border-l-border',
-    badge: 'muted',
-  },
+  high:   { icon: AlertTriangle, label: 'Urgent',  chip: 'bg-destructive/10 text-destructive',  accent: 'border-l-destructive', pill: 'bg-destructive/10 text-destructive border-destructive/20' },
+  normal: { icon: Info,          label: 'Normal',  chip: 'bg-primary/10 text-primary',          accent: 'border-l-primary',     pill: 'bg-primary/10 text-primary border-primary/20' },
+  low:    { icon: Megaphone,     label: 'General', chip: 'bg-muted text-muted-foreground',       accent: 'border-l-border',      pill: 'bg-muted text-muted-foreground border-border' },
 };
 
+const PRIORITY_TABS = [
+  { value: 'all',    label: 'All' },
+  { value: 'high',   label: 'Urgent' },
+  { value: 'normal', label: 'Normal' },
+  { value: 'low',    label: 'General' },
+] as const;
+
 const formatDate = (iso: string) =>
-  new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
-const isImageAttachment = (name: string) => /\.(png|jpe?g|webp|gif)$/i.test(name);
+const isImage = (name: string) => /\.(png|jpe?g|webp|gif)$/i.test(name);
 
-/** Inline attachment viewer: images render as previews, PDFs as file cards. */
 function NoticeAttachments({ attachments }: { attachments: NonNullable<Notice['attachments']> }) {
-  const images = attachments.filter((a) => a.file_url && isImageAttachment(a.name));
-  const files = attachments.filter((a) => a.file_url && !isImageAttachment(a.name));
+  const images = attachments.filter((a) => a.file_url && isImage(a.name));
+  const files  = attachments.filter((a) => a.file_url && !isImage(a.name));
 
   return (
     <div className="mt-4 space-y-3">
@@ -64,7 +51,6 @@ function NoticeAttachments({ attachments }: { attachments: NonNullable<Notice['a
         Attachments ({attachments.length})
       </p>
 
-      {/* Image previews */}
       {images.length > 0 && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {images.map((att) => (
@@ -73,7 +59,7 @@ function NoticeAttachments({ attachments }: { attachments: NonNullable<Notice['a
               href={att.file_url!}
               target="_blank"
               rel="noopener noreferrer"
-              className="group relative overflow-hidden rounded-xl border border-border/70 bg-muted/30"
+              className="group relative overflow-hidden rounded-2xl border border-border/60 bg-muted/30"
               onClick={(e) => e.stopPropagation()}
             >
               <img
@@ -82,7 +68,7 @@ function NoticeAttachments({ attachments }: { attachments: NonNullable<Notice['a
                 loading="lazy"
                 className="h-44 w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
               />
-              <span className="absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-black/70 to-transparent px-3 pb-2 pt-6 text-xs font-medium text-white">
+              <span className="absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-black/70 to-transparent px-3 pb-2 pt-8 text-xs font-medium text-white">
                 <ExternalLink className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">{att.name}</span>
               </span>
@@ -91,31 +77,30 @@ function NoticeAttachments({ attachments }: { attachments: NonNullable<Notice['a
         </div>
       )}
 
-      {/* PDF / other file cards */}
       {files.length > 0 && (
         <div className="space-y-2">
           {files.map((att) => (
             <div
               key={att.id}
-              className="flex items-center gap-3 rounded-xl border border-border/70 bg-muted/30 p-3"
+              className="flex items-center gap-3 rounded-2xl border border-border/60 bg-muted/30 p-3"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
                 <FileText className="h-5 w-5" />
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{att.name}</p>
-                <p className="text-xs text-muted-foreground">PDF document</p>
+                <p className="text-xs text-muted-foreground">Document</p>
               </div>
               <div className="flex flex-shrink-0 items-center gap-1.5">
-                <Button asChild variant="outline" size="sm" className="gap-1.5">
+                <Button asChild variant="outline" size="sm" className="gap-1.5 h-8 text-xs">
                   <a href={att.file_url!} target="_blank" rel="noopener noreferrer">
-                    <Eye className="h-4 w-4" /> View
+                    <Eye className="h-3.5 w-3.5" /> View
                   </a>
                 </Button>
-                <Button asChild variant="ghost" size="sm" className="gap-1.5">
+                <Button asChild variant="ghost" size="sm" className="h-8 w-8 p-0">
                   <a href={att.file_url!} download={att.name} target="_blank" rel="noopener noreferrer">
-                    <Download className="h-4 w-4" />
+                    <Download className="h-3.5 w-3.5" />
                   </a>
                 </Button>
               </div>
@@ -128,226 +113,153 @@ function NoticeAttachments({ attachments }: { attachments: NonNullable<Notice['a
 }
 
 export default function NoticesPage() {
-  const [notices, setNotices] = useState<Notice[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [priorityFilter, setPriorityFilter] = useState<string>('all');
-  const [readStatusFilter, setReadStatusFilter] = useState<string>('all');
-  const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [selectedNotices, setSelectedNotices] = useState<Set<number>>(new Set());
-  const [bulkActionLoading, setBulkActionLoading] = useState(false);
+  const [notices, setNotices]             = useState<Notice[]>([]);
+  const [loading, setLoading]             = useState(true);
+  const [error, setError]                 = useState<string | null>(null);
+  const [searchTerm, setSearchTerm]       = useState('');
+  const [priorityTab, setPriorityTab]     = useState<string>('all');
+  const [showUnreadOnly, setShowUnreadOnly] = useState(false);
+  const [expandedId, setExpandedId]       = useState<number | null>(null);
+  const [bulkLoading, setBulkLoading]     = useState(false);
 
-  useEffect(() => {
-    loadNotices();
-  }, []);
+  useEffect(() => { loadNotices(); }, []);
 
   const loadNotices = async () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await noticeService.getNotices({ page_size: 50 });
-      setNotices(response.results);
-    } catch (err) {
+      const res = await noticeService.getNotices({ page_size: 50 });
+      setNotices(res.results);
+    } catch {
       setError('Failed to load notices');
-      console.error('Error loading notices:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleMarkAsRead = async (noticeId: number) => {
+  const markRead = async (id: number) => {
     try {
-      await noticeService.markAsRead(noticeId);
-      setNotices(notices.map(notice =>
-        notice.id === noticeId
-          ? { ...notice, is_read: true }
-          : notice
-      ));
-    } catch (err) {
-      console.error('Error marking notice as read:', err);
-    }
+      await noticeService.markAsRead(id);
+      setNotices((prev) => prev.map((n) => n.id === id ? { ...n, is_read: true } : n));
+    } catch { /* silent */ }
   };
 
-  const handleBulkMarkAsRead = async () => {
-    if (selectedNotices.size === 0) return;
-
+  const markAllRead = async () => {
+    const unread = filteredNotices.filter((n) => !n.is_read).map((n) => n.id);
+    if (!unread.length) return;
     try {
-      setBulkActionLoading(true);
-      const noticeIds = Array.from(selectedNotices);
-      await noticeService.bulkMarkAsRead(noticeIds);
-
-      // Update notices state
-      setNotices(notices.map(notice =>
-        selectedNotices.has(notice.id)
-          ? { ...notice, is_read: true }
-          : notice
-      ));
-
-      // Clear selection
-      setSelectedNotices(new Set());
-    } catch (err) {
-      console.error('Error bulk marking notices as read:', err);
-    } finally {
-      setBulkActionLoading(false);
-    }
+      setBulkLoading(true);
+      await noticeService.bulkMarkAsRead(unread);
+      setNotices((prev) => prev.map((n) => unread.includes(n.id) ? { ...n, is_read: true } : n));
+    } catch { /* silent */ } finally { setBulkLoading(false); }
   };
 
-  const handleSelectNotice = (noticeId: number) => {
-    const newSelected = new Set(selectedNotices);
-    if (newSelected.has(noticeId)) {
-      newSelected.delete(noticeId);
-    } else {
-      newSelected.add(noticeId);
-    }
-    setSelectedNotices(newSelected);
-  };
-
-  const handleSelectAll = () => {
-    const unreadNotices = filteredNotices.filter(n => !n.is_read);
-    if (selectedNotices.size === unreadNotices.length) {
-      setSelectedNotices(new Set());
-    } else {
-      setSelectedNotices(new Set(unreadNotices.map(n => n.id)));
-    }
-  };
-
-  const filteredNotices = notices.filter(notice => {
-    const matchesSearch = notice.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         notice.content.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesPriority = priorityFilter === 'all' || notice.priority === priorityFilter;
-    const matchesReadStatus = readStatusFilter === 'all' ||
-                             (readStatusFilter === 'read' && notice.is_read) ||
-                             (readStatusFilter === 'unread' && !notice.is_read);
-
-    return matchesSearch && matchesPriority && matchesReadStatus;
+  const filteredNotices = notices.filter((n) => {
+    const q = searchTerm.toLowerCase();
+    const matchesSearch = !q || n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q);
+    const matchesPriority = priorityTab === 'all' || n.priority === priorityTab;
+    const matchesRead = !showUnreadOnly || !n.is_read;
+    return matchesSearch && matchesPriority && matchesRead;
   });
 
-  const unreadCount = notices.filter(n => !n.is_read).length;
-  const highCount = notices.filter(n => n.priority === 'high').length;
-  const unreadInView = filteredNotices.filter(n => !n.is_read);
-  const allUnreadSelected = unreadInView.length > 0 && selectedNotices.size === unreadInView.length;
-  const hasActiveFilters = !!searchTerm || priorityFilter !== 'all' || readStatusFilter !== 'all';
+  const unreadCount  = notices.filter((n) => !n.is_read).length;
+  const urgentCount  = notices.filter((n) => n.priority === 'high').length;
+  const hasFilters   = !!searchTerm || priorityTab !== 'all' || showUnreadOnly;
+  const unreadInView = filteredNotices.filter((n) => !n.is_read).length;
 
   if (loading) return <LoadingState message="Loading notices..." />;
-  if (error) return <ErrorState error={error} onRetry={loadNotices} />;
+  if (error)   return <ErrorState error={error} onRetry={loadNotices} />;
 
   return (
-    <div className="max-w-full space-y-5 overflow-x-clip md:space-y-6">
-      {/* ── Header ── */}
-      <motion.div
-        initial={false}
-        animate={{ opacity: 1, y: 0 }}
-        className="surface-card relative overflow-hidden"
-      >
-        <div className="gradient-mesh pointer-events-none absolute inset-0 opacity-70" />
-        <div className="relative flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between md:p-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl gradient-primary shadow-sm">
-              <Bell className="h-6 w-6 text-primary-foreground" />
-            </div>
-            <div>
-              <h1 className="font-display text-xl font-bold md:text-2xl">Notices &amp; Updates</h1>
-              <p className="text-sm text-muted-foreground">Stay updated with important announcements</p>
-            </div>
-          </div>
+    <div className="max-w-full space-y-4 overflow-x-clip">
 
-          <AnimatePresence>
-            {selectedNotices.size > 0 && (
-              <motion.div
-                initial={false}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-              >
-                <Button onClick={handleBulkMarkAsRead} disabled={bulkActionLoading} className="gap-2">
-                  {bulkActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCheck className="h-4 w-4" />}
-                  Mark {selectedNotices.size} as read
-                </Button>
-              </motion.div>
-            )}
-          </AnimatePresence>
+      {/* ── Page title row ── */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="font-display text-xl font-bold md:text-2xl">Notices</h1>
+          <p className="text-sm text-muted-foreground">Important announcements for you</p>
         </div>
-      </motion.div>
+        {unreadCount > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-xs"
+            onClick={markAllRead}
+            disabled={bulkLoading}
+          >
+            {bulkLoading
+              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              : <CheckCheck className="h-3.5 w-3.5" />}
+            Mark all read
+          </Button>
+        )}
+      </div>
 
-      {/* ── Stat tiles ── */}
-      <div className="grid grid-cols-3 gap-3 md:gap-4">
+      {/* ── Stat pills row ── */}
+      <div className="flex gap-2 overflow-x-auto pb-0.5 no-scrollbar">
         {[
-          { label: 'Total', value: notices.length, icon: Inbox, chip: 'bg-primary/10 text-primary' },
-          { label: 'Unread', value: unreadCount, icon: Bell, chip: 'bg-accent/15 text-accent-foreground' },
-          { label: 'High priority', value: highCount, icon: AlertTriangle, chip: 'bg-destructive/10 text-destructive' },
+          { label: `${notices.length} Total`,   icon: Bell,          chip: 'bg-primary/10 text-primary' },
+          { label: `${unreadCount} Unread`,     icon: Bell,          chip: unreadCount > 0 ? 'bg-amber-500/10 text-amber-600' : 'bg-muted text-muted-foreground' },
+          { label: `${urgentCount} Urgent`,     icon: AlertTriangle, chip: urgentCount > 0 ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground' },
         ].map((s) => (
-          <div key={s.label} className="surface-card flex items-center gap-3 p-3 md:p-4">
-            <div className={cn('flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl', s.chip)}>
-              <s.icon className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xl font-bold leading-none md:text-2xl">{s.value}</p>
-              <p className="truncate text-xs text-muted-foreground">{s.label}</p>
-            </div>
+          <div key={s.label} className={cn('flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium flex-shrink-0', s.chip)}>
+            <s.icon className="h-4 w-4" />
+            {s.label}
           </div>
         ))}
       </div>
 
-      {/* ── Filters ── */}
-      <div className="surface-card p-3 md:p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="relative flex-1">
-            <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search notices..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          <div className="flex gap-2">
-            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-              <SelectTrigger className="w-[120px] sm:w-[140px]">
-                <SelectValue placeholder="Priority" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Priorities</SelectItem>
-                <SelectItem value="high">High Priority</SelectItem>
-                <SelectItem value="normal">Normal</SelectItem>
-                <SelectItem value="low">Low Priority</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={readStatusFilter} onValueChange={setReadStatusFilter}>
-              <SelectTrigger className="w-[110px] sm:w-[130px]">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="unread">Unread</SelectItem>
-                <SelectItem value="read">Read</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+      {/* ── Search ── */}
+      <div className="relative">
+        <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          placeholder="Search notices…"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-10 pr-10 rounded-2xl"
+        />
+        {searchTerm && (
+          <button
+            onClick={() => setSearchTerm('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+
+      {/* ── Priority tab strip + unread toggle ── */}
+      <div className="flex items-center justify-between gap-3">
+        {/* Scrollable tab strip */}
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
+          {PRIORITY_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => setPriorityTab(tab.value)}
+              className={cn(
+                'flex-shrink-0 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors',
+                priorityTab === tab.value
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80',
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
-        {unreadInView.length > 0 && (
-          <div className="mt-3 flex items-center justify-between border-t border-border/60 pt-3">
-            <button
-              onClick={handleSelectAll}
-              className="flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
-            >
-              {allUnreadSelected ? (
-                <CheckSquare className="h-4 w-4 text-primary" />
-              ) : (
-                <Square className="h-4 w-4" />
-              )}
-              Select all unread ({unreadInView.length})
-            </button>
-            {selectedNotices.size > 0 && (
-              <button
-                onClick={() => setSelectedNotices(new Set())}
-                className="text-sm text-muted-foreground hover:text-foreground"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-        )}
+        {/* Unread filter toggle */}
+        <button
+          onClick={() => setShowUnreadOnly((v) => !v)}
+          className={cn(
+            'flex-shrink-0 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors border',
+            showUnreadOnly
+              ? 'bg-amber-500/10 text-amber-700 border-amber-300'
+              : 'bg-transparent text-muted-foreground border-border hover:border-primary/40',
+          )}
+        >
+          Unread only
+        </button>
       </div>
 
       {/* ── Notices list ── */}
@@ -355,148 +267,129 @@ export default function NoticesPage() {
         <EmptyState
           icon={Bell}
           title="No notices found"
-          message={hasActiveFilters ? 'No notices match your current filters.' : 'There are no notices to show yet.'}
-          action={hasActiveFilters ? {
-            label: 'Clear Filters',
-            onClick: () => {
-              setSearchTerm('');
-              setPriorityFilter('all');
-              setReadStatusFilter('all');
-            },
+          message={hasFilters ? 'Try adjusting your filters.' : 'No notices yet — check back later.'}
+          action={hasFilters ? {
+            label: 'Clear filters',
+            onClick: () => { setSearchTerm(''); setPriorityTab('all'); setShowUnreadOnly(false); },
           } : undefined}
         />
       ) : (
-        <div className="space-y-3">
-          {filteredNotices.map((notice, index) => {
-            const config = priorityConfig[notice.priority];
-            const TypeIcon = config.icon;
+        <div className="space-y-2.5">
+          {/* Unread-in-view indicator */}
+          {unreadInView > 0 && (
+            <p className="text-xs text-muted-foreground px-1">
+              {unreadInView} unread in view
+            </p>
+          )}
+
+          {filteredNotices.map((notice) => {
+            const cfg       = priorityConfig[notice.priority];
+            const Icon      = cfg.icon;
             const isExpanded = expandedId === notice.id;
-            const isSelected = selectedNotices.has(notice.id);
 
             const toggle = () => {
               setExpandedId(isExpanded ? null : notice.id);
-              if (!notice.is_read && !isExpanded) {
-                handleMarkAsRead(notice.id);
-              }
+              if (!notice.is_read && !isExpanded) markRead(notice.id);
             };
 
             return (
-              <motion.div
+              <div
                 key={notice.id}
-                initial={false}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: Math.min(index * 0.04, 0.3) }}
                 className={cn(
-                  'surface-card overflow-hidden border-l-4 transition-colors',
-                  notice.is_read ? 'border-l-transparent' : config.accent,
-                  !notice.is_read && 'bg-primary/[0.02]',
-                  isSelected && 'ring-2 ring-primary/40',
+                  'surface-card overflow-hidden border-l-4 transition-shadow hover:shadow-md',
+                  notice.is_read ? 'border-l-transparent' : cfg.accent,
                 )}
               >
-                <div className="flex items-start gap-3 p-4 md:p-5">
-                  {/* Selection (unread only) */}
-                  {!notice.is_read && (
-                    <button
-                      onClick={() => handleSelectNotice(notice.id)}
-                      className="mt-1 flex-shrink-0"
-                      aria-label={isSelected ? 'Deselect notice' : 'Select notice'}
-                    >
-                      {isSelected ? (
-                        <CheckSquare className="h-5 w-5 text-primary" />
-                      ) : (
-                        <Square className="h-5 w-5 text-muted-foreground hover:text-primary" />
-                      )}
-                    </button>
-                  )}
+                {/* Card header — tap to expand */}
+                <button
+                  onClick={toggle}
+                  className="w-full text-left p-4 md:p-5"
+                  aria-expanded={isExpanded}
+                >
+                  <div className="flex items-start gap-3">
+                    {/* Priority icon */}
+                    <div className={cn('mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl', cfg.chip)}>
+                      <Icon className="h-4 w-4" />
+                    </div>
 
-                  {/* Priority icon chip */}
-                  <button
-                    onClick={toggle}
-                    className={cn('flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl', config.chip)}
-                    aria-label="Toggle notice"
-                  >
-                    <TypeIcon className="h-5 w-5" />
-                  </button>
+                    <div className="min-w-0 flex-1">
+                      {/* Title row */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <h3 className={cn(
+                            'font-semibold text-sm leading-snug',
+                            notice.is_read ? 'text-muted-foreground' : 'text-foreground',
+                          )}>
+                            {notice.title}
+                          </h3>
+                          {!notice.is_read && (
+                            <span className="h-2 w-2 flex-shrink-0 rounded-full bg-primary animate-pulse" />
+                          )}
+                        </div>
+                        <ChevronDown className={cn('h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform mt-0.5', isExpanded && 'rotate-180')} />
+                      </div>
 
-                  {/* Main */}
-                  <div className="min-w-0 flex-1 cursor-pointer" onClick={toggle}>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <h3 className={cn(
-                          'truncate font-semibold',
-                          notice.is_read ? 'text-muted-foreground' : 'text-foreground',
-                        )}>
-                          {notice.title}
-                        </h3>
-                        {!notice.is_read && (
-                          <span className="h-2 w-2 flex-shrink-0 animate-pulse rounded-full bg-primary" />
+                      {/* Meta row */}
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {formatDate(notice.created_at)}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <User className="h-3 w-3" />
+                          {notice.created_by_name}
+                        </span>
+                        {(notice.attachments?.length ?? 0) > 0 && (
+                          <span className="flex items-center gap-1 text-primary font-medium">
+                            <Paperclip className="h-3 w-3" />
+                            {notice.attachments!.length}
+                          </span>
                         )}
+                        {/* Priority pill — mobile visible */}
+                        <span className={cn('rounded-full border px-2 py-0.5 text-xs font-medium', cfg.pill)}>
+                          {cfg.label}
+                        </span>
                       </div>
-                      <div className="flex flex-shrink-0 items-center gap-1.5">
-                        <Badge variant={config.badge} className="hidden sm:inline-flex">{config.label}</Badge>
-                        <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', isExpanded && 'rotate-180')} />
-                      </div>
-                    </div>
 
-                    {/* Meta */}
-                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                      <span className="inline-flex items-center gap-1">
-                        <Calendar className="h-3.5 w-3.5" />
-                        {formatDate(notice.created_at)}
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <User className="h-3.5 w-3.5" />
-                        {notice.created_by_name}
-                      </span>
-                      {(notice.attachments?.length ?? 0) > 0 && (
-                        <span className="inline-flex items-center gap-1 text-primary">
-                          <Paperclip className="h-3.5 w-3.5" />
-                          {notice.attachments!.length} attachment{notice.attachments!.length === 1 ? '' : 's'}
-                        </span>
-                      )}
-                      {notice.is_read && (
-                        <span className="inline-flex items-center gap-1 text-success">
-                          <Eye className="h-3.5 w-3.5" /> Read
-                        </span>
+                      {/* Preview (collapsed only) */}
+                      {!isExpanded && (
+                        <p className="mt-1.5 line-clamp-1 text-xs text-muted-foreground">{notice.content}</p>
                       )}
                     </div>
-
-                    {/* Collapsed preview */}
-                    {!isExpanded && (
-                      <p className="mt-1.5 line-clamp-1 text-sm text-muted-foreground">{notice.content}</p>
-                    )}
                   </div>
-                </div>
+                </button>
 
                 {/* Expanded content */}
                 <AnimatePresence initial={false}>
                   {isExpanded && (
                     <motion.div
-                      initial={false}
+                      initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.25 }}
+                      transition={{ duration: 0.22 }}
                       className="overflow-hidden"
                     >
-                      <div className="border-t border-border/60 px-4 pb-4 pt-4 md:px-5">
+                      <div className="border-t border-border/60 px-4 pb-5 pt-4 md:px-5 space-y-4">
                         <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
                           {notice.content}
                         </p>
+
                         {(notice.attachments?.length ?? 0) > 0 && (
                           <NoticeAttachments attachments={notice.attachments!} />
                         )}
-                        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/50 pt-3">
                           <p className="text-xs text-muted-foreground">
-                            Last updated: {new Date(notice.updated_at).toLocaleString()}
+                            Updated {new Date(notice.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                           </p>
                           {!notice.is_read && (
                             <Button
                               variant="outline"
                               size="sm"
-                              className="gap-1.5"
-                              onClick={(e) => { e.stopPropagation(); handleMarkAsRead(notice.id); }}
+                              className="h-8 gap-1.5 text-xs"
+                              onClick={(e) => { e.stopPropagation(); markRead(notice.id); }}
                             >
-                              <Eye className="h-4 w-4" /> Mark as read
+                              <Eye className="h-3.5 w-3.5" /> Mark as read
                             </Button>
                           )}
                         </div>
@@ -504,7 +397,7 @@ export default function NoticesPage() {
                     </motion.div>
                   )}
                 </AnimatePresence>
-              </motion.div>
+              </div>
             );
           })}
         </div>
