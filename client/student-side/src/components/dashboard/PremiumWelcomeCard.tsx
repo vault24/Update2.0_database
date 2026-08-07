@@ -41,30 +41,28 @@ export function PremiumWelcomeCard({
         <div className="absolute -bottom-10 -left-10 h-40 w-40 rounded-full bg-teal-300/15 blur-2xl" />
       </div>
 
-      {/* Content row — left text block + right ring, strictly in-flow */}
-      <div className="relative z-10 flex items-center gap-4">
-        {/* Left */}
-        <div className="min-w-0 flex-1 space-y-3">
-          {/* Pills — single row, no wrap */}
-          <div className="flex items-center gap-2 overflow-x-auto scrollbar-none">
-            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium backdrop-blur-sm">
-              <CalendarDays className="h-3 w-3 opacity-75" />
-              {format(new Date(), 'EEE, MMM d')}
-            </span>
+      <div className="relative z-10 space-y-3">
+        {/* Row 1 — pills, full width */}
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none">
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium backdrop-blur-sm">
+            <CalendarDays className="h-3 w-3 opacity-75" />
+            {format(new Date(), 'EEE, MMM d')}
+          </span>
 
-            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium backdrop-blur-sm">
-              <Hash className="h-3 w-3 opacity-75" />
-              {displayRoll}
-            </span>
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium backdrop-blur-sm">
+            <Hash className="h-3 w-3 opacity-75" />
+            {displayRoll}
+          </span>
 
-            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium backdrop-blur-sm">
-              <Building2 className="h-3 w-3 opacity-75" />
-              {deptCode}
-            </span>
-          </div>
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium backdrop-blur-sm">
+            <Building2 className="h-3 w-3 opacity-75" />
+            {deptCode}
+          </span>
+        </div>
 
-          {/* Name */}
-          <div>
+        {/* Row 2 — welcome text (left) + profile ring (right), aligned to bottom */}
+        <div className="flex items-end justify-between gap-4">
+          <div className="min-w-0">
             <p className="text-xs font-medium uppercase tracking-widest text-white/55">
               Welcome back
             </p>
@@ -72,11 +70,10 @@ export function PremiumWelcomeCard({
               {shortName}
             </h1>
           </div>
-        </div>
 
-        {/* Right — fixed-width container so the ring never bleeds outside */}
-        <div className="shrink-0 self-center">
-          <ProfileCompletionTile />
+          <div className="shrink-0">
+            <ProfileCompletionTile />
+          </div>
         </div>
       </div>
     </motion.div>
