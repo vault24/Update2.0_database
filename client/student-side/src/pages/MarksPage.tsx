@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
-  BarChart3, TrendingUp, Award, Filter, Download,
+  BarChart3, TrendingUp, Award,
   Star, Target, BookOpen, Trophy, Loader2, AlertCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -294,16 +294,6 @@ export default function MarksPage() {
         <div>
           <h1 className="text-xl md:text-2xl lg:text-3xl font-display font-bold">Academic Marks</h1>
           <p className="text-xs md:text-sm text-muted-foreground mt-0.5 md:mt-1">View your grades and academic performance</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="gap-1.5 md:gap-2 text-xs md:text-sm">
-            <Filter className="w-3.5 h-3.5 md:w-4 md:h-4" />
-            <span className="hidden sm:inline">Filter</span>
-          </Button>
-          <Button variant="outline" size="sm" className="gap-1.5 md:gap-2 text-xs md:text-sm">
-            <Download className="w-3.5 h-3.5 md:w-4 md:h-4" />
-            <span className="hidden sm:inline">Download</span>
-          </Button>
         </div>
       </motion.div>
 

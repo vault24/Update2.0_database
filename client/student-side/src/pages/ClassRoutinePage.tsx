@@ -3,7 +3,6 @@ import { motion } from 'framer-motion';
 import {
   Calendar,
   Clock,
-  Download,
   BookOpen,
   FlaskConical,
   Coffee,
@@ -642,20 +641,6 @@ export default function ClassRoutinePage() {
         <div>
           <h1 className="text-xl font-bold">Class Routine</h1>
           <p className="text-xs text-muted-foreground">Your weekly schedule</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9"
-            onClick={() => { routineService.cache.clear(); fetchRoutine(false); }}
-            disabled={loading || isRetrying}
-          >
-            <RefreshCw className={cn("w-4 h-4", (loading || isRetrying) && "animate-spin")} />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-9 w-9">
-            <Download className="w-4 h-4" />
-          </Button>
         </div>
       </motion.div>
 

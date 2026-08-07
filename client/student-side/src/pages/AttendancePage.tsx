@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ClipboardCheck, Calendar, TrendingUp, 
-  AlertTriangle, CheckCircle2, XCircle, Filter,
+  AlertTriangle, CheckCircle2, XCircle,
   ChevronLeft, ChevronRight, Loader2, BookOpen,
   BarChart3, Clock, Eye, PieChart
 } from 'lucide-react';
@@ -320,12 +320,7 @@ export default function AttendancePage() {
           </h1>
           <p className="text-sm text-muted-foreground mt-1">Track your class attendance</p>
         </div>
-        <Button variant="outline" size="sm" className="gap-2 self-start" onClick={fetchAttendance}>
-          <Filter className="w-4 h-4" />
-          Refresh
-        </Button>
       </motion.div>
-
       {/* Overall Progress Ring + Stats */}
       <motion.div
         initial={false}
