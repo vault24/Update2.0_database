@@ -712,6 +712,12 @@ export default function ClassRoutine() {
   const parseValidationErrors = (error: any): Record<string, string[]> => {
     const messagesFrom = (value: unknown, messages: string[] = []): string[] => {
       if (typeof value === 'string') {
+        // Skip DRF internal meta messages
+        if (
+          value === 'Validation failed for create operation' ||
+          value === 'Validation failed for update operation' ||
+          value === 'bulk_operation_invalid'
+        ) return messages;
         messages.push(value);
         return messages;
       }
@@ -722,12 +728,26 @@ export default function ClassRoutine() {
       if (!value || typeof value !== 'object') return messages;
 
       const data = value as Record<string, unknown>;
-      // Conflict payloads have a human-readable message plus the affected
-      // teacher/room/time. Prefer that message and avoid rendering metadata.
-      if (typeof data.message === 'string') messages.push(data.message);
+      // Prefer the human-readable conflict/error message fields first.
+      if (typeof data.message === 'string' &&
+          data.message !== 'Validation failed for create operation' &&
+          data.message !== 'Validation failed for update operation') {
+        messages.push(data.message);
+      }
       if (typeof data.detail === 'string') messages.push(data.detail);
-      ['conflicts', 'field_errors', 'errors', 'details', 'data', 'schedule_conflicts', 'non_field_errors'].forEach(key => {
+      // Recurse into known payload keys that contain actual error content.
+      ['non_field_errors', 'conflicts', 'field_errors', 'errors', 'schedule_conflicts'].forEach(key => {
         if (data[key] !== undefined) messagesFrom(data[key], messages);
+      });
+      // For DRF field-level errors (e.g. { teacher: ["Already booked..."] })
+      // — recurse into any key that isn't a known meta field.
+      const META_KEYS = new Set(['message', 'detail', 'code', 'status_code', 'operation', 'id',
+        'non_field_errors', 'conflicts', 'field_errors', 'errors', 'schedule_conflicts', 'details', 'data']);
+      Object.entries(data).forEach(([key, val]) => {
+        if (!META_KEYS.has(key)) {
+          const fieldMsgs = messagesFrom(val, []);
+          fieldMsgs.forEach(m => messages.push(`${key}: ${m}`));
+        }
       });
       return messages;
     };
@@ -737,15 +757,19 @@ export default function ClassRoutine() {
     const operations = Array.isArray(error.operations) ? error.operations : Array.isArray(error.errors) ? error.errors : null;
     if (operations) {
       operations.forEach((operation: any, index: number) => {
-        const messages = messagesFrom(operation.details ?? operation.data ?? operation).filter(message =>
-          message !== 'Validation failed for create operation' && message !== 'Validation failed for update operation'
-        );
-        if (messages.length) result[`operation_${operation.operation_index ?? index}`] = [...new Set(messages)];
+        // `details` is the DRF ValidationError payload — extract real messages from it.
+        const messages = messagesFrom(operation.details ?? operation.data ?? operation)
+          .filter(Boolean);
+        const unique = [...new Set(messages)];
+        if (unique.length) {
+          const label = `operation_${operation.operation_index ?? index}`;
+          result[label] = unique;
+        }
       });
       return result;
     }
 
-    const messages = messagesFrom(error).filter(message => !['Validation failed', 'All operations failed'].includes(message));
+    const messages = messagesFrom(error).filter(Boolean);
     if (messages.length) result.routine = [...new Set(messages)];
     return result;
   };
@@ -1234,16 +1258,22 @@ export default function ClassRoutine() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {Object.entries(validationErrors).map(([field, messages]) => (
-                <div key={field} className="text-sm">
-                  <span className="font-medium text-muted-foreground">{field.replace(/_/g, ' ')}:</span>
-                  <ul className="list-disc list-inside ml-2 text-destructive">
-                    {messages.map((message, index) => (
-                      <li key={index}>{message}</li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
+              {Object.entries(validationErrors).map(([field, messages]) => {
+                // Convert "operation_0" → "Slot 1", "routine" → "Routine"
+                const label = field.startsWith('operation_')
+                  ? `Slot ${parseInt(field.replace('operation_', ''), 10) + 1}`
+                  : field.charAt(0).toUpperCase() + field.slice(1).replace(/_/g, ' ');
+                return (
+                  <div key={field} className="text-sm">
+                    <span className="font-medium text-muted-foreground">{label}:</span>
+                    <ul className="list-disc list-inside ml-2 text-destructive">
+                      {messages.map((message, index) => (
+                        <li key={index}>{message}</li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -1614,7 +1644,8 @@ export default function ClassRoutine() {
               // Keep this actionable after the user corrects a field. The
               // submit handler always performs fresh validation, so stale
               // inline errors can never trap the Save button in a disabled state.
-              disabled={saving}
+              // Note: we intentionally do NOT disable on `saving` here — `saving`
+              // tracks the bulk-save to the server, not this local dialog action.
             >
               <Save className="w-4 h-4 mr-2" />
               Save

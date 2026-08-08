@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import {
   GraduationCap, Loader2, FileText, User, Phone, BookOpen,
-  Briefcase, CheckCircle2, Award, ChevronLeft, ChevronRight, Search, XCircle,
+  Briefcase, CheckCircle2, ChevronLeft, ChevronRight, Search, XCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -280,29 +280,25 @@ export default function AlumniRegistrationPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-6 space-y-6 pb-16">
-      {/* Header */}
-      <motion.div initial={false} animate={{ opacity: 1, y: 0 }}
-        className="rounded-3xl bg-gradient-to-br from-emerald-600 to-teal-500 text-white p-6 shadow-lg shadow-emerald-500/20">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center">
-            <Award className="w-6 h-6" />
-          </div>
-          <h1 className="text-2xl font-bold">{reapplyMode ? 'Edit & Reapply' : 'Alumni Registration'}</h1>
-        </div>
-        <p className="text-emerald-50 text-sm">
+    <div className="w-full max-w-3xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6 pb-20">
+      {/* Header — plain text, no card */}
+      <div className="px-1">
+        <h1 className="text-xl sm:text-2xl font-bold text-foreground">
+          {reapplyMode ? 'Edit & Reapply' : 'Alumni Registration'}
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
           {reapplyMode
             ? 'Your previous details are pre-filled below. Update anything that needs correcting and resubmit — an administrator will review your application again.'
             : 'Welcome back! Share whatever information you have — only your name and department are required. An administrator will verify your details after you submit.'}
         </p>
-      </motion.div>
+      </div>
 
       {/* Wrong account type? Switch before filling anything in. */}
       {canSwitchAccount(user) && (
         <motion.div
           initial={false}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+          className="rounded-2xl border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 px-4 py-3 flex flex-col gap-3"
         >
           <p className="text-sm text-amber-800 dark:text-amber-200">
             <span className="font-semibold">Not an alumnus?</span> If you created this account by mistake,
@@ -312,7 +308,7 @@ export default function AlumniRegistrationPage() {
             variant="outline"
             size="sm"
             onClick={() => setSwitchOpen(true)}
-            className="shrink-0 border-amber-300 text-amber-800 hover:bg-amber-100 dark:border-amber-500/40 dark:text-amber-200 dark:hover:bg-amber-500/20"
+            className="w-full sm:w-auto border-amber-300 text-amber-800 hover:bg-amber-100 dark:border-amber-500/40 dark:text-amber-200 dark:hover:bg-amber-500/20"
           >
             Switch Account
           </Button>
@@ -321,24 +317,29 @@ export default function AlumniRegistrationPage() {
       <SwitchAccountDialog open={switchOpen} onOpenChange={setSwitchOpen} />
 
       {/* Stepper */}
-      <div className="flex items-center justify-center gap-3">
+      <div className="flex items-center justify-center gap-2 sm:gap-3">
         {STEPS.map((s, i) => {
           const active = step === s.id;
           const done = step > s.id;
           return (
-            <div key={s.id} className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
+            <div key={s.id} className="flex items-center gap-2 sm:gap-3">
+              <div className="flex items-center gap-1.5 sm:gap-2">
                 <div className={cn(
-                  'w-9 h-9 rounded-full flex items-center justify-center font-semibold text-sm transition-colors',
+                  'w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center font-semibold text-sm transition-colors',
                   active ? 'bg-emerald-600 text-white' : done ? 'bg-success text-white' : 'bg-muted text-muted-foreground'
                 )}>
-                  {done ? <CheckCircle2 className="w-5 h-5" /> : s.id}
+                  {done ? <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" /> : s.id}
                 </div>
-                <span className={cn('text-sm font-medium hidden sm:block', active ? 'text-foreground' : 'text-muted-foreground')}>
+                <span className={cn(
+                  'text-xs sm:text-sm font-medium',
+                  active ? 'text-foreground' : 'text-muted-foreground'
+                )}>
                   {s.label}
                 </span>
               </div>
-              {i < STEPS.length - 1 && <div className={cn('w-8 sm:w-12 h-0.5 rounded', done ? 'bg-success' : 'bg-border')} />}
+              {i < STEPS.length - 1 && (
+                <div className={cn('w-6 sm:w-12 h-0.5 rounded', done ? 'bg-success' : 'bg-border')} />
+              )}
             </div>
           );
         })}
@@ -459,7 +460,7 @@ export default function AlumniRegistrationPage() {
 
       {/* Step 1 navigation */}
       <div className="flex justify-end">
-        <Button onClick={goNext} className="min-w-[160px] h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-2">
+        <Button onClick={goNext} className="w-full sm:w-auto sm:min-w-[160px] h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-2">
           Next: Alumni Info <ChevronRight className="w-5 h-5" />
         </Button>
       </div>
@@ -511,14 +512,14 @@ export default function AlumniRegistrationPage() {
 
       {/* Step 2 navigation */}
       <div className="flex items-center justify-between gap-3">
-        <Button variant="outline" onClick={goBack} disabled={submitting} className="h-12 rounded-2xl gap-2">
+        <Button variant="outline" onClick={goBack} disabled={submitting} className="flex-1 sm:flex-none h-12 rounded-2xl gap-2">
           <ChevronLeft className="w-5 h-5" /> Back
         </Button>
-        <Button onClick={handleSubmit} disabled={submitting} className="min-w-[200px] h-12 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-semibold">
+        <Button onClick={handleSubmit} disabled={submitting} className="flex-1 sm:flex-none sm:min-w-[200px] h-12 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-semibold">
           {submitting ? (
             <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting...</>
           ) : (
-            <><CheckCircle2 className="w-5 h-5 mr-2" /> {reapplyMode ? 'Resubmit Application' : 'Submit Registration'}</>
+            <><CheckCircle2 className="w-5 h-5 mr-2" /> {reapplyMode ? 'Resubmit' : 'Submit'}</>
           )}
         </Button>
       </div>
@@ -533,12 +534,12 @@ export default function AlumniRegistrationPage() {
 function Section({ icon: Icon, title, children }: { icon: React.ElementType; title: string; children: React.ReactNode }) {
   return (
     <motion.div initial={false} animate={{ opacity: 1, y: 0 }}
-      className="rounded-3xl bg-card border border-border shadow-sm p-5 sm:p-6">
+      className="rounded-2xl sm:rounded-3xl bg-card border border-border shadow-sm p-4 sm:p-6">
       <div className="flex items-center gap-2 mb-4">
-        <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+        <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0">
           <Icon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
         </div>
-        <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+        <h2 className="text-base sm:text-lg font-semibold text-foreground">{title}</h2>
       </div>
       {children}
     </motion.div>
