@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import {
   GraduationCap, Loader2, FileText, User, Phone, BookOpen,
-  Briefcase, CheckCircle2, Award, ChevronLeft, ChevronRight,
+  Briefcase, CheckCircle2, Award, ChevronLeft, ChevronRight, Search, XCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { SwitchAccountDialog, canSwitchAccount } from '@/components/account/SwitchAccountDialog';
 import { alumniService, AlumniDocCategory, AlumniDocUpload } from '@/services/alumniService';
 import departmentService, { Department } from '@/services/departmentService';
+import resultService from '@/services/resultService';
 import { divisions, getDistricts } from '@/components/admission/wizard/stepConfig';
 import { AlumniDocumentUpload, type AlumniDoc } from '@/components/alumni/AlumniDocumentUpload';
 import { cn } from '@/lib/utils';
@@ -27,7 +28,8 @@ const SESSION_OPTIONS = Array.from({ length: currentYear - 1999 }, (_, i) => {
 });
 const YEAR_OPTIONS = Array.from({ length: currentYear - 1999 }, (_, i) => String(currentYear - i));
 
-const GENDERS = ['Male', 'Female', 'Other'];
+const GENDERS = ['Male', 'Female'];
+const SHIFTS = ['Morning', 'Day'];
 
 const initialForm = {
   fullNameEnglish: '',
@@ -42,6 +44,9 @@ const initialForm = {
   presentDistrict: '',
   department: '',
   session: '',
+  shift: '',
+  diplomaBoardRoll: '',
+  registrationNumber: '',
   graduationYear: '',
   positionTitle: '',
   organizationName: '',
@@ -63,6 +68,8 @@ export default function AlumniRegistrationPage() {
   const [form, setForm] = useState(initialForm);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [semesterGpas, setSemesterGpas] = useState<Record<number, string>>({});
+  const [rollLookup, setRollLookup] = useState<'idle' | 'loading' | 'found' | 'notfound'>('idle');
+  const lastLookedUpRoll = useRef('');
   const [docCategories, setDocCategories] = useState<AlumniDocCategory[]>([]);
   const [maxDocuments, setMaxDocuments] = useState(20);
   const [documents, setDocuments] = useState<AlumniDoc[]>([]);
@@ -127,6 +134,45 @@ export default function AlumniRegistrationPage() {
   const setField = (key: keyof typeof initialForm, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
+  // Match the admin Add Alumni experience: a valid BTEB board roll fills any
+  // published semester GPAs, while a missing result leaves them blank.
+  useEffect(() => {
+    const roll = form.diplomaBoardRoll.trim();
+    if (!/^\d{4,10}$/.test(roll)) {
+      setRollLookup('idle');
+      lastLookedUpRoll.current = '';
+      return;
+    }
+    if (roll === lastLookedUpRoll.current) return;
+
+    const timer = setTimeout(async () => {
+      lastLookedUpRoll.current = roll;
+      setRollLookup('loading');
+      try {
+        const res = await resultService.searchRoll(roll);
+        if (!res.found || !res.results.length) {
+          setSemesterGpas({});
+          setRollLookup('notfound');
+          return;
+        }
+        const gpaMap: Record<number, string> = {};
+        for (const result of res.results) {
+          for (const gpa of result.gpas || []) {
+            if (gpa.gpa != null && gpaMap[gpa.semester] === undefined) {
+              gpaMap[gpa.semester] = String(gpa.gpa);
+            }
+          }
+        }
+        setSemesterGpas(gpaMap);
+        setRollLookup('found');
+      } catch {
+        setSemesterGpas({});
+        setRollLookup('notfound');
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [form.diplomaBoardRoll]);
+
   const validateStep1 = (): boolean => {
     if (!form.fullNameEnglish.trim()) {
       toast.error('Please enter your full name.');
@@ -134,6 +180,14 @@ export default function AlumniRegistrationPage() {
     }
     if (!form.department) {
       toast.error('Please select your department.');
+      return false;
+    }
+    if (!form.session || !form.shift || !form.diplomaBoardRoll.trim()) {
+      toast.error('Department, session, shift, and Diploma Board Roll are required.');
+      return false;
+    }
+    if (!form.mobileStudent.trim() || !form.division || !form.presentDistrict) {
+      toast.error('Mobile number, division, and present district are required.');
       return false;
     }
     return true;
@@ -169,6 +223,9 @@ export default function AlumniRegistrationPage() {
         : {},
       department: form.department,
       session: form.session,
+      shift: form.shift,
+      currentRollNumber: form.diplomaBoardRoll.trim(),
+      currentRegistrationNumber: form.registrationNumber.trim(),
       graduationYear: form.graduationYear,
       currentPosition: form.positionTitle || form.organizationName
         ? { positionType: 'job', positionTitle: form.positionTitle, organizationName: form.organizationName, isCurrent: true }
@@ -318,13 +375,13 @@ export default function AlumniRegistrationPage() {
 
       <Section icon={Phone} title="Contact">
         <Grid>
-          <Field label="Mobile Number">
+          <Field label="Mobile Number" required>
             <Input value={form.mobileStudent} onChange={(e) => setField('mobileStudent', e.target.value)} placeholder="01XXXXXXXXX" />
           </Field>
           <Field label="Email">
             <Input type="email" value={form.email} onChange={(e) => setField('email', e.target.value)} />
           </Field>
-          <Field label="Division">
+          <Field label="Division" required>
             <Select
               value={form.division}
               onValueChange={(v) => setForm((prev) => ({ ...prev, division: v, presentDistrict: '' }))}
@@ -333,7 +390,7 @@ export default function AlumniRegistrationPage() {
               <SelectContent>{divisions.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
             </Select>
           </Field>
-          <Field label="Present District">
+          <Field label="Present District" required>
             <Select
               value={form.presentDistrict}
               onValueChange={(v) => setField('presentDistrict', v)}
@@ -356,11 +413,33 @@ export default function AlumniRegistrationPage() {
               <SelectContent>{departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
             </Select>
           </Field>
-          <Field label="Session">
+          <Field label="Session" required>
             <Select value={form.session} onValueChange={(v) => setField('session', v)}>
               <SelectTrigger><SelectValue placeholder="Select session" /></SelectTrigger>
               <SelectContent>{SESSION_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
             </Select>
+          </Field>
+          <Field label="Shift" required>
+            <Select value={form.shift} onValueChange={(v) => setField('shift', v)}>
+              <SelectTrigger><SelectValue placeholder="Select shift" /></SelectTrigger>
+              <SelectContent>{SHIFTS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+            </Select>
+          </Field>
+          <Field label="Diploma Board Roll" required>
+            <div className="relative">
+              <Input value={form.diplomaBoardRoll} onChange={(e) => setField('diplomaBoardRoll', e.target.value)} placeholder="BTEB board roll" className="pr-9" />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2">
+                {rollLookup === 'loading' && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+                {rollLookup === 'found' && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                {rollLookup === 'notfound' && <XCircle className="w-4 h-4 text-amber-500" />}
+                {rollLookup === 'idle' && <Search className="w-4 h-4 text-muted-foreground/50" />}
+              </span>
+            </div>
+            {rollLookup === 'found' && <p className="text-xs text-emerald-600 dark:text-emerald-400">Board results found — semester GPAs filled in below.</p>}
+            {rollLookup === 'notfound' && <p className="text-xs text-amber-600 dark:text-amber-400">No board results found for this roll — semester GPAs are blank.</p>}
+          </Field>
+          <Field label="Registration Number (optional)">
+            <Input value={form.registrationNumber} onChange={(e) => setField('registrationNumber', e.target.value)} />
           </Field>
         </Grid>
         <div className="mt-4">

@@ -412,6 +412,11 @@ class AlumniResubmitApplicationTests(APITestCase):
             'department': str(self.dept2.id),
             'graduationYear': '2018',
             'bio': 'updated bio',
+            'session': '2014-15',
+            'shift': 'Morning',
+            'currentRollNumber': 'BTEB-2015-001',
+            'currentRegistrationNumber': 'REG-2015-001',
+            'mobileStudent': '01712345678',
             'presentAddress': {'division': 'Dhaka', 'district': 'Dhaka'},
         })
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
@@ -421,8 +426,18 @@ class AlumniResubmitApplicationTests(APITestCase):
         self.assertEqual(self.alumni.student.fullNameEnglish, 'New Name')
         self.assertEqual(self.alumni.student.department_id, self.dept2.id)
         self.assertEqual(self.alumni.graduationYear, 2018)
-        # Unique identifiers must be preserved (not regenerated) on update.
-        self.assertTrue(self.alumni.student.currentRollNumber)
+        self.assertEqual(self.alumni.student.currentRollNumber, 'BTEB-2015-001')
+        self.assertEqual(self.alumni.student.currentRegistrationNumber, 'REG-2015-001')
+
+    def test_resubmit_requires_self_registration_fields(self):
+        self.client.force_authenticate(user=self.user)
+        resp = self._post({
+            'fullNameEnglish': 'New Name',
+            'department': str(self.dept.id),
+            'presentAddress': {'division': 'Dhaka', 'district': 'Dhaka'},
+        })
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('Session', resp.data['error'])
 
     def test_resubmit_blocked_for_approved(self):
         self.alumni.reviewStatus = 'approved'

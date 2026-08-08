@@ -503,6 +503,9 @@ export const alumniService = {
         presentDistrict: addr.district || '',
         department: s.department?.id || '',
         session: s.session || '',
+        shift: s.shift || '',
+        diplomaBoardRoll: s.currentRollNumber || s.current_roll_number || '',
+        registrationNumber: s.currentRegistrationNumber || s.current_registration_number || '',
         graduationYear: r.graduationYear != null ? String(r.graduationYear) : '',
         positionTitle: cp.positionTitle || cp.position || '',
         organizationName: cp.organizationName || cp.company || '',
@@ -544,6 +547,9 @@ export interface AlumniApplicationPrefill {
     presentDistrict: string;
     department: string;
     session: string;
+    shift: string;
+    diplomaBoardRoll: string;
+    registrationNumber: string;
     graduationYear: string;
     positionTitle: string;
     organizationName: string;

@@ -75,6 +75,29 @@ def _collect_document_items(request):
     return items
 
 
+def _validate_self_registration_fields(data):
+    """Validate the fields that are mandatory only for student self-registration."""
+    required = {
+        'department': 'Department',
+        'session': 'Session',
+        'shift': 'Shift',
+        'currentRollNumber': 'Diploma Board Roll',
+        'mobileStudent': 'Mobile Number',
+    }
+    missing = [label for key, label in required.items() if not str(data.get(key) or '').strip()]
+    address = data.get('presentAddress')
+    if not isinstance(address, dict) or not str(address.get('division') or '').strip():
+        missing.append('Division')
+    if not isinstance(address, dict) or not str(address.get('district') or '').strip():
+        missing.append('Present District')
+    if missing:
+        raise ValueError(f"{', '.join(missing)} {'is' if len(missing) == 1 else 'are'} required.")
+
+    gender = str(data.get('gender') or '').strip()
+    if gender and gender not in ('Male', 'Female'):
+        raise ValueError('Gender must be Male or Female.')
+
+
 class AlumniViewSet(viewsets.ModelViewSet):
     """
     ViewSet for Alumni CRUD operations
@@ -1613,6 +1636,7 @@ class AlumniViewSet(viewsets.ModelViewSet):
             data['fullNameEnglish'] = f"{user.first_name} {user.last_name}".strip()
 
         try:
+            _validate_self_registration_fields(data)
             alumni = create_alumni_from_essentials(
                 data=data,
                 registration_source='self_registration',
@@ -1685,6 +1709,7 @@ class AlumniViewSet(viewsets.ModelViewSet):
             data['email'] = user.email
 
         try:
+            _validate_self_registration_fields(data)
             alumni = update_alumni_from_essentials(alumni=alumni, data=data)
         except ValueError as exc:
             return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)

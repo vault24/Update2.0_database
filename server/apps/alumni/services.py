@@ -282,6 +282,12 @@ def update_alumni_from_essentials(alumni, *, data):
         student.semesterResults = semester_results
     student.department = department
     student.session = (data.get('session') or '').strip()
+    student.shift = (data.get('shift') or '').strip()
+    student.currentRollNumber = (data.get('currentRollNumber') or '').strip()
+    # Registration number is optional; preserve the generated value when blank.
+    registration_number = (data.get('currentRegistrationNumber') or '').strip()
+    if registration_number:
+        student.currentRegistrationNumber = registration_number
     student.save()
 
     # --- Update the alumni record and reset it for re-review ---
