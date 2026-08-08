@@ -286,11 +286,11 @@ export default function AlumniRegistrationPage() {
         <h1 className="text-xl sm:text-2xl font-bold text-foreground">
           {reapplyMode ? 'Edit & Reapply' : 'Alumni Registration'}
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
-          {reapplyMode
-            ? 'Your previous details are pre-filled below. Update anything that needs correcting and resubmit — an administrator will review your application again.'
-            : 'Welcome back! Share whatever information you have — only your name and department are required. An administrator will verify your details after you submit.'}
-        </p>
+        {reapplyMode && (
+          <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
+            আপনার আগের তথ্য নিচে পূরণ করা আছে। প্রয়োজনীয় পরিবর্তন করে পুনরায় জমা দিন — একজন প্রশাসক আবার আপনার আবেদন যাচাই করবেন।
+          </p>
+        )}
       </div>
 
       {/* Wrong account type? Switch before filling anything in. */}
@@ -301,8 +301,8 @@ export default function AlumniRegistrationPage() {
           className="rounded-2xl border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 px-4 py-3 flex flex-col gap-3"
         >
           <p className="text-sm text-amber-800 dark:text-amber-200">
-            <span className="font-semibold">Not an alumnus?</span> If you created this account by mistake,
-            you can switch to a General Student account instead.
+            <span className="font-semibold"> প্রাক্তন শিক্ষার্থী নন?</span> যদি ভুলবশত এই অ্যাকাউন্ট তৈরি করে থাকেন,
+            তাহলে একটি সাধারণ শিক্ষার্থী অ্যাকাউন্টে স্যুইচ করতে পারবেন।
           </p>
           <Button
             variant="outline"
