@@ -1,4 +1,4 @@
-# Production Readiness Report — SIPI Student/Admin Management System
+# Production Readiness Report — SGPI Student/Admin Management System
 
 _Last updated: 2026-07-09_
 

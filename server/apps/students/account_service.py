@@ -134,7 +134,7 @@ def _unique_student_id(student):
     if roll and not User.objects.filter(student_id=roll).exists():
         return roll
     while True:
-        candidate = f'SIPI-{uuid.uuid4().hex[:8].upper()}'
+        candidate = f'SGPI-{uuid.uuid4().hex[:8].upper()}'
         if not User.objects.filter(student_id=candidate).exists():
             return candidate
 

@@ -1,4 +1,4 @@
-# SIPI — Production Deployment
+# SGPI — Production Deployment
 
 > **The complete, always-current deployment guide lives at
 > [`deploy-scripts/README.md`](deploy-scripts/README.md).**

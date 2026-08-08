@@ -105,7 +105,7 @@ def send_test(request):
         "title": "My SGPI — Test notification",
         "body": "If you can see this, push notifications are working.",
         "url": "/dashboard/notifications",
-        "tag": "sipi-test",
+        "tag": "SGPI-test",
         "vibrate": [120, 60, 120],
         "renotify": True,
     })

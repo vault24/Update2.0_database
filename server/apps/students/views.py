@@ -467,7 +467,7 @@ class StudentViewSet(viewsets.ModelViewSet):
         if student:
             return student
 
-        # Application ID (user.student_id, e.g. SIPI-202030) -> linked profile.
+        # Application ID (user.student_id, e.g. SGPI-202030) -> linked profile.
         from apps.authentication.models import User
         user = User.objects.filter(student_id=identifier).first()
         if user and user.related_profile_id:

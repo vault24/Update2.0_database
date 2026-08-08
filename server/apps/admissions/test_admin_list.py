@@ -33,7 +33,7 @@ class AdmissionListExcludesDraftsTests(APITestCase):
         # A genuine submitted application.
         self.submitted = Admission.objects.create(
             user=self.student_b, is_draft=False, status='pending',
-            application_id='SIPI-202501', full_name_english='Real Applicant',
+            application_id='SGPI-202501', full_name_english='Real Applicant',
         )
 
     def test_list_excludes_drafts(self):
@@ -47,6 +47,6 @@ class AdmissionListExcludesDraftsTests(APITestCase):
         # Exactly one real admission is visible — the submitted one (shown by its
         # application_id), never the draft (which would only show a raw UUID).
         self.assertEqual(len(results), 1)
-        self.assertIn('SIPI-202501', ids)
+        self.assertIn('SGPI-202501', ids)
         self.assertNotIn(str(self.draft.id), ids)
         self.assertEqual(results[0].get('full_name_english'), 'Real Applicant')

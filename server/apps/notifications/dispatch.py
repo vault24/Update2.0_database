@@ -351,7 +351,7 @@ def send_welcome_email(user, *, portal="admin", role_label=None, details=None):
         rows = [{"label": "Role", "value": role_label}] + rows
 
     if portal == "teacher":
-        title = "Welcome to SIPI — Your Teacher Account is Ready"
+        title = "Welcome to SGPI — Your Teacher Account is Ready"
         message = (
             "Your teacher account has been approved and activated. "
             "You can now sign in to the portal and get started."
@@ -370,7 +370,7 @@ def send_welcome_email(user, *, portal="admin", role_label=None, details=None):
         )
 
     elif portal == "admin":
-        title = "Welcome to SIPI Admin Portal / অ্যাডমিন পোর্টালে স্বাগতম"
+        title = "Welcome to SGPI Admin Portal / অ্যাডমিন পোর্টালে স্বাগতম"
         message = (
             "Your Admin Portal account has been created successfully. "
             "You can now sign in and start using the system."
@@ -390,7 +390,7 @@ def send_welcome_email(user, *, portal="admin", role_label=None, details=None):
         )
 
     else:  # student portal
-        title = "Welcome to SIPI Student Portal"
+        title = "Welcome to SGPI Student Portal"
         message = (
             "Your Student Portal account has been created successfully. "
             "You can now sign in and start using the system."

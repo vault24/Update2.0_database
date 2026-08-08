@@ -1,7 +1,7 @@
 # Student Learning Management System
-### Sher-e-Bangla Institute of Polytechnic Institute (SIPI)
+### Sirajganj Government Polytechnic Institute (SGPI)
 
-A full-stack college management system built for SIPI. It covers the entire student lifecycle — from online admission applications through graduation — plus teacher management, attendance, marks, documents, real-time notifications, and more.
+A full-stack college management system built for SGPI. It covers the entire student lifecycle — from online admission applications through graduation — plus teacher management, attendance, marks, documents, real-time notifications, and more.
 
 ---
 
@@ -463,7 +463,7 @@ EMAIL_PORT=587
 EMAIL_USE_TLS=True
 EMAIL_HOST_USER=your-email@gmail.com
 EMAIL_HOST_PASSWORD=your-gmail-app-password
-DEFAULT_FROM_EMAIL=SIPI <your-email@gmail.com>
+DEFAULT_FROM_EMAIL=SGPI <your-email@gmail.com>
 EMAIL_TIMEOUT=30
 
 # OTP (Password Reset)
@@ -657,4 +657,4 @@ access are always evaluated against the role's full (advanced) permission set.
 
 ---
 
-*Built for SIPI — Sirajganj Polytechnic Institute*
+*Built for SGPI — Sirajganj Polytechnic Institute*

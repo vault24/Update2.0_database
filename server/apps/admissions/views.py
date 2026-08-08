@@ -72,7 +72,7 @@ class AdmissionViewSet(viewsets.ModelViewSet):
         Override to support lookup by both UUID (pk) and application_id
         This allows URLs to work with both formats:
         - /api/admissions/a1fe42e7-53c3-4c34-a66e-4eead461a186/ (UUID)
-        - /api/admissions/SIPI-889900/ (application_id)
+        - /api/admissions/SGPI-889900/ (application_id)
         """
         lookup_value = self.kwargs.get('pk')
         
@@ -311,7 +311,7 @@ class AdmissionViewSet(viewsets.ModelViewSet):
         - enrollment_date
         - review_notes (optional)
         
-        Note: current_roll_number is automatically generated from SSC Board Roll (SIPI-{ssc_roll})
+        Note: current_roll_number is automatically generated from SSC Board Roll (SGPI-{ssc_roll})
         """
         admission = self.get_object()
         

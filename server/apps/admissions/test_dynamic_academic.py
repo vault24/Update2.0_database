@@ -25,7 +25,7 @@ class ApproveResolvesSemesterAndRollTests(APITestCase):
         )
         self.student = User.objects.create_user(
             username='s@example.com', email='s@example.com', password='pass12345',
-            role='student', account_status='active', student_id='SIPI-900001',
+            role='student', account_status='active', student_id='SGPI-900001',
         )
         self.dept = Department.objects.create(name='Computer', code='CST')
 
@@ -36,7 +36,7 @@ class ApproveResolvesSemesterAndRollTests(APITestCase):
         }
         defaults = dict(
             user=self.student, is_draft=False, status='pending',
-            application_id='SIPI-900001', full_name_english='Test Student',
+            application_id='SGPI-900001', full_name_english='Test Student',
             desired_department=self.dept, desired_shift='Morning', session='2025-26',
             present_address=address, permanent_address=address,
         )
