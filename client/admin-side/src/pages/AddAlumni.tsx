@@ -252,6 +252,10 @@ export default function AddAlumni() {
       toast({ title: 'Diploma Board Roll is required', variant: 'destructive' });
       return;
     }
+    if (!form.session || !form.shift) {
+      toast({ title: 'Session and Shift are required', variant: 'destructive' });
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -324,7 +328,9 @@ export default function AddAlumni() {
           <p className="text-sm text-muted-foreground">
             Only <span className="font-semibold text-foreground">Full Name (English)</span>,{' '}
             <span className="font-semibold text-foreground">Department</span> and{' '}
-            <span className="font-semibold text-foreground">Diploma Board Roll</span> are required. Everything else
+            <span className="font-semibold text-foreground">Diploma Board Roll</span>,{' '}
+            <span className="font-semibold text-foreground">Session</span> and{' '}
+            <span className="font-semibold text-foreground">Shift</span> are required. Everything else
             is optional — fill in whatever information is available. The graduate is registered as a student in the
             background and immediately moved to the alumni network.
           </p>
@@ -437,13 +443,13 @@ export default function AddAlumni() {
           <Field label="Final CGPA">
             <Input type="number" step="0.01" min="0" max="4" value={form.finalCgpa} onChange={(e) => setField('finalCgpa', e.target.value)} placeholder="e.g. 3.75" />
           </Field>
-          <Field label="Session">
+          <Field label="Session" required>
             <Select value={form.session} onValueChange={(v) => setField('session', v)}>
               <SelectTrigger><SelectValue placeholder="Select session" /></SelectTrigger>
               <SelectContent>{SESSION_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
             </Select>
           </Field>
-          <Field label="Shift">
+          <Field label="Shift" required>
             <Select value={form.shift} onValueChange={(v) => setField('shift', v)}>
               <SelectTrigger><SelectValue placeholder="Select shift" /></SelectTrigger>
               <SelectContent>{SHIFTS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>

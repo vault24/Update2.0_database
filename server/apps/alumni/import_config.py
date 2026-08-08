@@ -227,12 +227,12 @@ FIELD_SPECS: Tuple[FieldSpec, ...] = (
     ),
     FieldSpec(
         key='session', label='Session', recommended='Session',
-        aliases=('Academic Session', 'Batch'), example='2019-20',
+        aliases=('Academic Session', 'Batch'), required=True, example='2019-20',
         note_bn='সেশনের ফরম্যাট: 2022-23 (দুই বছর হাইফেন দিয়ে)। যেমন: 2019-20, 2021-22।',
     ),
     FieldSpec(
         key='shift', label='Shift', recommended='Shift',
-        type=TYPE_CHOICE, choices=('Morning', 'Day', 'Evening'), example='Morning',
+        required=True, type=TYPE_CHOICE, choices=('Morning', 'Day', 'Evening'), example='Morning',
         note_bn='গ্রহণযোগ্য মান: Morning, Day, Evening. (Morning = ১ম শিফট, Day = ২য় শিফট)',
     ),
     FieldSpec(

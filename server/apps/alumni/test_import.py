@@ -56,12 +56,12 @@ class ImportConfigTests(TestCase):
         self.assertIsNone(resolve_header('Favourite Colour'))
         self.assertIsNone(resolve_header(''))
 
-    def test_only_name_and_department_are_required(self):
-        self.assertEqual(set(REQUIRED_KEYS), {'fullNameEnglish', 'department'})
+    def test_required_columns_include_session_and_shift(self):
+        self.assertEqual(set(REQUIRED_KEYS), {'fullNameEnglish', 'department', 'session', 'shift'})
 
     def test_column_template_lists_required_first_and_covers_every_field(self):
         template = column_template()
-        self.assertEqual(template[:2], ['Name', 'Department'])
+        self.assertEqual(template[:4], ['Name', 'Department', 'Session', 'Shift'])
         self.assertEqual(len(template), len(FIELD_SPECS))
 
     def test_documentation_exposes_every_field_for_the_ui(self):
@@ -91,10 +91,10 @@ class ImportServiceTests(TestCase):
         Department.objects.create(name='Electrical Technology', code='ET')
 
     def test_imports_subset_of_columns_and_ignores_unknown_ones(self):
-        headers = ['Student Name', 'Dept', 'Favourite Colour', 'Grad Year']
+        headers = ['Student Name', 'Dept', 'Session', 'Shift', 'Favourite Colour', 'Grad Year']
         rows = [
-            ['Mahadi Hasan', 'CST', 'blue', '2023'],
-            ['Zunaiyed Hafiz', 'Computer Science & Technology', 'red', '2022'],
+            ['Mahadi Hasan', 'CST', '2019-20', 'Morning', 'blue', '2023'],
+            ['Zunaiyed Hafiz', 'Computer Science & Technology', '2018-19', 'Day', 'red', '2022'],
         ]
         summary = import_service.import_alumni(headers, rows)
 
@@ -114,13 +114,13 @@ class ImportServiceTests(TestCase):
         """The headline requirement: non-Alumni columns land on the Student row."""
         headers = [
             'Name', 'Department', "Father's Name", 'Mother Name', 'Mobile',
-            'Email', 'District', 'Board Roll', 'Blood Group', 'Date of Birth',
+            'Email', 'District', 'Board Roll', 'Blood Group', 'Date of Birth', 'Session', 'Shift',
             'Company', 'Position',
         ]
         rows = [[
             'Mahadi Hasan', 'CST', 'Abdul Karim', 'Fatema Begum', '01712345678',
             'mahadi@example.com', 'Sirajganj', '830577', 'B+', '1998-05-21',
-            'Acme Ltd', 'Software Engineer',
+            '2019-20', 'Morning', 'Acme Ltd', 'Software Engineer',
         ]]
         summary = import_service.import_alumni(headers, rows)
         self.assertEqual(summary['imported'], 1)
@@ -147,11 +147,11 @@ class ImportServiceTests(TestCase):
         self.assertEqual(Alumni.objects.count(), 0)
 
     def test_row_with_empty_required_value_fails_without_blocking_others(self):
-        headers = ['Name', 'Department']
+        headers = ['Name', 'Department', 'Session', 'Shift']
         rows = [
-            ['Valid Person', 'CST'],
-            ['', 'CST'],                 # missing name
-            ['Bad Dept', 'NOPE'],        # unknown department
+            ['Valid Person', 'CST', '2019-20', 'Morning'],
+            ['', 'CST', '2019-20', 'Morning'],                 # missing name
+            ['Bad Dept', 'NOPE', '2019-20', 'Morning'],        # unknown department
         ]
         summary = import_service.import_alumni(headers, rows)
 
@@ -166,10 +166,10 @@ class ImportServiceTests(TestCase):
         self.assertTrue(any('does not match any department' in m for m in by_row[4]))
 
     def test_invalid_values_are_reported_per_row(self):
-        headers = ['Name', 'Department', 'Grad Year', 'Email', 'Date of Birth']
+        headers = ['Name', 'Department', 'Session', 'Shift', 'Grad Year', 'Email', 'Date of Birth']
         rows = [
-            ['Good One', 'CST', '2023', 'good@example.com', '1998-05-21'],
-            ['Bad Year', 'CST', 'not-a-year', 'nope', '31/31/9999'],
+            ['Good One', 'CST', '2019-20', 'Morning', '2023', 'good@example.com', '1998-05-21'],
+            ['Bad Year', 'CST', '2019-20', 'Morning', 'not-a-year', 'nope', '31/31/9999'],
         ]
         summary = import_service.import_alumni(headers, rows)
         self.assertEqual(summary['imported'], 1)
@@ -181,13 +181,13 @@ class ImportServiceTests(TestCase):
         self.assertTrue(any('date' in e for e in errors))
 
     def test_duplicate_roll_is_skipped_not_failed(self):
-        headers = ['Name', 'Department', 'Roll']
-        import_service.import_alumni(headers, [['First', 'CST', 'CST-2019-001']])
+        headers = ['Name', 'Department', 'Session', 'Shift', 'Roll']
+        import_service.import_alumni(headers, [['First', 'CST', '2019-20', 'Morning', 'CST-2019-001']])
 
         summary = import_service.import_alumni(headers, [
-            ['Duplicate', 'CST', 'CST-2019-001'],   # already in the DB
-            ['Fresh', 'CST', 'CST-2019-002'],
-            ['In-file dup', 'CST', 'CST-2019-002'], # duplicate within this file
+            ['Duplicate', 'CST', '2019-20', 'Morning', 'CST-2019-001'],
+            ['Fresh', 'CST', '2019-20', 'Morning', 'CST-2019-002'],
+            ['In-file dup', 'CST', '2019-20', 'Morning', 'CST-2019-002'],
         ])
         self.assertEqual(summary['imported'], 1)
         self.assertEqual(summary['skipped'], 2)
@@ -195,53 +195,53 @@ class ImportServiceTests(TestCase):
         self.assertEqual(Student.objects.filter(currentRollNumber='CST-2019-001').count(), 1)
 
     def test_blank_roll_gets_unique_placeholder(self):
-        headers = ['Name', 'Department']
-        summary = import_service.import_alumni(headers, [['A', 'CST'], ['B', 'CST']])
+        headers = ['Name', 'Department', 'Session', 'Shift']
+        summary = import_service.import_alumni(headers, [['A', 'CST', '2019-20', 'Morning'], ['B', 'CST', '2019-20', 'Morning']])
         self.assertEqual(summary['imported'], 2)
         rolls = set(Student.objects.values_list('currentRollNumber', flat=True))
         self.assertEqual(len(rolls), 2)  # unique placeholders, no collision
 
     def test_choice_values_are_normalised(self):
-        headers = ['Name', 'Department', 'Gender', 'Shift']
-        summary = import_service.import_alumni(headers, [['A', 'CST', 'male', 'morning']])
+        headers = ['Name', 'Department', 'Gender', 'Session', 'Shift']
+        summary = import_service.import_alumni(headers, [['A', 'CST', 'male', '2019-20', 'morning']])
         self.assertEqual(summary['imported'], 1)
         student = Student.objects.get(fullNameEnglish='A')
         self.assertEqual(student.gender, 'Male')
         self.assertEqual(student.shift, 'Morning')
 
     def test_dry_run_writes_nothing(self):
-        headers = ['Name', 'Department']
-        summary = import_service.import_alumni(headers, [['A', 'CST']], dry_run=True)
+        headers = ['Name', 'Department', 'Session', 'Shift']
+        summary = import_service.import_alumni(headers, [['A', 'CST', '2019-20', 'Morning']], dry_run=True)
         self.assertEqual(summary['wouldImport'], 1)
         self.assertEqual(summary['imported'], 0)
         self.assertEqual(Alumni.objects.count(), 0)
 
     def test_preview_reports_mapping_without_writing(self):
-        headers = ['Student Name', 'Dept', 'Mystery']
-        preview = import_service.preview_import(headers, [['A', 'CST', 'x']])
+        headers = ['Student Name', 'Dept', 'Session', 'Shift', 'Mystery']
+        preview = import_service.preview_import(headers, [['A', 'CST', '2019-20', 'Morning', 'x']])
         self.assertTrue(preview['canImport'])
         self.assertEqual(preview['totalRows'], 1)
         self.assertEqual(preview['validRows'], 1)
         self.assertEqual(preview['unknownColumns'], ['Mystery'])
         self.assertEqual({m['key'] for m in preview['mappedRequired']},
-                         {'fullNameEnglish', 'department'})
+                         {'fullNameEnglish', 'department', 'session', 'shift'})
         self.assertEqual(preview['missingRequired'], [])
         self.assertEqual(Alumni.objects.count(), 0)
 
     def test_preview_flags_missing_required_column(self):
         preview = import_service.preview_import(['Name'], [['A']])
         self.assertFalse(preview['canImport'])
-        self.assertEqual([m['key'] for m in preview['missingRequired']], ['department'])
+        self.assertEqual([m['key'] for m in preview['missingRequired']], ['department', 'session', 'shift'])
 
     def test_csv_source_is_parsed(self):
         data = _csv_bytes([
-            ['Name', 'Dept', 'Grad Year'],
-            ['CSV Person', 'CST', '2021'],
+            ['Name', 'Dept', 'Session', 'Shift', 'Grad Year'],
+            ['CSV Person', 'CST', '2019-20', 'Morning', '2021'],
         ])
         upload = io.BytesIO(data)
         upload.name = 'alumni.csv'
         headers, rows = import_service.read_table(file=upload)
-        self.assertEqual(headers, ['Name', 'Dept', 'Grad Year'])
+        self.assertEqual(headers, ['Name', 'Dept', 'Session', 'Shift', 'Grad Year'])
         self.assertEqual(len(rows), 1)
 
         summary = import_service.import_alumni(headers, rows)
@@ -252,15 +252,15 @@ class ImportServiceTests(TestCase):
 
         workbook = Workbook()
         sheet = workbook.active
-        sheet.append(['Name', 'Department', 'Grad Year'])
-        sheet.append(['Excel Person', 'CST', 2020])
+        sheet.append(['Name', 'Department', 'Session', 'Shift', 'Grad Year'])
+        sheet.append(['Excel Person', 'CST', '2019-20', 'Morning', 2020])
         buffer = io.BytesIO()
         workbook.save(buffer)
         buffer.seek(0)
         buffer.name = 'alumni.xlsx'
 
         headers, rows = import_service.read_table(file=buffer)
-        self.assertEqual(headers, ['Name', 'Department', 'Grad Year'])
+        self.assertEqual(headers, ['Name', 'Department', 'Session', 'Shift', 'Grad Year'])
         summary = import_service.import_alumni(headers, rows)
         self.assertEqual(summary['imported'], 1)
         self.assertEqual(Alumni.objects.get(student__fullNameEnglish='Excel Person').graduationYear, 2020)
@@ -317,11 +317,11 @@ class ImportAPITests(APITestCase):
         response = self.client.get('/api/alumni/import-schema/')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data['fields']), len(FIELD_SPECS))
-        self.assertEqual(response.data['columnTemplate'][:2], ['Name', 'Department'])
+        self.assertEqual(response.data['columnTemplate'][:4], ['Name', 'Department', 'Session', 'Shift'])
 
     def test_preview_endpoint(self):
         self.client.force_authenticate(self.admin)
-        upload = self._csv_upload([['Name', 'Dept'], ['A', 'CST']])
+        upload = self._csv_upload([['Name', 'Dept', 'Session', 'Shift'], ['A', 'CST', '2019-20', 'Morning']])
         response = self.client.post('/api/alumni/import-preview/', {'file': upload}, format='multipart')
         self.assertEqual(response.status_code, 200, response.data)
         self.assertTrue(response.data['canImport'])
@@ -330,7 +330,7 @@ class ImportAPITests(APITestCase):
 
     def test_import_endpoint_creates_records(self):
         self.client.force_authenticate(self.admin)
-        upload = self._csv_upload([['Name', 'Dept', 'Mobile'], ['A', 'CST', '01712345678']])
+        upload = self._csv_upload([['Name', 'Dept', 'Session', 'Shift', 'Mobile'], ['A', 'CST', '2019-20', 'Morning', '01712345678']])
         response = self.client.post('/api/alumni/import/', {'file': upload}, format='multipart')
         self.assertEqual(response.status_code, 201, response.data)
         self.assertEqual(response.data['imported'], 1)

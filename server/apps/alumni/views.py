@@ -98,6 +98,16 @@ def _validate_self_registration_fields(data):
         raise ValueError('Gender must be Male or Female.')
 
 
+def _validate_admin_manual_academic_fields(data):
+    """Session and shift are required when an admin adds an alumnus manually."""
+    missing = [
+        label for key, label in (('session', 'Session'), ('shift', 'Shift'))
+        if not str(data.get(key) or '').strip()
+    ]
+    if missing:
+        raise ValueError(f"{', '.join(missing)} {'is' if len(missing) == 1 else 'are'} required.")
+
+
 class AlumniViewSet(viewsets.ModelViewSet):
     """
     ViewSet for Alumni CRUD operations
@@ -1576,6 +1586,7 @@ class AlumniViewSet(viewsets.ModelViewSet):
             data = {k: v for k, v in request.data.items() if k not in ('documentMeta',)}
 
         try:
+            _validate_admin_manual_academic_fields(data)
             alumni = create_alumni_from_essentials(
                 data=data,
                 registration_source='admin_manual',
